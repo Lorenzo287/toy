@@ -10,12 +10,12 @@
 #include "tf_obj.h"
 
 #ifdef _WIN32
-    #include <conio.h>
-    #include <io.h>
-    #include <windows.h>
+#include <conio.h>
+#include <io.h>
+#include <windows.h>
 #else
-    #include <errno.h>
-    #include "linenoise.h"
+#include <errno.h>
+#include "linenoise.h"
 #endif
 
 typedef struct {
@@ -85,8 +85,8 @@ int run_repl(tf_ctx *ctx, bool debug) {
     printf("%s=== Toy Forth REPL ===%s\n", tf_console_clr(TF_CLR_PROMPT),
            tf_console_clr(TF_CLR_RESET));
 #ifdef _WIN32
-    printf("%sPress Ctrl-Z to exit.%s\n",
-           tf_console_clr(TF_CLR_INFO), tf_console_clr(TF_CLR_RESET));
+    printf("%sPress Ctrl-Z to exit.%s\n", tf_console_clr(TF_CLR_INFO),
+           tf_console_clr(TF_CLR_RESET));
 #else
     printf("%sPress Ctrl-D to exit.%s\n", tf_console_clr(TF_CLR_INFO),
            tf_console_clr(TF_CLR_RESET));
