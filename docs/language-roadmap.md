@@ -78,6 +78,17 @@ Acceptance criteria:
 
 Add the minimum vocabulary needed for functional, concatenative composition.
 
+Control-flow semantics to revisit:
+
+- The current `if` and `ifelse` accept condition quotations that run against
+  the live data stack. This makes branch behavior depend on whether the
+  condition consumes or preserves its input, which is awkward for examples such
+  as recursive definitions.
+- Revisit this once the primitive quotation vocabulary is in place. Preferred
+  direction: make control-flow stack effects more explicit and predictable,
+  either by requiring a boolean before `if` and `ifelse` or by guaranteeing
+  that quotation conditions preserve the branch input they inspect.
+
 Target list words:
 
 - `first`
@@ -160,6 +171,8 @@ for:
 - `def` binding symbols to quotations correctly
 - `exec` applying both quotations and symbols consistently
 - `:` `;` remaining behaviorally equivalent to quotation-based definition
+- control-flow words documenting and testing whether condition quotations
+  consume or preserve inspected values
 - list primitive stack effects, ownership, and error cases
 - combinator behavior under nested quotation execution
 - unchanged REPL persistence and frame-local variable semantics
