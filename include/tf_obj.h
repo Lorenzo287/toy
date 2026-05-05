@@ -4,8 +4,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-typedef enum { TF_OK, TF_ERR, TF_INTERRUPTED } tf_ret;
-
 /* === Types Definition === */
 
 typedef enum {
@@ -58,7 +56,9 @@ tf_obj *pop_obj(tf_obj *l);
 void retain_obj(tf_obj *o);
 void release_obj(tf_obj *o);
 void free_obj(tf_obj *o);
+
 void print_obj(tf_obj *o, size_t *count);
 void print_value(tf_obj *o);
+void print_source_obj(tf_obj *o);
 
 #endif  // TF_OBJ_H

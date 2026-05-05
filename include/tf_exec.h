@@ -3,9 +3,10 @@
 
 #include "tf_obj.h"
 
+typedef enum { TF_OK, TF_ERR, TF_INTERRUPTED } tf_ret;
 typedef struct ctx tf_ctx;
 
-typedef int (*tf_cb)(tf_ctx *ctx);
+typedef tf_ret (*tf_cb)(tf_ctx *ctx);
 
 typedef enum { TF_FUNC_TYPE_NATIVE, TF_FUNC_TYPE_USER } tf_func_type;
 
@@ -58,13 +59,14 @@ struct ctx {
     size_t cstack_len;
 };
 
-size_t fstack_len(tf_ctx *ctx);
-void fstack_push(tf_ctx *ctx, tf_obj *o);
-tf_obj *fstack_pop(tf_ctx *ctx);
-tf_obj *fstack_pop_type(tf_ctx *ctx, tf_type type);
+size_t stack_len(tf_ctx *ctx);
+void stack_push(tf_ctx *ctx, tf_obj *o);
+tf_obj *stack_pop(tf_ctx *ctx);
+tf_obj *stack_pop_type(tf_ctx *ctx, tf_type type);
+tf_obj *stack_peek(tf_ctx *ctx, size_t depth);
 
-void cstack_push(tf_ctx *ctx, tf_obj *prg);
-void cstack_pop(tf_ctx *ctx);
+void frame_push(tf_ctx *ctx, tf_obj *prg);
+void frame_pop(tf_ctx *ctx);
 
 tf_ctx *init_ctx(void);
 void free_ctx(tf_ctx *ctx);
@@ -73,7 +75,7 @@ void set_native_func(tf_ctx *ctx, char *name, tf_cb cb);
 void set_user_func(tf_ctx *ctx, tf_obj *name, tf_obj *uf);
 tf_func *get_func(tf_ctx *ctx, tf_obj *name);
 
-int exec(tf_ctx *ctx, tf_obj *prg);
-int call_symbol(tf_ctx *ctx, tf_obj *symb);
+tf_ret exec(tf_ctx *ctx, tf_obj *prg);
+tf_ret call_symbol(tf_ctx *ctx, tf_obj *symb);
 
 #endif  // TF_EXEC_H

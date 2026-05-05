@@ -7,13 +7,12 @@
 #endif
 
 #include "tf_alloc.h"
-#include "tf_obj.h"
 
 void *xmalloc(size_t size) {
     void *ptr = malloc(size);
     if (!ptr) {
         fprintf(stderr, "Out of memory allocating %zu bytes\n", size);
-        exit(TF_ERR);
+        exit(EXIT_FAILURE);
     }
     return ptr;
 }
@@ -22,7 +21,7 @@ void *xrealloc(void *ptr, size_t size) {
     ptr = realloc(ptr, size);
     if (!ptr) {
         fprintf(stderr, "Out of memory reallocating %zu bytes\n", size);
-        exit(TF_ERR);
+        exit(EXIT_FAILURE);
     }
     return ptr;
 }
@@ -36,7 +35,7 @@ void *xcalloc(size_t nmemb, size_t size) {
     void *ptr = calloc(nmemb, size);
     if (!ptr) {
         fprintf(stderr, "Out of memory allocating %zu bytes\n", nmemb * size);
-        exit(TF_ERR);
+        exit(EXIT_FAILURE);
     }
     return ptr;
 #endif

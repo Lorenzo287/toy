@@ -130,27 +130,54 @@ void free_obj(tf_obj *o) {
     free(o);
 }
 
-// Print the object with type information (for debugging)
+static void print_escaped_string(const char *s, size_t len) {
+    for (size_t i = 0; i < len; i++) {
+        switch (s[i]) {
+        case '\\':
+            printf("\\\\");
+            break;
+        case '"':
+            printf("\\\"");
+            break;
+        case '\n':
+            printf("\\n");
+            break;
+        case '\r':
+            printf("\\r");
+            break;
+        case '\t':
+            printf("\\t");
+            break;
+        default:
+            putchar((unsigned char)s[i]);
+            break;
+        }
+    }
+}
+
+// Debug printer: includes type tags and is intended for developer inspection
 void print_obj(tf_obj *o, size_t *count) {
     (*count)++;
     switch (o->type) {
     case TF_OBJ_TYPE_INT:
-        printf("{int:%d}", o->i);
+        printf("(int:%d)", o->i);
         break;
     case TF_OBJ_TYPE_FLOAT:
-        printf("{float:%g}", o->f);
+        printf("(float:%g)", o->f);
         break;
     case TF_OBJ_TYPE_SYMBOL:
-        printf("{symbol:%s%s}", o->str.quoted ? "'" : "", o->str.ptr);
+        printf("(symbol:%s%s)", o->str.quoted ? "'" : "", o->str.ptr);
         break;
     case TF_OBJ_TYPE_STR:
-        printf("{string:\"%s\"}", o->str.ptr);
+        printf("(string:\"");
+        print_escaped_string(o->str.ptr, o->str.len);
+        printf("\")");
         break;
     case TF_OBJ_TYPE_BOOL:
-        printf("{bool:%d}", o->b);
+        printf("(bool:%d)", o->b);
         break;
     case TF_OBJ_TYPE_VARFETCH:
-        printf("{fetch:$%s}", o->str.ptr);
+        printf("(fetch:$%s)", o->str.ptr);
         break;
     case TF_OBJ_TYPE_VARLIST:
         (*count)--;
@@ -180,7 +207,7 @@ void print_obj(tf_obj *o, size_t *count) {
     }
 }
 
-// Print the raw value of the object (for Forth 'print' word)
+// Runtime printer: prints values the way user-facing words like `print` expect
 void print_value(tf_obj *o) {
     switch (o->type) {
     case TF_OBJ_TYPE_INT:
@@ -219,5 +246,52 @@ void print_value(tf_obj *o) {
         break;
     default:
         printf("?");
+    }
+}
+
+// Source printer: reconstructs objects in a source-like form for words like
+// `see`
+void print_source_obj(tf_obj *o) {
+    switch (o->type) {
+    case TF_OBJ_TYPE_INT:
+        printf("%d", o->i);
+        break;
+    case TF_OBJ_TYPE_FLOAT:
+        printf("%g", o->f);
+        break;
+    case TF_OBJ_TYPE_SYMBOL:
+        if (o->str.quoted) printf("'");
+        printf("%s", o->str.ptr);
+        break;
+    case TF_OBJ_TYPE_STR:
+        printf("\"");
+        print_escaped_string(o->str.ptr, o->str.len);
+        printf("\"");
+        break;
+    case TF_OBJ_TYPE_BOOL:
+        printf("%s", o->b ? "true" : "false");
+        break;
+    case TF_OBJ_TYPE_VARFETCH:
+        printf("$%s", o->str.ptr);
+        break;
+    case TF_OBJ_TYPE_VARLIST:
+        printf("{");
+        for (size_t i = 0; i < o->list.len; i++) {
+            print_source_obj(o->list.elem[i]);
+            if (i + 1 < o->list.len) printf(" ");
+        }
+        printf("}");
+        break;
+    case TF_OBJ_TYPE_LIST:
+        printf("[");
+        for (size_t i = 0; i < o->list.len; i++) {
+            print_source_obj(o->list.elem[i]);
+            if (i + 1 < o->list.len) printf(" ");
+        }
+        printf("]");
+        break;
+    default:
+        printf("?");
+        break;
     }
 }

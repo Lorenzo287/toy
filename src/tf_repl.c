@@ -31,7 +31,7 @@ typedef struct {
     size_t token_len;
 } tf_repl_state;
 
-static int run_source(tf_ctx *ctx, char *source, bool debug);
+static tf_ret run_source(tf_ctx *ctx, char *source, bool debug);
 #ifdef _WIN32
 static char *read_line(FILE *fp, const char *prompt);
 static char *read_console_line(const char *prompt);
@@ -53,7 +53,7 @@ static char *get_history_path(void);
 static void tf_repl_completion(const char *buf, linenoiseCompletions *lc);
 #endif
 
-int run_file(tf_ctx *ctx, const char *filename, bool debug) {
+tf_ret run_file(tf_ctx *ctx, const char *filename, bool debug) {
     FILE *fp = fopen(filename, "r");
     if (!fp) {
         perror("Failed to open program");
@@ -69,12 +69,12 @@ int run_file(tf_ctx *ctx, const char *filename, bool debug) {
     prg_text[n_read] = '\0';
     fclose(fp);
 
-    int result = run_source(ctx, prg_text, debug);
+    tf_ret result = run_source(ctx, prg_text, debug);
     free(prg_text);
     return result;
 }
 
-int run_repl(tf_ctx *ctx, bool debug) {
+tf_ret run_repl(tf_ctx *ctx, bool debug) {
     char *source = NULL;
     size_t len = 0;
     size_t cap = 0;
@@ -127,7 +127,7 @@ int run_repl(tf_ctx *ctx, bool debug) {
 
         if (!input_complete(&state)) { continue; }
 
-        int result = run_source(ctx, source, debug);
+        tf_ret result = run_source(ctx, source, debug);
         if (result == TF_ERR) {
             printf("%snot ok%s\n", tf_console_clr(TF_CLR_ERR),
                    tf_console_clr(TF_CLR_RESET));
@@ -149,7 +149,7 @@ int run_repl(tf_ctx *ctx, bool debug) {
     return TF_OK;
 }
 
-static int run_source(tf_ctx *ctx, char *source, bool debug) {
+static tf_ret run_source(tf_ctx *ctx, char *source, bool debug) {
     tf_obj *prg = lexer(source);
     if (!prg) return TF_ERR;
 
@@ -160,7 +160,7 @@ static int run_source(tf_ctx *ctx, char *source, bool debug) {
         printf("\n\n");
     }
 
-    int result = exec(ctx, prg);
+    tf_ret result = exec(ctx, prg);
     if (result == TF_INTERRUPTED) {
         tf_console_interruptf("execution interrupted\n");
         release_obj(prg);
