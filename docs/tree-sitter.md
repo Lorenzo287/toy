@@ -53,6 +53,21 @@ After adding the configuration, run `:TSInstall toyforth` inside Neovim.
 >
 > Alternatively, you can configure `nvim-treesitter` to fetch and build the parser automatically from a remote GitHub repository. For details on advanced setup without local cloning, refer to the [nvim-treesitter documentation](https://github.com/nvim-treesitter/nvim-treesitter).
 
+> [!IMPORTANT]
+> On Windows, `TSInstall` and `TSUpdate` can fail with `Access is denied` if
+> Neovim has already loaded `toyforth.so` from the `nvim-treesitter` parser
+> directory.
+>
+> If this happens, the practical workaround is:
+>
+> - close all Neovim instances
+> - delete `toyforth.so` from
+>   `~/AppData/Local/nvim-data/lazy/nvim-treesitter/parser/`
+> - restart Neovim and let `auto_install` or `:TSInstall toyforth` rebuild it
+>
+> This is a file-locking issue in the current workflow, not a Toy Forth grammar
+> issue.
+
 ## Development
 
 Requires the [tree-sitter CLI](https://github.com/tree-sitter/tree-sitter/blob/master/crates/cli/README.md).

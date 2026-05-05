@@ -108,3 +108,4 @@ vim.filetype.add({
 
 Write-Host "`n$ConfigSnippet" -ForegroundColor White
 Write-Host "`nAfter updating your config, restart Neovim and run :TSInstall toyforth" -ForegroundColor Yellow
+Write-Host "If Windows reports 'Access is denied', close Neovim, delete toyforth.so from the nvim-treesitter parser folder, then restart and retry." -ForegroundColor Yellow

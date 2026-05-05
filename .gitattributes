@@ -1,0 +1,20 @@
+* text=auto
+
+*.c text eol=lf
+*.h text eol=lf
+*.go text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.lua text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.scm text eol=lf
+*.fth text eol=lf
+*.tf text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.sh text eol=lf
