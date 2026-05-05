@@ -45,7 +45,7 @@
                 },
                 {
                     "name": "entity.name.function.toyforth",
-                    "match": "\\b(dup|drop|swap|over|rot|abs|neg|max|min|print|printf|key|input|geth|seth|len|rand|sleep|time|exit|stack|dot|dot_s)\\b|\\b(\\.|\\.s)\\b"
+                    "match": "\\b(dup|drop|swap|over|rot|nip|tuck|pick|roll|empty|abs|neg|max|min|print|printf|key|input|time|clear|page|words|see|geth|seth|len|rand|sleep|def|bye|exit)\\b|\\b(\\.|\\.s)\\b"
                 }
             ]
         },

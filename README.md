@@ -78,7 +78,8 @@ Blocks allow for concise and expressive loops. For conditional logic (`if` and `
 Beyond basic stack operations, Toy Forth provides utilities for data manipulation and interaction:
 
 - **List access**: `geth` and `seth` allow for $O(1)$ indexed access to lists.
-- **System interaction**: `rand`, `sleep`, `time`, and `exit`.
+- **Introspection**: `words` prints the dictionary and `see` shows a source-like definition.
+- **System interaction**: `rand`, `sleep`, `time`, `clear`/`page`, `bye`, and `exit`.
 
 ```forth
 [ 1 2 3 ] {list}
@@ -92,12 +93,12 @@ Toy Forth includes a robust set of built-in words:
 
 | Category          | Words                                                              |
 | ----------------- | ------------------------------------------------------------------ |
-| **Stack**         | `dup`, `drop`, `swap`, `over`, `rot`                               |
+| **Stack**         | `dup`, `drop`, `swap`, `over`, `rot`, `nip`, `tuck`, `pick`, `roll`, `empty` |
 | **Math**          | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `max`, `min`         |
 | **Comparison**    | `==`, `!=`, `<`, `>`, `<=`, `>=`                                   |
 | **Logic/Control** | `if`, `ifelse`, `while`, `times`, `each`, `exec`                   |
 | **I/O**           | `print`, `printf`, `.`, `.s` (show stack), `key`, `input`, `clear` |
-| **System/Utils**  | `geth`, `seth`, `len`, `rand`, `sleep`, `time`, `bye`, `exit`      |
+| **System/Utils**  | `geth`, `seth`, `len`, `rand`, `sleep`, `time`, `clear`, `page`, `words`, `see`, `bye`, `exit` |
 | **Definition**    | `:`, `def`                                                         |
 
 ## Ecosystem & Tooling

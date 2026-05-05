@@ -46,10 +46,12 @@ export default grammar({
       '==', '!=', '<', '>', '<=', '>='
     ),
     builtin_word: $ => choice(
-      'dup', 'drop', 'swap', 'over', 'rot',
+      'dup', 'drop', 'swap', 'over', 'rot', 'nip', 'tuck', 'pick', 'roll',
+      'empty',
       'print', 'printf', '.', '.s',
-      'key', 'input', 'geth', 'seth', 'len', 'rand', 'sleep', 'time', 'exit',
-      'def'
+      'key', 'input', 'time', 'clear', 'page', 'words', 'see',
+      'geth', 'seth', 'len', 'rand', 'sleep',
+      'def', 'bye', 'exit'
     ),
     string: $ => seq(
       '"',
