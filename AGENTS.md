@@ -38,6 +38,7 @@ Toy Forth: minimalist, stack-based interpreter in C. Dynamic object system (Inte
 - **Proactive Testing**: Propose/implement tests in `fth/` for fixes/features.
 - **Surgical Edits**: Minimal, precise changes only.
 - **Context Awareness**: Read headers in `include/` before engine/lexer edits.
+- **Language Direction**: Prefer the quotation-first model described in `docs/language-roadmap.md`. Treat user-defined words as named quotations, keep `: ... ;` as compatibility sugar unless a task explicitly changes that policy, and prioritize list/quotation primitives and combinators over new syntax.
 - **REPL Awareness**: Preserve current REPL behavior unless the task explicitly changes it. In particular: definitions and stack state persist across entries, `{ a }` locals remain execution-frame-local, Unix/WSL uses `linenoise`, and interrupts should propagate as a distinct outcome rather than being flattened into generic runtime errors.
 - **Concise Communication**: Be concise by default. Expand when needed for clarity, reasoning, or uncertainty. Avoid filler, not explanation.
 - **Execution Context**: Assume Windows PowerShell. Do not output bash syntax.
@@ -72,6 +73,7 @@ Predefined build directories:
 
 - REPL usage and behavior: `docs/repl.md`
 - Build instructions: `docs/build.md`
+- Language roadmap: `docs/language-roadmap.md`
 - Tree-sitter: `docs/tree-sitter.md`
 - LSP: `docs/lsp.md`
 - VS Code extension: `docs/vscode.md`
