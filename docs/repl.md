@@ -28,7 +28,7 @@ Example:
 
 ```forth
 : sq {n} $n $n * ;
-5 sq .
+5 sq print
 ```
 
 ## What Does Not Persist
@@ -39,14 +39,14 @@ not to the whole REPL session.
 This works:
 
 ```forth
-5 {a} $a .
+5 {a} $a print
 ```
 
 This does not:
 
 ```forth
 5 {a}
-$a .
+$a print
 ```
 
 The reason is that captured variables live in execution frames and are released

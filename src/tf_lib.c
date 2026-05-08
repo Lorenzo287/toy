@@ -290,6 +290,14 @@ tf_ret tf_print(tf_ctx *ctx) {
     return TF_OK;
 }
 
+tf_ret tf_dot(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *o = stack_peek(ctx, 0);
+    print_value(o);
+    printf("\n");
+    return TF_OK;
+}
+
 tf_ret tf_cr(tf_ctx *ctx) {
     printf("\n");
     (void)ctx;

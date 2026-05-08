@@ -29,6 +29,7 @@ tf_ret tf_empty(tf_ctx *ctx);
 // I/O operations
 tf_ret tf_printf(tf_ctx *ctx);
 tf_ret tf_print(tf_ctx *ctx);
+tf_ret tf_dot(tf_ctx *ctx);
 tf_ret tf_cr(tf_ctx *ctx);
 tf_ret tf_stack(tf_ctx *ctx);
 tf_ret tf_key(tf_ctx *ctx);

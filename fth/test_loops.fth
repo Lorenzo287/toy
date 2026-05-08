@@ -8,6 +8,6 @@
 
 "Testing nested (should print 2x2 grid):" print
 2 [ 
-    2 [ "X " printf ] times "".
+    2 [ "X " printf ] times cr
     "---\n" printf
 ] times

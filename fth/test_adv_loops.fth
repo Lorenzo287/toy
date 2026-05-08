@@ -10,7 +10,7 @@ $list dup len swap
 	1 - 
 	[ 0 != ] [ "-"printf ] if
 ] each 
-"}\n" .
+"}\n" print
 
 drop
 
@@ -24,7 +24,7 @@ $list len
 	1 +
 	[ $list len != ] [ "-"printf ] if
 ] times
-"}\n" .
+"}\n" print
 
 drop
 
@@ -38,6 +38,6 @@ drop
 	1 +
 	[ $list len != ] [ "-"printf ] if
 ] while
-"}\n" .
+"}\n" print
 
 drop

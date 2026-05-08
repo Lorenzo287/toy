@@ -1,6 +1,6 @@
-65 . 
-time . 
+65 print
+time print
 5 [ "hello\n" printf ] times
-time .
+time print
 exit
-"not reached" .
+"not reached" print

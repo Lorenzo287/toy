@@ -35,11 +35,11 @@ Define new words using the classic colon syntax or by binding blocks to symbols.
 'cube [ {n} $n square $n * ] def
 
 5 square print  \ 25
-3 cube .        \ 27
+3 cube .        \ Prints 27 and leaves it on the stack
 
 \ Captured variables are visible to inner blocks (Dynamic Scoping)
 10 {x}
-[ $x 5 + . ] exec \ 15
+[ $x 5 + . ] exec \ Prints 15 and leaves it on the stack
 ```
 
 ### Deferred Execution (Quotations)
@@ -80,6 +80,13 @@ Blocks allow for concise and expressive loops. For conditional logic (`if` and `
 10 [ 0 > ] [ dup printf " " printf 1 - ] while
 ```
 
+Output convention:
+
+- `print` and `printf` consume what they print
+- `.` prints the top value without consuming it
+- `.s` prints the whole stack without consuming it
+- `cr` prints a newline without touching the stack
+
 ### System & Utility Words
 
 Beyond basic stack operations, Toy Forth provides utilities for data manipulation and interaction:
@@ -98,15 +105,15 @@ $list print
 
 Toy Forth includes a robust set of built-in words:
 
-| Category          | Words                                                                                          |
-| ----------------- | ---------------------------------------------------------------------------------------------- |
-| **Stack**         | `dup`, `drop`, `swap`, `over`, `rot`, `nip`, `tuck`, `pick`, `roll`, `empty`                   |
-| **Math**          | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `max`, `min`                                     |
-| **Comparison**    | `==`, `!=`, `<`, `>`, `<=`, `>=`                                                               |
-| **Logic/Control** | `if`, `ifelse`, `while`, `times`, `each`, `exec`                                               |
-| **I/O**           | `print`, `printf`, `.`, `.s` (show stack), `key`, `input`, `clear`                             |
-| **System/Utils**  | `geth`, `seth`, `len`, `rand`, `sleep`, `time`, `clear`, `page`, `words`, `see`, `bye`, `exit` |
-| **Definition**    | `:`, `def`                                                                                     |
+| Category          | Words                                                                         |
+| ----------------- | ----------------------------------------------------------------------------- |
+| **Stack**         | `dup`, `drop`, `swap`, `over`, `rot`, `nip`, `tuck`, `pick`, `roll`, `empty`  |
+| **Math**          | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `max`, `min`                    |
+| **Comparison**    | `==`, `!=`, `<`, `>`, `<=`, `>=`                                              |
+| **Logic/Control** | `if`, `ifelse`, `while`, `times`, `each`, `exec`                              |
+| **I/O**           | `print`, `printf`, `.`, `.s`, `cr`, `key`, `input`, `clear`, `page`           |
+| **System/Utils**  | `geth`, `seth`, `len`, `rand`, `sleep`, `time`, `words`, `see`, `bye`, `exit` |
+| **Definition**    | `:`, `def`                                                                    |
 
 ## Ecosystem & Tooling
 

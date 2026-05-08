@@ -1,4 +1,4 @@
 "write something: " printf input
-5 [ "- " printf dup . ] times 
+5 [ "- " printf dup print ] times 
 drop 
 .s

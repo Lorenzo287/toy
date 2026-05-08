@@ -1,8 +1,10 @@
 "Math: 1 + 2 = 3\n" printf
 1 2 + .
+drop
 
 "Math: 10 - 4 = 6\n" printf
 10 4 - .
+drop
 
 "Math: 3 * 4 = 12\n" printf
 3 4 * print
@@ -12,35 +14,42 @@
 
 "Math: Floats 1.5 + 2.0 = 3.5\n" printf
 1.5 2.0 + .
+drop
 
-"Stack: dup (5 -> 5 5)" .
+"Stack: dup (5 -> 5 5)" print
 5 dup + .
+drop
 
-"Stack: swap (1 2 -> 2 1)" .
+"Stack: swap (1 2 -> 2 1)" print
 1 2 swap - print
 
-"Comp: 1 < 2 is true" .
+"Comp: 1 < 2 is true" print
 1 2 < print
 
-"Comp: 10 == 10 is true" .
+"Comp: 10 == 10 is true" print
 10 10 == print
 
-"Control: ifelse (true)" .
+"Control: ifelse (true)" print
 [ true ] [ "ok" ] [ "fail" ] ifelse .
+drop
 
-"Control: while (countdown 3 to 1)" .
-3 [ 0 > ] [ dup . 1 - ] while drop
+"Control: while (countdown 3 to 1)" print
+3 [ 0 > ] [ dup print 1 - ] while drop
 
-"Define: colon (square 4 = 16)" .
+"Define: colon (square 4 = 16)" print
 : square dup * ;
 4 square .
+drop
 
-"Define: functional (cube 3 = 27)" .
+"Define: functional (cube 3 = 27)" print
 'cube [ dup square * ] def
 3 cube .
+drop
 
-"Vars: capture and fetch (10 {x} $x $x + = 20)" .
+"Vars: capture and fetch (10 {x} $x $x + = 20)" print
 10 {x} $x $x + .
+drop
 
-"Vars: dynamic scoping (100 {y} [ $y ] exec = 100)" .
+"Vars: dynamic scoping (100 {y} [ $y ] exec = 100)" print
 100 {y} [ $y . ] exec
+drop
