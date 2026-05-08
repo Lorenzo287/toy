@@ -2,9 +2,7 @@
 
 ## Summary
 
-Toy Forth should evolve toward a quotation-first model.
-
-The intended semantics are:
+Toy Forth should continue moving toward a quotation-first model:
 
 - bare symbol: resolve and invoke
 - quoted symbol: symbol value as data
@@ -12,82 +10,58 @@ The intended semantics are:
 - `def`: bind a symbol to a quotation
 - `exec`: apply a quotation or symbol
 
-This keeps the current stack-based feel while making the existing "code as data"
-facilities the primary conceptual model.
-
-## Architectural Direction
-
-### Named Quotations
-
-User-defined words should be treated as named quotations rather than as a
-separate compile-mode artifact.
+Preferred definition style:
 
 ```forth
 'square [ dup * ] def
 ```
 
-The quotation `[ dup * ]` is the function value. The symbol `square` is the
-binding used to retrieve it later.
-
-This is the preferred long-term mental model for:
-
-- documentation
-- examples
-- new core features
-- future library design
-
-### Compatibility Syntax
-
-The old definition form should remain available:
+Compatibility syntax stays available:
 
 ```forth
 : square dup * ;
 ```
 
-But it should be treated as compatibility and ergonomic sugar over the same
-underlying model. Toy Forth should not grow a larger Forth-style compile mode
-unless a later feature explicitly requires staged behavior.
+But `:` `;` should remain sugar over the same underlying model, not grow into a
+larger compile mode.
 
-### Non-Goals
+Non-goals:
 
-This roadmap does not aim to:
+- Lisp-style macros or reader-level quoting
+- expanded compile-time semantics around `:` and `;`
+- adding syntax before the quotation/list model is strong enough
 
-- turn Toy Forth into a Lisp with macros and reader-level quoting forms
-- expand compile-time semantics around `:` and `;`
-- prioritize new syntax over stronger quotation/list semantics
+## Current Direction
 
-## Execution Plan
+### Control Flow
 
-### Phase 1: Semantic Cleanup
-
-Clarify the language model in code-facing docs and examples.
-
-- Prefer `'name [ ... ] def` in documentation and new examples.
-- Describe `:` `;` as sugar, not as the primary definition mechanism.
-- Keep the current behavior of `exec`, but choose and document the canonical
-  apply word if aliases are added later.
-- Keep native words and user-defined words under one dictionary model.
-
-Acceptance criteria:
-
-- core docs describe quotations as first-class code values
-- examples consistently present quotation-based definition first
-- compatibility wording around `:` `;` is explicit
-
-### Phase 2: Foundational Aggregate and Quotation Primitives
-
-Add the minimum vocabulary needed for functional, concatenative composition.
-
-Control-flow semantics now in place:
+Current control-flow semantics:
 
 - `if` and `ifelse` accept either a direct boolean or a quoted predicate
 - direct booleans are consumed as condition values
-- quoted predicates run against a temporary view of the current data stack and
-  must leave a boolean result
-- the inspected stack seen by quoted predicates is preserved for the selected
-  branch, so predicate stack effects do not leak into branch execution
+- quoted predicates inspect a temporary view of the current data stack and must
+  leave a boolean
+- quoted predicate stack effects do not leak into the selected branch
 - `while` remains quotation-only and reevaluates its predicate this same way on
   each iteration
+
+Current aggregate-observer direction:
+
+- observational words should preserve inspected aggregates when practical
+- `len` preserves the list and pushes its length
+- `geth` preserves the list, consumes the index, and pushes the selected value
+- update words such as `seth` may remain consuming/mutating
+
+### Near-Term Primitive Vocabulary
+
+Target style to eventually support:
+
+```forth
+[small] [] [uncons [>] split] [swapd cons concat] binrec
+```
+
+This is not a near-term implementation target by itself, but it is a useful
+end-state check for whether the quotation/list algebra is expressive enough.
 
 Target list words:
 
@@ -102,54 +76,57 @@ Target quotation combinators:
 
 - `dip`
 - `keep`
-- one small branching/application family such as `bi`
+- one small application/branching family such as `bi`
+
+Likely prerequisites for `linrec`/`binrec`-style programs:
+
+- `uncons`
+- `cons`
+- `concat`
+- `split`
+- one simple size/emptiness predicate family such as `small` or `empty?`
+- deeper stack combinators such as `swapd`
+- enough quotation combinators that recursive branch bodies remain readable
 
 Design constraints:
 
-- preserve iterative execution behavior for user quotations
-- preserve current frame-local variable capture semantics
+- preserve iterative execution for user quotations
+- preserve current frame-local variable semantics
 - keep stack effects explicit and testable
 
-Acceptance criteria:
+## Planned Progression
 
-- basic quotation-manipulating examples do not require syntax changes
-- list construction and destructuring cover simple higher-order use cases
-- tests document stack behavior and failure modes
-- control-flow docs and examples reflect non-destructive quoted predicates
+### Phase 1: Semantic Cleanup
+
+- Prefer `'name [ ... ] def` in docs and examples
+- Describe `:` `;` as compatibility sugar
+- Keep `exec` behavior stable
+- Keep native and user-defined words under one dictionary model
+- Keep builtin vocabulary, docs, and tooling metadata in sync when words are
+  added or repurposed
+
+### Phase 2: Foundational Primitives
+
+- Add the minimum aggregate and quotation vocabulary needed for higher-order
+  composition
+- Use tests and examples to validate the control-flow and stack-effect model
 
 ### Phase 3: Explicit Higher-Order Style
 
-Use the new primitive vocabulary to validate the model before adding advanced
-recursion combinators.
-
-- Add examples that pass quotations explicitly.
-- Prefer direct recursive named quotations before abstract recursion schemes.
-- Add small standard-library style demonstrations only after the primitive set
-  feels coherent.
-
-Acceptance criteria:
-
-- at least one nontrivial example is readable using named and anonymous
-  quotations
-- the missing primitive set is small and concrete
+- Add examples that pass quotations explicitly
+- Prefer direct named recursive quotations before abstract recursion schemes
+- Add standard-library-style demonstrations only after the primitive set feels
+  coherent
 
 ### Phase 4: Recursion Combinators
 
-Only after the primitive algebra is stable, evaluate recursion combinators.
-
-- start with `linrec`
-- add `binrec` only if motivating examples remain awkward without it
-- treat recursion combinators as semantic library features, not syntax features
-
-Acceptance criteria:
-
-- there are multiple concrete motivating examples
-- the combinators can be specified with clear stack effects
-- they fit the established quotation-first model without special parser rules
+- Start with `linrec`
+- Add `binrec` only if real examples still justify it
+- Treat recursion combinators as semantic library features, not syntax features
 
 ## Implementation Guidelines
 
-Future implementation work should follow these priorities:
+Priorities:
 
 1. semantics first
 2. primitive vocabulary second
@@ -162,18 +139,18 @@ When a design choice is ambiguous, prefer:
 - reusable combinators over one-off special forms
 - explicit stack effects over hidden evaluator behavior
 - compatibility shims over breaking syntax removal
+- updating docs and editor tooling metadata alongside builtin vocabulary changes
 
 ## Test Expectations
 
-Any implementation turn derived from this roadmap should add or update tests
-for:
+Implementation work derived from this roadmap should add or update tests for:
 
 - quoted symbols staying inert until explicitly applied
 - `def` binding symbols to quotations correctly
 - `exec` applying both quotations and symbols consistently
 - `:` `;` remaining behaviorally equivalent to quotation-based definition
-- control-flow words documenting and testing that quoted predicates preserve
-  inspected values while direct booleans remain consumed
+- control-flow words preserving inspected values for quoted predicates while
+  consuming direct booleans
 - list primitive stack effects, ownership, and error cases
 - combinator behavior under nested quotation execution
 - unchanged REPL persistence and frame-local variable semantics

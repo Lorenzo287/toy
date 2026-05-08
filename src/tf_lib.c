@@ -682,14 +682,11 @@ tf_ret tf_geth(tf_ctx *ctx) {
     if (idx < 0 || idx >= (int)list_obj->list.len) return TF_ERR;
 
     idx_obj = stack_pop(ctx);
-    list_obj = stack_pop(ctx);
-
     tf_obj *result = list_obj->list.elem[idx];
     retain_obj(result);
     stack_push(ctx, result);
 
     release_obj(idx_obj);
-    release_obj(list_obj);
     return TF_OK;
 }
 
@@ -720,9 +717,7 @@ tf_ret tf_len(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
     tf_obj *o = stack_peek(ctx, 0);
     if (o->type != TF_OBJ_TYPE_LIST) return TF_ERR;
-    o = stack_pop(ctx);
     stack_push(ctx, create_int_obj((int)o->list.len));
-    release_obj(o);
     return TF_OK;
 }
 

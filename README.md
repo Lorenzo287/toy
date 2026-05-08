@@ -80,22 +80,19 @@ Blocks allow for concise and expressive loops. For conditional logic (`if` and `
 10 [ 0 > ] [ dup printf " " printf 1 - ] while
 ```
 
-Output convention:
-
-- `print` and `printf` consume what they print
-- `.` prints the top value without consuming it
-- `.s` prints the whole stack without consuming it
-- `cr` prints a newline without touching the stack
-
 ### System & Utility Words
 
 Beyond basic stack operations, Toy Forth provides utilities for data manipulation and interaction:
 
-- **List access**: `geth` and `seth` allow for $O(1)$ indexed access to lists.
+- **List access**: `len` and `geth` are observational list words, while `seth`
+  updates list contents in $O(1)$ time.
 - **Introspection**: `words` prints the dictionary and `see` shows a source-like definition.
-- **System interaction**: `rand`, `sleep`, `time`, `clear`/`page`, `bye`, and `exit`.
+- **System interaction**: `rand`, `sleep`, `time`, `clear`/`page`, `bye`/`exit`.
 
 ```forth
+[ 1 2 3 ] len print        \ Prints 3, list stays on the stack
+[ 1 2 3 ] 1 geth nip print \ Prints 2, list is dropped explicitly by nip
+
 [ 1 2 3 ] {list}
 $list 0 rand 100 % seth  \ Sets index 0 of $list to a random number
 $list print
@@ -114,6 +111,20 @@ Toy Forth includes a robust set of built-in words:
 | **I/O**           | `print`, `printf`, `.`, `.s`, `cr`, `key`, `input`, `clear`, `page`           |
 | **System/Utils**  | `geth`, `seth`, `len`, `rand`, `sleep`, `time`, `words`, `see`, `bye`, `exit` |
 | **Definition**    | `:`, `def`                                                                    |
+
+Output convention:
+
+- `print` and `printf` consume what they print
+- `.` prints the top value without consuming it
+- `.s` prints the whole stack without consuming it
+- `cr` prints a newline without touching the stack
+
+Aggregate observer convention:
+
+- `len` leaves the list in place and pushes its length
+- `geth` leaves the list in place, consumes the index, and pushes the selected
+  element
+- `seth` remains an updating word and consumes the list, index, and new value
 
 ## Ecosystem & Tooling
 
