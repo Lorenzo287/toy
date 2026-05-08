@@ -7,7 +7,7 @@ $list dup len swap
 "\n{" printf 
 [ 
 	printf
-	1 - dup 
+	1 - 
 	[ 0 != ] [ "-"printf ] if
 ] each 
 "}\n" .
@@ -21,7 +21,7 @@ drop
 $list len
 [
 	$list over geth printf
-	1 + dup
+	1 +
 	[ $list len != ] [ "-"printf ] if
 ] times
 "}\n" .
@@ -32,12 +32,12 @@ drop
 
 "{" printf 
 0 
-[ dup $list len != ]
+[ $list len != ]
 [
 	$list over geth printf
-	1 + dup
+	1 +
 	[ $list len != ] [ "-"printf ] if
 ] while
-"}" .
+"}\n" .
 
 drop

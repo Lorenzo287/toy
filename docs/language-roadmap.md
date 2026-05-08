@@ -78,16 +78,16 @@ Acceptance criteria:
 
 Add the minimum vocabulary needed for functional, concatenative composition.
 
-Control-flow semantics to revisit:
+Control-flow semantics now in place:
 
-- The current `if` and `ifelse` accept condition quotations that run against
-  the live data stack. This makes branch behavior depend on whether the
-  condition consumes or preserves its input, which is awkward for examples such
-  as recursive definitions.
-- Revisit this once the primitive quotation vocabulary is in place. Preferred
-  direction: make control-flow stack effects more explicit and predictable,
-  either by requiring a boolean before `if` and `ifelse` or by guaranteeing
-  that quotation conditions preserve the branch input they inspect.
+- `if` and `ifelse` accept either a direct boolean or a quoted predicate
+- direct booleans are consumed as condition values
+- quoted predicates run against a temporary view of the current data stack and
+  must leave a boolean result
+- the inspected stack seen by quoted predicates is preserved for the selected
+  branch, so predicate stack effects do not leak into branch execution
+- `while` remains quotation-only and reevaluates its predicate this same way on
+  each iteration
 
 Target list words:
 
@@ -115,6 +115,7 @@ Acceptance criteria:
 - basic quotation-manipulating examples do not require syntax changes
 - list construction and destructuring cover simple higher-order use cases
 - tests document stack behavior and failure modes
+- control-flow docs and examples reflect non-destructive quoted predicates
 
 ### Phase 3: Explicit Higher-Order Style
 
@@ -171,8 +172,8 @@ for:
 - `def` binding symbols to quotations correctly
 - `exec` applying both quotations and symbols consistently
 - `:` `;` remaining behaviorally equivalent to quotation-based definition
-- control-flow words documenting and testing whether condition quotations
-  consume or preserve inspected values
+- control-flow words documenting and testing that quoted predicates preserve
+  inspected values while direct booleans remain consumed
 - list primitive stack effects, ownership, and error cases
 - combinator behavior under nested quotation execution
 - unchanged REPL persistence and frame-local variable semantics

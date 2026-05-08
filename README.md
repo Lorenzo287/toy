@@ -12,7 +12,7 @@ This version includes an interactive REPL, using **antirez**'s `linenoise` libra
 - **Dynamic Object System**: Native support for **Integers, Floats, Booleans, Strings, Symbols,** and **Lists**.
 - **Quotations & Blocks**: First-class code blocks `[ ... ]` and quoted symbols `'symb` allow for deferred execution.
 - **Variable Capturing**: Named local variables with dynamic scoping using `{ a b }` and `$a` syntax.
-- **First-class Control Flow**: Branches (`if`) and loops (`while`, `each`) are simple words that consume code blocks from the stack.
+- **First-class Control Flow**: Branches (`if`, `ifelse`) and loops (`while`, `each`) are simple words over first-class quotations, with Joy-style predicate inspection for quoted conditions.
 
 ### Engine & Performance
 
@@ -54,14 +54,21 @@ exec          \ Now execute the block on the stack -> 3
 
 ### Iteration & Control Flow
 
-Blocks allow for concise and expressive loops. For conditional logic (`if` and `ifelse`), the interpreter makes no distinction between a value and a block that produces a value, allowing for immediate or lazy evaluation:
+Blocks allow for concise and expressive loops. For conditional logic (`if` and `ifelse`), you can branch on either a direct boolean or a quoted predicate:
 
 ```forth
-\ Option 1: Immediate Boolean (calculated BEFORE 'if')
+\ Option 1: Immediate Boolean (calculated before 'if')
 1 2 < [ "True!" print ] if
 
-\ Option 2: Deferred Block (calculated BY 'if')
+\ Option 2: Quoted predicate (evaluated by 'if' without consuming inspected data)
 [ 1 2 < ] [ "True!" print ] if
+
+\ The tested value stays unless the branch removes it
+5 [ [ 0 > ] [ "positive" print ] [ "non-positive" print ] ifelse ] exec
+\ stack still contains 5 here
+
+\ Branches can explicitly consume the tested value
+5 [ [ 0 > ] [ drop "positive" print ] [ drop "non-positive" print ] ifelse ] exec
 
 \ Execute a block 5 times
 5 [ "Hello! " printf ] times
@@ -69,8 +76,8 @@ Blocks allow for concise and expressive loops. For conditional logic (`if` and `
 \ Iterate over a list
 [ 1 2 3 4 5 ] [ printf " " printf ] each
 
-\ While loop: [ condition ] [ body ] while
-10 [ dup 0 > ] [ dup printf " " printf 1 - ] while
+\ The predicate is quoted and re-evaluated each iteration without consuming the loop state
+10 [ 0 > ] [ dup printf " " printf 1 - ] while
 ```
 
 ### System & Utility Words
@@ -91,15 +98,15 @@ $list print
 
 Toy Forth includes a robust set of built-in words:
 
-| Category          | Words                                                              |
-| ----------------- | ------------------------------------------------------------------ |
-| **Stack**         | `dup`, `drop`, `swap`, `over`, `rot`, `nip`, `tuck`, `pick`, `roll`, `empty` |
-| **Math**          | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `max`, `min`         |
-| **Comparison**    | `==`, `!=`, `<`, `>`, `<=`, `>=`                                   |
-| **Logic/Control** | `if`, `ifelse`, `while`, `times`, `each`, `exec`                   |
-| **I/O**           | `print`, `printf`, `.`, `.s` (show stack), `key`, `input`, `clear` |
+| Category          | Words                                                                                          |
+| ----------------- | ---------------------------------------------------------------------------------------------- |
+| **Stack**         | `dup`, `drop`, `swap`, `over`, `rot`, `nip`, `tuck`, `pick`, `roll`, `empty`                   |
+| **Math**          | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `max`, `min`                                     |
+| **Comparison**    | `==`, `!=`, `<`, `>`, `<=`, `>=`                                                               |
+| **Logic/Control** | `if`, `ifelse`, `while`, `times`, `each`, `exec`                                               |
+| **I/O**           | `print`, `printf`, `.`, `.s` (show stack), `key`, `input`, `clear`                             |
 | **System/Utils**  | `geth`, `seth`, `len`, `rand`, `sleep`, `time`, `clear`, `page`, `words`, `see`, `bye`, `exit` |
-| **Definition**    | `:`, `def`                                                         |
+| **Definition**    | `:`, `def`                                                                                     |
 
 ## Ecosystem & Tooling
 

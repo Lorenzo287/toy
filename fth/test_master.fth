@@ -29,7 +29,7 @@
 [ true ] [ "ok" ] [ "fail" ] ifelse .
 
 "Control: while (countdown 3 to 1)" .
-3 [ dup 0 > ] [ dup . 1 - ] while drop
+3 [ 0 > ] [ dup . 1 - ] while drop
 
 "Define: colon (square 4 = 16)" .
 : square dup * ;
