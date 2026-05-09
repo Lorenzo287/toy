@@ -80,37 +80,56 @@ Blocks allow for concise and expressive loops. For conditional logic (`if` and `
 10 [ 0 > ] [ dup printf " " printf 1 - ] while
 ```
 
-### System & Utility Words
+### List Words
 
-Beyond basic stack operations, Toy Forth provides utilities for data manipulation and interaction:
+Toy Forth includes basic list inspection, construction, and update words:
 
-- **List access**: `len` and `geth` are observational list words, while `seth`
-  updates list contents in $O(1)$ time.
-- **Introspection**: `words` prints the dictionary and `see` shows a source-like definition.
-- **System interaction**: `rand`, `sleep`, `time`, `clear`/`page`, `bye`/`exit`.
+- `len`, `geth`, `first`, `rest`, and `empty?` inspect lists without consuming
+  the list
+- `uncons`, `cons`, and `concat` construct or destructure lists and consume
+  their list inputs
+- `seth` updates list contents in $O(1)$ time
 
 ```forth
 [ 1 2 3 ] len print        \ Prints 3, list stays on the stack
 [ 1 2 3 ] 1 geth nip print \ Prints 2, list is dropped explicitly by nip
+[ 1 2 3 ] uncons           \ Leaves 1 [2 3]
+0 [ 1 2 3 ] cons           \ Leaves [0 1 2 3]
 
 [ 1 2 3 ] {list}
-$list 0 rand 100 % seth  \ Sets index 0 of $list to a random number
+$list 0 99 seth  \ Sets index 0 of $list to 99
 $list print
+```
+
+### System & Utility Words
+
+Toy Forth also provides words for runtime interaction and introspection:
+
+- `words` prints the dictionary and `see` shows a source-like definition
+- `rand`, `sleep`, and `time` provide simple runtime utilities
+- `bye` and `exit` terminate the interpreter
+
+```forth
+words
+: square dup * ;
+'square see
+time print
 ```
 
 ## Standard Library
 
 Toy Forth includes a robust set of built-in words:
 
-| Category          | Words                                                                         |
-| ----------------- | ----------------------------------------------------------------------------- |
-| **Stack**         | `dup`, `drop`, `swap`, `over`, `rot`, `nip`, `tuck`, `pick`, `roll`, `empty`  |
-| **Math**          | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `max`, `min`                    |
-| **Comparison**    | `==`, `!=`, `<`, `>`, `<=`, `>=`                                              |
-| **Logic/Control** | `if`, `ifelse`, `while`, `times`, `each`, `exec`                              |
-| **I/O**           | `print`, `printf`, `.`, `.s`, `cr`, `key`, `input`, `clear`, `page`           |
-| **System/Utils**  | `geth`, `seth`, `len`, `rand`, `sleep`, `time`, `words`, `see`, `bye`, `exit` |
-| **Definition**    | `:`, `def`                                                                    |
+| Category          | Words                                                                        |
+| ----------------- | ---------------------------------------------------------------------------- |
+| **Stack**         | `dup`, `drop`, `swap`, `over`, `rot`, `nip`, `tuck`, `pick`, `roll`, `empty` |
+| **Math**          | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `max`, `min`                   |
+| **Comparison**    | `==`, `!=`, `<`, `>`, `<=`, `>=`                                             |
+| **Logic/Control** | `if`, `ifelse`, `while`, `times`, `each`, `exec`                             |
+| **I/O**           | `print`, `printf`, `.`, `.s`, `cr`, `key`, `input`, `clear`, `page`          |
+| **List**          | `geth`, `seth`, `len`, `first`, `rest`, `uncons`, `cons`, `concat`, `empty?` |
+| **System/Utils**  | `rand`, `sleep`, `time`, `words`, `see`, `bye`, `exit`                       |
+| **Definition**    | `:`, `def`                                                                   |
 
 Output convention:
 
@@ -124,6 +143,9 @@ Aggregate observer convention:
 - `len` leaves the list in place and pushes its length
 - `geth` leaves the list in place, consumes the index, and pushes the selected
   element
+- `first`, `rest`, and `empty?` inspect a list without consuming it
+- `uncons`, `cons`, and `concat` construct or destructure lists and consume
+  their list inputs
 - `seth` remains an updating word and consumes the list, index, and new value
 
 ## Ecosystem & Tooling

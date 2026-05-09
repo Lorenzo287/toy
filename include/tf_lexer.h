@@ -9,6 +9,7 @@ typedef struct {
 } tf_lexer;
 
 tf_obj *lexer(char *prg);
+int tf_is_sym_char(int c);
 tf_obj *tokenize_number(tf_lexer *lexer);
 tf_obj *tokenize_symbol(tf_lexer *lexer);
 tf_obj *tokenize_string(tf_lexer *lexer);

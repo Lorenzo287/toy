@@ -11,14 +11,14 @@ static void skip_spaces(tf_lexer *lexer) {
     while (isspace(lexer->pos[0])) lexer->pos++;
 }
 
-// private helper
-static int is_sym_char(int c) {
+int tf_is_sym_char(int c) {
     // NOTE: the lexer is intentionally mostly whitespace-delimited. We only
     // split punctuation into standalone tokens when it has structural meaning
     // in the grammar (currently ':' and ';'). Other punctuation can still be
-    // part of ordinary word names such as '.s' or '<='.
-    const char *sym_chars = "+-*/%<>=!.";
-    return isalpha(c) || isdigit(c) || c == '_' || strchr(sym_chars, c) != NULL;
+    // part of ordinary word names such as '.s', '<=', or 'empty?'.
+    unsigned char uc = (unsigned char)c;
+    const char *sym_chars = "+-*/%<>=!.?";
+    return isalpha(uc) || isdigit(uc) || c == '_' || strchr(sym_chars, c) != NULL;
 }
 
 static tf_obj *tokenize_until(tf_lexer *lexer, int terminator);
@@ -89,7 +89,7 @@ tf_obj *tokenize_until(tf_lexer *lexer, int terminator) {
         } else if (lexer->pos[0] == ';') {
             o = create_symbol_obj(lexer->pos, 1);
             lexer->pos++;
-        } else if (is_sym_char(lexer->pos[0])) {
+        } else if (tf_is_sym_char(lexer->pos[0])) {
             o = tokenize_symbol(lexer);
         } else if (lexer->pos[0] == '"' && lexer->pos[1] != 0) {
             o = tokenize_string(lexer);
@@ -136,7 +136,7 @@ tf_obj *tokenize_number(tf_lexer *lexer) {
 
 tf_obj *tokenize_symbol(tf_lexer *lexer) {
     char *start = lexer->pos;
-    while (is_sym_char(lexer->pos[0])) lexer->pos++;
+    while (tf_is_sym_char(lexer->pos[0])) lexer->pos++;
     int sym_len = lexer->pos - start;
     tf_obj *o = NULL;
     if (sym_len == 4 && !strncmp(start, "true", 4))

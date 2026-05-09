@@ -721,6 +721,118 @@ tf_ret tf_len(tf_ctx *ctx) {
     return TF_OK;
 }
 
+tf_ret tf_first(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *list_obj = stack_peek(ctx, 0);
+    if (list_obj->type != TF_OBJ_TYPE_LIST || list_obj->list.len == 0) {
+        return TF_ERR;
+    }
+
+    tf_obj *result = list_obj->list.elem[0];
+    retain_obj(result);
+    stack_push(ctx, result);
+    return TF_OK;
+}
+
+tf_ret tf_rest(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *list_obj = stack_peek(ctx, 0);
+    if (list_obj->type != TF_OBJ_TYPE_LIST || list_obj->list.len == 0) {
+        return TF_ERR;
+    }
+
+    tf_obj *rest = init_list_obj();
+	// push to new list starting from second element
+    for (size_t i = 1; i < list_obj->list.len; i++) {
+        tf_obj *elem = list_obj->list.elem[i];
+        retain_obj(elem);
+        push_obj(rest, elem);
+    }
+    stack_push(ctx, rest);
+    return TF_OK;
+}
+
+tf_ret tf_uncons(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *list_obj = stack_peek(ctx, 0);
+    if (list_obj->type != TF_OBJ_TYPE_LIST || list_obj->list.len == 0) {
+        return TF_ERR;
+    }
+
+    list_obj = stack_pop(ctx);
+    tf_obj *head = list_obj->list.elem[0];
+    retain_obj(head);
+
+    tf_obj *tail = init_list_obj();
+    for (size_t i = 1; i < list_obj->list.len; i++) {
+        tf_obj *elem = list_obj->list.elem[i];
+        retain_obj(elem);
+        push_obj(tail, elem);
+    }
+
+    stack_push(ctx, head);
+    stack_push(ctx, tail);
+    release_obj(list_obj);
+    return TF_OK;
+}
+
+tf_ret tf_cons(tf_ctx *ctx) {
+    if (stack_len(ctx) < 2) return TF_ERR;
+    tf_obj *list_obj = stack_peek(ctx, 0);
+    if (list_obj->type != TF_OBJ_TYPE_LIST) return TF_ERR;
+
+    list_obj = stack_pop(ctx);
+    tf_obj *head = stack_pop(ctx);
+    tf_obj *result = init_list_obj();
+    push_obj(result, head);
+
+    for (size_t i = 0; i < list_obj->list.len; i++) {
+        tf_obj *elem = list_obj->list.elem[i];
+        retain_obj(elem);
+        push_obj(result, elem);
+    }
+
+    stack_push(ctx, result);
+    release_obj(list_obj);
+    return TF_OK;
+}
+
+tf_ret tf_concat(tf_ctx *ctx) {
+    if (stack_len(ctx) < 2) return TF_ERR;
+    tf_obj *right = stack_peek(ctx, 0);
+    tf_obj *left = stack_peek(ctx, 1);
+    if (left->type != TF_OBJ_TYPE_LIST || right->type != TF_OBJ_TYPE_LIST) {
+        return TF_ERR;
+    }
+
+    right = stack_pop(ctx);
+    left = stack_pop(ctx);
+    tf_obj *result = init_list_obj();
+    for (size_t i = 0; i < left->list.len; i++) {
+        tf_obj *elem = left->list.elem[i];
+        retain_obj(elem);
+        push_obj(result, elem);
+    }
+    for (size_t i = 0; i < right->list.len; i++) {
+        tf_obj *elem = right->list.elem[i];
+        retain_obj(elem);
+        push_obj(result, elem);
+    }
+
+    stack_push(ctx, result);
+    release_obj(left);
+    release_obj(right);
+    return TF_OK;
+}
+
+tf_ret tf_empty_q(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *list_obj = stack_peek(ctx, 0);
+    if (list_obj->type != TF_OBJ_TYPE_LIST) return TF_ERR;
+    stack_push(ctx, create_bool_obj(list_obj->list.len == 0));
+    return TF_OK;
+}
+
 tf_ret tf_rand(tf_ctx *ctx) {
     stack_push(ctx, create_int_obj(rand()));
     return TF_OK;

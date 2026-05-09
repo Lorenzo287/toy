@@ -151,11 +151,17 @@ tf_ctx *init_ctx(void) {
     set_native_func(ctx, "geth", tf_geth);
     set_native_func(ctx, "seth", tf_seth);
     set_native_func(ctx, "len", tf_len);
-    set_native_func(ctx, "rand", tf_rand);
-    set_native_func(ctx, "sleep", tf_sleep);
+    set_native_func(ctx, "first", tf_first);
+    set_native_func(ctx, "rest", tf_rest);
+    set_native_func(ctx, "uncons", tf_uncons);
+    set_native_func(ctx, "cons", tf_cons);
+    set_native_func(ctx, "concat", tf_concat);
+    set_native_func(ctx, "empty?", tf_empty_q);
 
     set_native_func(ctx, "key", tf_key);
     set_native_func(ctx, "input", tf_input);
+    set_native_func(ctx, "rand", tf_rand);
+    set_native_func(ctx, "sleep", tf_sleep);
     set_native_func(ctx, "time", tf_time);
     set_native_func(ctx, "clear", tf_clear);
     set_native_func(ctx, "page", tf_clear);

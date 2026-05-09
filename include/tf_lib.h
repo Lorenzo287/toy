@@ -26,7 +26,7 @@ tf_ret tf_pick(tf_ctx *ctx);
 tf_ret tf_roll(tf_ctx *ctx);
 tf_ret tf_empty(tf_ctx *ctx);
 
-// I/O operations
+// I/O and system operations
 tf_ret tf_printf(tf_ctx *ctx);
 tf_ret tf_print(tf_ctx *ctx);
 tf_ret tf_dot(tf_ctx *ctx);
@@ -60,10 +60,18 @@ tf_ret tf_while_r(tf_ctx *ctx);
 tf_ret tf_colon(tf_ctx *ctx);
 tf_ret tf_def(tf_ctx *ctx);
 
-// Extended library
+// List operations
 tf_ret tf_geth(tf_ctx *ctx);
 tf_ret tf_seth(tf_ctx *ctx);
 tf_ret tf_len(tf_ctx *ctx);
+tf_ret tf_first(tf_ctx *ctx);
+tf_ret tf_rest(tf_ctx *ctx);
+tf_ret tf_uncons(tf_ctx *ctx);
+tf_ret tf_cons(tf_ctx *ctx);
+tf_ret tf_concat(tf_ctx *ctx);
+tf_ret tf_empty_q(tf_ctx *ctx);
+
+// System operations
 tf_ret tf_rand(tf_ctx *ctx);
 tf_ret tf_sleep(tf_ctx *ctx);
 

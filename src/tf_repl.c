@@ -41,7 +41,6 @@ static bool append_text(char **buf, size_t *len, size_t *cap, const char *text);
 static void reset_state(tf_repl_state *state);
 static void feed_state(tf_repl_state *state, const char *text);
 static bool input_complete(const tf_repl_state *state);
-static int is_sym_char(int c);
 static void finish_token(tf_repl_state *state);
 static void init_repl_ui(tf_ctx *ctx);
 static void free_repl_ui(void);
@@ -419,7 +418,7 @@ static void feed_state(tf_repl_state *state, const char *text) {
             finish_token(state);
             continue;
         }
-        if (is_sym_char((unsigned char)c)) {
+        if (tf_is_sym_char((unsigned char)c)) {
             if (!state->token_active) {
                 state->token_active = true;
                 state->token_first = c;
@@ -438,11 +437,6 @@ static bool input_complete(const tf_repl_state *state) {
     return !state->in_string && !state->escape && !state->line_comment &&
            !state->paren_comment && state->block_depth == 0 &&
            state->var_depth == 0 && state->colon_depth == 0;
-}
-
-static int is_sym_char(int c) {
-    const char *sym_chars = "+-*/%<>=!.";
-    return isalpha(c) || isdigit(c) || c == '_' || strchr(sym_chars, c) != NULL;
 }
 
 static void init_repl_ui(tf_ctx *ctx) {

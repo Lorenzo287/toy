@@ -50,6 +50,9 @@ Current aggregate-observer direction:
 - observational words should preserve inspected aggregates when practical
 - `len` preserves the list and pushes its length
 - `geth` preserves the list, consumes the index, and pushes the selected value
+- `first`, `rest`, and `empty?` preserve the inspected list
+- `uncons`, `cons`, and `concat` consume their list inputs because they are
+  structural list operations
 - update words such as `seth` may remain consuming/mutating
 
 ### Near-Term Primitive Vocabulary
@@ -63,14 +66,14 @@ Target style to eventually support:
 This is not a near-term implementation target by itself, but it is a useful
 end-state check for whether the quotation/list algebra is expressive enough.
 
-Target list words:
+Available list words:
 
 - `first`
 - `rest`
 - `uncons`
 - `cons`
 - `concat`
-- one emptiness predicate such as `empty?`
+- `empty?`
 
 Target quotation combinators:
 
