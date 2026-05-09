@@ -67,7 +67,7 @@ Branches (`if`, `ifelse`) support three flexible patterns for evaluation:
 [ 5 0 > ] [ "Positive" print ] if
 
 \ 3. Predicate is quoted, but data is on the stack.
-\ The predicate [ 0 > ] is evaluated without consuming the 5.
+\    The predicate [ 0 > ] is evaluated without consuming the 5.
 5 [ 0 > ] [ "Positive" print ] if
 
 \ Simple ifelse
@@ -82,7 +82,7 @@ Branches (`if`, `ifelse`) support three flexible patterns for evaluation:
 
 \ Combinators
 1 2 4 [ + ] dip  \ Hides 4, adds 1 2, restores 4 -> leaves 3 4
-5 [ 1 + ] keep   \ Runs [ 1 + ] keeping original 5 -> Leaves 5 6
+5 [ 1 + ] keep   \ Runs [ 1 + ] keeping original 5 -> leaves 5 6
 ```
 
 ### List Words
