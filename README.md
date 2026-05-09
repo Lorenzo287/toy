@@ -64,11 +64,11 @@ Blocks allow for concise and expressive loops. For conditional logic (`if` and `
 [ 1 2 < ] [ "True!" print ] if
 
 \ The tested value stays unless the branch removes it
-5 [ [ 0 > ] [ "positive" print ] [ "non-positive" print ] ifelse ] exec
+5 [ 0 > ] [ "positive" print ] [ "non-positive" print ] ifelse
 \ stack still contains 5 here
 
 \ Branches can explicitly consume the tested value
-5 [ [ 0 > ] [ drop "positive" print ] [ drop "non-positive" print ] ifelse ] exec
+5 [ 0 > ] [ drop "positive" print ] [ drop "non-positive" print ] ifelse
 
 \ Execute a block 5 times
 5 [ "Hello! " printf ] times
