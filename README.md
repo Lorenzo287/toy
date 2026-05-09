@@ -57,34 +57,32 @@ exec          \ Now execute the block on the stack -> 3
 
 ### Iteration & Control Flow
 
-Blocks allow for concise and expressive loops. For conditional logic (`if` and `ifelse`), you can branch on either a direct boolean or a quoted predicate:
+Branches (`if`, `ifelse`) support three flexible patterns for evaluation:
 
 ```forth
-\ Option 1: Immediate Boolean (calculated before 'if')
-1 2 < [ "True!" print ] if
+\ 1. Predicate is calculated immediately and consumed by 'if'
+5 0 > [ "Positive" print ] if
 
-\ Option 2: Quoted predicate (evaluated by 'if' without consuming inspected data)
-[ 1 2 < ] [ "True!" print ] if
+\ 2. The entire condition is deferred
+[ 5 0 > ] [ "Positive" print ] if
 
-\ The tested value stays unless the branch removes it
-5 [ 0 > ] [ "positive" print ] [ "non-positive" print ] ifelse
-\ stack still contains 5 here
+\ 3. Predicate is quoted, but data is on the stack.
+\ The predicate [ 0 > ] is evaluated without consuming the 5.
+5 [ 0 > ] [ "Positive" print ] if
 
-\ Branches can explicitly consume the tested value
-5 [ 0 > ] [ drop "positive" print ] [ drop "non-positive" print ] ifelse
+\ Simple ifelse
+5 [ 0 > ] [ "Positive" print ] [ "Non-positive" print ] ifelse
 
-\ Execute a block 5 times
-5 [ "Hello! " printf ] times
+\ 'while' re-evaluates its predicate each iteration without consuming loop state
+10 [ 0 > ] [ . 1 - ] while
 
-\ Iterate over a list
-[ 1 2 3 4 5 ] [ printf " " printf ] each
+\ Iterators
+5 [ "Hello " printf ] times
+[ 1 2 3 ] [ . ] each
 
-\ The predicate is quoted and re-evaluated each iteration without consuming the loop state
-10 [ 0 > ] [ dup printf " " printf 1 - ] while
-
-\ Combinators protect or preserve values while running quotations
-1 2 3 [ + ] dip  \ Leaves 3 3: hide 3, add 1 and 2, restore 3
-5 [ 1 + ] keep   \ Leaves 5 6: run the quotation, keep the original 5
+\ Combinators
+1 2 4 [ + ] dip  \ Hides 4, adds 1 2, restores 4 -> leaves 3 4
+5 [ 1 + ] keep   \ Runs [ 1 + ] keeping original 5 -> Leaves 5 6
 ```
 
 ### List Words
