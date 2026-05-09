@@ -55,6 +55,8 @@ tf_ret tf_ifelse_r(tf_ctx *ctx);
 tf_ret tf_times_r(tf_ctx *ctx);
 tf_ret tf_each_r(tf_ctx *ctx);
 tf_ret tf_while_r(tf_ctx *ctx);
+tf_ret tf_dip(tf_ctx *ctx);
+tf_ret tf_keep(tf_ctx *ctx);
 
 // Definition operations
 tf_ret tf_colon(tf_ctx *ctx);

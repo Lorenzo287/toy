@@ -48,8 +48,11 @@ Code is data. You can defer execution by "quoting" a symbol or wrapping code in 
 
 ```forth
 'dup          \ Pushes the symbol 'dup' to the stack instead of running it
+
 [ 1 2 + ]     \ Pushes a list containing 1, 2, and +
 exec          \ Now execute the block on the stack -> 3
+
+[ 1 2 + ] i   \ Joy-style alias, also executes the block -> 3
 ```
 
 ### Iteration & Control Flow
@@ -78,6 +81,10 @@ Blocks allow for concise and expressive loops. For conditional logic (`if` and `
 
 \ The predicate is quoted and re-evaluated each iteration without consuming the loop state
 10 [ 0 > ] [ dup printf " " printf 1 - ] while
+
+\ Combinators protect or preserve values while running quotations
+1 2 3 [ + ] dip  \ Leaves 3 3: hide 3, add 1 and 2, restore 3
+5 [ 1 + ] keep   \ Leaves 5 6: run the quotation, keep the original 5
 ```
 
 ### List Words
@@ -125,7 +132,7 @@ Toy Forth includes a robust set of built-in words:
 | **Stack**         | `dup`, `drop`, `swap`, `over`, `rot`, `nip`, `tuck`, `pick`, `roll`, `empty` |
 | **Math**          | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `max`, `min`                   |
 | **Comparison**    | `==`, `!=`, `<`, `>`, `<=`, `>=`                                             |
-| **Logic/Control** | `if`, `ifelse`, `while`, `times`, `each`, `exec`                             |
+| **Logic/Control** | `if`, `ifelse`, `while`, `times`, `each`, `exec`, `i`, `dip`, `keep`         |
 | **I/O**           | `print`, `printf`, `.`, `.s`, `cr`, `key`, `input`, `clear`, `page`          |
 | **List**          | `geth`, `seth`, `len`, `first`, `rest`, `uncons`, `cons`, `concat`, `empty?` |
 | **System/Utils**  | `rand`, `sleep`, `time`, `words`, `see`, `bye`, `exit`                       |
@@ -136,7 +143,7 @@ Output convention:
 - `print` and `printf` consume what they print
 - `.` prints the top value without consuming it
 - `.s` prints the whole stack without consuming it
-- `cr` prints a newline without touching the stack
+- `cr` prints a newline
 
 Aggregate observer convention:
 

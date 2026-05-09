@@ -75,10 +75,13 @@ Available list words:
 - `concat`
 - `empty?`
 
-Target quotation combinators:
+Available quotation combinators:
 
 - `dip`
 - `keep`
+
+Target quotation combinators:
+
 - one small application/branching family such as `bi`
 
 Likely prerequisites for `linrec`/`binrec`-style programs:

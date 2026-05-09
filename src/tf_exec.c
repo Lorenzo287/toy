@@ -139,11 +139,14 @@ tf_ctx *init_ctx(void) {
     set_native_func(ctx, ">=", tf_ge);
 
     set_native_func(ctx, "exec", tf_exec);
+    set_native_func(ctx, "i", tf_exec);
     set_native_func(ctx, "if", tf_if_r);
     set_native_func(ctx, "ifelse", tf_ifelse_r);
     set_native_func(ctx, "times", tf_times_r);
     set_native_func(ctx, "each", tf_each_r);
     set_native_func(ctx, "while", tf_while_r);
+    set_native_func(ctx, "dip", tf_dip);
+    set_native_func(ctx, "keep", tf_keep);
 
     set_native_func(ctx, ":", tf_colon);
     set_native_func(ctx, "def", tf_def);
