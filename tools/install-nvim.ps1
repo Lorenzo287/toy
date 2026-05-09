@@ -68,11 +68,29 @@ try {
     Pop-Location
 }
 
-# 4. Output Neovim Configuration
+# 4. Cleanup old binary
+Write-Host "`n[3/4] Cleaning up old parser binary..." -ForegroundColor Yellow
+$TsParserPaths = @(
+    Join-Path $Env:LOCALAPPDATA "nvim-data\lazy\nvim-treesitter\parser\toyforth.so"
+    Join-Path $Env:LOCALAPPDATA "nvim-data\site\pack\packer\start\nvim-treesitter\parser\toyforth.so"
+)
+
+foreach ($Path in $TsParserPaths) {
+    if (Test-Path $Path) {
+        try {
+            Remove-Item $Path -Force
+            Write-Host "Removed old parser: $Path" -ForegroundColor Green
+        } catch {
+            Write-Host "Warning: Could not remove $Path. Ensure Neovim is closed." -ForegroundColor Red
+        }
+    }
+}
+
+# 5. Output Neovim Configuration
 $LspPathEscaped = (Join-Path $InstallDir "toyforth-lsp.exe").Replace('\', '\\')
 $TsPathEscaped = (Join-Path $InstallDir "tree-sitter-toyforth").Replace('\', '/')
 
-Write-Host "`n[3/3] --- Neovim Configuration Snippet ---" -ForegroundColor Cyan
+Write-Host "`n[4/4] --- Neovim Configuration Snippet ---" -ForegroundColor Cyan
 Write-Host "Add the following to your init.lua:" -ForegroundColor Gray
 
 $ConfigSnippet = @"
@@ -108,4 +126,5 @@ vim.filetype.add({
 
 Write-Host "`n$ConfigSnippet" -ForegroundColor White
 Write-Host "`nAfter updating your config, restart Neovim and run :TSInstall toyforth" -ForegroundColor Yellow
-Write-Host "If Windows reports 'Access is denied', close Neovim, delete toyforth.so from the nvim-treesitter parser folder, then restart and retry." -ForegroundColor Yellow
+Write-Host "Note: This script attempted to remove any old parser binaries to avoid 'Access is denied' errors." -ForegroundColor Gray
+Write-Host "If the error persists, ensure ALL Neovim instances are closed and try again." -ForegroundColor Gray

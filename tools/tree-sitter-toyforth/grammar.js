@@ -39,7 +39,7 @@ export default grammar({
       /\d+/,
     )),
     control_word: $ => choice(
-      'if', 'ifelse', 'while', 'times', 'each', 'exec'
+      'if', 'ifelse', 'while', 'times', 'each', 'exec', 'i', 'dip', 'keep'
     ),
     operator: $ => choice(
       '+', '-', '*', '/', '%', 'mod', 'abs', 'neg', 'max', 'min',
@@ -48,9 +48,10 @@ export default grammar({
     builtin_word: $ => choice(
       'dup', 'drop', 'swap', 'over', 'rot', 'nip', 'tuck', 'pick', 'roll',
       'empty',
-      'print', 'printf', '.', '.s',
+      'print', 'printf', '.', '.s', 'cr',
       'key', 'input', 'time', 'clear', 'page', 'words', 'see',
-      'geth', 'seth', 'len', 'rand', 'sleep',
+      'geth', 'seth', 'len', 'first', 'rest', 'uncons', 'cons', 'concat', 'empty?',
+      'rand', 'sleep',
       'def', 'bye', 'exit'
     ),
     string: $ => seq(
@@ -74,11 +75,11 @@ export default grammar({
     )),
     quoted_symbol: $ => seq(
       "'",
-      alias(/[a-zA-Z0-9_+\-*/%<>=!:;.]+/, $.symbol_name)
+      alias(/[a-zA-Z0-9_+\-*/%<>=!.?]+/, $.symbol_name)
     ),
     var_fetch: $ => seq(
       '$',
-      alias(/[a-zA-Z0-9_+\-*/%<>=!:;.]+/, $.variable_name)
+      alias(/[a-zA-Z0-9_+\-*/%<>=!.?]+/, $.variable_name)
     ),
     block: $ => seq(
       '[',
@@ -98,8 +99,8 @@ export default grammar({
       repeat(choice($._expression, $.line_comment, $.block_comment)),
       ';',
     ),
-    _def_name: $ => token(/[a-zA-Z0-9_+\-*/%<>=!:;.]+/),
+    _def_name: $ => token(/[a-zA-Z0-9_+\-*/%<>=!.?]+/),
 
-    word: $ => /[a-zA-Z0-9_+\-*/%<>=!:;.]+/,
+    word: $ => /[a-zA-Z0-9_+\-*/%<>=!.?]+/,
   }
 });

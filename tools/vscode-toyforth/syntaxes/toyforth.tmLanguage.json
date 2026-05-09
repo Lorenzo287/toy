@@ -37,15 +37,15 @@
             "patterns": [
                 {
                     "name": "entity.name.function.toyforth",
-                    "match": "'\\S+"
+                    "match": "'[a-zA-Z0-9_+\\-*/%<>=!.?]+"
                 },
                 {
                     "name": "entity.name.function.toyforth",
-                    "match": "(?<=:\\s+)(\\S+)"
+                    "match": "(?<=:\\s+)([a-zA-Z0-9_+\\-*/%<>=!.?]+)"
                 },
                 {
                     "name": "entity.name.function.toyforth",
-                    "match": "\\b(dup|drop|swap|over|rot|nip|tuck|pick|roll|empty|abs|neg|max|min|print|printf|key|input|time|clear|page|words|see|geth|seth|len|rand|sleep|def|bye|exit)\\b|\\b(\\.|\\.s)\\b"
+                    "match": "(?<=\\s|^)(dup|drop|swap|over|rot|nip|tuck|pick|roll|empty|abs|neg|max|min|print|printf|cr|key|input|time|clear|page|words|see|geth|seth|len|first|rest|uncons|cons|concat|rand|sleep|def|bye|exit|\\.|\\.s|empty\\?)(?=\\s|$)"
                 }
             ]
         },
@@ -53,15 +53,15 @@
             "patterns": [
                 {
                     "name": "keyword.control.toyforth",
-                    "match": "\\b(if|ifelse|else|then|while|repeat|do|loop|begin|until|again|times|each|exec)\\b"
+                    "match": "\\b(if|ifelse|while|times|each|exec|i|dip|keep)\\b"
                 },
                 {
                     "name": "storage.type.toyforth",
-                    "match": "\\b(:|def|{)\\b"
+                    "match": "(?<=\\s|^)(:|def|{)(?=\\s|$)"
                 },
                 {
                     "name": "keyword.operator.toyforth",
-                    "match": "\\b(\\+|\\-|\\*|/|%|==|!=|<|>|<=|>=|mod)\\b"
+                    "match": "(?<=\\s|^)(\\+|\\-|\\*|/|%|==|!=|<|>|<=|>=|mod)(?=\\s|$)"
                 }
             ]
         },

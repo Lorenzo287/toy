@@ -58,7 +58,8 @@ After adding the configuration, run `:TSInstall toyforth` inside Neovim.
 > Neovim has already loaded `toyforth.so` from the `nvim-treesitter` parser
 > directory.
 >
-> If this happens, the practical workaround is:
+> The automated installation script (`tools/install-nvim.ps1`) handles this by 
+> attempting to delete the old binary for you. If you are installing manually:
 >
 > - close all Neovim instances
 > - delete `toyforth.so` from
