@@ -3,19 +3,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include "tf_alloc.h"
 #include "tf_console.h"
 #include "tf_lexer.h"
-#include "tf_lib.h"
 #include "tf_obj.h"
+#include <linenoise.h>
 
 #ifdef _WIN32
-#include <conio.h>
-#include <io.h>
-#include <windows.h>
-#else
-#include <errno.h>
-#include "linenoise.h"
+#define strdup _strdup
 #endif
 
 typedef struct {
@@ -32,10 +28,6 @@ typedef struct {
 } tf_repl_state;
 
 static tf_ret run_source(tf_ctx *ctx, char *source, bool debug);
-#ifdef _WIN32
-static char *read_line(FILE *fp, const char *prompt);
-static char *read_console_line(const char *prompt);
-#endif
 static char *read_repl_line(bool complete);
 static bool append_text(char **buf, size_t *len, size_t *cap, const char *text);
 static void reset_state(tf_repl_state *state);
@@ -44,13 +36,16 @@ static bool input_complete(const tf_repl_state *state);
 static void finish_token(tf_repl_state *state);
 static void init_repl_ui(tf_ctx *ctx);
 static void free_repl_ui(void);
-#ifndef _WIN32
+
 static tf_ctx *tf_repl_completion_ctx = NULL;
 static char *tf_repl_history_path = NULL;
+static bool hints_enabled = true;
+static int hints_color = 90;  // Bright black / Gray
 
 static char *get_history_path(void);
 static void tf_repl_completion(const char *buf, linenoiseCompletions *lc);
-#endif
+static char *tf_repl_hints(const char *buf, int *color, int *bold);
+static void tf_repl_free_hints(void *ptr);
 
 tf_ret run_file(tf_ctx *ctx, const char *filename, bool debug) {
     FILE *fp = fopen(filename, "r");
@@ -73,6 +68,14 @@ tf_ret run_file(tf_ctx *ctx, const char *filename, bool debug) {
     return result;
 }
 
+static tf_ret tf_hints_toggle(tf_ctx *ctx) {
+    (void)ctx;
+    hints_enabled = !hints_enabled;
+    printf("%shints: %s%s\n", tf_console_clr(TF_CLR_INFO),
+           tf_console_clr(TF_CLR_RESET), hints_enabled ? "on" : "off");
+    return TF_OK;
+}
+
 tf_ret run_repl(tf_ctx *ctx, bool debug) {
     char *source = NULL;
     size_t len = 0;
@@ -82,6 +85,8 @@ tf_ret run_repl(tf_ctx *ctx, bool debug) {
     reset_state(&state);
     init_repl_ui(ctx);
     printf("%s=== Toy Forth REPL ===%s\n", tf_console_clr(TF_CLR_PROMPT),
+           tf_console_clr(TF_CLR_RESET));
+    printf("%sType 'hints' to toggle hints.%s\n", tf_console_clr(TF_CLR_INFO),
            tf_console_clr(TF_CLR_RESET));
 #ifdef _WIN32
     printf("%sPress Ctrl-Z to exit.%s\n", tf_console_clr(TF_CLR_INFO),
@@ -94,10 +99,16 @@ tf_ret run_repl(tf_ctx *ctx, bool debug) {
     while (1) {
         char *line = read_repl_line(input_complete(&state));
         if (!line) {
+            if (errno == EAGAIN) {
+                printf("^C\n");
+                len = 0;
+                if (source) source[0] = '\0';
+                reset_state(&state);
+                continue;
+            }
             if (len > 0) {
                 fprintf(stderr, "\n%sIncomplete input discarded.%s\n",
-                        tf_console_clr(TF_CLR_ERR),
-                        tf_console_clr(TF_CLR_RESET));
+                        tf_console_clr(TF_CLR_ERR), tf_console_clr(TF_CLR_RESET));
             } else {
                 printf("\n");
             }
@@ -109,9 +120,7 @@ tf_ret run_repl(tf_ctx *ctx, bool debug) {
             continue;
         }
 
-#ifndef _WIN32
         if (line[0] != '\0') { linenoiseHistoryAdd(line); }
-#endif
 
         if (!append_text(&source, &len, &cap, line) ||
             !append_text(&source, &len, &cap, "\n")) {
@@ -182,7 +191,6 @@ static tf_ret run_source(tf_ctx *ctx, char *source, bool debug) {
     return TF_OK;
 }
 
-#ifndef _WIN32
 static void tf_repl_completion(const char *buf, linenoiseCompletions *lc) {
     if (!tf_repl_completion_ctx) return;
 
@@ -216,115 +224,127 @@ static void tf_repl_completion(const char *buf, linenoiseCompletions *lc) {
         char *completion = xmalloc(head_len + prefix_len + word_len + 1);
         memcpy(completion, buf, head_len);
         if (prefix_len) memcpy(completion + head_len, prefix, prefix_len);
-        memcpy(completion + head_len + prefix_len, func->name->str.ptr,
-               word_len);
+        memcpy(completion + head_len + prefix_len, func->name->str.ptr, word_len);
         completion[head_len + prefix_len + word_len] = '\0';
         linenoiseAddCompletion(lc, completion);
         free(completion);
     }
 }
-#endif
 
-#ifdef _WIN32
-static char *read_line(FILE *fp, const char *prompt) {
-    if (_isatty(_fileno(fp))) return read_console_line(prompt);
+typedef struct {
+    const char *name;
+    const char *hint;
+} tf_hint_entry;
 
-    size_t cap = 128;
-    size_t len = 0;
-    char *buf = xmalloc(cap);
+static const tf_hint_entry native_hints[] = {{"dup", " ( x -- x x )"},
+                                             {"drop", " ( x -- )"},
+                                             {"swap", " ( a b -- b a )"},
+                                             {"over", " ( a b -- a b a )"},
+                                             {"rot", " ( a b c -- b c a )"},
+                                             {"nip", " ( a b -- b )"},
+                                             {"tuck", " ( a b -- b a b )"},
+                                             {"pick", " ( ... n -- ... x )"},
+                                             {"roll", " ( ... n -- ... )"},
+                                             {"empty", " ( -- )"},
+                                             {"+", " ( a b -- a+b )"},
+                                             {"-", " ( a b -- a-b )"},
+                                             {"*", " ( a b -- a*b )"},
+                                             {"/", " ( a b -- a/b )"},
+                                             {"%", " ( a b -- a%b )"},
+                                             {"mod", " ( a b -- a%b )"},
+                                             {"abs", " ( x -- |x| )"},
+                                             {"neg", " ( x -- -x )"},
+                                             {"max", " ( a b -- max )"},
+                                             {"min", " ( a b -- min )"},
+                                             {"==", " ( a b -- bool )"},
+                                             {"!=", " ( a b -- bool )"},
+                                             {"<", " ( a b -- bool )"},
+                                             {">", " ( a b -- bool )"},
+                                             {"<=", " ( a b -- bool )"},
+                                             {">=", " ( a b -- bool )"},
+                                             {"if", " ( cond block -- )"},
+                                             {"ifelse", " ( cond then else -- )"},
+                                             {"while", " ( cond body -- )"},
+                                             {"times", " ( n block -- )"},
+                                             {"each", " ( list block -- )"},
+                                             {"exec", " ( block -- ... )"},
+                                             {"i", " ( block -- ... )"},
+                                             {"dip", " ( x block -- x )"},
+                                             {"keep", " ( x block -- x ... )"},
+                                             {"print", " ( x -- )"},
+                                             {"printf", " ( x -- )"},
+                                             {".", " ( x -- x )"},
+                                             {".s", " ( -- )"},
+                                             {"cr", " ( -- )"},
+                                             {"key", " ( -- x )"},
+                                             {"input", " ( -- x )"},
+                                             {"clear", " ( -- )"},
+                                             {"page", " ( -- )"},
+                                             {"words", " ( -- )"},
+                                             {"see", " ( 'name -- )"},
+                                             {"geth", " ( list idx -- list value )"},
+                                             {"seth", " ( list idx value -- )"},
+                                             {"len", " ( list -- list n )"},
+                                             {"first", " ( list -- list x )"},
+                                             {"rest", " ( list -- list rest )"},
+                                             {"uncons", " ( list -- head tail )"},
+                                             {"cons", " ( x list -- list )"},
+                                             {"concat", " ( list1 list2 -- list )"},
+                                             {"empty?", " ( list -- list bool )"},
+                                             {"rand", " ( -- n )"},
+                                             {"sleep", " ( ms -- )"},
+                                             {"time", " ( -- n )"},
+                                             {"exit", " ( code -- )"},
+                                             {"bye", " ( -- )"},
+                                             {"def", " ( 'name block -- )"},
+                                             {NULL, NULL}};
 
-    while (1) {
-        int c = fgetc(fp);
-        if (c == EOF) {
-            if (len == 0) {
-                free(buf);
-                return NULL;
-            }
-            break;
+static char *tf_repl_hints(const char *buf, int *color, int *bold) {
+    if (!hints_enabled || !tf_repl_completion_ctx) return NULL;
+
+    const char *token = buf;
+    for (const char *p = buf; *p != '\0'; p++) {
+        if (isspace((unsigned char)*p) || *p == '[' || *p == ']' || *p == '{' ||
+            *p == '}' || *p == '(' || *p == ')') {
+            token = p + 1;
         }
-
-        if (c == '\r') { continue; }
-        if (c == '\n') { break; }
-
-        if (len + 1 >= cap) {
-            cap *= 2;
-            buf = xrealloc(buf, cap);
-        }
-        buf[len++] = (char)c;
     }
 
-    buf[len] = '\0';
-    return buf;
-}
+    if (*token == '\0') return NULL;
 
-static char *read_console_line(const char *prompt) {
-    size_t cap = 128;
-    size_t len = 0;
-    char *buf = xmalloc(cap);
-
-    while (1) {
-        int c = _getwch();
-
-        if (c == 0 || c == 0xE0) {
-            (void)_getwch();
-            continue;
+    size_t stem_len = strlen(token);
+    for (int i = 0; native_hints[i].name; i++) {
+        if (strcmp(native_hints[i].name, token) == 0) {
+            *color = hints_color;
+            *bold = 0;
+            return strdup(native_hints[i].hint);
         }
-
-        if (c == 26 && len == 0) {
-            free(buf);
-            return NULL;
-        }
-        if (c == '\r') {
-            putchar('\n');
-            break;
-        }
-        if (c == '\b') {
-            if (len > 0) {
-                len--;
-                fputs("\b \b", stdout);
-                fflush(stdout);
-            }
-            continue;
-        }
-        if (c == '\f') {
-            tf_clear(NULL);
-            printf("%s%s%s", tf_console_clr(TF_CLR_PROMPT), prompt,
-                   tf_console_clr(TF_CLR_RESET));
-            if (len > 0) { printf("%.*s", (int)len, buf); }
-            fflush(stdout);
-            continue;
-        }
-        if (c < 32 || c > 126) { continue; }
-
-        if (len + 1 >= cap) {
-            cap *= 2;
-            buf = xrealloc(buf, cap);
-        }
-        buf[len++] = (char)c;
-        putchar(c);
-        fflush(stdout);
     }
 
-    buf[len] = '\0';
-    return buf;
+    // Also look for user-defined words
+    tf_obj *sym = create_symbol_obj((char *)token, stem_len);
+    tf_func *f = get_func(tf_repl_completion_ctx, sym);
+    release_obj(sym);
+
+    if (f) {
+        *color = hints_color;
+        *bold = 0;
+        return strdup(" ( user word )");
+    }
+
+    return NULL;
 }
-#endif
+
+static void tf_repl_free_hints(void *ptr) {
+    free(ptr);
+}
 
 static char *read_repl_line(bool complete) {
-#ifdef _WIN32
-    const char *prompt = complete ? "tf> " : "..> ";
-    printf("%s%s%s", tf_console_clr(TF_CLR_PROMPT), prompt,
-           tf_console_clr(TF_CLR_RESET));
-    fflush(stdout);
-    return read_line(stdin, prompt);
-#else
     return linenoise(complete ? TF_CLR_PROMPT "tf> " TF_CLR_RESET
                               : TF_CLR_PROMPT "..> " TF_CLR_RESET);
-#endif
 }
 
-static bool append_text(char **buf, size_t *len, size_t *cap,
-                        const char *text) {
+static bool append_text(char **buf, size_t *len, size_t *cap, const char *text) {
     size_t text_len = strlen(text);
     size_t required = *len + text_len + 1;
 
@@ -440,26 +460,25 @@ static bool input_complete(const tf_repl_state *state) {
 }
 
 static void init_repl_ui(tf_ctx *ctx) {
-#ifdef _WIN32
-    (void)ctx;
-#endif
-#ifndef _WIN32
     tf_repl_completion_ctx = ctx;
     tf_repl_history_path = get_history_path();
+
+    set_native_func(ctx, "hints", tf_hints_toggle);
+
     linenoiseSetMultiLine(1);
     linenoiseHistorySetMaxLen(256);
     linenoiseSetCompletionCallback(tf_repl_completion);
+    linenoiseSetHintsCallback(tf_repl_hints);
+    linenoiseSetFreeHintsCallback(tf_repl_free_hints);
     if (tf_repl_history_path) {
         int history_status = linenoiseHistoryLoad(tf_repl_history_path);
         if (history_status == -1 && errno != ENOENT) {
             tf_console_contextf("failed to load REPL history\n");
         }
     }
-#endif
 }
 
 static void free_repl_ui(void) {
-#ifndef _WIN32
     if (tf_repl_history_path) {
         if (linenoiseHistorySave(tf_repl_history_path) == -1) {
             tf_console_contextf("failed to save REPL history\n");
@@ -468,21 +487,24 @@ static void free_repl_ui(void) {
         tf_repl_history_path = NULL;
     }
     tf_repl_completion_ctx = NULL;
-#endif
 }
 
-#ifndef _WIN32
 static char *get_history_path(void) {
     const char *home = getenv("HOME");
+#ifdef _WIN32
+    if (!home) home = getenv("USERPROFILE");
+#endif
     if (!home || home[0] == '\0') return NULL;
 
     const char *name = "/.toy_forth_history";
+#ifdef _WIN32
+    name = "\\.toy_forth_history";
+#endif
     size_t len = strlen(home) + strlen(name) + 1;
     char *path = xmalloc(len);
     snprintf(path, len, "%s%s", home, name);
     return path;
 }
-#endif
 
 static void finish_token(tf_repl_state *state) {
     if (!state->token_active) return;

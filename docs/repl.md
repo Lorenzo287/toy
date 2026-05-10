@@ -74,15 +74,12 @@ $n $n *
 
 ## Editing, History, and Completion
 
-On Unix-like systems and WSL, the REPL uses vendored `linenoise`:
+The REPL uses vendored `linenoise`:
 
 - in-line editing
 - command history
 - tab completion for known words
-
-On native Windows, the REPL currently uses a basic line reader instead of
-`linenoise`, so editing features are more limited. `Ctrl-L` still clears the
-screen while entering REPL input.
+- syntax-aware hints (type `hints` to toggle)
 
 ## Colors and Status
 
@@ -98,7 +95,7 @@ The REPL uses colored output to distinguish the main categories:
 
 - Unix-like systems / WSL: `Ctrl-D`
 - Windows console: `Ctrl-Z`
-- Portable explicit exit: `bye`
+- Portable explicit exit: `bye`/`exit`
 
 ## Interrupting Execution
 

@@ -12,10 +12,12 @@ file(GLOB SOURCES CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/src/*.c")
 add_executable(toy_forth ${SOURCES})
 target_include_directories(toy_forth PRIVATE ${PROJECT_SOURCE_DIR}/include)
 
-if(NOT WIN32)
+if(WIN32)
+    target_sources(toy_forth PRIVATE ${PROJECT_SOURCE_DIR}/deps/linenoise/linenoise_win.c)
+else()
     target_sources(toy_forth PRIVATE ${PROJECT_SOURCE_DIR}/deps/linenoise/linenoise.c)
-    target_include_directories(toy_forth PRIVATE ${PROJECT_SOURCE_DIR}/deps/linenoise)
 endif()
+target_include_directories(toy_forth PRIVATE ${PROJECT_SOURCE_DIR}/deps/linenoise)
 
 # ── Baseline warnings ─────────────────────────────────────────────────────────
 
