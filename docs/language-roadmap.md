@@ -1,7 +1,7 @@
 # Toy Forth Language Roadmap
 
 ## Vision: Quotation-First Programming
-Toy Forth is evolving from a traditional Forth clone into a quotation-first concatenative language. The goal is to make code blocks (`[ ... ]`) and symbols (`'sym`) the primary units of definition and composition, similar to Joy or Factor.
+Toy Forth is evolving from a traditional Forth clone into a quotation-first concatenative language. The goal is to make code blocks (`[ ... ]`) and symbols (`'sym`) the primary units of definition and composition, in the spirit of Joy, the concatenative language designed by Manfred von Thun.
 
 ### Core Model
 - **Bare Symbol**: Resolve in dictionary and invoke.
@@ -23,25 +23,31 @@ Toy Forth is evolving from a traditional Forth clone into a quotation-first conc
 - **Iterative Engine**: Frame-based execution prevents C stack overflows for user words.
 - **Native Object System**: Refcounted Integers, Floats, Strings, Lists, Symbols, and Booleans.
 - **Core Primitives**: 
-    - **Stack**: `dup`, `drop`, `swap`, `over`, `rot`, `nip`, `tuck`, `pick`, `roll`, `empty`.
+    - **Stack**: `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty`.
+    - **Math**: arithmetic plus small numeric helpers such as `succ` and `pred`.
     - **List Algebra**: `first`, `rest`, `uncons`, `cons`, `concat`, `empty?`, `geth`, `seth`, `len`.
-    - **Combinators**: `dip`, `keep`.
-- **Tooling Baseline**: Synchronized Tree-sitter, LSP, and VS Code support for all native words.
+    - **Combinators**: `dip`, `keep`, `bi`, `split`, `linrec`, `binrec`; `map` is currently an alias for `each`.
+- **Tooling Baseline**: Tree-sitter, LSP, and VS Code support exist for native words. Keep metadata in sync when adding words, but default implementation work remains C/Forth-first.
 
-### 2. End-state Check (Technical Benchmark)
-A useful end-state check for whether the quotation/list algebra is expressive enough is the ability to write readable recursion schemes:
+### 2. Current Expressiveness Check
+The quotation/list algebra is now expressive enough to write a compact quicksort through `binrec`:
 ```forth
-[small] [] [uncons [>] split] [swapd cons concat] binrec
+'qsort [
+    [ len nip 2 < ]
+    []
+    [ uncons [ > ] split ]
+    [ swapd cons concat ]
+    binrec
+] def
 ```
 
 ### 3. Active Development (Phase 1 & 3)
-- **Documentation Migration**: (Active) Updating docs and examples to prioritize `'name [ ... ] def` over `: name ... ;`.
-- **Legacy Sugar**: Formally treating `:` and `;` as simple syntactic sugar for `def`, with no unique compile-time semantics.
-- **Higher-Order Primitives**: Adding `bi`, `split`, and other "clever" combinators to reduce stack shuffling.
+- **Documentation Migration**: README examples now prioritize `'name [ ... ] def`. Continue migrating older docs and tests away from colon-first style when touching them.
+- **Legacy Sugar**: Treat `:` and `;` as compatibility syntax for definitions, not the primary language model.
+- **Standard Library Shape**: Identify which examples should become reusable Toy Forth words once loading support exists.
 
 ### 4. Future Goals (Phase 4)
-- **Recursion Schemes**: Implement `linrec` (linear recursion) and `binrec` (binary recursion).
-- **Standard Library**: Porting common utilities from C to Toy Forth quotations.
+- **Standard-Library Factoring**: Move common examples and utilities from native C or tests into reusable Toy Forth quotations once loading support exists.
 - **Integrated Debugging**: Step-by-step execution and stack visualization.
 
 ---
@@ -59,7 +65,7 @@ A useful end-state check for whether the quotation/list algebra is expressive en
 1. **Semantics First**: Focus on how words behave and compose before adding new syntax.
 2. **Quotation-First**: Prefer reusable combinators over specialized syntax or compiler modes.
 3. **Explicit Stack Effects**: Avoid "hidden" evaluator state; ensure stack changes are predictable and testable.
-4. **Tooling Parity**: Every new native word must be supported by the LSP and Tree-sitter.
+4. **Tooling Parity**: Every new native word should have obvious metadata updates for LSP, Tree-sitter, and editor support, but full tooling test runs are optional unless the task is tooling-focused.
 
 ---
 
@@ -67,3 +73,4 @@ A useful end-state check for whether the quotation/list algebra is expressive en
 - **Inertness**: Quoted symbols must stay inert until `exec` or `i`.
 - **Equivalence**: `: name ... ;` must remain behaviorally identical to `'name [ ... ] def`.
 - **Persistence**: REPL state and frame-local variables must persist correctly across execution boundaries.
+- **Verification Focus**: Prefer C builds, targeted `fth/` scripts, and leak checks for interpreter changes. Tooling verification can be run manually or when explicitly requested.

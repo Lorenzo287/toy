@@ -1,3 +1,8 @@
-'factorial [ [ 0 == ] [ drop 1 ] [ dup 1 - factorial * ] ifelse ] def 
+'factorial1 [ [ 0 == ] [ drop 1 ] [ dup 1 - factorial1 * ] ifelse ] def 
 
-[ 5 3 1 ] [ factorial ] each .s
+[ 5 3 1 ] [ factorial1 ] each .s
+empty
+
+'factorial2 [ [ 0 == ] [ drop 1 ] [ dup 1 - ] [ * ] linrec ] def
+
+[ 5 3 1 ] [ factorial2 ] each .s

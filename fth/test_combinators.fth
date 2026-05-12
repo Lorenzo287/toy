@@ -5,4 +5,16 @@
 5 [ 1 + ] keep .s empty       \ Should print <2> 5 6
 5 [ drop ] keep .s empty      \ Should print <1> 5
 
+1 2 3 swapd .s empty          \ Should print <3> 2 1 3
+1 succ 3 pred .s empty        \ Should print <2> 2 2
+
+5 [ 1 + ] [ 2 * ] bi .s empty \ Should print <2> 6 10
+
+[ 1 2 3 4 5 ] [ 3 < ] split .s empty \ Should print <2> [1 2] [3 4 5]
+3 [ 1 2 3 4 5 ] [ > ] split .s empty \ Should print <3> 3 [1 2] [3 4 5]
+
+[ 1 2 3 ] [ succ ] map .s empty \ Should print <3> 2 3 4
+
+5 [ 0 == ] [ succ ] [ dup pred ] [ * ] linrec .s empty \ Should print <1> 120
+
 [ 1 2 + ] i print             \ Should print 3

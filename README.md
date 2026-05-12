@@ -1,6 +1,8 @@
 # Toy Forth
 
-A minimalist, stack-based interpreter written in C. While it follows the Forth tradition of a data stack and a dictionary of words, it incorporates modern "high-level" features like a dynamic object system, quotations, and automatic memory management.
+Toy Forth is a minimalist, stack-based interpreter written in C. It started from a traditional Forth shape, but is evolving into a quotation-first concatenative language inspired by Joy, the language designed by Manfred von Thun.
+
+The core idea is simple: code blocks are data. Quotations (`[ ... ]`) and quoted symbols (`'name`) are first-class values that can be stored, passed, composed, and executed.
 
 Based on the original [toyforth](https://github.com/antirez/toyforth) project by **Salvatore Sanfilippo (antirez)**.
 This version includes an interactive REPL, using **antirez**'s `linenoise` library for history and tab completion, along with a Tree-sitter grammar, a standalone language server written in Go, and a VS Code extension.
@@ -10,9 +12,9 @@ This version includes an interactive REPL, using **antirez**'s `linenoise` libra
 ### Language Features
 
 - **Dynamic Object System**: Native support for **Integers, Floats, Booleans, Strings, Symbols,** and **Lists**.
-- **Quotations & Blocks**: First-class code blocks `[ ... ]` and quoted symbols `'symb` allow for deferred execution.
+- **Quotations & Blocks**: First-class code blocks `[ ... ]` and quoted symbols `'name` allow for deferred execution and higher-order programming.
 - **Variable Capturing**: Named local variables with dynamic scoping using `{ a b }` and `$a` syntax.
-- **First-class Control Flow**: Branches (`if`, `ifelse`) and loops (`while`, `each`) are simple words over first-class quotations, with Joy-style predicate inspection for quoted conditions.
+- **First-class Control Flow**: Branches, loops, combinators, and recursion schemes are simple words over quotations, with Joy-style predicate inspection for quoted conditions.
 
 ### Engine & Performance
 
@@ -23,23 +25,33 @@ This version includes an interactive REPL, using **antirez**'s `linenoise` libra
 
 ## Showcase
 
-### Definitions & Variables
+### Definitions
 
-Define new words using the classic colon syntax or by binding blocks to symbols. Use variable capturing to avoid complex stack manipulation:
+Define new words by binding a quoted symbol to a quotation:
 
 ```forth
-\ Classic colon definition with local variables
-: square ( n -- n*n ) {n} $n $n * ;
+'square [ dup * ] def
+'cube [ dup square * ] def
 
-\ Functional style definition using 'def'
-'cube [ {n} $n square $n * ] def
+5 square print  \ Prints 25
+3 cube .        \ Prints 27, leaves 27
+```
 
-5 square print  \ 25
-3 cube .        \ Prints 27 and leaves it on the stack
+Classic Forth-style definitions are still accepted as compatibility sugar:
 
-\ Captured variables are visible to inner blocks (Dynamic Scoping)
-10 {x}
-[ $x 5 + . ] exec \ Prints 15 and leaves it on the stack
+```forth
+: square dup * ;
+```
+
+For code that needs names for intermediate values, use frame-local captures:
+
+```forth
+'hypot2 [ { x y } $x $x * $y $y * + ] def
+3 4 hypot2 print  \ Prints 25
+
+\ Captured variables are visible to inner quotations while the frame is active.
+10 { x }
+[ $x 5 + . ] exec  \ Prints 15
 ```
 
 ### Deferred Execution (Quotations)
@@ -47,42 +59,80 @@ Define new words using the classic colon syntax or by binding blocks to symbols.
 Code is data. You can defer execution by "quoting" a symbol or wrapping code in a block:
 
 ```forth
-'dup          \ Pushes the symbol 'dup' to the stack instead of running it
+'dup           \ Leaves 'dup
 
-[ 1 2 + ]     \ Pushes a list containing 1, 2, and +
-exec          \ Now execute the block on the stack -> 3
+[ 1 2 + ]      \ Leaves [1 2 +]
+exec           \ Leaves 3
 
-[ 1 2 + ] i   \ Joy-style alias, also executes the block -> 3
+[ 1 2 + ] i    \ Leaves 3
 ```
 
-### Iteration & Control Flow
+### Combinators
 
-Branches (`if`, `ifelse`) support three flexible patterns for evaluation:
+Toy Forth favors small words that combine quotations instead of special syntax:
 
 ```forth
-\ 1. Predicate is calculated immediately and consumed by 'if'
-5 0 > [ "Positive" print ] if
+1 2 4 [ + ] dip
+\ Leaves 3 4
 
-\ 2. The entire condition is deferred
-[ 5 0 > ] [ "Positive" print ] if
+5 [ 1 + ] keep
+\ Leaves 5 6
 
-\ 3. Predicate is quoted, but data is on the stack.
-\    The predicate [ 0 > ] is evaluated without consuming the 5.
+5 [ 1 + ] [ 2 * ] bi
+\ Leaves 6 10
+
+[ 1 2 3 4 5 ] [ 3 < ] split
+\ Leaves [1 2] [3 4 5]
+```
+
+### Control Flow
+
+Branches (`if`, `ifelse`) support predicates that inspect the stack without permanently consuming it:
+
+```forth
 5 [ 0 > ] [ "Positive" print ] if
+\ Prints Positive
 
-\ Simple ifelse
 5 [ 0 > ] [ "Positive" print ] [ "Non-positive" print ] ifelse
+\ Prints Positive
 
-\ 'while' re-evaluates its predicate each iteration without consuming loop state
-10 [ 0 > ] [ . 1 - ] while
+\ 'while' re-evaluates its predicate each iteration without consuming loop state.
+10 [ 0 > ] [ . pred ] while
+\ Prints 10 down to 1
 
 \ Iterators
 5 [ "Hello " printf ] times
-[ 1 2 3 ] [ . ] each
+\ Prints Hello Hello Hello Hello Hello
 
-\ Combinators
-1 2 4 [ + ] dip  \ Hides 4, adds 1 2, restores 4 -> leaves 3 4
-5 [ 1 + ] keep   \ Runs [ 1 + ] keeping original 5 -> leaves 5 6
+[ 1 2 3 ] [ . ] each
+\ Prints 1 2 3
+
+[ 1 2 3 ] [ succ ] map .s
+\ Prints <3> 2 3 4
+```
+
+### Recursion Schemes
+
+Linear recursion can express factorial without naming a recursive helper:
+
+```forth
+5 [ 0 == ] [ succ ] [ dup pred ] [ * ] linrec
+\ Leaves 120
+```
+
+Binary recursion can express quicksort in the Joy style:
+
+```forth
+'qsort [
+    [ len nip 2 < ]
+    []
+    [ uncons [ > ] split ]
+    [ swapd cons concat ]
+    binrec
+] def
+
+[ 3 1 4 1 5 2 ] qsort
+\ Leaves [1 1 2 3 4 5]
 ```
 
 ### List Words
@@ -101,9 +151,9 @@ Toy Forth includes basic list inspection, construction, and update words:
 [ 1 2 3 ] uncons           \ Leaves 1 [2 3]
 0 [ 1 2 3 ] cons           \ Leaves [0 1 2 3]
 
-[ 1 2 3 ] {list}
-$list 0 99 seth  \ Sets index 0 of $list to 99
-$list print
+[ 1 2 3 ] { list }
+$list 0 99 seth           \ Updates index 0
+$list print               \ Prints [99 2 3]
 ```
 
 ### System & Utility Words
@@ -116,7 +166,7 @@ Toy Forth also provides words for runtime interaction and introspection:
 
 ```forth
 words
-: square dup * ;
+'square [ dup * ] def
 'square see
 time print
 ```
@@ -125,16 +175,16 @@ time print
 
 Toy Forth includes a robust set of built-in words:
 
-| Category          | Words                                                                        |
-| ----------------- | ---------------------------------------------------------------------------- |
-| **Stack**         | `dup`, `drop`, `swap`, `over`, `rot`, `nip`, `tuck`, `pick`, `roll`, `empty` |
-| **Math**          | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `max`, `min`                   |
-| **Comparison**    | `==`, `!=`, `<`, `>`, `<=`, `>=`                                             |
-| **Logic/Control** | `if`, `ifelse`, `while`, `times`, `each`, `exec`, `i`, `dip`, `keep`         |
-| **I/O**           | `print`, `printf`, `.`, `.s`, `cr`, `key`, `input`, `clear`, `page`          |
-| **List**          | `geth`, `seth`, `len`, `first`, `rest`, `uncons`, `cons`, `concat`, `empty?` |
-| **System/Utils**  | `rand`, `sleep`, `time`, `words`, `see`, `bye`, `exit`                       |
-| **Definition**    | `:`, `def`                                                                   |
+| Category          | Words                                                                                                          |
+| ----------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Stack**         | `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty`                          |
+| **Math**          | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `succ`, `pred`, `max`, `min`                                     |
+| **Comparison**    | `==`, `!=`, `<`, `>`, `<=`, `>=`                                                                               |
+| **Logic/Control** | `if`, `ifelse`, `while`, `times`, `each`, `map`, `exec`, `i`, `dip`, `keep`, `bi`, `split`, `linrec`, `binrec` |
+| **I/O**           | `print`, `printf`, `.`, `.s`, `cr`, `key`, `input`, `clear`, `page`                                            |
+| **List**          | `geth`, `seth`, `len`, `first`, `rest`, `uncons`, `cons`, `concat`, `empty?`                                   |
+| **System/Utils**  | `rand`, `sleep`, `time`, `words`, `see`, `bye`, `exit`                                                         |
+| **Definition**    | `def`, `:`                                                                                                     |
 
 Output convention:
 
@@ -165,7 +215,7 @@ Toy Forth comes with a suite of tools to provide a modern development experience
 ## Architecture
 
 - **Lexer**: A recursive-descent tokenizer that supports nested blocks, strings, quoted symbols, and multiple comment styles (`\` and `(...)`).
-- **Engine**: An iterative execution engine using a frame-based call stack. This hybrid approach ensures that user-defined word recursion is safe from C stack limits.
+- **Engine**: An iterative execution engine using a frame-based call stack. User-defined word recursion is safe from C stack limits; some native quotation runners still call `exec()` synchronously and are marked internally with `_r`.
 - **Context**: Maintains the data stack, the global function hash table, and the active execution frames.
 - **Memory**: Every object is a tagged union with an internal reference count. The system is designed to be leak-free (verifiable with `stb_leakcheck`).
 
@@ -173,23 +223,21 @@ Toy Forth comes with a suite of tools to provide a modern development experience
 
 ### Build (see [Build Instructions](./docs/build.md))
 
-```bash
-mkdir build && cd build
-cmake ..
-cmake --build .
+```powershell
+cmake --build build
 ```
 
 ### Usage
 
-```bash
+```powershell
 # Start the interactive REPL
-./toy_forth
+.\build\toy_forth.exe
 
 # Basic run
-./toy_forth fth/program.fth
+.\build\toy_forth.exe fth\program.fth
 
 # Debug mode (prints tokenized program and final stack state)
-./toy_forth --debug fth/program.fth
+.\build\toy_forth.exe --debug fth\program.fth
 ```
 
 ## License

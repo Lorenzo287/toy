@@ -10,6 +10,8 @@ tf_ret tf_mul(tf_ctx *ctx);
 tf_ret tf_div(tf_ctx *ctx);
 tf_ret tf_mod(tf_ctx *ctx);
 tf_ret tf_neg(tf_ctx *ctx);
+tf_ret tf_succ(tf_ctx *ctx);
+tf_ret tf_pred(tf_ctx *ctx);
 tf_ret tf_abs(tf_ctx *ctx);
 tf_ret tf_max(tf_ctx *ctx);
 tf_ret tf_min(tf_ctx *ctx);
@@ -20,6 +22,7 @@ tf_ret tf_drop(tf_ctx *ctx);
 tf_ret tf_swap(tf_ctx *ctx);
 tf_ret tf_over(tf_ctx *ctx);
 tf_ret tf_rot(tf_ctx *ctx);
+tf_ret tf_swapd(tf_ctx *ctx);
 tf_ret tf_nip(tf_ctx *ctx);
 tf_ret tf_tuck(tf_ctx *ctx);
 tf_ret tf_pick(tf_ctx *ctx);
@@ -49,14 +52,20 @@ tf_ret tf_le(tf_ctx *ctx);
 tf_ret tf_ge(tf_ctx *ctx);
 
 // Control operations
+// `_r` marks native words that synchronously run quotations by calling exec()
+// and waiting for completion. These still consume C call stack across nested
+// native quotation runners, even though user-defined words use tf_frame.
 tf_ret tf_exec(tf_ctx *ctx);
 tf_ret tf_if_r(tf_ctx *ctx);
 tf_ret tf_ifelse_r(tf_ctx *ctx);
 tf_ret tf_times_r(tf_ctx *ctx);
 tf_ret tf_each_r(tf_ctx *ctx);
 tf_ret tf_while_r(tf_ctx *ctx);
-tf_ret tf_dip(tf_ctx *ctx);
-tf_ret tf_keep(tf_ctx *ctx);
+tf_ret tf_dip_r(tf_ctx *ctx);
+tf_ret tf_keep_r(tf_ctx *ctx);
+tf_ret tf_bi_r(tf_ctx *ctx);
+tf_ret tf_linrec_r(tf_ctx *ctx);
+tf_ret tf_binrec_r(tf_ctx *ctx);
 
 // Definition operations
 tf_ret tf_colon(tf_ctx *ctx);
@@ -71,6 +80,7 @@ tf_ret tf_rest(tf_ctx *ctx);
 tf_ret tf_uncons(tf_ctx *ctx);
 tf_ret tf_cons(tf_ctx *ctx);
 tf_ret tf_concat(tf_ctx *ctx);
+tf_ret tf_split_r(tf_ctx *ctx);
 tf_ret tf_empty_q(tf_ctx *ctx);
 
 // System operations

@@ -39,14 +39,15 @@ export default grammar({
       /\d+/,
     )),
     control_word: $ => choice(
-      'if', 'ifelse', 'while', 'times', 'each', 'exec', 'i', 'dip', 'keep'
+      'if', 'ifelse', 'while', 'times', 'each', 'map', 'exec', 'i', 'dip',
+      'keep', 'bi', 'split', 'linrec', 'binrec'
     ),
     operator: $ => choice(
-      '+', '-', '*', '/', '%', 'mod', 'abs', 'neg', 'max', 'min',
+      '+', '-', '*', '/', '%', 'mod', 'abs', 'neg', 'succ', 'pred', 'max', 'min',
       '==', '!=', '<', '>', '<=', '>='
     ),
     builtin_word: $ => choice(
-      'dup', 'drop', 'swap', 'over', 'rot', 'nip', 'tuck', 'pick', 'roll',
+      'dup', 'drop', 'swap', 'over', 'rot', 'swapd', 'nip', 'tuck', 'pick', 'roll',
       'empty',
       'print', 'printf', '.', '.s', 'cr',
       'key', 'input', 'time', 'clear', 'page', 'words', 'see',

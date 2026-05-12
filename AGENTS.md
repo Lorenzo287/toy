@@ -9,6 +9,7 @@ Toy Forth: minimalist, stack-based interpreter in C. Dynamic object system (Inte
 ### Key Architectural Pillars
 
 - **Iterative Engine**: Frame-based return stack (`tf_frame`) manages execution.
+- **Execution Boundary**: User-defined words run through the explicit frame stack. Native words may still call `exec()` synchronously for quotation/control behavior; those blocking quotation runners should use the `_r` suffix until they are converted to continuation-style execution.
 - **Refcounting**: Every object (`tf_obj`) managed via `retain_obj` and `release_obj`.
 - **Global Dictionary**: High-performance hash table for word lookups.
 - **Variable Capturing**: Dynamic scoping for locals via `{ a b }`.
@@ -38,6 +39,8 @@ Toy Forth: minimalist, stack-based interpreter in C. Dynamic object system (Inte
 - **Proactive Testing**: Propose/implement tests in `fth/` for fixes/features.
 - **Surgical Edits**: Minimal, precise changes only.
 - **Context Awareness**: Read headers in `include/` before engine/lexer edits.
+- **Native Naming**: Use `_r` for native words that call `exec()` and wait for a quotation result. Do not use `_r` for natives that only manipulate the data stack, register definitions, or schedule a frame and return.
+- **C-First Workflow**: For implementation sessions, focus primarily on the C interpreter and Forth behavior. If a new native word or syntax change affects tooling, keep metadata updates lightweight and obvious, but do not spend time on full Tree-sitter/LSP/VS Code verification unless the task is specifically about tooling or the user requests it.
 - **Language Direction**: Prefer the quotation-first model described in `docs/language-roadmap.md`. Treat user-defined words as named quotations, keep `: ... ;` as compatibility sugar unless a task explicitly changes that policy, and prioritize list/quotation primitives and combinators over new syntax.
 - **REPL Awareness**: Preserve current REPL behavior unless the task explicitly changes it. In particular: definitions and stack state persist across entries, `{ a }` locals remain execution-frame-local, Unix/WSL uses `linenoise`, and interrupts should propagate as a distinct outcome rather than being flattened into generic runtime errors.
 - **Concise Communication**: Be concise by default. Expand when needed for clarity, reasoning, or uncertainty. Avoid filler, not explanation.
@@ -68,6 +71,13 @@ Predefined build directories:
 - **Standard**: `cmake --build build`
 - **Leak Check**: `cmake --build build-leak` (uses `stb_leakcheck`)
 - **Profiling**: `cmake --build build-prof`
+
+Default coding-session verification:
+
+- Build the C target with `cmake --build build`.
+- Run the relevant `fth/` script(s), plus a broader script when risk justifies it.
+- Use `build-leak` for changes that alter ownership, object lifetime, stack effects, or execution flow.
+- Tooling tests (`go test`, Tree-sitter generation/tests, VS Code checks) are optional by default; run them only for tooling-focused tasks, risky tooling edits, or explicit user requests.
 
 ### Documentation
 

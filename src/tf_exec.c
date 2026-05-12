@@ -109,6 +109,8 @@ tf_ctx *init_ctx(void) {
     set_native_func(ctx, "/", tf_div);
     set_native_func(ctx, "%", tf_mod);
     set_native_func(ctx, "neg", tf_neg);
+    set_native_func(ctx, "succ", tf_succ);
+    set_native_func(ctx, "pred", tf_pred);
     set_native_func(ctx, "mod", tf_mod);
     set_native_func(ctx, "abs", tf_abs);
     set_native_func(ctx, "max", tf_max);
@@ -119,6 +121,7 @@ tf_ctx *init_ctx(void) {
     set_native_func(ctx, "swap", tf_swap);
     set_native_func(ctx, "over", tf_over);
     set_native_func(ctx, "rot", tf_rot);
+    set_native_func(ctx, "swapd", tf_swapd);
     set_native_func(ctx, "nip", tf_nip);
     set_native_func(ctx, "tuck", tf_tuck);
     set_native_func(ctx, "pick", tf_pick);
@@ -144,9 +147,13 @@ tf_ctx *init_ctx(void) {
     set_native_func(ctx, "ifelse", tf_ifelse_r);
     set_native_func(ctx, "times", tf_times_r);
     set_native_func(ctx, "each", tf_each_r);
+    set_native_func(ctx, "map", tf_each_r);
     set_native_func(ctx, "while", tf_while_r);
-    set_native_func(ctx, "dip", tf_dip);
-    set_native_func(ctx, "keep", tf_keep);
+    set_native_func(ctx, "dip", tf_dip_r);
+    set_native_func(ctx, "keep", tf_keep_r);
+    set_native_func(ctx, "bi", tf_bi_r);
+    set_native_func(ctx, "linrec", tf_linrec_r);
+    set_native_func(ctx, "binrec", tf_binrec_r);
 
     set_native_func(ctx, ":", tf_colon);
     set_native_func(ctx, "def", tf_def);
@@ -159,6 +166,7 @@ tf_ctx *init_ctx(void) {
     set_native_func(ctx, "uncons", tf_uncons);
     set_native_func(ctx, "cons", tf_cons);
     set_native_func(ctx, "concat", tf_concat);
+    set_native_func(ctx, "split", tf_split_r);
     set_native_func(ctx, "empty?", tf_empty_q);
 
     set_native_func(ctx, "key", tf_key);
@@ -313,9 +321,10 @@ tf_ret exec(tf_ctx *ctx, tf_obj *prg) {
     // push frame to the call stack
     frame_push(ctx, prg);
 
-    /* If this is a nested call to exec, we must continue to run until the
-     * pushed frame is popped, to maintain the blocking semantics expected
-     * by native words like 'if', 'while' etc. */
+    /* If this is a nested call to exec, continue until the pushed frame is
+     * popped. Native words with blocking quotation semantics use this path;
+     * they should carry the `_r` suffix until replaced by continuation-style
+     * frame scheduling. */
     size_t target_depth = ctx->cstack_len - 1;
 
     while (ctx->cstack_len > target_depth) {
@@ -396,8 +405,9 @@ tf_ret exec(tf_ctx *ctx, tf_obj *prg) {
 /*
  * Hybrid symbol dispatcher:
  * - User-defined words are pushed to the call_stack to continue iteration.
- * - Native words are called directly (recursive C call), which is safe
- *   as native words do not create deep call chains.
+ * - Native words are called directly. If a native calls exec() synchronously,
+ *   nested quotation/control flow can still grow the C stack; mark those
+ *   native implementations with the `_r` suffix.
  */
 tf_ret call_symbol(tf_ctx *ctx, tf_obj *symb) {
     tf_func *f = get_func(ctx, symb);
