@@ -175,16 +175,16 @@ time print
 
 Toy Forth includes a robust set of built-in words:
 
-| Category          | Words                                                                                                          |
-| ----------------- | -------------------------------------------------------------------------------------------------------------- |
-| **Stack**         | `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty`                          |
-| **Math**          | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `succ`, `pred`, `max`, `min`                                     |
-| **Comparison**    | `==`, `!=`, `<`, `>`, `<=`, `>=`                                                                               |
-| **Logic/Control** | `if`, `ifelse`, `while`, `times`, `each`, `map`, `exec`, `i`, `dip`, `keep`, `bi`, `split`, `linrec`, `binrec` |
-| **I/O**           | `print`, `printf`, `.`, `.s`, `cr`, `key`, `input`, `clear`, `page`                                            |
-| **List**          | `geth`, `seth`, `len`, `first`, `rest`, `uncons`, `cons`, `concat`, `empty?`                                   |
-| **System/Utils**  | `rand`, `sleep`, `time`, `words`, `see`, `bye`, `exit`                                                         |
-| **Definition**    | `def`, `:`                                                                                                     |
+| Category          | Words                                                                                                                  |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **Stack**         | `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty`                                  |
+| **Math**          | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `succ`, `pred`, `max`, `min`                                             |
+| **Comparison**    | `==`, `!=`, `<`, `>`, `<=`, `>=`                                                                                       |
+| **Logic/Control** | `if`, `ifelse`, `while`, `times`, `each`, `map`, `exec`, `i`, `app2`, `dip`, `keep`, `bi`, `split`, `linrec`, `binrec` |
+| **I/O**           | `print`, `printf`, `.`, `.s`, `cr`, `key`, `input`, `clear`, `page`                                                    |
+| **List**          | `geth`, `seth`, `len`, `first`, `rest`, `uncons`, `cons`, `concat`, `empty?`                                           |
+| **System/Utils**  | `rand`, `sleep`, `time`, `words`, `see`, `bye`, `exit`                                                                 |
+| **Definition**    | `def`, `:`                                                                                                             |
 
 Output convention:
 

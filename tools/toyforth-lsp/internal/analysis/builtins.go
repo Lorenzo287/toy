@@ -50,6 +50,7 @@ var builtinDocs = map[string]builtinDoc{
 	"map":    {Signature: "map ( list block -- ... )", Description: "Alias for each. Execute a block for each item in a list."},
 	"exec":   {Signature: "exec ( block -- ... )", Description: "Execute a quoted block."},
 	"i":      {Signature: "i ( block -- ... )", Description: "Alias for exec. Execute a quoted block."},
+	"app2":   {Signature: "app2 ( x y block -- x y )", Description: "Apply a quotation to two stack items."},
 	"dip":    {Signature: "dip ( x block -- x )", Description: "Execute a block while hiding the top item of the stack."},
 	"keep":   {Signature: "keep ( x block -- x ... )", Description: "Execute a block while keeping a copy of the top item on the stack."},
 	"bi":     {Signature: "bi ( x block block -- ... ... )", Description: "Apply two blocks independently to the same stack item."},

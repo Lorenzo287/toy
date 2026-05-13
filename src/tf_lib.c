@@ -24,8 +24,7 @@ static tf_ret tf_binary_math(tf_ctx *ctx, char op) {
         return TF_ERR;
     }
 
-    bool is_float =
-        (a->type == TF_OBJ_TYPE_FLOAT || b->type == TF_OBJ_TYPE_FLOAT);
+    bool is_float = (a->type == TF_OBJ_TYPE_FLOAT || b->type == TF_OBJ_TYPE_FLOAT);
 
     if (is_float) {
         float fa = (a->type == TF_OBJ_TYPE_FLOAT) ? a->f : (float)a->i;
@@ -216,7 +215,8 @@ tf_ret tf_swap(tf_ctx *ctx) {
 
 tf_ret tf_over(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
-    tf_obj *o = ctx->forth_stack->list.elem[ctx->forth_stack->list.len - 2];
+    size_t len = ctx->forth_stack->list.len;
+    tf_obj *o = ctx->forth_stack->list.elem[len - 2];
     stack_push(ctx, o);
     retain_obj(o);
     return TF_OK;
@@ -386,16 +386,14 @@ static tf_ret tf_compare(tf_ctx *ctx, char *op) {
         if (!strcmp(op, "==")) {
             if (a->type == TF_OBJ_TYPE_BOOL)
                 result = (a->b == b->b);
-            else if (a->type == TF_OBJ_TYPE_STR ||
-                     a->type == TF_OBJ_TYPE_SYMBOL)
+            else if (a->type == TF_OBJ_TYPE_STR || a->type == TF_OBJ_TYPE_SYMBOL)
                 result = (compare_string_obj(a, b) == 0);
             else
                 result = (a == b);
         } else if (!strcmp(op, "!=")) {
             if (a->type == TF_OBJ_TYPE_BOOL)
                 result = (a->b != b->b);
-            else if (a->type == TF_OBJ_TYPE_STR ||
-                     a->type == TF_OBJ_TYPE_SYMBOL)
+            else if (a->type == TF_OBJ_TYPE_STR || a->type == TF_OBJ_TYPE_SYMBOL)
                 result = (compare_string_obj(a, b) != 0);
             else
                 result = (a != b);
@@ -463,15 +461,40 @@ tf_ret tf_exec(tf_ctx *ctx) {
     }
 }
 
+tf_ret tf_app2(tf_ctx *ctx) {
+    if (stack_len(ctx) < 3) return TF_ERR;
+    tf_obj *prg = stack_pop(ctx);
+    tf_obj *b = stack_pop(ctx);
+    tf_obj *a = stack_pop(ctx);
+
+    tf_obj *synthetic = init_list_obj();
+    tf_obj *exec_sym = create_symbol_obj("exec", 4);
+
+    // Schedule with synthetic frame: [ a prg exec b prg exec ]
+    // This allows the engine to run the quotation on each argument
+    // sequentially without recursive C calls to exec().
+    push_obj(synthetic, a);
+    push_obj(synthetic, prg);
+    retain_obj(prg);
+    push_obj(synthetic, exec_sym);
+    retain_obj(exec_sym);
+
+    push_obj(synthetic, b);
+    push_obj(synthetic, prg);
+    push_obj(synthetic, exec_sym);
+
+    frame_push(ctx, synthetic);
+    release_obj(synthetic);
+
+    return TF_OK;
+}
+
 static void tf_restore_stack(tf_ctx *ctx, tf_obj **saved_stack, size_t saved_len) {
     while (stack_len(ctx) > 0) {
         tf_obj *o = stack_pop(ctx);
         release_obj(o);
     }
-
-    for (size_t i = 0; i < saved_len; i++) {
-        stack_push(ctx, saved_stack[i]);
-    }
+    for (size_t i = 0; i < saved_len; i++) stack_push(ctx, saved_stack[i]);
 }
 
 static void tf_restore_stack_copy(tf_ctx *ctx, tf_obj **saved_stack,
@@ -480,7 +503,6 @@ static void tf_restore_stack_copy(tf_ctx *ctx, tf_obj **saved_stack,
         tf_obj *o = stack_pop(ctx);
         release_obj(o);
     }
-
     for (size_t i = 0; i < saved_len; i++) {
         stack_push(ctx, saved_stack[i]);
         retain_obj(saved_stack[i]);
@@ -668,14 +690,10 @@ tf_ret tf_keep_r(tf_ctx *ctx) {
 
     size_t out_len = stack_len(ctx) - base_len;
     tf_obj **outputs = out_len > 0 ? xmalloc(sizeof(tf_obj *) * out_len) : NULL;
-    for (size_t i = out_len; i > 0; i--) {
-        outputs[i - 1] = stack_pop(ctx);
-    }
+    for (size_t i = out_len; i > 0; i--) outputs[i - 1] = stack_pop(ctx);
 
     stack_push(ctx, saved);
-    for (size_t i = 0; i < out_len; i++) {
-        stack_push(ctx, outputs[i]);
-    }
+    for (size_t i = 0; i < out_len; i++) stack_push(ctx, outputs[i]);
 
     free(outputs);
     release_obj(body);
@@ -739,12 +757,8 @@ tf_ret tf_bi_r(tf_ctx *ctx) {
         right_outputs[i - 1] = stack_pop(ctx);
     }
 
-    for (size_t i = 0; i < left_out_len; i++) {
-        stack_push(ctx, left_outputs[i]);
-    }
-    for (size_t i = 0; i < right_out_len; i++) {
-        stack_push(ctx, right_outputs[i]);
-    }
+    for (size_t i = 0; i < left_out_len; i++) stack_push(ctx, left_outputs[i]);
+    for (size_t i = 0; i < right_out_len; i++) stack_push(ctx, right_outputs[i]);
 
     free(right_outputs);
     free(left_outputs);
@@ -921,9 +935,7 @@ tf_ret tf_colon(tf_ctx *ctx) {
     f->pc++;
     while (f->pc < f->prg->list.len) {
         tf_obj *o = f->prg->list.elem[f->pc];
-        if (o->type == TF_OBJ_TYPE_SYMBOL && strcmp(o->str.ptr, ";") == 0) {
-            break;
-        }
+        if (o->type == TF_OBJ_TYPE_SYMBOL && strcmp(o->str.ptr, ";") == 0) break;
         push_obj(body, o);
         retain_obj(o);
         f->pc++;
@@ -944,8 +956,7 @@ tf_ret tf_def(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
     tf_obj *body = stack_peek(ctx, 0);
     tf_obj *func_name = stack_peek(ctx, 1);
-    if (body->type != TF_OBJ_TYPE_LIST ||
-        func_name->type != TF_OBJ_TYPE_SYMBOL) {
+    if (body->type != TF_OBJ_TYPE_LIST || func_name->type != TF_OBJ_TYPE_SYMBOL) {
         return TF_ERR;
     }
 
@@ -963,8 +974,7 @@ tf_ret tf_geth(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
     tf_obj *idx_obj = stack_peek(ctx, 0);
     tf_obj *list_obj = stack_peek(ctx, 1);
-    if (idx_obj->type != TF_OBJ_TYPE_INT ||
-        list_obj->type != TF_OBJ_TYPE_LIST) {
+    if (idx_obj->type != TF_OBJ_TYPE_INT || list_obj->type != TF_OBJ_TYPE_LIST) {
         return TF_ERR;
     }
 
@@ -984,8 +994,7 @@ tf_ret tf_seth(tf_ctx *ctx) {
     if (stack_len(ctx) < 3) return TF_ERR;
     tf_obj *idx_obj = stack_peek(ctx, 1);
     tf_obj *list_obj = stack_peek(ctx, 2);
-    if (idx_obj->type != TF_OBJ_TYPE_INT ||
-        list_obj->type != TF_OBJ_TYPE_LIST) {
+    if (idx_obj->type != TF_OBJ_TYPE_INT || list_obj->type != TF_OBJ_TYPE_LIST) {
         return TF_ERR;
     }
 
@@ -1032,7 +1041,7 @@ tf_ret tf_rest(tf_ctx *ctx) {
     }
 
     tf_obj *rest = init_list_obj();
-	// push to new list starting from second element
+    // push to new list starting from second element
     for (size_t i = 1; i < list_obj->list.len; i++) {
         tf_obj *elem = list_obj->list.elem[i];
         retain_obj(elem);
@@ -1169,9 +1178,7 @@ tf_ret tf_split_r(tf_ctx *ctx) {
         stack_push(ctx, false_list);
     }
 
-    for (size_t i = 0; i < saved_len; i++) {
-        release_obj(saved_stack[i]);
-    }
+    for (size_t i = 0; i < saved_len; i++) release_obj(saved_stack[i]);
     free(saved_stack);
     release_obj(pred);
     release_obj(list_obj);

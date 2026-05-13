@@ -39,7 +39,7 @@ export default grammar({
       /\d+/,
     )),
     control_word: $ => choice(
-      'if', 'ifelse', 'while', 'times', 'each', 'map', 'exec', 'i', 'dip',
+      'if', 'ifelse', 'while', 'times', 'each', 'map', 'exec', 'i', 'app2', 'dip',
       'keep', 'bi', 'split', 'linrec', 'binrec'
     ),
     operator: $ => choice(

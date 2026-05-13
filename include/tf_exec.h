@@ -57,6 +57,7 @@ struct ctx {
     tf_func_table functions;
     tf_frame *call_stack;  // funtions call stack
     size_t cstack_len;
+    size_t cstack_cap;
 };
 
 size_t stack_len(tf_ctx *ctx);

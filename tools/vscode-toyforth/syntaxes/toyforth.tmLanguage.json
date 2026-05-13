@@ -53,7 +53,7 @@
             "patterns": [
                 {
                     "name": "keyword.control.toyforth",
-                    "match": "\\b(if|ifelse|while|times|each|map|exec|i|dip|keep|bi|split|linrec|binrec)\\b"
+                    "match": "\\b(if|ifelse|while|times|each|map|exec|i|app2|dip|keep|bi|split|linrec|binrec)\\b"
                 },
                 {
                     "name": "storage.type.toyforth",

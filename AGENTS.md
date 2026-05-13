@@ -42,7 +42,6 @@ Toy Forth: minimalist, stack-based interpreter in C. Dynamic object system (Inte
 - **Native Naming**: Use `_r` for native words that call `exec()` and wait for a quotation result. Do not use `_r` for natives that only manipulate the data stack, register definitions, or schedule a frame and return.
 - **C-First Workflow**: For implementation sessions, focus primarily on the C interpreter and Forth behavior. If a new native word or syntax change affects tooling, keep metadata updates lightweight and obvious, but do not spend time on full Tree-sitter/LSP/VS Code verification unless the task is specifically about tooling or the user requests it.
 - **Language Direction**: Prefer the quotation-first model described in `docs/language-roadmap.md`. Treat user-defined words as named quotations, keep `: ... ;` as compatibility sugar unless a task explicitly changes that policy, and prioritize list/quotation primitives and combinators over new syntax.
-- **REPL Awareness**: Preserve current REPL behavior unless the task explicitly changes it. In particular: definitions and stack state persist across entries, `{ a }` locals remain execution-frame-local, Unix/WSL uses `linenoise`, and interrupts should propagate as a distinct outcome rather than being flattened into generic runtime errors.
 - **Concise Communication**: Be concise by default. Expand when needed for clarity, reasoning, or uncertainty. Avoid filler, not explanation.
 - **Execution Context**: Assume Windows PowerShell. Do not output bash syntax.
 
@@ -51,7 +50,7 @@ Toy Forth: minimalist, stack-based interpreter in C. Dynamic object system (Inte
 1. **Tree-sitter Grammar**: [Done] Formal grammar in `tools/tree-sitter-toyforth/`.
 2. **Language Server Protocol (LSP)**: [Done] Standalone Go implementation in `tools/toyforth-lsp/`.
 3. **VS Code Extension**: [Done] Syntax highlighting and LSP client in `tools/vscode-toyforth/`.
-4. **REPL Enhancements**: [Done] Interactive REPL with multiline input, colored diagnostics, `Ctrl-C` interruption handling, and `linenoise` history/completion on Unix-like systems and WSL. See `docs/repl.md`.
+4. **REPL Enhancements**: [Done] Interactive REPL with multiline input, colored diagnostics, `Ctrl-C` interruption handling, and `linenoise` history/completion. See `docs/repl.md`.
 5. **Formatter**: Auto layout based on Tree-sitter.
 6. **Integrated Debugger**: Step-by-step execution and stack inspection.
 

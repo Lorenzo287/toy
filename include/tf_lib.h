@@ -56,6 +56,7 @@ tf_ret tf_ge(tf_ctx *ctx);
 // and waiting for completion. These still consume C call stack across nested
 // native quotation runners, even though user-defined words use tf_frame.
 tf_ret tf_exec(tf_ctx *ctx);
+tf_ret tf_app2(tf_ctx *ctx);
 tf_ret tf_if_r(tf_ctx *ctx);
 tf_ret tf_ifelse_r(tf_ctx *ctx);
 tf_ret tf_times_r(tf_ctx *ctx);

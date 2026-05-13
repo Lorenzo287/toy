@@ -33,8 +33,11 @@ tf_obj *stack_peek(tf_ctx *ctx, size_t depth) {
 
 /* helpers for managing the context call stack */
 void frame_push(tf_ctx *ctx, tf_obj *prg) {
-    ctx->call_stack =
-        xrealloc(ctx->call_stack, sizeof(tf_frame) * (ctx->cstack_len + 1));
+    if (ctx->cstack_len >= ctx->cstack_cap) {
+        ctx->cstack_cap = ctx->cstack_cap == 0 ? 64 : ctx->cstack_cap * 2;
+        ctx->call_stack =
+            xrealloc(ctx->call_stack, sizeof(tf_frame) * ctx->cstack_cap);
+    }
     ctx->call_stack[ctx->cstack_len].prg = prg;
     ctx->call_stack[ctx->cstack_len].pc = 0;
     ctx->call_stack[ctx->cstack_len].vars.vars = NULL;
@@ -56,6 +59,12 @@ void frame_pop(tf_ctx *ctx) {
 
     release_obj(f->prg);
     ctx->cstack_len--;
+
+    if (ctx->cstack_len < ctx->cstack_cap / 4 && ctx->cstack_cap > 64) {
+        ctx->cstack_cap /= 2;
+        ctx->call_stack =
+            xrealloc(ctx->call_stack, sizeof(tf_frame) * ctx->cstack_cap);
+    }
 }
 
 /* === Function Table Helpers === */
@@ -73,8 +82,7 @@ static void tf_table_resize(tf_ctx *ctx) {
     tf_func **old_buckets = ctx->functions.buckets;
 
     ctx->functions.capacity *= 2;
-    ctx->functions.buckets =
-        xcalloc(ctx->functions.capacity, sizeof(tf_func *));
+    ctx->functions.buckets = xcalloc(ctx->functions.capacity, sizeof(tf_func *));
 
     for (size_t i = 0; i < old_cap; i++) {
         tf_func *f = old_buckets[i];
@@ -96,12 +104,12 @@ tf_ctx *init_ctx(void) {
     srand(time(NULL));
     tf_ctx *ctx = xmalloc(sizeof(tf_ctx));
     ctx->forth_stack = init_list_obj();
-    ctx->functions.capacity = 16;
+    ctx->functions.capacity = 128;
     ctx->functions.count = 0;
-    ctx->functions.buckets =
-        xcalloc(ctx->functions.capacity, sizeof(tf_func *));
+    ctx->functions.buckets = xcalloc(ctx->functions.capacity, sizeof(tf_func *));
     ctx->call_stack = NULL;
     ctx->cstack_len = 0;
+    ctx->cstack_cap = 0;
 
     set_native_func(ctx, "+", tf_add);
     set_native_func(ctx, "-", tf_sub);
@@ -143,6 +151,7 @@ tf_ctx *init_ctx(void) {
 
     set_native_func(ctx, "exec", tf_exec);
     set_native_func(ctx, "i", tf_exec);
+    set_native_func(ctx, "app2", tf_app2);
     set_native_func(ctx, "if", tf_if_r);
     set_native_func(ctx, "ifelse", tf_ifelse_r);
     set_native_func(ctx, "times", tf_times_r);
@@ -279,7 +288,7 @@ static void tf_var_bind(tf_ctx *ctx, tf_obj *name, tf_obj *val) {
 
     // otherwise append new binding
     if (f->vars.len >= f->vars.cap) {
-        f->vars.cap = f->vars.cap == 0 ? 4 : f->vars.cap * 2;
+        f->vars.cap = f->vars.cap == 0 ? 16 : f->vars.cap * 2;
         f->vars.vars = xrealloc(f->vars.vars, sizeof(tf_var) * f->vars.cap);
     }
     f->vars.vars[f->vars.len].name = name;
@@ -349,8 +358,7 @@ tf_ret exec(tf_ctx *ctx, tf_obj *prg) {
             } else {
                 tf_func *func = get_func(ctx, o);
                 if (!func) {
-                    tf_console_runtime_errorf("undefined word '%s'\n",
-                                              o->str.ptr);
+                    tf_console_runtime_errorf("undefined word '%s'\n", o->str.ptr);
                     while (ctx->cstack_len > target_depth) { frame_pop(ctx); }
                     return TF_ERR;
                 }
@@ -384,8 +392,7 @@ tf_ret exec(tf_ctx *ctx, tf_obj *prg) {
         case TF_OBJ_TYPE_VARFETCH: {
             tf_obj *val = tf_var_fetch(ctx, o);
             if (!val) {
-                tf_console_runtime_errorf("undefined variable '$%s'\n",
-                                          o->str.ptr);
+                tf_console_runtime_errorf("undefined variable '$%s'\n", o->str.ptr);
                 while (ctx->cstack_len > target_depth) { frame_pop(ctx); }
                 return TF_ERR;
             }

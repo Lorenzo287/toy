@@ -1,0 +1,19 @@
+\ Test app2 combinator
+
+1 2 [ 10 * ] app2
+.s empty
+\ Expected: <2> 10 20
+
+3 4 [ dup * ] app2
+.s empty
+\ Expected: <2> 9 16
+
+[ 1 2 ] [ 3 4 ] [ len nip ] app2
+.s empty
+\ Expected: <2> 2 2
+
+'my_succ [ 1 + ] def
+10 20 'my_succ app2
+.s empty
+\ Expected: <2> 11 21
+
