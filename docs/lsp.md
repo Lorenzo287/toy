@@ -1,6 +1,6 @@
-# Toy Forth LSP
+# Toy LSP
 
-Minimal standalone Language Server Protocol implementation for Toy Forth, written in Go. It uses the Tree-sitter parser for indexing and providing IDE features.
+Minimal standalone Language Server Protocol implementation for Toy, written in Go. It uses the Tree-sitter parser for indexing and providing IDE features.
 
 ## Features
 
@@ -53,13 +53,13 @@ Follow the instructions printed by the script to update your `init.lua`.
 Alternatively, register the LSP manually:
 
 ```lua
-vim.lsp.config('toyforth_lsp', {
+vim.lsp.config('toyls', {
   cmd = { 'path/to/toyforth-lsp.exe' },
-  filetypes = { 'toyforth' },
+  filetypes = { 'toy' },
   root_markers = { '.git', 'README.md' },
 })
 
-vim.lsp.enable('toyforth_lsp')
+vim.lsp.enable('toyls')
 ```
 
 ## Development

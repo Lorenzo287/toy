@@ -2,11 +2,11 @@
 set -e
 
 # install-nvim.sh
-# This script builds Toy Forth tools and installs them to a local directory for Neovim (Linux/macOS).
+# This script builds Toy tools and installs them to a local directory for Neovim (Linux/macOS).
 
 # --- CONFIGURATION ---
 # Default installation directory
-INSTALL_DIR="${HOME}/.local/share/toyforth"
+INSTALL_DIR="${HOME}/.local/share/toy"
 # ---------------------
 
 # Get absolute path of the repository root
@@ -14,14 +14,14 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LSP_SRC_DIR="${REPO_ROOT}/tools/toyforth-lsp"
 TS_SRC_DIR="${REPO_ROOT}/tools/tree-sitter-toyforth"
 
-echo -e "\033[0;36m--- Toy Forth Local Installation (Linux/macOS) ---\033[0m"
+echo -e "\033[0;36m--- Toy Local Installation (Linux/macOS) ---\033[0m"
 echo -e "\033[0;90mTarget Installation Directory: ${INSTALL_DIR}\033[0m"
 
 # 1. Create Target Directory
 mkdir -p "${INSTALL_DIR}"
 
 # 2. Build the LSP
-echo -e "\n\033[0;33m[1/3] Building Toy Forth LSP...\033[0m"
+echo -e "\n\033[0;33m[1/3] Building Toy LSP...\033[0m"
 if ! command -v go &> /dev/null; then
     echo "Error: Go is not installed. Please install Go to build the LSP."
     exit 1
@@ -68,22 +68,22 @@ echo -e "\033[0;90mAdd the following to your init.lua:\033[0m"
 
 cat <<EOF
 
--- Toy Forth LSP Configuration
-vim.lsp.config("toyforth_lsp", {
+-- Toy LSP Configuration
+vim.lsp.config("toyls", {
     cmd = { "$LSP_PATH" },
-    filetypes = { "toyforth" },
+    filetypes = { "toy" },
     root_markers = { ".git", "README.md" },
 })
-vim.lsp.enable("toyforth_lsp")
+vim.lsp.enable("toyls")
 
--- Toy Forth Tree-sitter Configuration
-require("nvim-treesitter.parsers").get_parser_configs().toyforth = {
+-- Toy Tree-sitter Configuration
+require("nvim-treesitter.parsers").get_parser_configs().toy = {
     install_info = {
         url = "$TS_PATH",
         files = { "src/parser.c" },
         branch = "main",
     },
-    filetype = "toyforth",
+    filetype = "toy",
 }
 
 -- Add queries and parser info to runtime path
@@ -92,9 +92,9 @@ vim.opt.rtp:append("$TS_PATH")
 -- Register filetypes
 vim.filetype.add({
     extension = {
-        fth = "toyforth",
-        tf = "toyforth",
-        toy = "toyforth",
+        fth = "toy",
+        tf = "toy",
+        toy = "toy",
     },
 })
 EOF

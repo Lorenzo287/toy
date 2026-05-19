@@ -123,7 +123,7 @@ func (s *Server) handleInitialize(w io.Writer, req request) error {
 				RenameProvider:         true,
 			},
 			ServerInfo: serverInfo{
-				Name:    "toyforth-lsp",
+				Name:    "toyls",
 				Version: "0.1.0",
 			},
 		}),

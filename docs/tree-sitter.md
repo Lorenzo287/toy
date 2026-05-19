@@ -22,27 +22,27 @@ Follow the printed instructions to update your `init.lua`.
 Alternatively, you can register the parser manually:
 
 ```lua
-local toyforth_path = "~/path/to/toy_forth/tools/tree-sitter-toyforth"
+local toy_path = "~/path/to/toy/tools/tree-sitter-toyforth"
 
 -- 1. Register the parser
 require("nvim-treesitter.parsers").get_parser_configs().toyforth = {
     install_info = {
-        url = toyforth_path,
+        url = toy_path,
         files = { "src/parser.c" },
         branch = "main",
     },
-    filetype = "toyforth",
+    filetype = "toy",
 }
 
 -- 2. Add queries to runtimepath (so highlighting works)
-vim.opt.rtp:append(toyforth_path)
+vim.opt.rtp:append(toy_path)
 
 -- 3. Register filetypes
 vim.filetype.add({
     extension = {
-        fth = "toyforth",
-        tf = "toyforth",
-        toy = "toyforth",
+        fth = "toy",
+        tf = "toy",
+        toy = "toy",
     },
 })
 ```

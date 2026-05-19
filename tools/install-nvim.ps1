@@ -1,16 +1,16 @@
 # install-nvim.ps1
-# This script builds Toy Forth tools and installs them to a local directory for Neovim.
+# This script builds Toy tools and installs them to a local directory for Neovim.
 
 $ErrorActionPreference = "Stop"
 
 # Change this path if you prefer a different location
-$InstallDir = "C:\toy_forth"
+$InstallDir = "C:\toy"
 
 $RepoRoot = (Get-Item $PSScriptRoot).Parent.FullName
 $LspSrcDir = Join-Path $RepoRoot "tools\toyforth-lsp"
 $TsSrcDir = Join-Path $RepoRoot "tools\tree-sitter-toyforth"
 
-Write-Host "--- Toy Forth Local Installation ---" -ForegroundColor Cyan
+Write-Host "--- Toy Local Installation ---" -ForegroundColor Cyan
 Write-Host "Target Installation Directory: $InstallDir" -ForegroundColor Gray
 
 # 1. Create Target Directory
@@ -20,7 +20,7 @@ if (-not (Test-Path $InstallDir)) {
 }
 
 # 2. Build the LSP
-Write-Host "`n[1/3] Building Toy Forth LSP..." -ForegroundColor Yellow
+Write-Host "`n[1/3] Building Toy LSP..." -ForegroundColor Yellow
 Push-Location $LspSrcDir
 try {
     if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
@@ -94,22 +94,22 @@ Write-Host "`n[4/4] --- Neovim Configuration Snippet ---" -ForegroundColor Cyan
 Write-Host "Add the following to your init.lua:" -ForegroundColor Gray
 
 $ConfigSnippet = @"
--- Toy Forth LSP Configuration
-vim.lsp.config("toyforth_lsp", {
+-- Toy LSP Configuration
+vim.lsp.config("toyls", {
     cmd = { "$LspPathEscaped" },
-    filetypes = { "toyforth" },
+    filetypes = { "toy" },
     root_markers = { ".git", "README.md" },
 })
-vim.lsp.enable("toyforth_lsp")
+vim.lsp.enable("toyls")
 
--- Toy Forth Tree-sitter Configuration
+-- Toy Tree-sitter Configuration
 require("nvim-treesitter.parsers").get_parser_configs().toyforth = {
     install_info = {
         url = "$TsPathEscaped",
         files = { "src/parser.c" },
         branch = "main",
     },
-    filetype = "toyforth",
+    filetype = "toy",
 }
 
 -- Add queries and parser info to runtime path
@@ -118,9 +118,9 @@ vim.opt.rtp:append("$TsPathEscaped")
 -- Register filetypes
 vim.filetype.add({
     extension = {
-        fth = "toyforth",
-        tf = "toyforth",
-        toy = "toyforth",
+        fth = "toy",
+        tf = "toy",
+        toy = "toy",
     },
 })
 "@

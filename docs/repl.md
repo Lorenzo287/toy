@@ -26,7 +26,7 @@ The REPL keeps one interpreter context alive across entries. This means:
 
 Example:
 
-```forth
+```toy
 : sq {n} $n $n * ;
 5 sq print
 ```
@@ -38,13 +38,13 @@ not to the whole REPL session.
 
 This works:
 
-```forth
+```toy
 5 {a} $a print
 ```
 
 This does not:
 
-```forth
+```toy
 5 {a}
 $a print
 ```
@@ -65,7 +65,7 @@ This applies to:
 
 Example:
 
-```forth
+```toy
 : sq
 {n}
 $n $n *
