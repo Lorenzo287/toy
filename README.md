@@ -1,6 +1,6 @@
-# Toy Forth
+# Toy
 
-Toy Forth is a minimalist, stack-based interpreter written in C. It started from a traditional Forth shape, but is evolving into a quotation-first concatenative language inspired by Joy, the language designed by Manfred von Thun.
+Toy is a minimalist, stack-based interpreter written in C. It started from a traditional Forth shape, but is evolving into a quotation-first concatenative language inspired by Joy, the language designed by Manfred von Thun.
 
 The core idea is simple: code blocks are data. Quotations (`[ ... ]`) and quoted symbols (`'name`) are first-class values that can be stored, passed, composed, and executed.
 
@@ -29,7 +29,7 @@ This version includes an interactive REPL, using **antirez**'s `linenoise` libra
 
 Define new words by binding a quoted symbol to a quotation:
 
-```forth
+```toy
 'square [ dup * ] def
 'cube [ dup square * ] def
 
@@ -39,13 +39,13 @@ Define new words by binding a quoted symbol to a quotation:
 
 Classic Forth-style definitions are still accepted as compatibility sugar:
 
-```forth
+```toy
 : square dup * ;
 ```
 
 For code that needs names for intermediate values, use frame-local captures:
 
-```forth
+```toy
 'hypot2 [ { x y } $x $x * $y $y * + ] def
 3 4 hypot2 print  \ Prints 25
 
@@ -58,7 +58,7 @@ For code that needs names for intermediate values, use frame-local captures:
 
 Code is data. You can defer execution by "quoting" a symbol or wrapping code in a block:
 
-```forth
+```toy
 'dup           \ Leaves 'dup
 
 [ 1 2 + ]      \ Leaves [1 2 +]
@@ -69,9 +69,9 @@ exec           \ Leaves 3
 
 ### Combinators
 
-Toy Forth favors small words that combine quotations instead of special syntax:
+Toy favors small words that combine quotations instead of special syntax:
 
-```forth
+```toy
 1 2 4 [ + ] dip
 \ Leaves 3 4
 
@@ -89,7 +89,7 @@ Toy Forth favors small words that combine quotations instead of special syntax:
 
 Branches (`if`, `ifelse`) support predicates that inspect the stack without permanently consuming it:
 
-```forth
+```toy
 5 [ 0 > ] [ "Positive" print ] if
 \ Prints Positive
 
@@ -115,14 +115,14 @@ Branches (`if`, `ifelse`) support predicates that inspect the stack without perm
 
 Linear recursion can express factorial without naming a recursive helper:
 
-```forth
+```toy
 5 [ 0 == ] [ succ ] [ dup pred ] [ * ] linrec
 \ Leaves 120
 ```
 
 Binary recursion can express quicksort in the Joy style:
 
-```forth
+```toy
 'qsort [
     [ len nip 2 < ]
     []
@@ -137,7 +137,7 @@ Binary recursion can express quicksort in the Joy style:
 
 ### List Words
 
-Toy Forth includes basic list inspection, construction, and update words:
+Toy includes basic list inspection, construction, and update words:
 
 - `len`, `geth`, `first`, `rest`, and `empty?` inspect lists without consuming
   the list
@@ -145,7 +145,7 @@ Toy Forth includes basic list inspection, construction, and update words:
   their list inputs
 - `seth` updates list contents in $O(1)$ time
 
-```forth
+```toy
 [ 1 2 3 ] len print        \ Prints 3, list stays on the stack
 [ 1 2 3 ] 1 geth nip print \ Prints 2, list is dropped explicitly by nip
 [ 1 2 3 ] uncons           \ Leaves 1 [2 3]
@@ -158,13 +158,13 @@ $list print               \ Prints [99 2 3]
 
 ### System & Utility Words
 
-Toy Forth also provides words for runtime interaction and introspection:
+Toy also provides words for runtime interaction and introspection:
 
 - `words` prints the dictionary and `see` shows a source-like definition
 - `rand`, `sleep`, and `time` provide simple runtime utilities
 - `bye` and `exit` terminate the interpreter
 
-```forth
+```toy
 words
 'square [ dup * ] def
 'square see
@@ -173,8 +173,8 @@ time print
 
 ## Standard Library
 
-Toy Forth includes a compact native vocabulary plus Forth standard-library words
-that can be loaded from `fth/std/*.fth`:
+Toy includes a compact native vocabulary plus Forth standard-library words
+that can be loaded from `toy/std/*.toy`:
 
 | Category          | Words                                                                                                                                    |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
@@ -186,7 +186,7 @@ that can be loaded from `fth/std/*.fth`:
 | **List**          | `geth`, `seth`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `splitmid`, `range`, `empty?`                              |
 | **System/Utils**  | `rand`, `sleep`, `time`, `words`, `see`, `load`, `bye`, `exit`                                                                           |
 | **Definition**    | `def`, `:`                                                                                                                               |
-| **Stdlib**        | Load `fth/std/std.fth` or pass `--std`; includes `core.fth` (`square`, `succ`, `pred`, `inc`) and `list.fth` (`null`, `small`, `filter`) |
+| **Stdlib**        | Load `toy/std/std.toy` or pass `--std`; includes `core.toy` (`square`, `succ`, `pred`, `inc`) and `list.toy` (`null`, `small`, `filter`) |
 
 Output convention:
 
@@ -207,7 +207,7 @@ Aggregate observer convention:
 
 ## Ecosystem & Tooling
 
-Toy Forth comes with a suite of tools to provide a modern development experience:
+Toy comes with a suite of tools to provide a modern development experience:
 
 - [**Tree-sitter Grammar**](./docs/tree-sitter.md): High-performance incremental parser for syntax highlighting, indentation, and folding.
 - [**Language Server (LSP)**](./docs/lsp.md): A standalone server written in Go that provides go-to-definition, hover documentation, and renaming.
@@ -233,16 +233,16 @@ cmake --build build
 
 ```powershell
 # Start the interactive REPL
-.\build\toy_forth.exe
+.\build\toy.exe
 
 # Basic run
-.\build\toy_forth.exe fth\program.fth
+.\build\toy.exe toy\program.toy
 
 # Run with the standard library preloaded
-.\build\toy_forth.exe --std fth\program.fth
+.\build\toy.exe --std toy\program.toy
 
 # Debug mode (prints tokenized program and final stack state)
-.\build\toy_forth.exe --debug fth\program.fth
+.\build\toy.exe --debug toy\program.toy
 ```
 
 ## License

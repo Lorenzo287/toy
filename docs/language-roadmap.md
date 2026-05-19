@@ -1,7 +1,7 @@
-# Toy Forth Language Roadmap
+# Toy Language Roadmap
 
 ## Vision: Quotation-First Programming
-Toy Forth is evolving from a traditional Forth clone into a quotation-first concatenative language. The goal is to make code blocks (`[ ... ]`) and symbols (`'sym`) the primary units of definition and composition, in the spirit of Joy, the concatenative language designed by Manfred von Thun.
+Toy is evolving from a traditional Forth clone into a quotation-first concatenative language. The goal is to make code blocks (`[ ... ]`) and symbols (`'sym`) the primary units of definition and composition, in the spirit of Joy, the concatenative language designed by Manfred von Thun.
 
 ### Core Model
 - **Bare Symbol**: Resolve in dictionary and invoke.
@@ -31,7 +31,7 @@ Toy Forth is evolving from a traditional Forth clone into a quotation-first conc
 
 ### 2. Current Expressiveness Check
 The quotation/list algebra is now expressive enough to write a compact quicksort through `binrec`:
-```forth
+```toy
 'qsort [
     [ len nip 2 < ]
     []
@@ -44,10 +44,10 @@ The quotation/list algebra is now expressive enough to write a compact quicksort
 ### 3. Active Development (Phase 1 & 3)
 - **Documentation Migration**: README examples now prioritize `'name [ ... ] def`. Continue migrating older docs and tests away from colon-first style when touching them.
 - **Legacy Sugar**: Treat `:` and `;` as compatibility syntax for definitions, not the primary language model.
-- **Standard Library Shape**: Use `load` to factor reusable Toy Forth words into `fth/std/` modules as examples mature.
+- **Standard Library Shape**: Use `load` to factor reusable Toy words into `toy/std/` modules as examples mature.
 
 ### 4. Future Goals (Phase 4)
-- **Standard-Library Factoring**: Move common examples and utilities from native C or tests into reusable Toy Forth quotations.
+- **Standard-Library Factoring**: Move common examples and utilities from native C or tests into reusable Toy quotations.
 - **Integrated Debugging**: Step-by-step execution and stack visualization.
 
 ---
@@ -73,4 +73,4 @@ The quotation/list algebra is now expressive enough to write a compact quicksort
 - **Inertness**: Quoted symbols must stay inert until `exec` or `i`.
 - **Equivalence**: `: name ... ;` must remain behaviorally identical to `'name [ ... ] def`.
 - **Persistence**: REPL state and frame-local variables must persist correctly across execution boundaries.
-- **Verification Focus**: Prefer C builds, targeted `fth/` scripts, and leak checks for interpreter changes. Tooling verification can be run manually or when explicitly requested.
+- **Verification Focus**: Prefer C builds, targeted `toy/` scripts, and leak checks for interpreter changes. Tooling verification can be run manually or when explicitly requested.

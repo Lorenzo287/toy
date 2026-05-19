@@ -94,6 +94,7 @@ vim.filetype.add({
     extension = {
         fth = "toyforth",
         tf = "toyforth",
+        toy = "toyforth",
     },
 })
 EOF

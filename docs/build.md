@@ -1,4 +1,4 @@
-# Build Instructions for Toy Forth
+# Build Instructions for Toy
 
 ## Build Profiles
 
@@ -40,5 +40,5 @@ _Note: On Windows use MSVC or Clang, MinGW is not supported for this mode._
 cmake -S . -B build-prof -G "Ninja" -DBUILD_MODE=Profile -DCMAKE_C_COMPILER=clang
 cmake --build build-prof
 cd build-prof
-samply record toy_forth.exe ../fth/test_prof.fth
+samply record toy.exe ../toy/test_prof.toy
 ```

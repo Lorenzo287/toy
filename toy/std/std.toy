@@ -1,0 +1,6 @@
+\ Standard library entrypoint.
+
+"toy/std/core.toy" load
+"toy/std/list.toy" load
+
+

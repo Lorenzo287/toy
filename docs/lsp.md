@@ -75,4 +75,4 @@ go test ./...
 
 ### Example Fixture
 
-The sample file in `tools/toyforth-lsp/testdata/symbols.fth` exercises the current server behavior.
+The sample file in `tools/toyforth-lsp/testdata/symbols.toy` exercises the current server behavior.

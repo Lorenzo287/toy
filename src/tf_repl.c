@@ -84,7 +84,7 @@ tf_ret run_repl(tf_ctx *ctx, bool debug) {
 
     reset_state(&state);
     init_repl_ui(ctx);
-    printf("%s=== Toy Forth REPL ===%s\n", tf_console_clr(TF_CLR_PROMPT),
+    printf("%s=== Toy REPL ===%s\n", tf_console_clr(TF_CLR_PROMPT),
            tf_console_clr(TF_CLR_RESET));
     printf("%sType 'hints' to toggle hints.%s\n", tf_console_clr(TF_CLR_INFO),
            tf_console_clr(TF_CLR_RESET));
@@ -510,9 +510,9 @@ static char *get_history_path(void) {
 #endif
     if (!home || home[0] == '\0') return NULL;
 
-    const char *name = "/.toy_forth_history";
+    const char *name = "/.toy_history";
 #ifdef _WIN32
-    name = "\\.toy_forth_history";
+    name = "\\.toy_history";
 #endif
     size_t len = strlen(home) + strlen(name) + 1;
     char *path = xmalloc(len);

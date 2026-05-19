@@ -1,4 +1,4 @@
-"fth/std/std.fth" load
+"toy/std/std.toy" load
 
 'bench [
     { block count name }
@@ -15,3 +15,5 @@
 [ 1 + ] 1000000 "Native (inline 1 +)" bench
 [ succ ] 1000000 "Native (C-primitive succ)" bench
 [ std_succ ] 1000000 "Stdlib (Forth-defined)" bench
+
+

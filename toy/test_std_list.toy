@@ -1,7 +1,9 @@
 \ Test loaded list standard library words.
 
-"fth/std/std.fth" load
+"toy/std/std.toy" load
 [ 1 2 3 4 5 ] [ 3 < ] filter .s empty
 10 [ 1 2 3 4 5 ] [ > ] filter .s empty
 [] null .s empty
 [ 1 ] small .s empty
+
+

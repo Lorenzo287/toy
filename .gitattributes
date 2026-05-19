@@ -9,7 +9,7 @@
 *.md text eol=lf
 *.txt text eol=lf
 *.scm text eol=lf
-*.fth text eol=lf
+*.toy text eol=lf
 *.tf text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf

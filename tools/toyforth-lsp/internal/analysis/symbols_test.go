@@ -7,7 +7,7 @@ import (
 )
 
 func TestDocumentSymbols(t *testing.T) {
-	path := filepath.Join("..", "..", "testdata", "symbols.fth")
+	path := filepath.Join("..", "..", "testdata", "symbols.toy")
 	src, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read fixture: %v", err)
@@ -47,7 +47,7 @@ func TestDocumentSymbols(t *testing.T) {
 }
 
 func TestLookupDefinition(t *testing.T) {
-	path := filepath.Join("..", "..", "testdata", "symbols.fth")
+	path := filepath.Join("..", "..", "testdata", "symbols.toy")
 	src, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read fixture: %v", err)
@@ -128,7 +128,7 @@ func TestLookupDefinition(t *testing.T) {
 }
 
 func TestLookupHover(t *testing.T) {
-	path := filepath.Join("..", "..", "testdata", "symbols.fth")
+	path := filepath.Join("..", "..", "testdata", "symbols.toy")
 	src, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read fixture: %v", err)
@@ -140,7 +140,7 @@ func TestLookupHover(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected hover for user word")
 	}
-	if userHover.Contents != "```toyforth\ncube\n```\ndefinition comment" {
+	if userHover.Contents != "```toy\ncube\n```\ndefinition comment" {
 		t.Fatalf("unexpected user hover: %q", userHover.Contents)
 	}
 
@@ -148,7 +148,7 @@ func TestLookupHover(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected hover for colon definition call")
 	}
-	if stackEffectHover.Contents != "```toyforth\nsquare ( n -- n*n )\n```\ntop-level definitions\n\nStack effect: `n -- n*n`" {
+	if stackEffectHover.Contents != "```toy\nsquare ( n -- n*n )\n```\ntop-level definitions\n\nStack effect: `n -- n*n`" {
 		t.Fatalf("unexpected stack effect hover: %q", stackEffectHover.Contents)
 	}
 
@@ -156,7 +156,7 @@ func TestLookupHover(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected hover for local binding")
 	}
-	if localHover.Contents != "```toyforth\n$outer\n```\nLocal binding from `{ outer }`." {
+	if localHover.Contents != "```toy\n$outer\n```\nLocal binding from `{ outer }`." {
 		t.Fatalf("unexpected local hover: %q", localHover.Contents)
 	}
 
@@ -173,7 +173,7 @@ func TestLookupHover(t *testing.T) {
 }
 
 func TestLookupReferences(t *testing.T) {
-	path := filepath.Join("..", "..", "testdata", "symbols.fth")
+	path := filepath.Join("..", "..", "testdata", "symbols.toy")
 	src, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read fixture: %v", err)
@@ -227,7 +227,7 @@ func TestLookupReferences(t *testing.T) {
 }
 
 func TestLookupRenameEdits(t *testing.T) {
-	path := filepath.Join("..", "..", "testdata", "symbols.fth")
+	path := filepath.Join("..", "..", "testdata", "symbols.toy")
 	src, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read fixture: %v", err)

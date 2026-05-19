@@ -21,11 +21,11 @@ int main(int argc, char **argv) {
     config config = {NULL, false, false, false, false};
     tf_ret ret = parse_args(argc, argv, &config);
     if (ret == TF_ERR || config.help) {
-        fprintf(stderr, "=== Toy Forth Interpreter ===\n");
+        fprintf(stderr, "=== Toy Interpreter ===\n");
         fprintf(stderr, "Usage: %s [--debug|-d] [--std] [filename]\n", argv[0]);
         fprintf(stderr, "\nRunning without filename starts the REPL\n");
         fprintf(stderr, "--debug shows parsed tokens and stack after execution\n");
-        fprintf(stderr, "--std loads fth/std/std.fth before execution\n");
+        fprintf(stderr, "--std loads toy/std/std.toy before execution\n");
         return ret;
     }
 
@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
 
     tf_ret result = TF_OK;
     if (config.load_std) {
-        result = run_file(ctx, "fth/std/std.fth", config.debug);
+        result = run_file(ctx, "toy/std/std.toy", config.debug);
     }
 
     if (result == TF_OK) {

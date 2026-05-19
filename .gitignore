@@ -23,6 +23,7 @@ _deps/
 *.dylib
 *.exe
 *.out
+toy.out
 toy_forth
 toy_forth.out
 

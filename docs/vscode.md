@@ -1,6 +1,6 @@
-# Toy Forth for VS Code
+# Toy for VS Code
 
-Visual Studio Code extension for Toy Forth, providing syntax highlighting and integration with the Toy Forth Language Server (LSP).
+Visual Studio Code extension for Toy, providing syntax highlighting and integration with the Toy Language Server (LSP).
 
 ## Features
 

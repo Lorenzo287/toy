@@ -1,4 +1,4 @@
-"fth/std/std.fth" load
+"toy/std/std.toy" load
 
 'bench [
     { block count name }
@@ -25,3 +25,5 @@
 
 [ 1 2 3 ] [ len nip 2 < ] 100000 "Native len nip 2 < (100k times)" bench-list
 [ 1 2 3 ] [ small ] 100000 "Stdlib small (100k times)" bench-list
+
+

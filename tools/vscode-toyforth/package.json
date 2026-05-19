@@ -1,7 +1,7 @@
 {
     "name": "vscode-toyforth",
-    "displayName": "Toy Forth Support",
-    "description": "Tree-sitter based syntax highlighting and LSP for Toy Forth",
+    "displayName": "Toy Support",
+    "description": "Tree-sitter based syntax highlighting and LSP for Toy",
     "version": "0.2.0",
     "publisher": "Lorenzo287",
     "engines": {
@@ -23,6 +23,7 @@
                     "toyforth"
                 ],
                 "extensions": [
+                    ".toy",
                     ".tf",
                     ".fth"
                 ],

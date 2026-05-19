@@ -1,10 +1,10 @@
-# Toy Forth: Agent & Project Manual
+# Toy: Agent & Project Manual
 
-This document provides foundational context, coding standards, and roadmap for Toy Forth. All AI agents MUST adhere to these guidelines to ensure consistency and system integrity.
+This document provides foundational context, coding standards, and roadmap for Toy. All AI agents MUST adhere to these guidelines to ensure consistency and system integrity.
 
 ## 1. Project Overview
 
-Toy Forth: minimalist, stack-based interpreter in C. Dynamic object system (Integers, Floats, Strings, Lists, Symbols). Iterative execution engine: avoids C recursion for user words.
+Toy: minimalist, stack-based interpreter in C. Dynamic object system (Integers, Floats, Strings, Lists, Symbols). Iterative execution engine: avoids C recursion for user words.
 
 ### Key Architectural Pillars
 
@@ -20,7 +20,7 @@ Toy Forth: minimalist, stack-based interpreter in C. Dynamic object system (Inte
 - `src/`: Core C implementation.
 - `include/`: Internal API headers.
 - `deps/`: Third-party sources bundled with the project (`linenoise`, `stb_leakcheck`).
-- `fth/`: Forth scripts and tests.
+- `toy/`: Toy scripts and tests.
 - `tools/`: External tooling (Tree-sitter, LSP).
 - `docs/`: Documentation for build, REPL usage, and external tools.
 
@@ -36,7 +36,7 @@ Toy Forth: minimalist, stack-based interpreter in C. Dynamic object system (Inte
 
 ## 4. Agent Interaction Rules
 
-- **Proactive Testing**: Propose/implement tests in `fth/` for fixes/features.
+- **Proactive Testing**: Propose/implement tests in `toy/` for fixes/features.
 - **Surgical Edits**: Minimal, precise changes only.
 - **Context Awareness**: Read headers in `include/` before engine/lexer edits.
 - **Native Naming**: Use `_r` for native words that call `exec()` and wait for a quotation result. Do not use `_r` for natives that only manipulate the data stack, register definitions, or schedule a frame and return.
@@ -74,7 +74,7 @@ Predefined build directories:
 Default coding-session verification:
 
 - Build the C target with `cmake --build build`.
-- Run the relevant `fth/` script(s), plus a broader script when risk justifies it.
+- Run the relevant `toy/` script(s), plus a broader script when risk justifies it.
 - Use `build-leak` for changes that alter ownership, object lifetime, stack effects, or execution flow.
 - Tooling tests (`go test`, Tree-sitter generation/tests, VS Code checks) are optional by default; run them only for tooling-focused tasks, risky tooling edits, or explicit user requests.
 

@@ -1,19 +1,19 @@
-# Toy Forth REPL
+# Toy REPL
 
-Toy Forth includes an interactive REPL when started without a filename.
+Toy includes an interactive REPL when started without a filename.
 
 ## Starting It
 
 ```powershell
 cmake --build build
-.\build\toy_forth.exe
+.\build\toy.exe
 ```
 
 On Unix-like systems or WSL:
 
 ```bash
 cmake --build build
-./build/toy_forth
+./build/toy
 ```
 
 ## What Persists Between Entries

@@ -70,7 +70,7 @@ var builtinDocs = map[string]builtinDoc{
 	"page":     {Signature: "page ( -- )", Description: "Alias for clear."},
 	"words":    {Signature: "words ( -- )", Description: "Print the known dictionary words."},
 	"see":      {Signature: "see ( 'name -- )", Description: "Show a source-like representation of a word definition."},
-	"load":     {Signature: "load ( path -- )", Description: "Load and execute a Toy Forth source file in the current context."},
+	"load":     {Signature: "load ( path -- )", Description: "Load and execute a Toy source file in the current context."},
 	"geth":     {Signature: "geth ( list idx -- list value )", Description: "Fetch a list element by index without consuming the list."},
 	"seth":     {Signature: "seth ( list idx value -- )", Description: "Store a list element by index. Consumes the list, index, and value."},
 	"len":      {Signature: "len ( list|string -- list|string n )", Description: "Get the length of a list or string without consuming it."},
@@ -102,14 +102,14 @@ func LookupHover(index DocumentIndex, pos Position) (Hover, bool) {
 			return Hover{}, false
 		}
 		return Hover{
-			Contents: "```toyforth\n$" + local.Name + "\n```\nLocal binding from `{ " + local.Name + " }`.",
+			Contents: "```toy\n$" + local.Name + "\n```\nLocal binding from `{ " + local.Name + " }`.",
 			Range:    tok.Range,
 		}, true
 	}
 
 	if doc, ok := builtinDocs[word]; ok {
 		return Hover{
-			Contents: "```toyforth\n" + doc.Signature + "\n```\n" + doc.Description,
+			Contents: "```toy\n" + doc.Signature + "\n```\n" + doc.Description,
 			Range:    tok.Range,
 		}, true
 	}
@@ -131,7 +131,7 @@ func LookupHover(index DocumentIndex, pos Position) (Hover, bool) {
 		}
 
 		return Hover{
-			Contents: strings.TrimSpace("```toyforth\n" + header + "\n```\n" + body),
+			Contents: strings.TrimSpace("```toy\n" + header + "\n```\n" + body),
 			Range:    tok.Range,
 		}, true
 	}

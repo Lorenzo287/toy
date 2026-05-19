@@ -1,6 +1,6 @@
-# Toy Forth Tree-sitter
+# Toy Tree-sitter
 
-Tree-sitter grammar for Toy Forth. It provides a robust, incremental parser that powers syntax highlighting, indentation, and code folding for modern editors.
+Tree-sitter grammar for Toy. It provides a robust, incremental parser that powers syntax highlighting, indentation, and code folding for modern editors.
 
 ## Features
 
@@ -42,6 +42,7 @@ vim.filetype.add({
     extension = {
         fth = "toyforth",
         tf = "toyforth",
+        toy = "toyforth",
     },
 })
 ```
@@ -66,7 +67,7 @@ After adding the configuration, run `:TSInstall toyforth` inside Neovim.
 >   `~/AppData/Local/nvim-data/lazy/nvim-treesitter/parser/`
 > - restart Neovim and let `auto_install` or `:TSInstall toyforth` rebuild it
 >
-> This is a file-locking issue in the current workflow, not a Toy Forth grammar
+> This is a file-locking issue in the current workflow, not a Toy grammar
 > issue.
 
 ## Development
