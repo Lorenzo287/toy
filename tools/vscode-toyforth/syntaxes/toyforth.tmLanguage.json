@@ -45,7 +45,7 @@
                 },
                 {
                     "name": "entity.name.function.toyforth",
-                    "match": "(?<=\\s|^)(dup|drop|swap|over|rot|swapd|nip|tuck|pick|roll|empty|abs|neg|succ|pred|max|min|print|printf|cr|key|input|time|clear|page|words|see|geth|seth|len|first|rest|uncons|cons|concat|rand|sleep|def|bye|exit|\\.|\\.s|empty\\?)(?=\\s|$)"
+                    "match": "(?<=\\s|^)(dup|drop|swap|over|rot|swapd|nip|tuck|pick|roll|empty|abs|neg|succ|pred|max|min|print|printf|cr|key|input|time|clear|page|words|see|load|geth|seth|len|first|rest|uncons|cons|append|concat|splitmid|range|rand|sleep|def|bye|exit|\\.|\\.s|empty\\?)(?=\\s|$)"
                 }
             ]
         },
@@ -53,7 +53,7 @@
             "patterns": [
                 {
                     "name": "keyword.control.toyforth",
-                    "match": "\\b(if|ifelse|while|times|each|map|exec|i|app2|dip|keep|bi|split|linrec|binrec)\\b"
+                    "match": "\\b(if|ifelse|while|times|each|map|fold|exec|i|app2|dip|keep|bi|split|linrec|binrec)\\b"
                 },
                 {
                     "name": "storage.type.toyforth",

@@ -25,8 +25,8 @@ Toy Forth is evolving from a traditional Forth clone into a quotation-first conc
 - **Core Primitives**: 
     - **Stack**: `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty`.
     - **Math**: arithmetic plus small numeric helpers such as `succ` and `pred`.
-    - **List Algebra**: `first`, `rest`, `uncons`, `cons`, `concat`, `empty?`, `geth`, `seth`, `len`.
-    - **Combinators**: `dip`, `keep`, `bi`, `split`, `linrec`, `binrec`; `map` is currently an alias for `each`.
+    - **List Algebra**: `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `range`, `empty?`, `geth`, `seth`, `len`.
+    - **Combinators**: `dip`, `keep`, `bi`, `split`, `map`, `fold`, `linrec`, `binrec`; `each` remains the stack-producing iterator.
 - **Tooling Baseline**: Tree-sitter, LSP, and VS Code support exist for native words. Keep metadata in sync when adding words, but default implementation work remains C/Forth-first.
 
 ### 2. Current Expressiveness Check
@@ -44,10 +44,10 @@ The quotation/list algebra is now expressive enough to write a compact quicksort
 ### 3. Active Development (Phase 1 & 3)
 - **Documentation Migration**: README examples now prioritize `'name [ ... ] def`. Continue migrating older docs and tests away from colon-first style when touching them.
 - **Legacy Sugar**: Treat `:` and `;` as compatibility syntax for definitions, not the primary language model.
-- **Standard Library Shape**: Identify which examples should become reusable Toy Forth words once loading support exists.
+- **Standard Library Shape**: Use `load` to factor reusable Toy Forth words into `fth/std/` modules as examples mature.
 
 ### 4. Future Goals (Phase 4)
-- **Standard-Library Factoring**: Move common examples and utilities from native C or tests into reusable Toy Forth quotations once loading support exists.
+- **Standard-Library Factoring**: Move common examples and utilities from native C or tests into reusable Toy Forth quotations.
 - **Integrated Debugging**: Step-by-step execution and stack visualization.
 
 ---

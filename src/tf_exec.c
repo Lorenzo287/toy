@@ -156,7 +156,8 @@ tf_ctx *init_ctx(void) {
     set_native_func(ctx, "ifelse", tf_ifelse_r);
     set_native_func(ctx, "times", tf_times_r);
     set_native_func(ctx, "each", tf_each_r);
-    set_native_func(ctx, "map", tf_each_r);
+    set_native_func(ctx, "map", tf_map_r);
+    set_native_func(ctx, "fold", tf_fold_r);
     set_native_func(ctx, "while", tf_while_r);
     set_native_func(ctx, "dip", tf_dip_r);
     set_native_func(ctx, "keep", tf_keep_r);
@@ -174,8 +175,11 @@ tf_ctx *init_ctx(void) {
     set_native_func(ctx, "rest", tf_rest);
     set_native_func(ctx, "uncons", tf_uncons);
     set_native_func(ctx, "cons", tf_cons);
+    set_native_func(ctx, "append", tf_append);
     set_native_func(ctx, "concat", tf_concat);
     set_native_func(ctx, "split", tf_split_r);
+    set_native_func(ctx, "splitmid", tf_splitmid);
+    set_native_func(ctx, "range", tf_range);
     set_native_func(ctx, "empty?", tf_empty_q);
 
     set_native_func(ctx, "key", tf_key);
@@ -187,6 +191,7 @@ tf_ctx *init_ctx(void) {
     set_native_func(ctx, "page", tf_clear);
     set_native_func(ctx, "words", tf_words);
     set_native_func(ctx, "see", tf_see);
+    set_native_func(ctx, "load", tf_load_r);
 
     set_native_func(ctx, "bye", tf_exit);
     set_native_func(ctx, "exit", tf_exit);

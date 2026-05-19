@@ -10,3 +10,5 @@
 
 [] empty? nip print     \ Should print true
 [ 1 ] empty? nip print  \ Should print false
+
+"hello" len .s empty    \ Should print <2> hello 5

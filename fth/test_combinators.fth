@@ -13,8 +13,11 @@
 [ 1 2 3 4 5 ] [ 3 < ] split .s empty \ Should print <2> [1 2] [3 4 5]
 3 [ 1 2 3 4 5 ] [ > ] split .s empty \ Should print <3> 3 [1 2] [3 4 5]
 
-[ 1 2 3 ] [ succ ] map .s empty \ Should print <3> 2 3 4
+[ 1 2 3 4 5 6 ] splitmid .s empty \ Should print <2> [1 2 3] [4 5 6]
+
+[ 1 2 3 ] [ succ ] map .s empty \ Should print <1> [2 3 4]
+99 [ 1 2 3 ] [ succ ] map .s empty \ Should print <2> 99 [2 3 4]
 
 5 [ 0 == ] [ succ ] [ dup pred ] [ * ] linrec .s empty \ Should print <1> 120
 
-[ 1 2 + ] i print             \ Should print 3
+[ 1 2 + ] i .s empty \ Should print 3

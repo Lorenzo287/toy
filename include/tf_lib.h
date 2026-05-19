@@ -41,6 +41,7 @@ tf_ret tf_time(tf_ctx *ctx);
 tf_ret tf_clear(tf_ctx *ctx);
 tf_ret tf_words(tf_ctx *ctx);
 tf_ret tf_see(tf_ctx *ctx);
+tf_ret tf_load_r(tf_ctx *ctx);
 tf_ret tf_exit(tf_ctx *ctx);
 
 // Comparison operations
@@ -61,6 +62,8 @@ tf_ret tf_if_r(tf_ctx *ctx);
 tf_ret tf_ifelse_r(tf_ctx *ctx);
 tf_ret tf_times_r(tf_ctx *ctx);
 tf_ret tf_each_r(tf_ctx *ctx);
+tf_ret tf_map_r(tf_ctx *ctx);
+tf_ret tf_fold_r(tf_ctx *ctx);
 tf_ret tf_while_r(tf_ctx *ctx);
 tf_ret tf_dip_r(tf_ctx *ctx);
 tf_ret tf_keep_r(tf_ctx *ctx);
@@ -80,8 +83,11 @@ tf_ret tf_first(tf_ctx *ctx);
 tf_ret tf_rest(tf_ctx *ctx);
 tf_ret tf_uncons(tf_ctx *ctx);
 tf_ret tf_cons(tf_ctx *ctx);
+tf_ret tf_append(tf_ctx *ctx);
 tf_ret tf_concat(tf_ctx *ctx);
 tf_ret tf_split_r(tf_ctx *ctx);
+tf_ret tf_splitmid(tf_ctx *ctx);
+tf_ret tf_range(tf_ctx *ctx);
 tf_ret tf_empty_q(tf_ctx *ctx);
 
 // System operations

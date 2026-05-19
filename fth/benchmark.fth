@@ -1,0 +1,27 @@
+"fth/std/std.fth" load
+
+'bench [
+    { block count name }
+    $name printf ": " print
+    time
+    0 $count [ $block exec ] times
+    drop
+    time swap - dup printf " ticks" print cr
+] def
+
+'bench-list [
+    { list block count name }
+    $name printf ": " print
+    time
+    $count [ $list $block exec drop ] times
+    time swap - dup printf " ticks" print cr
+] def
+
+[ 1 + ] 1000000 "Native + (1M times)" bench
+[ succ ] 1000000 "Stdlib succ (1M times)" bench
+
+[ dup * ] 1000000 "Native dup * (1M times)" bench
+[ square ] 1000000 "Stdlib square (1M times)" bench
+
+[ 1 2 3 ] [ len nip 2 < ] 100000 "Native len nip 2 < (100k times)" bench-list
+[ 1 2 3 ] [ small ] 100000 "Stdlib small (100k times)" bench-list

@@ -39,7 +39,7 @@ export default grammar({
       /\d+/,
     )),
     control_word: $ => choice(
-      'if', 'ifelse', 'while', 'times', 'each', 'map', 'exec', 'i', 'app2', 'dip',
+      'if', 'ifelse', 'while', 'times', 'each', 'map', 'fold', 'exec', 'i', 'app2', 'dip',
       'keep', 'bi', 'split', 'linrec', 'binrec'
     ),
     operator: $ => choice(
@@ -50,8 +50,8 @@ export default grammar({
       'dup', 'drop', 'swap', 'over', 'rot', 'swapd', 'nip', 'tuck', 'pick', 'roll',
       'empty',
       'print', 'printf', '.', '.s', 'cr',
-      'key', 'input', 'time', 'clear', 'page', 'words', 'see',
-      'geth', 'seth', 'len', 'first', 'rest', 'uncons', 'cons', 'concat', 'empty?',
+      'key', 'input', 'time', 'clear', 'page', 'words', 'see', 'load',
+      'geth', 'seth', 'len', 'first', 'rest', 'uncons', 'cons', 'append', 'concat', 'splitmid', 'range', 'empty?',
       'rand', 'sleep',
       'def', 'bye', 'exit'
     ),

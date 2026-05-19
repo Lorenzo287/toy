@@ -2,9 +2,15 @@
 'swapd [ rot swap ] def
 
 'qsort [
+	\ condition
     [ small ]
+	\ base case
     [ ]
+	\ extract pivot, split the list comparing with pivot
+	\ [ p a c b d ] -> p [ a c b d ] -> p [ a b ] [ c d ]
     [ uncons [ > ] split ]
+	\ reorder with swapd, insert pivot in list and concat
+	\ [ a b ] p [ c d ] -> [ a b ] [ p c d ] -> [ a b p c d ]
     [ swapd cons concat ]
     binrec
 ] def

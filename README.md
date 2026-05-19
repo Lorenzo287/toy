@@ -108,7 +108,7 @@ Branches (`if`, `ifelse`) support predicates that inspect the stack without perm
 \ Prints 1 2 3
 
 [ 1 2 3 ] [ succ ] map .s
-\ Prints <3> 2 3 4
+\ Prints <1> [2 3 4]
 ```
 
 ### Recursion Schemes
@@ -173,18 +173,20 @@ time print
 
 ## Standard Library
 
-Toy Forth includes a robust set of built-in words:
+Toy Forth includes a compact native vocabulary plus Forth standard-library words
+that can be loaded from `fth/std/*.fth`:
 
-| Category          | Words                                                                                                                  |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| **Stack**         | `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty`                                  |
-| **Math**          | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `succ`, `pred`, `max`, `min`                                             |
-| **Comparison**    | `==`, `!=`, `<`, `>`, `<=`, `>=`                                                                                       |
-| **Logic/Control** | `if`, `ifelse`, `while`, `times`, `each`, `map`, `exec`, `i`, `app2`, `dip`, `keep`, `bi`, `split`, `linrec`, `binrec` |
-| **I/O**           | `print`, `printf`, `.`, `.s`, `cr`, `key`, `input`, `clear`, `page`                                                    |
-| **List**          | `geth`, `seth`, `len`, `first`, `rest`, `uncons`, `cons`, `concat`, `empty?`                                           |
-| **System/Utils**  | `rand`, `sleep`, `time`, `words`, `see`, `bye`, `exit`                                                                 |
-| **Definition**    | `def`, `:`                                                                                                             |
+| Category          | Words                                                                                                                                    |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **Stack**         | `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty`                                                    |
+| **Math**          | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `succ`, `pred`, `max`, `min`                                                               |
+| **Comparison**    | `==`, `!=`, `<`, `>`, `<=`, `>=`                                                                                                         |
+| **Logic/Control** | `if`, `ifelse`, `while`, `times`, `each`, `map`, `fold`, `exec`, `i`, `app2`, `dip`, `keep`, `bi`, `split`, `linrec`, `binrec`           |
+| **I/O**           | `print`, `printf`, `.`, `.s`, `cr`, `key`, `input`, `clear`, `page`                                                                      |
+| **List**          | `geth`, `seth`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `splitmid`, `range`, `empty?`                              |
+| **System/Utils**  | `rand`, `sleep`, `time`, `words`, `see`, `load`, `bye`, `exit`                                                                           |
+| **Definition**    | `def`, `:`                                                                                                                               |
+| **Stdlib**        | Load `fth/std/std.fth` or pass `--std`; includes `core.fth` (`square`, `succ`, `pred`, `inc`) and `list.fth` (`null`, `small`, `filter`) |
 
 Output convention:
 
@@ -235,6 +237,9 @@ cmake --build build
 
 # Basic run
 .\build\toy_forth.exe fth\program.fth
+
+# Run with the standard library preloaded
+.\build\toy_forth.exe --std fth\program.fth
 
 # Debug mode (prints tokenized program and final stack state)
 .\build\toy_forth.exe --debug fth\program.fth
