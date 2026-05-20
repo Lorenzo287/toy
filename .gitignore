@@ -2,6 +2,7 @@
 build/
 build-prof/
 build-leak/
+build-linux/
 bin/
 obj/
 

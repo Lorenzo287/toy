@@ -36,11 +36,20 @@ static bool input_complete(const tf_repl_state *state);
 static void finish_token(tf_repl_state *state);
 static void init_repl_ui(tf_ctx *ctx);
 static void free_repl_ui(void);
+static void save_history_atexit(void);
 
 static tf_ctx *tf_repl_completion_ctx = NULL;
 static char *tf_repl_history_path = NULL;
 static bool hints_enabled = true;
 static int hints_color = 90;  // Bright black / Gray
+static int history_atexit_registered = 0;
+
+static void save_history_atexit(void) {
+    if (tf_repl_history_path) {
+        linenoiseHistorySave(tf_repl_history_path);
+    }
+}
+
 
 static char *get_history_path(void);
 static void tf_repl_completion(const char *buf, linenoiseCompletions *lc);
@@ -476,6 +485,11 @@ static bool input_complete(const tf_repl_state *state) {
 static void init_repl_ui(tf_ctx *ctx) {
     tf_repl_completion_ctx = ctx;
     tf_repl_history_path = get_history_path();
+
+    if (!history_atexit_registered) {
+        atexit(save_history_atexit);
+        history_atexit_registered = 1;
+    }
 
     set_native_func(ctx, "hints", tf_hints_toggle);
 
