@@ -123,6 +123,12 @@ tf_ctx *init_ctx(void) {
     set_native_func(ctx, "abs", tf_abs);
     set_native_func(ctx, "max", tf_max);
     set_native_func(ctx, "min", tf_min);
+    set_native_func(ctx, "and", tf_and);
+    set_native_func(ctx, "or", tf_or);
+    set_native_func(ctx, "xor", tf_xor);
+    set_native_func(ctx, "not", tf_not);
+    set_native_func(ctx, "shl", tf_shl);
+    set_native_func(ctx, "shr", tf_shr);
 
     set_native_func(ctx, "dup", tf_dup);
     set_native_func(ctx, "drop", tf_drop);

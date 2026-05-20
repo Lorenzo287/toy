@@ -191,6 +191,80 @@ tf_ret tf_abs(tf_ctx *ctx) {
     return TF_OK;
 }
 
+/* Helper for logical and bitwise operations */
+static tf_ret tf_logic(tf_ctx *ctx, char op) {
+    if (stack_len(ctx) < 2) return TF_ERR;
+
+    tf_obj *b = stack_pop(ctx);
+    tf_obj *a = stack_pop(ctx);
+
+    if (a->type == TF_OBJ_TYPE_BOOL && b->type == TF_OBJ_TYPE_BOOL) {
+        bool res = false;
+        if (op == '&') res = a->b && b->b;
+        else if (op == '|') res = a->b || b->b;
+        else if (op == '^') res = a->b ^ b->b;
+        stack_push(ctx, create_bool_obj(res));
+    } else if (a->type == TF_OBJ_TYPE_INT && b->type == TF_OBJ_TYPE_INT) {
+        int res = 0;
+        if (op == '&') res = a->i & b->i;
+        else if (op == '|') res = a->i | b->i;
+        else if (op == '^') res = a->i ^ b->i;
+        stack_push(ctx, create_int_obj(res));
+    } else {
+        stack_push(ctx, a);
+        stack_push(ctx, b);
+        return TF_ERR;
+    }
+
+    release_obj(a);
+    release_obj(b);
+    return TF_OK;
+}
+
+static tf_ret tf_shift(tf_ctx *ctx, bool left) {
+    if (stack_len(ctx) < 2) return TF_ERR;
+
+    tf_obj *b = stack_pop(ctx);
+    tf_obj *a = stack_pop(ctx);
+
+    if (a->type == TF_OBJ_TYPE_INT && b->type == TF_OBJ_TYPE_INT) {
+        int res = left ? (a->i << b->i) : (a->i >> b->i);
+        stack_push(ctx, create_int_obj(res));
+    } else {
+        stack_push(ctx, a);
+        stack_push(ctx, b);
+        release_obj(a);
+        release_obj(b);
+        return TF_ERR;
+    }
+
+    release_obj(a);
+    release_obj(b);
+    return TF_OK;
+}
+
+tf_ret tf_shl(tf_ctx *ctx) { return tf_shift(ctx, true); }
+tf_ret tf_shr(tf_ctx *ctx) { return tf_shift(ctx, false); }
+
+tf_ret tf_and(tf_ctx *ctx) { return tf_logic(ctx, '&'); }
+tf_ret tf_or(tf_ctx *ctx) { return tf_logic(ctx, '|'); }
+tf_ret tf_xor(tf_ctx *ctx) { return tf_logic(ctx, '^'); }
+
+tf_ret tf_not(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *a = stack_pop(ctx);
+    if (a->type == TF_OBJ_TYPE_BOOL) {
+        stack_push(ctx, create_bool_obj(!a->b));
+    } else if (a->type == TF_OBJ_TYPE_INT) {
+        stack_push(ctx, create_int_obj(~a->i));
+    } else {
+        stack_push(ctx, a);
+        return TF_ERR;
+    }
+    release_obj(a);
+    return TF_OK;
+}
+
 tf_ret tf_dup(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
     tf_obj *o = ctx->forth_stack->list.elem[ctx->forth_stack->list.len - 1];

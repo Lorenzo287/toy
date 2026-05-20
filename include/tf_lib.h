@@ -15,6 +15,12 @@ tf_ret tf_pred(tf_ctx *ctx);
 tf_ret tf_abs(tf_ctx *ctx);
 tf_ret tf_max(tf_ctx *ctx);
 tf_ret tf_min(tf_ctx *ctx);
+tf_ret tf_and(tf_ctx *ctx);
+tf_ret tf_or(tf_ctx *ctx);
+tf_ret tf_xor(tf_ctx *ctx);
+tf_ret tf_not(tf_ctx *ctx);
+tf_ret tf_shl(tf_ctx *ctx);
+tf_ret tf_shr(tf_ctx *ctx);
 
 // Stack operations
 tf_ret tf_dup(tf_ctx *ctx);

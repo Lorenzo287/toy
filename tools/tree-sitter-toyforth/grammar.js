@@ -44,6 +44,7 @@ export default grammar({
     ),
     operator: $ => choice(
       '+', '-', '*', '/', '%', 'mod', 'abs', 'neg', 'succ', 'pred', 'max', 'min',
+      'and', 'or', 'xor', 'not', 'shl', 'shr',
       '==', '!=', '<', '>', '<=', '>='
     ),
     builtin_word: $ => choice(

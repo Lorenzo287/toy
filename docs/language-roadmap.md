@@ -25,6 +25,7 @@ Toy is evolving from a traditional Forth clone into a quotation-first concatenat
 - **Core Primitives**: 
     - **Stack**: `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty`.
     - **Math**: arithmetic plus small numeric helpers such as `succ` and `pred`.
+    - **Logic**: `and`, `or`, `xor`, and `not` (overloaded for Booleans and Integers).
     - **List Algebra**: `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `range`, `empty?`, `geth`, `seth`, `len`.
     - **Combinators**: `dip`, `keep`, `bi`, `split`, `map`, `fold`, `linrec`, `binrec`; `each` remains the stack-producing iterator.
 - **Tooling Baseline**: Tree-sitter, LSP, and VS Code support exist for native words. Keep metadata in sync when adding words, but default implementation work remains C/Forth-first.

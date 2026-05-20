@@ -29,6 +29,18 @@ drop
 "Comp: 10 == 10 is true" print
 10 10 == print
 
+"Logic: true false or is true" print
+true false or print
+
+"Bitwise: 5 3 and is 1" print
+5 3 and print
+
+"Bitwise: 1 2 shl is 4" print
+1 2 shl print
+
+"Bitwise: 8 2 shr is 2" print
+8 2 shr print
+
 "Control: ifelse (true)" print
 [ true ] [ "ok" ] [ "fail" ] ifelse .
 drop
