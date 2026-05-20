@@ -318,6 +318,7 @@ static tf_obj *tf_var_fetch(tf_ctx *ctx, tf_obj *name) {
 static volatile sig_atomic_t interrupted = 0;
 void handle_sigint(int sig) {
     (void)sig;
+    signal(SIGINT, handle_sigint);
     interrupted = 1;
 }
 

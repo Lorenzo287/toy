@@ -41,7 +41,7 @@ CLAUDE.md
 
 # Local tools
 Makefile
-copy_tf.ps1
+copy_toy.ps1
 
 # Tools
 node_modules/

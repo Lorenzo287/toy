@@ -1,29 +1,35 @@
-"toy/std/std.toy" load
-
+\ Benchmarking utility
+\ Usage: [ block ] count "Name" bench
 'bench [
-    { block count name }
-    $name printf ": " print
-    time
-    0 $count [ $block exec ] times
-    drop
-    time swap - dup printf " ticks" print cr
+	{ block count name }
+	$name printf ": " printf
+	time
+	0 $count [ $block exec ] times
+	drop
+	time swap - printf " ticks\n" printf
 ] def
 
-'bench-list [
-    { list block count name }
-    $name printf ": " print
-    time
-    $count [ $list $block exec drop ] times
-    time swap - dup printf " ticks" print cr
-] def
+\ -----------------------------------------------
 
-[ 1 + ] 1000000 "Native + (1M times)" bench
-[ succ ] 1000000 "Stdlib succ (1M times)" bench
+"--- Comparison: Successor (10M iterations) ---\n" printf 
 
-[ dup * ] 1000000 "Native dup * (1M times)" bench
-[ square ] 1000000 "Stdlib square (1M times)" bench
+[ succ ] 10000000 "C-Primitive (succ)" bench
 
-[ 1 2 3 ] [ len nip 2 < ] 100000 "Native len nip 2 < (100k times)" bench-list
-[ 1 2 3 ] [ small ] 100000 "Stdlib small (100k times)" bench-list
+[ 1 + ] 10000000 "Inline Native (+)" bench
 
+"toy/std/std.toy" load
+[ succ ] 10000000 "Loaded Stdlib (succ)" bench
 
+'pure_succ [ 1 + ] def
+[ pure_succ ] 10000000 "Local Binding (pure_succ)" bench
+
+\ -----------------------------------------------
+
+"\n--- Comparison: Square (10M iterations) ---\n" printf 
+
+[ dup * ] 10000000 "Inline Native (dup *)" bench
+
+[ square ] 10000000 "Loaded Stdlib (square)" bench
+
+'pure_square [ dup * ] def
+[ pure_square ] 10000000 "Local Binding (pure_square)" bench
