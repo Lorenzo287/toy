@@ -3,22 +3,20 @@
 'bench [
 	{ block count name }
 	$name printf ": " printf
-	time
+	clock
 	0 $count [ $block exec ] times
 	drop
-	time swap - printf " ticks\n" printf
+	clock swap - printf " ticks\n" printf
 ] def
 
-\ -----------------------------------------------
+\ ----------------------------------------------
 
-"--- Comparison: Successor (10M iterations) ---\n" printf 
-
-[ succ ] 10000000 "C-Primitive (succ)" bench
+"--- Comparison: Increment (10M iterations) ---\n" printf
 
 [ 1 + ] 10000000 "Inline Native (+)" bench
 
-'succ_loc [ 1 + ] def
-[ succ_loc ] 10000000 "Local Binding (succ_loc)" bench
+'inc_loc [ 1 + ] def
+[ inc_loc ] 10000000 "Local Binding (inc_loc)" bench
 
 \ -----------------------------------------------
 

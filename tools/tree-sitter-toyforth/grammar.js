@@ -43,7 +43,7 @@ export default grammar({
       'keep', 'bi', 'split', 'linrec', 'binrec'
     ),
     operator: $ => choice(
-      '+', '-', '*', '/', '%', 'mod', 'abs', 'neg', 'succ', 'pred', 'max', 'min',
+      '+', '-', '*', '/', '%', 'mod', 'abs', 'neg', 'max', 'min',
       'and', 'or', 'xor', 'not', 'shl', 'shr',
       '==', '!=', '<', '>', '<=', '>='
     ),
@@ -51,7 +51,7 @@ export default grammar({
       'dup', 'drop', 'swap', 'over', 'rot', 'swapd', 'nip', 'tuck', 'pick', 'roll',
       'empty',
       'print', 'printf', '.', '.s', 'cr',
-      'key', 'input', 'time', 'clear', 'page', 'words', 'see', 'load', 'readf', 'writef', 'delf', 'readl', 'exists?',
+      'key', 'input', 'time', 'clock', 'clear', 'page', 'words', 'see', 'load', 'readf', 'writef', 'delf', 'readl', 'exists?',
       'geth', 'seth', 'len', 'first', 'rest', 'uncons', 'cons', 'append', 'concat', 'join', 'trim', 'upper', 'lower', 'splits', 'splitmid', 'merge', 'range', 'empty?',
       'rand', 'sleep',
       'def', 'bye', 'exit'

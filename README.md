@@ -56,8 +56,8 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 5 [ 0 > ] [ "Positive" print ] if
 
 \ Iteration and mapping are words over quotations.
-10 [ 0 > ] [ . pred ] while
-[ 1 2 3 ] [ succ ] map .s
+10 [ 0 > ] [ . 1 - ] while
+[ 1 2 3 ] [ 1 + ] map .s
 
 \ Recursion schemes can express algorithms without naming recursive helpers.
 'qsort [
@@ -86,13 +86,13 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 | Category    | Words                                                                                                                                                            |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Stack       | `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty`                                                                            |
-| Math        | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `succ`, `pred`, `max`, `min`                                                                                       |
+| Math        | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `max`, `min`                                                                                                       |
 | Logic       | `and`, `or`, `xor`, `not`, `shl`, `shr`                                                                                                                          |
 | Comparison  | `==`, `!=`, `<`, `>`, `<=`, `>=`                                                                                                                                 |
 | Control     | `if`, `ifelse`, `replicate`, `while`, `times`, `each`, `map`, `fold`, `exec`, `i`, `app2`, `dip`, `keep`, `bi`, `split`, `linrec`, `binrec`                      |
 | List/String | `geth`, `seth`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `join`, `trim`, `upper`, `lower`, `splits`, `splitmid`, `merge`, `range`, `empty?` |
 | I/O         | `print`, `printf`, `.`, `.s`, `cr`, `key`, `input`, `clear`, `page`, `readf`, `writef`, `delf`, `readl`, `exists?`                                               |
-| System      | `rand`, `sleep`, `time`, `words`, `see`, `load`, `bye`, `exit`                                                                                                   |
+| System      | `rand`, `sleep`, `time`, `clock`, `words`, `see`, `load`, `bye`, `exit`                                                                                          |
 | Definition  | `def`, `:`                                                                                                                                                       |
 
 ## Tooling

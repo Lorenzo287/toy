@@ -8,6 +8,9 @@ len nip 5 == [ "len ok" print ] [ "len fail" print ] ifelse
 10 [ rand 100 % ] replicate .s
 len nip 10 == [ "len ok" print ] [ "len fail" print ] ifelse
 
+"\nTesting ambient stack preservation:" print
+99 3 [ 1 ] replicate .s empty
+
 "\nTesting nested replication:" print
 3 [ 3 [ 1 ] replicate ] replicate .s
 \ Should be [ [1 1 1] [1 1 1] [1 1 1] ]

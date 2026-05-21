@@ -117,8 +117,6 @@ tf_ctx *init_ctx(void) {
     set_native_func(ctx, "/", tf_div);
     set_native_func(ctx, "%", tf_mod);
     set_native_func(ctx, "neg", tf_neg);
-    set_native_func(ctx, "succ", tf_succ);
-    set_native_func(ctx, "pred", tf_pred);
     set_native_func(ctx, "mod", tf_mod);
     set_native_func(ctx, "abs", tf_abs);
     set_native_func(ctx, "max", tf_max);
@@ -200,6 +198,7 @@ tf_ctx *init_ctx(void) {
     set_native_func(ctx, "rand", tf_rand);
     set_native_func(ctx, "sleep", tf_sleep);
     set_native_func(ctx, "time", tf_time);
+    set_native_func(ctx, "clock", tf_clock);
     set_native_func(ctx, "clear", tf_clear);
     set_native_func(ctx, "page", tf_clear);
     set_native_func(ctx, "words", tf_words);

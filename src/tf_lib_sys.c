@@ -35,6 +35,11 @@ tf_ret tf_sleep(tf_ctx *ctx) {
 }
 
 tf_ret tf_time(tf_ctx *ctx) {
+    stack_push(ctx, create_int_obj((int)time(NULL)));
+    return TF_OK;
+}
+
+tf_ret tf_clock(tf_ctx *ctx) {
     stack_push(ctx, create_int_obj((int)clock()));
     return TF_OK;
 }
@@ -109,12 +114,12 @@ tf_ret tf_see(tf_ctx *ctx) {
         return TF_OK;
     }
 
-    printf(": %s ", func->name->str.ptr);
+    printf("'%s [ ", func->name->str.ptr);
     for (size_t i = 0; i < func->user_impl->list.len; i++) {
         print_source_obj(func->user_impl->list.elem[i]);
         if (i + 1 < func->user_impl->list.len) printf(" ");
     }
-    printf(" ;\n");
+    printf(" ] def\n");
     release_obj(name);
     return TF_OK;
 }

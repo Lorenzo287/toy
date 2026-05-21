@@ -12,8 +12,8 @@
 .s empty
 \ Expected: <2> 2 2
 
-'my_succ [ 1 + ] def
-10 20 'my_succ app2
+'my_inc [ 1 + ] def
+10 20 'my_inc app2
 .s empty
 \ Expected: <2> 11 21
 

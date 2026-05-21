@@ -519,26 +519,38 @@ tf_ret tf_replicate_r(tf_ctx *ctx) {
         return TF_ERR;
     }
 
+    size_t saved_len = stack_len(ctx);
+    tf_obj **saved_stack =
+        saved_len > 0 ? xmalloc(sizeof(tf_obj *) * saved_len) : NULL;
+    for (size_t i = 0; i < saved_len; i++) {
+        saved_stack[i] = stack_peek(ctx, saved_len - 1 - i);
+        retain_obj(saved_stack[i]);
+    }
+
     tf_obj *res = init_list_obj();
     tf_ret ret = TF_OK;
 
     for (int i = 0; i < n; i++) {
         ret = exec(ctx, body);
         if (ret != TF_OK) break;
-        if (stack_len(ctx) < 1) {
+        if (stack_len(ctx) != saved_len + 1) {
             ret = TF_ERR;
             break;
         }
         tf_obj *item = stack_pop(ctx);
         push_obj(res, item);
+        tf_restore_stack_copy(ctx, saved_stack, saved_len);
     }
 
     if (ret == TF_OK) {
         stack_push(ctx, res);
     } else {
+        tf_restore_stack_copy(ctx, saved_stack, saved_len);
         release_obj(res);
     }
 
+    for (size_t i = 0; i < saved_len; i++) release_obj(saved_stack[i]);
+    free(saved_stack);
     release_obj(body);
     return ret;
 }
@@ -685,9 +697,7 @@ tf_ret tf_fold_r(tf_ctx *ctx) {
         }
     }
 
-    if (res != TF_OK) {
-        tf_restore_stack_copy(ctx, saved_stack, saved_len);
-    }
+    if (res != TF_OK) { tf_restore_stack_copy(ctx, saved_stack, saved_len); }
 
     for (size_t i = 0; i < saved_len; i++) release_obj(saved_stack[i]);
     free(saved_stack);
