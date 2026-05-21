@@ -176,21 +176,19 @@ time print
 Toy includes a compact native vocabulary plus Forth standard-library words
 that can be loaded from `toy/std/*.toy`:
 
-| Category         | Words                                                                                                                                                   |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Stack**        | `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty`                                                                   |
-| **Math**         | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `succ`, `pred`, `max`, `min`                                                                              |
-| **Logic**        | `and`, `or`, `xor`, `not`, `shl`, `shr`                                                                                                                 |
-| **Comparison**   | `==`, `!=`, `<`, `>`, `<=`, `>=`                                                                                                                        |
-| **Control**      | `if`, `ifelse`, `replicate`, `while`, `times`, `each`, `map`, `fold`, `exec`, `i`, `app2`, `dip`, `keep`, `bi`, `split`, `linrec`, `binrec` |
-
-| **I/O**          | `print`, `printf`, `.`, `.s`, `cr`, `key`, `input`, `clear`, `page`                                                                                     |
-| **List/String**   | `geth`, `seth`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `join`, `trim`, `upper`, `lower`, `splits`, `splitmid`, `merge`, `range`, `empty?` |
-
-| **File I/O**     | `readf`, `writef`, `delf`, `readl`, `exists?`                                                                                                           |
-| **System/Utils** | `rand`, `sleep`, `time`, `words`, `see`, `load`, `bye`, `exit`                                                                                          |
-| **Definition**   | `def`, `:`                                                                                                                                              |
-| **Stdlib**       | Load `toy/std/std.toy` or pass `--std`; includes `core.toy` (`square`, `succ`, `pred`, `inc`) and `list.toy` (`null`, `small`, `filter`)                |
+| Category         | Words                                                                                                                                                            |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Stack**        | `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty`                                                                            |
+| **Math**         | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `succ`, `pred`, `max`, `min`                                                                                       |
+| **Logic**        | `and`, `or`, `xor`, `not`, `shl`, `shr`                                                                                                                          |
+| **Comparison**   | `==`, `!=`, `<`, `>`, `<=`, `>=`                                                                                                                                 |
+| **Control**      | `if`, `ifelse`, `replicate`, `while`, `times`, `each`, `map`, `fold`, `exec`, `i`, `app2`, `dip`, `keep`, `bi`, `split`, `linrec`, `binrec`                      |
+| **I/O**          | `print`, `printf`, `.`, `.s`, `cr`, `key`, `input`, `clear`, `page`                                                                                              |
+| **List/String**  | `geth`, `seth`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `join`, `trim`, `upper`, `lower`, `splits`, `splitmid`, `merge`, `range`, `empty?` |
+| **File I/O**     | `readf`, `writef`, `delf`, `readl`, `exists?`                                                                                                                    |
+| **System/Utils** | `rand`, `sleep`, `time`, `words`, `see`, `load`, `bye`, `exit`                                                                                                   |
+| **Definition**   | `def`, `:`                                                                                                                                                       |
+| **Stdlib**       | Load `toy/std/std.toy` or pass `--std`; includes `core.toy` (`square`, `succ`, `pred`, `inc`) and `list.toy` (`null`, `small`, `filter`)                         |
 
 Output convention:
 
