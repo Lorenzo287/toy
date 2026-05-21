@@ -17,19 +17,14 @@
 
 [ 1 + ] 10000000 "Inline Native (+)" bench
 
-"toy/std/std.toy" load
-[ succ ] 10000000 "Loaded Stdlib (succ)" bench
-
-'pure_succ [ 1 + ] def
-[ pure_succ ] 10000000 "Local Binding (pure_succ)" bench
+'succ_loc [ 1 + ] def
+[ succ_loc ] 10000000 "Local Binding (succ_loc)" bench
 
 \ -----------------------------------------------
 
 "\n--- Comparison: Square (10M iterations) ---\n" printf 
 
-[ dup * ] 10000000 "Inline Native (dup *)" bench
+[ dup * ] 10000000 "Native (dup *)" bench
 
-[ square ] 10000000 "Loaded Stdlib (square)" bench
-
-'pure_square [ dup * ] def
-[ pure_square ] 10000000 "Local Binding (pure_square)" bench
+'square_loc [ dup * ] def
+[ square_loc ] 10000000 "Local Binding (square_loc)" bench

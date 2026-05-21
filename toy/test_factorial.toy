@@ -6,7 +6,7 @@
 
 [ 5 3 1 ] [ factorial2 ] each .s empty
 
-'null [ 0 == ] def
-'factorial3 [ [ null ] [ succ ] [ dup pred ] [ * ] linrec ] def
+'null [ empty? ] def
+'factorial3 [ [ empty? ] [ succ ] [ dup pred ] [ * ] linrec ] def
 
 [ 5 3 1 ] [ factorial3 ] each .s empty

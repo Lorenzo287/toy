@@ -8,7 +8,7 @@
 
 typedef struct {
     const char *filename;
-    bool debug, help, interactive, load_std;
+    bool debug, help, interactive;
 } config;
 
 extern void handle_sigint(int sig);
@@ -18,14 +18,13 @@ int main(int argc, char **argv) {
     signal(SIGINT, handle_sigint);
     tf_console_init();
 
-    config config = {NULL, false, false, false, false};
+    config config = {NULL, false, false, false};
     tf_ret ret = parse_args(argc, argv, &config);
     if (ret == TF_ERR || config.help) {
         fprintf(stderr, "=== Toy Interpreter ===\n");
-        fprintf(stderr, "Usage: %s [--debug|-d] [--std] [filename]\n", argv[0]);
+        fprintf(stderr, "Usage: %s [--debug|-d] [filename]\n", argv[0]);
         fprintf(stderr, "\nRunning without filename starts the REPL\n");
         fprintf(stderr, "--debug shows parsed tokens and stack after execution\n");
-        fprintf(stderr, "--std loads toy/std/std.toy before execution\n");
         return ret;
     }
 
@@ -33,9 +32,6 @@ int main(int argc, char **argv) {
     if (!ctx) { return TF_ERR; }
 
     tf_ret result = TF_OK;
-    if (config.load_std) {
-        result = run_file(ctx, "toy/std/std.toy", config.debug);
-    }
 
     if (result == TF_OK) {
         if (config.interactive) {
@@ -57,10 +53,7 @@ int parse_args(int argc, char **argv, config *config) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--debug") == 0 || strcmp(argv[i], "-d") == 0) {
             config->debug = true;
-        } else if (strcmp(argv[i], "--std") == 0) {
-            config->load_std = true;
-        } else if (strcmp(argv[i], "--help") == 0 ||
-                   strcmp(argv[i], "-h") == 0) {
+        } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             config->help = true;
         } else if (config->filename == NULL) {
             config->filename = argv[i];

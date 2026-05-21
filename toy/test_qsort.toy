@@ -3,7 +3,7 @@
 
 'qsort [
 	\ condition
-    [ small ]
+    [ len 2 < ]
 	\ base case
     [ ]
 	\ extract pivot, split the list comparing with pivot

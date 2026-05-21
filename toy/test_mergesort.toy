@@ -1,5 +1,6 @@
 \ Test merge sort using native merge primitive
-"toy/std/std.toy" load
+
+'small [ len 2 < ] def
 
 'mergesort [
     [ small ]
@@ -14,7 +15,7 @@
 len nip 9 == [ "len ok" print ] [ "len fail" print ] ifelse
 
 "\nSorting large-ish range:" print
-[] 20 [ rand 100 % append ] times
+20 [ rand 100 % ] replicate
 "Original: " printf .s
 mergesort
 "Sorted:   " printf .s

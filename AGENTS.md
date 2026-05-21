@@ -1,88 +1,53 @@
-# Toy: Agent & Project Manual
+# Toy: Agent Manual
 
-This document provides foundational context, coding standards, and roadmap for Toy. All AI agents MUST adhere to these guidelines to ensure consistency and system integrity.
+Toy is a minimalist stack-based interpreter in C. It has refcounted dynamic
+objects, first-class quotations/lists, dynamic captures (`{ a b }` / `$a`), a
+global word dictionary, and an iterative frame stack for user words.
 
-## 1. Project Overview
+Roadmap work lives in `docs/language-roadmap.md`. Keep this file focused on
+navigation and development rules.
 
-Toy: minimalist, stack-based interpreter in C. Dynamic object system (Integers, Floats, Strings, Lists, Symbols). Iterative execution engine: avoids C recursion for user words.
+## Project Map
 
-### Key Architectural Pillars
+- `src/`: interpreter implementation.
+- `include/`: internal APIs; read these before engine, lexer, object, or native edits.
+- `toy/`: Toy scripts and regression tests.
+- `docs/`: build, REPL, tooling, and roadmap docs.
+- `tools/`: Tree-sitter grammar, Go LSP, VS Code extension.
+- `deps/`: vendored `linenoise` and `stb_leakcheck`.
 
-- **Iterative Engine**: Frame-based return stack (`tf_frame`) manages execution.
-- **Execution Boundary**: User-defined words run through the explicit frame stack. Native words may still call `exec()` synchronously for quotation/control behavior; those blocking quotation runners should use the `_r` suffix until they are converted to continuation-style execution.
-- **Refcounting**: Every object (`tf_obj`) managed via `retain_obj` and `release_obj`.
-- **Global Dictionary**: High-performance hash table for word lookups.
-- **Variable Capturing**: Dynamic scoping for locals via `{ a b }`.
-- **Interactive REPL**: Persistent interpreter context across entries, with multiline input handling, colored diagnostics, and interrupt support.
+## Fast Context
 
-## 2. Directory Structure
+- Native word registry: `src/tf_exec.c:init_ctx()`.
+- Native declarations: `include/tf_lib.h`.
+- Execution engine: `include/tf_exec.h`, `src/tf_exec.c`.
+- Objects/ownership: `include/tf_obj.h`, `src/tf_obj.c`, `include/tf_alloc.h`.
+- Lexer: `include/tf_lexer.h`, `src/tf_lexer.c`.
+- REPL: `include/tf_repl.h`, `src/tf_repl.c`.
+- Language plan: `docs/language-roadmap.md`.
 
-- `src/`: Core C implementation.
-- `include/`: Internal API headers.
-- `deps/`: Third-party sources bundled with the project (`linenoise`, `stb_leakcheck`).
-- `toy/`: Toy scripts and tests.
-- `tools/`: External tooling (Tree-sitter, LSP).
-- `docs/`: Documentation for build, REPL usage, and external tools.
+## Workflow
 
-## 3. Coding Guidelines (C)
+- Start with `git status --short`; do not overwrite user changes.
+- For language behavior, check `README.md`, then the relevant C files and tests.
+- For roadmap work, read `docs/language-roadmap.md` first.
+- For native word changes, update `init_ctx()`, declarations, focused `toy/`
+  tests, and lightweight tooling metadata when practical.
+- Build with `cmake --build build`; run relevant scripts. Use `build-leak` for
+  ownership, stack-effect, or execution-flow changes.
 
-- **Style**: Snake_case, 4-space indentation.
-- **Prefixing**: Use `tf_` prefix (e.g., `tf_obj`).
-- **Memory Safety**:
-  - `retain_obj` when storing reference.
-  - `release_obj` when reference no longer needed.
-  - Use `xmalloc`.
-- **Verification**: Check for leaks with `stb_leakcheck`.
+## Development Rules
 
-## 4. Agent Interaction Rules
-
-- **Proactive Testing**: Propose/implement tests in `toy/` for fixes/features.
-- **Surgical Edits**: Minimal, precise changes only.
-- **Context Awareness**: Read headers in `include/` before engine/lexer edits.
-- **Native Naming**: Use `_r` for native words that call `exec()` and wait for a quotation result. Do not use `_r` for natives that only manipulate the data stack, register definitions, or schedule a frame and return.
-- **C-First Workflow**: For implementation sessions, focus primarily on the C interpreter and Forth behavior. If a new native word or syntax change affects tooling, keep metadata updates lightweight and obvious, but do not spend time on full Tree-sitter/LSP/VS Code verification unless the task is specifically about tooling or the user requests it.
-- **Language Direction**: Prefer the quotation-first model described in `docs/language-roadmap.md`. Treat user-defined words as named quotations, keep `: ... ;` as compatibility sugar unless a task explicitly changes that policy, and prioritize list/quotation primitives and combinators over new syntax.
-- **Concise Communication**: Be concise by default. Expand when needed for clarity, reasoning, or uncertainty. Avoid filler, not explanation.
-- **Execution Context**: Assume Windows PowerShell. Do not output bash syntax.
-
-## 5. Tooling Roadmap
-
-1. **Tree-sitter Grammar**: [Done] Formal grammar in `tools/tree-sitter-toyforth/`.
-2. **Language Server Protocol (LSP)**: [Done] Standalone Go implementation in `tools/toyforth-lsp/`.
-3. **VS Code Extension**: [Done] Syntax highlighting and LSP client in `tools/vscode-toyforth/`.
-4. **REPL Enhancements**: [Done] Interactive REPL with multiline input, colored diagnostics, `Ctrl-C` interruption handling, and `linenoise` history/completion. See `docs/repl.md`.
-5. **Formatter**: Auto layout based on Tree-sitter.
-6. **Integrated Debugger**: Step-by-step execution and stack inspection.
-
-## 6. Build & Verification
-
-### Environment
-
-- OS: Windows
-- Shell: PowerShell (commands assume PowerShell syntax, not bash)
-- Compiler: (e.g., MSVC via CMake or specify if using MinGW/Clang)
-- Paths: Use Windows-style paths unless otherwise specified
-
-### Build Commands
-
-Predefined build directories:
-
-- **Standard**: `cmake --build build`
-- **Leak Check**: `cmake --build build-leak` (uses `stb_leakcheck`)
-- **Profiling**: `cmake --build build-prof`
-
-Default coding-session verification:
-
-- Build the C target with `cmake --build build`.
-- Run the relevant `toy/` script(s), plus a broader script when risk justifies it.
-- Use `build-leak` for changes that alter ownership, object lifetime, stack effects, or execution flow.
-- Tooling tests (`go test`, Tree-sitter generation/tests, VS Code checks) are optional by default; run them only for tooling-focused tasks, risky tooling edits, or explicit user requests.
-
-### Documentation
-
-- REPL usage and behavior: `docs/repl.md`
-- Build instructions: `docs/build.md`
-- Language roadmap: `docs/language-roadmap.md`
-- Tree-sitter: `docs/tree-sitter.md`
-- LSP: `docs/lsp.md`
-- VS Code extension: `docs/vscode.md`
+- C style: snake_case, 4-space indentation, `tf_` prefix for project symbols.
+- Memory: `retain_obj` when storing references, `release_obj` when done, use
+  `xmalloc` helpers.
+- Native naming: `_r` means the native still calls `exec()` synchronously and
+  waits for a quotation result. Remove `_r` only after converting it to schedule
+  frames and return.
+- Language direction: prefer quotation-first words and combinators over new
+  syntax. Follow `docs/language-roadmap.md` for definition policy.
+- Tooling: keep metadata obvious when words/syntax change, but full
+  Tree-sitter/LSP/VS Code checks are only required for tooling-focused work.
+- Docs: README is public-facing; AGENTS is for agent rules; roadmap is the
+  implementation plan.
+- Shell: assume Windows PowerShell; do not output bash syntax.

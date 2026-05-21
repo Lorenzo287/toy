@@ -1,85 +1,76 @@
 # Toy Language Roadmap
 
-## Vision: Quotation-First Programming
-Toy is evolving from a traditional Forth clone into a quotation-first concatenative language. The goal is to make code blocks (`[ ... ]`) and symbols (`'sym`) the primary units of definition and composition, in the spirit of Joy, the concatenative language designed by Manfred von Thun.
+Toy is evolving from a Forth-like interpreter into a quotation-first
+concatenative language inspired by Joy. Quotations (`[ ... ]`) and symbols
+(`'name`) are the main units of definition, composition, and execution.
 
-### Core Model
-- **Bare Symbol**: Resolve in dictionary and invoke.
-- **Quoted Symbol**: Push symbol value as data (inert).
-- **List / Quotation**: First-class executable value.
-- **`def`**: Bind a symbol to a quotation (the preferred definition style).
-- **`exec` / `i`**: Apply a quotation or symbol.
+## Baseline
 
-### Non-Goals
-- **Lisp-style macros** or reader-level quoting.
-- **Expanded compile-time semantics** around `:` and `;`.
-- **New syntax** before the quotation/list model is mature enough to support it.
+- Preferred definition style: `'name [ ... ] def`; `: name ... ;` remains
+  supported for existing Forth-style code.
+- Quotations/lists are first-class values; `exec`/`i` apply them.
+- User-defined words run on the explicit frame stack.
+- Some native quotation runners still call `exec()` synchronously and keep the
+  `_r` suffix.
+- Native word source of truth: `src/tf_exec.c:init_ctx()`.
 
----
+## Roadmap Tracks
 
-## Project Status
+These tracks are not a strict priority order. Prefer work that clarifies
+semantics, improves tests/examples, and keeps the interpreter educational.
 
-### 1. Completed Foundations
-- **Iterative Engine**: Frame-based execution prevents C stack overflows for user words.
-- **Native Object System**: Refcounted Integers, Floats, Strings, Lists, Symbols, and Booleans.
-- **Core Primitives**: 
-    - **Stack**: `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty`.
-    - **Math**: arithmetic plus small numeric helpers such as `succ` and `pred`.
-    - **Logic/Bitwise**: `and`, `or`, `xor`, `not`, `shl`, `shr`.
-    - **File I/O**: `readf`, `writef`, `delf`, `readl`, `exists?`.
-    - **String/List Manipulation**: `concat`, `splits`, `join`, `trim`, `upper`, `lower`, `first`, `rest`, `uncons`, `cons`, `append`, `range`, `empty?`, `geth`, `seth`, `len`.
-    - **Combinators**: `dip`, `keep`, `bi`, `split`, `map`, `fold`, `linrec`, `binrec`; `each` remains the stack-producing iterator.
-- **Tooling Baseline**: Tree-sitter, LSP, and VS Code support exist for native words. Keep metadata in sync when adding words, but default implementation work remains C/Forth-first.
+### Vocabulary and Resilience
 
-### 2. Current Expressiveness Check
-The quotation/list algebra is now expressive enough to write a compact quicksort through `binrec`:
-```toy
-'qsort [
-    [ len nip 2 < ]
-    []
-    [ uncons [ > ] split ]
-    [ swapd cons concat ]
-    binrec
-] def
-```
+Audit Joy builtins and add only words with clear stack effects and real value.
+This includes type predicates, safer stack/collection predicates, error-handling
+experiments, external interop (`argv`, `getenv`, subprocesses), and explicit
+Toy-level library modules loaded with `load`.
 
-### 3. Active Development (Phase 1 & 3)
-- **Documentation Migration**: README examples now prioritize `'name [ ... ] def`. Continue migrating older docs and tests away from colon-first style when touching them.
-- **Legacy Sugar**: Treat `:` and `;` as compatibility syntax for definitions, not the primary language model.
-- **Standard Library Shape**: Use `load` to factor reusable Toy words into `toy/std/` modules as examples mature.
+Prefer Toy definitions for convenience words. Prefer C natives for direct object
+access, frame scheduling, platform I/O, or measured performance.
 
-### 4. Future Goals (Phase 4)
-- **Standard-Library Factoring**: Move common examples and utilities from native C or tests into reusable Toy quotations.
-- **Integrated Debugging**: Step-by-step execution and stack visualization.
+### Explicit Execution Boundary
 
-### 5. Scripting & Resilience (Phase 5)
-To transform Toy into a robust "system glue" and general-purpose scripting language, the following areas are prioritized:
-- **External Interop**: `argv` (CLI arguments), `getenv` (environment variables), and `exec-sh` (subprocesses).
-- **High-Level Data Structures**: Native $O(1)$ key-value storage (Maps/Dictionaries) and JSON support.
-- **Resilience**: Type predicates (`int?`, `str?`, etc.), `try` for error handling, and stack depth guards.
-- **Formatting**: `timefmt` for human-readable dates and enhanced string formatting.
+Convert `_r` native words to continuation-style frame scheduling so nested user
+code no longer grows the C call stack. Preserve existing stack effects and
+predicate-inspection behavior. Add regression scripts and run leak checks for
+each conversion.
 
----
+### High-Level Data Structures
 
-## Design Principles
+Add maps/dictionaries as first-class values, then consider JSON support. Decide
+early whether maps are mutable or persistent. Start with a small API: create,
+get, set, delete, keys, values, predicates.
 
-### Control Flow & Inspection
-- **Predicate Inspection**: `if`, `ifelse`, and `while` should support quoted predicates that inspect the stack without permanently consuming values (using temporary stack views).
-- **Aggregate Preservation**: 
-    - Observational words (`len`, `geth`, `first`, `rest`, `empty?`) should preserve the inspected list.
-    - Structural words (`uncons`, `cons`, `concat`) should consume their list inputs.
-    - Update words (`seth`) may remain consuming/mutating.
+### Debugger
 
-### Implementation Guidelines
-1. **Semantics First**: Focus on how words behave and compose before adding new syntax.
-2. **Quotation-First**: Prefer reusable combinators over specialized syntax or compiler modes.
-3. **Explicit Stack Effects**: Avoid "hidden" evaluator state; ensure stack changes are predictable and testable.
-4. **Tooling Parity**: Every new native word should have obvious metadata updates for LSP, Tree-sitter, and editor support, but full tooling test runs are optional unless the task is tooling-focused.
+Use the frame stack to expose stepping, current word/program counter, data
+stack, and call stack. Support REPL usage first; editor integration can come
+later.
 
----
+### Formatter
 
-## Test Expectations
-- **Inertness**: Quoted symbols must stay inert until `exec` or `i`.
-- **Equivalence**: `: name ... ;` must remain behaviorally identical to `'name [ ... ] def`.
-- **Persistence**: REPL state and frame-local variables must persist correctly across execution boundaries.
-- **Verification Focus**: Prefer C builds, targeted `toy/` scripts, and leak checks for interpreter changes. Tooling verification can be run manually or when explicitly requested.
+Build on Tree-sitter. Define deterministic, idempotent formatting for
+quotations, captures, colon definitions, comments, and long pipelines. Start
+with fixtures before editor integration.
+
+### Performance Lab
+
+Profile first, change one technique at a time, and record results. Topics:
+dispatch, dictionary lookup, allocation, stack/list growth, hot-path
+specialization, bytecode, threaded code, cache behavior.
+
+### Compiler / LLVM
+
+Treat compilation as a later learning track. Start with an IR for quotations,
+then bytecode for the existing VM, then LLVM for a constrained subset.
+
+## Design Rules
+
+- Semantics before syntax.
+- Prefer reusable combinators over special forms.
+- Keep stack effects explicit and testable.
+- Observers such as `len`, `geth`, `first`, `rest`, `empty?` preserve lists.
+- Structural words such as `uncons`, `cons`, `concat` consume list inputs.
+- Update words such as `seth` may stay mutating/consuming.
+- New native words need focused tests and lightweight tooling metadata updates.
