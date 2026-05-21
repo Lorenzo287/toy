@@ -503,14 +503,13 @@ tf_ret tf_binrec_r(tf_ctx *ctx) {
 
 tf_ret tf_replicate_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
-    tf_obj *body = stack_pop_type(ctx, TF_OBJ_TYPE_LIST);
-    tf_obj *n_obj = stack_pop_type(ctx, TF_OBJ_TYPE_INT);
-
-    if (!body || !n_obj) {
-        if (body) release_obj(body);
-        if (n_obj) release_obj(n_obj);
+    tf_obj *body = stack_peek(ctx, 0);
+    tf_obj *n_obj = stack_peek(ctx, 1);
+    if (body->type != TF_OBJ_TYPE_LIST || n_obj->type != TF_OBJ_TYPE_INT) {
         return TF_ERR;
     }
+    body = stack_pop(ctx);
+    n_obj = stack_pop(ctx);
 
     int n = n_obj->i;
     release_obj(n_obj);

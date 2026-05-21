@@ -1,6 +1,7 @@
 #include "tf_lib.h"
 #include <string.h>
 #include <stdlib.h>
+#include <limits.h>
 #include "tf_alloc.h"
 #include "tf_obj.h"
 
@@ -61,6 +62,11 @@ static tf_ret tf_binary_math(tf_ctx *ctx, char op) {
                 stack_push(ctx, b);
                 return TF_ERR;
             }
+            if (ia == INT_MIN && ib == -1) {
+                stack_push(ctx, a);
+                stack_push(ctx, b);
+                return TF_ERR;
+            }
             if (op == '/') iresult = ia / ib;
             else iresult = ia % ib;
             break;
@@ -91,6 +97,10 @@ tf_ret tf_neg(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
     tf_obj *a = stack_pop(ctx);
     if (a->type == TF_OBJ_TYPE_INT) {
+        if (a->i == INT_MIN) {
+            stack_push(ctx, a);
+            return TF_ERR;
+        }
         stack_push(ctx, create_int_obj(-a->i));
     } else if (a->type == TF_OBJ_TYPE_FLOAT) {
         stack_push(ctx, create_float_obj(-a->f));
@@ -106,6 +116,10 @@ tf_ret tf_succ(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
     tf_obj *a = stack_pop(ctx);
     if (a->type == TF_OBJ_TYPE_INT) {
+        if (a->i == INT_MAX) {
+            stack_push(ctx, a);
+            return TF_ERR;
+        }
         stack_push(ctx, create_int_obj(a->i + 1));
     } else if (a->type == TF_OBJ_TYPE_FLOAT) {
         stack_push(ctx, create_float_obj(a->f + 1.0f));
@@ -121,6 +135,10 @@ tf_ret tf_pred(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
     tf_obj *a = stack_pop(ctx);
     if (a->type == TF_OBJ_TYPE_INT) {
+        if (a->i == INT_MIN) {
+            stack_push(ctx, a);
+            return TF_ERR;
+        }
         stack_push(ctx, create_int_obj(a->i - 1));
     } else if (a->type == TF_OBJ_TYPE_FLOAT) {
         stack_push(ctx, create_float_obj(a->f - 1.0f));
@@ -136,6 +154,10 @@ tf_ret tf_abs(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
     tf_obj *a = stack_pop(ctx);
     if (a->type == TF_OBJ_TYPE_INT) {
+        if (a->i == INT_MIN) {
+            stack_push(ctx, a);
+            return TF_ERR;
+        }
         stack_push(ctx, create_int_obj(a->i < 0 ? -a->i : a->i));
     } else if (a->type == TF_OBJ_TYPE_FLOAT) {
         stack_push(ctx, create_float_obj(a->f < 0 ? -a->f : a->f));
@@ -184,13 +206,17 @@ static tf_ret tf_shift(tf_ctx *ctx, bool left) {
     tf_obj *a = stack_pop(ctx);
 
     if (a->type == TF_OBJ_TYPE_INT && b->type == TF_OBJ_TYPE_INT) {
-        int res = left ? (a->i << b->i) : (a->i >> b->i);
-        stack_push(ctx, create_int_obj(res));
+        if (b->i < 0 || b->i >= (int)(sizeof(unsigned int) * CHAR_BIT)) {
+            stack_push(ctx, a);
+            stack_push(ctx, b);
+            return TF_ERR;
+        }
+        unsigned int value = (unsigned int)a->i;
+        unsigned int res = left ? (value << b->i) : (value >> b->i);
+        stack_push(ctx, create_int_obj((int)res));
     } else {
         stack_push(ctx, a);
         stack_push(ctx, b);
-        release_obj(a);
-        release_obj(b);
         return TF_ERR;
     }
 

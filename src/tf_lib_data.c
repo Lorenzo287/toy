@@ -203,14 +203,13 @@ tf_ret tf_concat(tf_ctx *ctx) {
 
 tf_ret tf_splits(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
-    tf_obj *arg2 = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
-    tf_obj *arg1 = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
-
-    if (!arg1 || !arg2) {
-        if (arg1) release_obj(arg1);
-        if (arg2) release_obj(arg2);
+    tf_obj *arg2 = stack_peek(ctx, 0);
+    tf_obj *arg1 = stack_peek(ctx, 1);
+    if (arg1->type != TF_OBJ_TYPE_STR || arg2->type != TF_OBJ_TYPE_STR) {
         return TF_ERR;
     }
+    arg2 = stack_pop(ctx);
+    arg1 = stack_pop(ctx);
 
     tf_obj *result = init_list_obj();
     char *start = arg1->str.ptr;
@@ -312,24 +311,24 @@ tf_ret tf_split_r(tf_ctx *ctx) {
 
 tf_ret tf_join(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
-    tf_obj *sep = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
-    tf_obj *list = stack_pop_type(ctx, TF_OBJ_TYPE_LIST);
-    if (!sep || !list) {
-        if (sep) release_obj(sep);
-        if (list) release_obj(list);
+    tf_obj *sep = stack_peek(ctx, 0);
+    tf_obj *list = stack_peek(ctx, 1);
+    if (sep->type != TF_OBJ_TYPE_STR || list->type != TF_OBJ_TYPE_LIST) {
         return TF_ERR;
     }
 
     size_t total_len = 0;
     for (size_t i = 0; i < list->list.len; i++) {
         tf_obj *elem = list->list.elem[i];
-        if (elem->type == TF_OBJ_TYPE_STR) {
-            total_len += elem->str.len;
-        }
+        if (elem->type != TF_OBJ_TYPE_STR) return TF_ERR;
+        total_len += elem->str.len;
     }
     if (list->list.len > 1) {
         total_len += sep->str.len * (list->list.len - 1);
     }
+
+    sep = stack_pop(ctx);
+    list = stack_pop(ctx);
 
     char *result = xmalloc(total_len + 1);
     char *p = result;
@@ -357,6 +356,12 @@ tf_ret tf_trim(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
     tf_obj *str = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
     if (!str) return TF_ERR;
+
+    if (str->str.len == 0) {
+        stack_push(ctx, create_string_obj("", 0));
+        release_obj(str);
+        return TF_OK;
+    }
 
     char *start = str->str.ptr;
     char *end = str->str.ptr + str->str.len - 1;
@@ -436,16 +441,16 @@ tf_ret tf_splitmid(tf_ctx *ctx) {
 
 tf_ret tf_merge_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 3) return TF_ERR;
-    tf_obj *pred = stack_pop_type(ctx, TF_OBJ_TYPE_LIST);
-    tf_obj *l2 = stack_pop_type(ctx, TF_OBJ_TYPE_LIST);
-    tf_obj *l1 = stack_pop_type(ctx, TF_OBJ_TYPE_LIST);
-
-    if (!pred || !l1 || !l2) {
-        if (pred) release_obj(pred);
-        if (l1) release_obj(l1);
-        if (l2) release_obj(l2);
+    tf_obj *pred = stack_peek(ctx, 0);
+    tf_obj *l2 = stack_peek(ctx, 1);
+    tf_obj *l1 = stack_peek(ctx, 2);
+    if (pred->type != TF_OBJ_TYPE_LIST || l2->type != TF_OBJ_TYPE_LIST ||
+        l1->type != TF_OBJ_TYPE_LIST) {
         return TF_ERR;
     }
+    pred = stack_pop(ctx);
+    l2 = stack_pop(ctx);
+    l1 = stack_pop(ctx);
 
     tf_obj *res = init_list_obj();
     size_t i1 = 0, i2 = 0;

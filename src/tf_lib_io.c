@@ -75,8 +75,17 @@ tf_ret tf_readf(tf_ctx *ctx) {
         return TF_ERR;
     }
 
-    fseek(fp, 0, SEEK_END);
+    if (fseek(fp, 0, SEEK_END) != 0) {
+        fclose(fp);
+        release_obj(path);
+        return TF_ERR;
+    }
     long size = ftell(fp);
+    if (size < 0) {
+        fclose(fp);
+        release_obj(path);
+        return TF_ERR;
+    }
     rewind(fp);
 
     char *buf = xmalloc((size_t)size + 1);
@@ -92,13 +101,13 @@ tf_ret tf_readf(tf_ctx *ctx) {
 
 tf_ret tf_writef(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
-    tf_obj *content = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
-    tf_obj *path = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
-    if (!content || !path) {
-        if (content) release_obj(content);
-        if (path) release_obj(path);
+    tf_obj *content = stack_peek(ctx, 0);
+    tf_obj *path = stack_peek(ctx, 1);
+    if (content->type != TF_OBJ_TYPE_STR || path->type != TF_OBJ_TYPE_STR) {
         return TF_ERR;
     }
+    content = stack_pop(ctx);
+    path = stack_pop(ctx);
 
     FILE *fp = fopen(path->str.ptr, "wb");
     if (!fp) {
