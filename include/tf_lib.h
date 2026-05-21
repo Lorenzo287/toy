@@ -3,6 +3,10 @@
 
 #include "tf_exec.h"
 
+// NOTE: `_r` marks native words that synchronously run quotations by calling exec()
+// and waiting for completion. These still consume C call stack across nested
+// native quotation runners, even though user-defined words use tf_frame.
+
 // Math operations
 tf_ret tf_add(tf_ctx *ctx);
 tf_ret tf_sub(tf_ctx *ctx);
@@ -49,6 +53,11 @@ tf_ret tf_words(tf_ctx *ctx);
 tf_ret tf_see(tf_ctx *ctx);
 tf_ret tf_load_r(tf_ctx *ctx);
 tf_ret tf_exit(tf_ctx *ctx);
+tf_ret tf_readf(tf_ctx *ctx);
+tf_ret tf_writef(tf_ctx *ctx);
+tf_ret tf_delf(tf_ctx *ctx);
+tf_ret tf_readl(tf_ctx *ctx);
+tf_ret tf_exists(tf_ctx *ctx);
 
 // Comparison operations
 tf_ret tf_eq(tf_ctx *ctx);
@@ -59,9 +68,6 @@ tf_ret tf_le(tf_ctx *ctx);
 tf_ret tf_ge(tf_ctx *ctx);
 
 // Control operations
-// `_r` marks native words that synchronously run quotations by calling exec()
-// and waiting for completion. These still consume C call stack across nested
-// native quotation runners, even though user-defined words use tf_frame.
 tf_ret tf_exec(tf_ctx *ctx);
 tf_ret tf_app2(tf_ctx *ctx);
 tf_ret tf_if_r(tf_ctx *ctx);
@@ -91,7 +97,12 @@ tf_ret tf_uncons(tf_ctx *ctx);
 tf_ret tf_cons(tf_ctx *ctx);
 tf_ret tf_append(tf_ctx *ctx);
 tf_ret tf_concat(tf_ctx *ctx);
+tf_ret tf_join(tf_ctx *ctx);
+tf_ret tf_trim(tf_ctx *ctx);
+tf_ret tf_upper(tf_ctx *ctx);
+tf_ret tf_lower(tf_ctx *ctx);
 tf_ret tf_split_r(tf_ctx *ctx);
+tf_ret tf_splits(tf_ctx *ctx);
 tf_ret tf_splitmid(tf_ctx *ctx);
 tf_ret tf_range(tf_ctx *ctx);
 tf_ret tf_empty_q(tf_ctx *ctx);

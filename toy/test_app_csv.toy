@@ -1,0 +1,38 @@
+\ Complex File & String Processing Example: CSV Parser
+
+"Step 1: Creating users.csv..." print
+"users.csv" 
+"name,age,city
+Alice,30,New York
+Bob,25,Los Angeles
+Charlie,35,Chicago" writef
+
+"users.csv" exists? [
+    "Step 2: File exists. Reading and parsing content..." print cr
+    
+    "users.csv" readf 
+    "\n" splits \ obtain list of strings (lines)
+    
+    \ Process lines: skip header, then split each data line
+    uncons nip \ remove header, keep tail (the data rows)
+    
+    [ 
+        trim
+        len 0 > [ \ Only process non-empty lines
+            "," splits
+            { record }
+            " - " printf 
+            $record 0 geth nip printf \ name
+            " (" printf 
+            $record 1 geth nip printf \ age
+            ") lives in " printf 
+            $record 2 geth nip print  \ city
+        ] [ drop ] ifelse
+    ] each
+
+    cr "Step 3: Cleaning up..." print
+    "users.csv" delf
+    "Done." print
+] [
+    "FAILED: File users.csv was not found." print
+] ifelse

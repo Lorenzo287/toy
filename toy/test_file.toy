@@ -1,0 +1,12 @@
+\ Test file I/O operations
+
+"Writing test.txt..." print
+"test.txt" "Hello Toy!" writef
+"Done." print cr
+
+"Reading test.txt..." print
+"test.txt" readf print cr
+
+"Cleanup..." print
+"test.txt" delf
+"Done." print cr

@@ -45,7 +45,7 @@
                 },
                 {
                     "name": "entity.name.function.toyforth",
-                    "match": "(?<=\\s|^)(dup|drop|swap|over|rot|swapd|nip|tuck|pick|roll|empty|abs|neg|succ|pred|max|min|print|printf|cr|key|input|time|clear|page|words|see|load|geth|seth|len|first|rest|uncons|cons|append|concat|splitmid|range|rand|sleep|def|bye|exit|\\.|\\.s|empty\\?)(?=\\s|$)"
+                    "match": "(?<=\\s|^)(dup|drop|swap|over|rot|swapd|nip|tuck|pick|roll|empty|abs|neg|succ|pred|max|min|print|printf|cr|key|input|time|clear|page|words|see|load|readf|writef|delf|readl|exists\\?|geth|seth|len|first|rest|uncons|cons|append|concat|join|trim|upper|lower|splits|splitmid|range|rand|sleep|def|bye|exit|\\.|\\.s|empty\\?)(?=\\s|$)"
                 }
             ]
         },

@@ -183,7 +183,12 @@ tf_ctx *init_ctx(void) {
     set_native_func(ctx, "cons", tf_cons);
     set_native_func(ctx, "append", tf_append);
     set_native_func(ctx, "concat", tf_concat);
+    set_native_func(ctx, "join", tf_join);
+    set_native_func(ctx, "trim", tf_trim);
+    set_native_func(ctx, "upper", tf_upper);
+    set_native_func(ctx, "lower", tf_lower);
     set_native_func(ctx, "split", tf_split_r);
+    set_native_func(ctx, "splits", tf_splits);
     set_native_func(ctx, "splitmid", tf_splitmid);
     set_native_func(ctx, "range", tf_range);
     set_native_func(ctx, "empty?", tf_empty_q);
@@ -198,6 +203,11 @@ tf_ctx *init_ctx(void) {
     set_native_func(ctx, "words", tf_words);
     set_native_func(ctx, "see", tf_see);
     set_native_func(ctx, "load", tf_load_r);
+    set_native_func(ctx, "readf", tf_readf);
+    set_native_func(ctx, "writef", tf_writef);
+    set_native_func(ctx, "delf", tf_delf);
+    set_native_func(ctx, "readl", tf_readl);
+    set_native_func(ctx, "exists?", tf_exists);
 
     set_native_func(ctx, "bye", tf_exit);
     set_native_func(ctx, "exit", tf_exit);

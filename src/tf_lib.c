@@ -1370,6 +1370,22 @@ tf_ret tf_concat(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
     tf_obj *right = stack_peek(ctx, 0);
     tf_obj *left = stack_peek(ctx, 1);
+
+    if (left->type == TF_OBJ_TYPE_STR && right->type == TF_OBJ_TYPE_STR) {
+        right = stack_pop(ctx);
+        left = stack_pop(ctx);
+        size_t new_len = left->str.len + right->str.len;
+        char *new_ptr = xmalloc(new_len + 1);
+        memcpy(new_ptr, left->str.ptr, left->str.len);
+        memcpy(new_ptr + left->str.len, right->str.ptr, right->str.len);
+        new_ptr[new_len] = '\0';
+        stack_push(ctx, create_string_obj(new_ptr, new_len));
+        free(new_ptr);
+        release_obj(left);
+        release_obj(right);
+        return TF_OK;
+    }
+
     if (left->type != TF_OBJ_TYPE_LIST || right->type != TF_OBJ_TYPE_LIST) {
         return TF_ERR;
     }
@@ -1394,10 +1410,46 @@ tf_ret tf_concat(tf_ctx *ctx) {
     return TF_OK;
 }
 
+tf_ret tf_splits(tf_ctx *ctx) {
+    if (stack_len(ctx) < 2) return TF_ERR;
+    tf_obj *arg2 = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
+    tf_obj *arg1 = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
+
+    if (!arg1 || !arg2) {
+        if (arg1) release_obj(arg1);
+        if (arg2) release_obj(arg2);
+        return TF_ERR;
+    }
+
+    tf_obj *result = init_list_obj();
+    char *start = arg1->str.ptr;
+    char *sep = arg2->str.ptr;
+    size_t sep_len = arg2->str.len;
+
+    if (sep_len == 0) {
+        for (size_t i = 0; i < arg1->str.len; i++) {
+            push_obj(result, create_string_obj(arg1->str.ptr + i, 1));
+        }
+    } else {
+        char *p;
+        while ((p = strstr(start, sep)) != NULL) {
+            push_obj(result, create_string_obj(start, p - start));
+            start = p + sep_len;
+        }
+        push_obj(result, create_string_obj(start, strlen(start)));
+    }
+
+    stack_push(ctx, result);
+    release_obj(arg1);
+    release_obj(arg2);
+    return TF_OK;
+}
+
 tf_ret tf_split_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
     tf_obj *pred = stack_peek(ctx, 0);
     tf_obj *list_obj = stack_peek(ctx, 1);
+
     if (pred->type != TF_OBJ_TYPE_LIST || list_obj->type != TF_OBJ_TYPE_LIST) {
         return TF_ERR;
     }
@@ -1453,6 +1505,103 @@ tf_ret tf_split_r(tf_ctx *ctx) {
     release_obj(pred);
     release_obj(list_obj);
     return res;
+}
+
+tf_ret tf_join(tf_ctx *ctx) {
+    if (stack_len(ctx) < 2) return TF_ERR;
+    tf_obj *sep = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
+    tf_obj *list = stack_pop_type(ctx, TF_OBJ_TYPE_LIST);
+    if (!sep || !list) {
+        if (sep) release_obj(sep);
+        if (list) release_obj(list);
+        return TF_ERR;
+    }
+
+    size_t total_len = 0;
+    for (size_t i = 0; i < list->list.len; i++) {
+        tf_obj *elem = list->list.elem[i];
+        if (elem->type == TF_OBJ_TYPE_STR) {
+            total_len += elem->str.len;
+        } else {
+            /* Fallback or error? For now, we skip non-strings or could convert them.
+               Let's require strings for now. */
+        }
+    }
+    if (list->list.len > 1) {
+        total_len += sep->str.len * (list->list.len - 1);
+    }
+
+    char *result = xmalloc(total_len + 1);
+    char *p = result;
+    for (size_t i = 0; i < list->list.len; i++) {
+        tf_obj *elem = list->list.elem[i];
+        if (elem->type == TF_OBJ_TYPE_STR) {
+            memcpy(p, elem->str.ptr, elem->str.len);
+            p += elem->str.len;
+            if (i + 1 < list->list.len) {
+                memcpy(p, sep->str.ptr, sep->str.len);
+                p += sep->str.len;
+            }
+        }
+    }
+    *p = '\0';
+
+    stack_push(ctx, create_string_obj(result, total_len));
+    free(result);
+    release_obj(list);
+    release_obj(sep);
+    return TF_OK;
+}
+
+tf_ret tf_trim(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *str = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
+    if (!str) return TF_ERR;
+
+    char *start = str->str.ptr;
+    char *end = str->str.ptr + str->str.len - 1;
+
+    while (start <= end && isspace((unsigned char)*start)) start++;
+    while (end > start && isspace((unsigned char)*end)) end--;
+
+    size_t new_len = (start <= end) ? (size_t)(end - start + 1) : 0;
+    stack_push(ctx, create_string_obj(start, new_len));
+    release_obj(str);
+    return TF_OK;
+}
+
+tf_ret tf_upper(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *str = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
+    if (!str) return TF_ERR;
+
+    char *new_str = xmalloc(str->str.len + 1);
+    for (size_t i = 0; i < str->str.len; i++) {
+        new_str[i] = (char)toupper((unsigned char)str->str.ptr[i]);
+    }
+    new_str[str->str.len] = '\0';
+
+    stack_push(ctx, create_string_obj(new_str, str->str.len));
+    free(new_str);
+    release_obj(str);
+    return TF_OK;
+}
+
+tf_ret tf_lower(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *str = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
+    if (!str) return TF_ERR;
+
+    char *new_str = xmalloc(str->str.len + 1);
+    for (size_t i = 0; i < str->str.len; i++) {
+        new_str[i] = (char)tolower((unsigned char)str->str.ptr[i]);
+    }
+    new_str[str->str.len] = '\0';
+
+    stack_push(ctx, create_string_obj(new_str, str->str.len));
+    free(new_str);
+    release_obj(str);
+    return TF_OK;
 }
 
 tf_ret tf_splitmid(tf_ctx *ctx) {
@@ -1690,5 +1839,106 @@ tf_ret tf_load_r(tf_ctx *ctx) {
 tf_ret tf_exit(tf_ctx *ctx) {
     (void)ctx;
     exit(0);
+    return TF_OK;
+}
+
+tf_ret tf_readf(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *path = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
+    if (!path) return TF_ERR;
+
+    FILE *fp = fopen(path->str.ptr, "rb");
+    if (!fp) {
+        release_obj(path);
+        return TF_ERR;
+    }
+
+    fseek(fp, 0, SEEK_END);
+    long size = ftell(fp);
+    rewind(fp);
+
+    char *buf = xmalloc((size_t)size + 1);
+    fread(buf, 1, (size_t)size, fp);
+    buf[size] = '\0';
+    fclose(fp);
+
+    stack_push(ctx, create_string_obj(buf, (size_t)size));
+    free(buf);
+    release_obj(path);
+    return TF_OK;
+}
+
+tf_ret tf_writef(tf_ctx *ctx) {
+    if (stack_len(ctx) < 2) return TF_ERR;
+    tf_obj *content = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
+    tf_obj *path = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
+    if (!content || !path) {
+        if (content) release_obj(content);
+        if (path) release_obj(path);
+        return TF_ERR;
+    }
+
+    FILE *fp = fopen(path->str.ptr, "wb");
+    if (!fp) {
+        release_obj(content);
+        release_obj(path);
+        return TF_ERR;
+    }
+
+    fwrite(content->str.ptr, 1, content->str.len, fp);
+    fclose(fp);
+
+    release_obj(content);
+    release_obj(path);
+    return TF_OK;
+}
+
+tf_ret tf_readl(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *path = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
+    if (!path) return TF_ERR;
+
+    FILE *fp = fopen(path->str.ptr, "r");
+    if (!fp) {
+        release_obj(path);
+        return TF_ERR;
+    }
+
+    tf_obj *list = init_list_obj();
+    char line[1024];
+    while (fgets(line, sizeof(line), fp)) {
+        size_t len = strlen(line);
+        if (len > 0 && line[len - 1] == '\n') line[len - 1] = '\0';
+        push_obj(list, create_string_obj(line, strlen(line)));
+    }
+    fclose(fp);
+
+    stack_push(ctx, list);
+    release_obj(path);
+    return TF_OK;
+}
+
+tf_ret tf_exists(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *path = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
+    if (!path) return TF_ERR;
+
+    FILE *fp = fopen(path->str.ptr, "r");
+    bool exists = (fp != NULL);
+    if (fp) fclose(fp);
+
+    stack_push(ctx, create_bool_obj(exists));
+    release_obj(path);
+    return TF_OK;
+}
+
+tf_ret tf_delf(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *path = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
+    if (!path) return TF_ERR;
+
+    remove(path->str.ptr);
+
+    release_obj(path);
     return TF_OK;
 }
