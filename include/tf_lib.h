@@ -72,6 +72,7 @@ tf_ret tf_exec(tf_ctx *ctx);
 tf_ret tf_app2(tf_ctx *ctx);
 tf_ret tf_if_r(tf_ctx *ctx);
 tf_ret tf_ifelse_r(tf_ctx *ctx);
+tf_ret tf_replicate_r(tf_ctx *ctx);
 tf_ret tf_times_r(tf_ctx *ctx);
 tf_ret tf_each_r(tf_ctx *ctx);
 tf_ret tf_map_r(tf_ctx *ctx);
@@ -104,6 +105,7 @@ tf_ret tf_lower(tf_ctx *ctx);
 tf_ret tf_split_r(tf_ctx *ctx);
 tf_ret tf_splits(tf_ctx *ctx);
 tf_ret tf_splitmid(tf_ctx *ctx);
+tf_ret tf_merge_r(tf_ctx *ctx);
 tf_ret tf_range(tf_ctx *ctx);
 tf_ret tf_empty_q(tf_ctx *ctx);
 

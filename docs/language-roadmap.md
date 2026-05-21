@@ -25,8 +25,9 @@ Toy is evolving from a traditional Forth clone into a quotation-first concatenat
 - **Core Primitives**: 
     - **Stack**: `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty`.
     - **Math**: arithmetic plus small numeric helpers such as `succ` and `pred`.
-    - **Logic**: `and`, `or`, `xor`, and `not` (overloaded for Booleans and Integers).
-    - **List Algebra**: `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `range`, `empty?`, `geth`, `seth`, `len`.
+    - **Logic/Bitwise**: `and`, `or`, `xor`, `not`, `shl`, `shr`.
+    - **File I/O**: `readf`, `writef`, `delf`, `readl`, `exists?`.
+    - **String/List Manipulation**: `concat`, `splits`, `join`, `trim`, `upper`, `lower`, `first`, `rest`, `uncons`, `cons`, `append`, `range`, `empty?`, `geth`, `seth`, `len`.
     - **Combinators**: `dip`, `keep`, `bi`, `split`, `map`, `fold`, `linrec`, `binrec`; `each` remains the stack-producing iterator.
 - **Tooling Baseline**: Tree-sitter, LSP, and VS Code support exist for native words. Keep metadata in sync when adding words, but default implementation work remains C/Forth-first.
 
@@ -50,6 +51,13 @@ The quotation/list algebra is now expressive enough to write a compact quicksort
 ### 4. Future Goals (Phase 4)
 - **Standard-Library Factoring**: Move common examples and utilities from native C or tests into reusable Toy quotations.
 - **Integrated Debugging**: Step-by-step execution and stack visualization.
+
+### 5. Scripting & Resilience (Phase 5)
+To transform Toy into a robust "system glue" and general-purpose scripting language, the following areas are prioritized:
+- **External Interop**: `argv` (CLI arguments), `getenv` (environment variables), and `exec-sh` (subprocesses).
+- **High-Level Data Structures**: Native $O(1)$ key-value storage (Maps/Dictionaries) and JSON support.
+- **Resilience**: Type predicates (`int?`, `str?`, etc.), `try` for error handling, and stack depth guards.
+- **Formatting**: `timefmt` for human-readable dates and enhanced string formatting.
 
 ---
 

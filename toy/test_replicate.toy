@@ -1,0 +1,14 @@
+\ Test replicate generator
+
+"Testing constant replication:" print
+5 [ 0 ] replicate .s
+len nip 5 == [ "len ok" print ] [ "len fail" print ] ifelse
+
+"\nTesting dynamic replication (random):" print
+10 [ rand 100 % ] replicate .s
+len nip 10 == [ "len ok" print ] [ "len fail" print ] ifelse
+
+"\nTesting nested replication:" print
+3 [ 3 [ 1 ] replicate ] replicate .s
+\ Should be [ [1 1 1] [1 1 1] [1 1 1] ]
+empty

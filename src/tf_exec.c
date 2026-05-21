@@ -160,6 +160,7 @@ tf_ctx *init_ctx(void) {
     set_native_func(ctx, "app2", tf_app2);
     set_native_func(ctx, "if", tf_if_r);
     set_native_func(ctx, "ifelse", tf_ifelse_r);
+    set_native_func(ctx, "replicate", tf_replicate_r);
     set_native_func(ctx, "times", tf_times_r);
     set_native_func(ctx, "each", tf_each_r);
     set_native_func(ctx, "map", tf_map_r);
@@ -190,6 +191,7 @@ tf_ctx *init_ctx(void) {
     set_native_func(ctx, "split", tf_split_r);
     set_native_func(ctx, "splits", tf_splits);
     set_native_func(ctx, "splitmid", tf_splitmid);
+    set_native_func(ctx, "merge", tf_merge_r);
     set_native_func(ctx, "range", tf_range);
     set_native_func(ctx, "empty?", tf_empty_q);
 

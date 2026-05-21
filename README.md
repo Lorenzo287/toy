@@ -182,9 +182,11 @@ that can be loaded from `toy/std/*.toy`:
 | **Math**         | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `succ`, `pred`, `max`, `min`                                                                              |
 | **Logic**        | `and`, `or`, `xor`, `not`, `shl`, `shr`                                                                                                                 |
 | **Comparison**   | `==`, `!=`, `<`, `>`, `<=`, `>=`                                                                                                                        |
-| **Control**      | `if`, `ifelse`, `while`, `times`, `each`, `map`, `fold`, `exec`, `i`, `app2`, `dip`, `keep`, `bi`, `split`, `linrec`, `binrec`                          |
+| **Control**      | `if`, `ifelse`, `replicate`, `while`, `times`, `each`, `map`, `fold`, `exec`, `i`, `app2`, `dip`, `keep`, `bi`, `split`, `linrec`, `binrec` |
+
 | **I/O**          | `print`, `printf`, `.`, `.s`, `cr`, `key`, `input`, `clear`, `page`                                                                                     |
-| **List/String**  | `geth`, `seth`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `join`, `trim`, `upper`, `lower`, `splits`, `splitmid`, `range`, `empty?` |
+| **List/String**   | `geth`, `seth`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `join`, `trim`, `upper`, `lower`, `splits`, `splitmid`, `merge`, `range`, `empty?` |
+
 | **File I/O**     | `readf`, `writef`, `delf`, `readl`, `exists?`                                                                                                           |
 | **System/Utils** | `rand`, `sleep`, `time`, `words`, `see`, `load`, `bye`, `exit`                                                                                          |
 | **Definition**   | `def`, `:`                                                                                                                                              |
