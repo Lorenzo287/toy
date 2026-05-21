@@ -57,7 +57,7 @@ tf_ret tf_readf(tf_ctx *ctx);
 tf_ret tf_writef(tf_ctx *ctx);
 tf_ret tf_delf(tf_ctx *ctx);
 tf_ret tf_readl(tf_ctx *ctx);
-tf_ret tf_exists(tf_ctx *ctx);
+tf_ret tf_exists_q(tf_ctx *ctx);
 
 // Comparison operations
 tf_ret tf_eq(tf_ctx *ctx);

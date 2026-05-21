@@ -209,7 +209,7 @@ tf_ctx *init_ctx(void) {
     set_native_func(ctx, "writef", tf_writef);
     set_native_func(ctx, "delf", tf_delf);
     set_native_func(ctx, "readl", tf_readl);
-    set_native_func(ctx, "exists?", tf_exists);
+    set_native_func(ctx, "exists?", tf_exists_q);
 
     set_native_func(ctx, "bye", tf_exit);
     set_native_func(ctx, "exit", tf_exit);
