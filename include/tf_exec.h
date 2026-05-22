@@ -58,6 +58,9 @@ struct ctx {
     tf_frame *call_stack;  // funtions call stack
     size_t cstack_len;
     size_t cstack_cap;
+
+    int argc;
+    char **argv;
 };
 
 size_t stack_len(tf_ctx *ctx);
@@ -69,7 +72,7 @@ tf_obj *stack_peek(tf_ctx *ctx, size_t depth);
 void frame_push(tf_ctx *ctx, tf_obj *prg);
 void frame_pop(tf_ctx *ctx);
 
-tf_ctx *init_ctx(void);
+tf_ctx *init_ctx(int argc, char **argv);
 void free_ctx(tf_ctx *ctx);
 tf_func *init_func(tf_ctx *ctx, tf_obj *name);
 void set_native_func(tf_ctx *ctx, char *name, tf_cb cb);

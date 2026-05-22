@@ -100,7 +100,7 @@ static void tf_table_resize(tf_ctx *ctx) {
 
 /* === Context Initialization === */
 
-tf_ctx *init_ctx(void) {
+tf_ctx *init_ctx(int argc, char **argv) {
     srand(time(NULL));
     tf_ctx *ctx = xmalloc(sizeof(tf_ctx));
     ctx->forth_stack = init_list_obj();
@@ -110,6 +110,8 @@ tf_ctx *init_ctx(void) {
     ctx->call_stack = NULL;
     ctx->cstack_len = 0;
     ctx->cstack_cap = 0;
+    ctx->argc = argc;
+    ctx->argv = argv;
 
     set_native_func(ctx, "+", tf_add);
     set_native_func(ctx, "-", tf_sub);
@@ -197,6 +199,9 @@ tf_ctx *init_ctx(void) {
     set_native_func(ctx, "input", tf_input);
     set_native_func(ctx, "rand", tf_rand);
     set_native_func(ctx, "sleep", tf_sleep);
+    set_native_func(ctx, "argc", tf_argc);
+    set_native_func(ctx, "argv", tf_argv);
+    set_native_func(ctx, "getenv", tf_getenv);
     set_native_func(ctx, "time", tf_time);
     set_native_func(ctx, "clock", tf_clock);
     set_native_func(ctx, "clear", tf_clear);

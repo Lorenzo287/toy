@@ -1,0 +1,5 @@
+\ Test environment and arguments
+"HOME" getenv print
+"PATH" getenv print
+argc print
+argv print

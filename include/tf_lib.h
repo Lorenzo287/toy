@@ -111,5 +111,8 @@ tf_ret tf_empty_q(tf_ctx *ctx);
 // System operations
 tf_ret tf_rand(tf_ctx *ctx);
 tf_ret tf_sleep(tf_ctx *ctx);
+tf_ret tf_argc(tf_ctx *ctx);
+tf_ret tf_argv(tf_ctx *ctx);
+tf_ret tf_getenv(tf_ctx *ctx);
 
 #endif  // TF_LIB_H

@@ -12,6 +12,38 @@
 #include "tf_console.h"
 #include "tf_lexer.h"
 
+tf_ret tf_argc(tf_ctx *ctx) {
+    stack_push(ctx, create_int_obj(ctx->argc > 0 ? ctx->argc : 0));
+    return TF_OK;
+}
+
+tf_ret tf_argv(tf_ctx *ctx) {
+    tf_obj *list = init_list_obj();
+    for (int i = 0; i < ctx->argc; i++) {
+        tf_obj *str = create_string_obj(ctx->argv[i], strlen(ctx->argv[i]));
+        push_obj(list, str);
+        release_obj(str);
+    }
+    stack_push(ctx, list);
+    return TF_OK;
+}
+
+tf_ret tf_getenv(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *key = stack_peek(ctx, 0);
+    if (key->type != TF_OBJ_TYPE_STR) return TF_ERR;
+
+    key = stack_pop(ctx);
+    char *val = getenv(key->str.ptr);
+    if (val) {
+        stack_push(ctx, create_string_obj(val, strlen(val)));
+    } else {
+        stack_push(ctx, init_list_obj()); // Push empty list as a "not found" indicator
+    }
+    release_obj(key);
+    return TF_OK;
+}
+
 tf_ret tf_rand(tf_ctx *ctx) {
     stack_push(ctx, create_int_obj(rand()));
     return TF_OK;

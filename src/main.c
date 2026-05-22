@@ -8,6 +8,8 @@
 
 typedef struct {
     const char *filename;
+    int script_argc;
+    char **script_argv;
     bool debug, help, interactive;
 } config;
 
@@ -18,17 +20,17 @@ int main(int argc, char **argv) {
     signal(SIGINT, handle_sigint);
     tf_console_init();
 
-    config config = {NULL, false, false, false};
+    config config = {NULL, 0, NULL, false, false, false};
     tf_ret ret = parse_args(argc, argv, &config);
     if (ret == TF_ERR || config.help) {
         fprintf(stderr, "=== Toy Interpreter ===\n");
-        fprintf(stderr, "Usage: %s [--debug|-d] [filename]\n", argv[0]);
+        fprintf(stderr, "Usage: %s [--debug|-d] [filename] [args...]\n", argv[0]);
         fprintf(stderr, "\nRunning without filename starts the REPL\n");
         fprintf(stderr, "--debug shows parsed tokens and stack after execution\n");
         return ret;
     }
 
-    tf_ctx *ctx = init_ctx();
+    tf_ctx *ctx = init_ctx(config.script_argc, config.script_argv);
     if (!ctx) { return TF_ERR; }
 
     tf_ret result = TF_OK;
@@ -57,8 +59,9 @@ int parse_args(int argc, char **argv, config *config) {
             config->help = true;
         } else if (config->filename == NULL) {
             config->filename = argv[i];
-        } else {
-            return TF_ERR;
+            config->script_argc = argc - i;
+            config->script_argv = &argv[i];
+            break;
         }
     }
     config->interactive = (config->filename == NULL);
