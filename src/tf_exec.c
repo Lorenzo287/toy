@@ -202,6 +202,15 @@ tf_ctx *init_ctx(int argc, char **argv) {
     set_native_func(ctx, "argc", tf_argc);
     set_native_func(ctx, "argv", tf_argv);
     set_native_func(ctx, "getenv", tf_getenv);
+    set_native_func(ctx, "typeof", tf_typeof);
+    set_native_func(ctx, "bool?", tf_bool_q);
+    set_native_func(ctx, "int?", tf_int_q);
+    set_native_func(ctx, "float?", tf_float_q);
+    set_native_func(ctx, "str?", tf_str_q);
+    set_native_func(ctx, "symbol?", tf_symbol_q);
+    set_native_func(ctx, "list?", tf_list_q);
+    set_native_func(ctx, "pwd", tf_pwd);
+    set_native_func(ctx, "shell", tf_shell);
     set_native_func(ctx, "time", tf_time);
     set_native_func(ctx, "clock", tf_clock);
     set_native_func(ctx, "clear", tf_clear);

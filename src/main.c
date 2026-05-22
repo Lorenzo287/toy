@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <signal.h>
 #include "tf_alloc.h"
@@ -8,6 +9,7 @@
 
 typedef struct {
     const char *filename;
+    char *eval;
     int script_argc;
     char **script_argv;
     bool debug, help, interactive;
@@ -20,13 +22,16 @@ int main(int argc, char **argv) {
     signal(SIGINT, handle_sigint);
     tf_console_init();
 
-    config config = {NULL, 0, NULL, false, false, false};
+    config config = {NULL, NULL, 0, NULL, false, false, false};
     tf_ret ret = parse_args(argc, argv, &config);
     if (ret == TF_ERR || config.help) {
         fprintf(stderr, "=== Toy Interpreter ===\n");
-        fprintf(stderr, "Usage: %s [--debug|-d] [filename] [args...]\n", argv[0]);
+        fprintf(stderr,
+                "Usage: %s [--debug|-d] [--eval|-e code] [filename] [args...]\n",
+                argv[0]);
         fprintf(stderr, "\nRunning without filename starts the REPL\n");
         fprintf(stderr, "--debug shows parsed tokens and stack after execution\n");
+        fprintf(stderr, "--eval executes program passed as argument\n");
         return ret;
     }
 
@@ -36,13 +41,16 @@ int main(int argc, char **argv) {
     tf_ret result = TF_OK;
 
     if (result == TF_OK) {
-        if (config.interactive) {
+        if (config.eval != NULL) {
+            result = run_string(ctx, config.eval, config.debug);
+        } else if (config.interactive) {
             result = run_repl(ctx, config.debug);
         } else {
             result = run_file(ctx, config.filename, config.debug);
         }
     }
     free_ctx(ctx);
+    free(config.eval);
 
 #ifdef STB_LEAKCHECK
     printf("\n=== stb_leakcheck_dumpmem output ===\n");
@@ -57,6 +65,14 @@ int parse_args(int argc, char **argv, config *config) {
             config->debug = true;
         } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             config->help = true;
+        } else if (strcmp(argv[i], "--eval") == 0 || strcmp(argv[i], "-e") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "-e requires an argument\n");
+                return TF_ERR;
+            }
+            config->eval = xmalloc(strlen(argv[i + 1]) + 1);
+            strcpy(config->eval, argv[i + 1]);
+            i++;  // consume eval argument
         } else if (config->filename == NULL) {
             config->filename = argv[i];
             config->script_argc = argc - i;
@@ -64,6 +80,6 @@ int parse_args(int argc, char **argv, config *config) {
             break;
         }
     }
-    config->interactive = (config->filename == NULL);
+    config->interactive = (config->filename == NULL && config->eval == NULL);
     return TF_OK;
 }

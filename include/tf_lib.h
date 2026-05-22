@@ -45,18 +45,21 @@ tf_ret tf_cr(tf_ctx *ctx);
 tf_ret tf_stack(tf_ctx *ctx);
 tf_ret tf_key(tf_ctx *ctx);
 tf_ret tf_input(tf_ctx *ctx);
-tf_ret tf_time(tf_ctx *ctx);
-tf_ret tf_clock(tf_ctx *ctx);
-tf_ret tf_clear(tf_ctx *ctx);
 tf_ret tf_words(tf_ctx *ctx);
 tf_ret tf_see(tf_ctx *ctx);
 tf_ret tf_load_r(tf_ctx *ctx);
-tf_ret tf_exit(tf_ctx *ctx);
 tf_ret tf_readf(tf_ctx *ctx);
 tf_ret tf_writef(tf_ctx *ctx);
 tf_ret tf_delf(tf_ctx *ctx);
 tf_ret tf_readl(tf_ctx *ctx);
 tf_ret tf_exists_q(tf_ctx *ctx);
+tf_ret tf_typeof(tf_ctx *ctx);
+tf_ret tf_bool_q(tf_ctx *ctx);
+tf_ret tf_int_q(tf_ctx *ctx);
+tf_ret tf_float_q(tf_ctx *ctx);
+tf_ret tf_str_q(tf_ctx *ctx);
+tf_ret tf_symbol_q(tf_ctx *ctx);
+tf_ret tf_list_q(tf_ctx *ctx);
 
 // Comparison operations
 tf_ret tf_eq(tf_ctx *ctx);
@@ -114,5 +117,11 @@ tf_ret tf_sleep(tf_ctx *ctx);
 tf_ret tf_argc(tf_ctx *ctx);
 tf_ret tf_argv(tf_ctx *ctx);
 tf_ret tf_getenv(tf_ctx *ctx);
+tf_ret tf_pwd(tf_ctx *ctx);
+tf_ret tf_shell(tf_ctx *ctx);
+tf_ret tf_time(tf_ctx *ctx);
+tf_ret tf_clock(tf_ctx *ctx);
+tf_ret tf_exit(tf_ctx *ctx);
+tf_ret tf_clear(tf_ctx *ctx);
 
 #endif  // TF_LIB_H

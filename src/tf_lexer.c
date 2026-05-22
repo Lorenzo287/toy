@@ -16,9 +16,10 @@ int tf_is_sym_char(int c) {
     // split punctuation into standalone tokens when it has structural meaning
     // in the grammar (currently ':' and ';'). Other punctuation can still be
     // part of ordinary word names such as '.s', '<=', or 'empty?'.
+	if (c == '\0') return 0;
     unsigned char uc = (unsigned char)c;
     const char *sym_chars = "+-*/%<>=!.?";
-    return isalpha(uc) || isdigit(uc) || c == '_' || strchr(sym_chars, c) != NULL;
+    return isalpha(uc) || isdigit(uc) || c == '_' || strchr(sym_chars, uc) != NULL;
 }
 
 static tf_obj *tokenize_until(tf_lexer *lexer, int terminator);

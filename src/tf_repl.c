@@ -181,11 +181,6 @@ static tf_ret run_source(tf_ctx *ctx, char *source, bool debug) {
         return TF_INTERRUPTED;
     }
 
-    if (result != TF_OK) {
-        release_obj(prg);
-        return TF_ERR;
-    }
-
     if (debug) {
         printf("\n=== Stack content after execution ===\n");
         size_t count = 0;
@@ -194,7 +189,14 @@ static tf_ret run_source(tf_ctx *ctx, char *source, bool debug) {
     }
 
     release_obj(prg);
-    return TF_OK;
+    return result;
+}
+
+tf_ret run_string(tf_ctx *ctx, const char *source, bool debug) {
+    char *dup = strdup(source);
+    tf_ret res = run_source(ctx, dup, debug);
+    free(dup);
+    return res;
 }
 
 static void tf_repl_completion(const char *buf, linenoiseCompletions *lc) {

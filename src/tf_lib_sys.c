@@ -12,6 +12,51 @@
 #include "tf_console.h"
 #include "tf_lexer.h"
 
+#ifdef _WIN32
+#define popen _popen
+#define pclose _pclose
+#endif
+
+tf_ret tf_shell(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *cmd_obj = stack_peek(ctx, 0);
+    if (cmd_obj->type != TF_OBJ_TYPE_STR) return TF_ERR;
+
+    cmd_obj = stack_pop(ctx);
+    FILE *fp = popen(cmd_obj->str.ptr, "r");
+    if (!fp) {
+        release_obj(cmd_obj);
+        return TF_ERR;
+    }
+
+    char *output = NULL;
+    size_t total_size = 0;
+    char buffer[1024];
+
+    while (fgets(buffer, sizeof(buffer), fp)) {
+        size_t len = strlen(buffer);
+        output = xrealloc(output, total_size + len + 1);
+        memcpy(output + total_size, buffer, len);
+        total_size += len;
+        output[total_size] = '\0';
+    }
+
+    int status = pclose(fp);
+    if (output) {
+        stack_push(ctx, create_string_obj(output, total_size));
+        free(output);
+    } else {
+        stack_push(ctx, init_list_obj()); // Push empty list as a "not found" indicator
+        // stack_push(ctx, create_string_obj("", 0));
+    }
+    
+    // We could also push the status code, but for now let's just return the output
+    (void)status; 
+
+    release_obj(cmd_obj);
+    return TF_OK;
+}
+
 tf_ret tf_argc(tf_ctx *ctx) {
     stack_push(ctx, create_int_obj(ctx->argc > 0 ? ctx->argc : 0));
     return TF_OK;
@@ -28,6 +73,47 @@ tf_ret tf_argv(tf_ctx *ctx) {
     return TF_OK;
 }
 
+static tf_ret tf_type_check(tf_ctx *ctx, tf_type type) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *o = stack_peek(ctx, 0);
+    stack_push(ctx, create_bool_obj(o->type == type));
+    return TF_OK;
+}
+
+tf_ret tf_bool_q(tf_ctx *ctx) { return tf_type_check(ctx, TF_OBJ_TYPE_BOOL); }
+tf_ret tf_int_q(tf_ctx *ctx) { return tf_type_check(ctx, TF_OBJ_TYPE_INT); }
+tf_ret tf_float_q(tf_ctx *ctx) { return tf_type_check(ctx, TF_OBJ_TYPE_FLOAT); }
+tf_ret tf_str_q(tf_ctx *ctx) { return tf_type_check(ctx, TF_OBJ_TYPE_STR); }
+tf_ret tf_symbol_q(tf_ctx *ctx) { return tf_type_check(ctx, TF_OBJ_TYPE_SYMBOL); }
+tf_ret tf_list_q(tf_ctx *ctx) { return tf_type_check(ctx, TF_OBJ_TYPE_LIST); }
+
+tf_ret tf_typeof(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *o = stack_peek(ctx, 0);
+    const char *type_str = "unknown";
+    switch (o->type) {
+        case TF_OBJ_TYPE_BOOL: type_str = "bool"; break;
+        case TF_OBJ_TYPE_INT: type_str = "int"; break;
+        case TF_OBJ_TYPE_FLOAT: type_str = "float"; break;
+        case TF_OBJ_TYPE_STR: type_str = "str"; break;
+        case TF_OBJ_TYPE_SYMBOL: type_str = "symbol"; break;
+        case TF_OBJ_TYPE_LIST: type_str = "list"; break;
+        default: break;
+    }
+    stack_push(ctx, create_string_obj((char*)type_str, strlen(type_str)));
+    return TF_OK;
+}
+
+#include <direct.h>
+tf_ret tf_pwd(tf_ctx *ctx) {
+    char buf[1024];
+    if (_getcwd(buf, sizeof(buf))) {
+        stack_push(ctx, create_string_obj(buf, strlen(buf)));
+        return TF_OK;
+    }
+    return TF_ERR;
+}
+
 tf_ret tf_getenv(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
     tf_obj *key = stack_peek(ctx, 0);
@@ -39,6 +125,7 @@ tf_ret tf_getenv(tf_ctx *ctx) {
         stack_push(ctx, create_string_obj(val, strlen(val)));
     } else {
         stack_push(ctx, init_list_obj()); // Push empty list as a "not found" indicator
+        // stack_push(ctx, create_string_obj("", 0));
     }
     release_obj(key);
     return TF_OK;

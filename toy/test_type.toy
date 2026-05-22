@@ -1,0 +1,16 @@
+\ Comprehensive test for new introspection and system words
+
+\ 1. typeof (Observer: should not consume)
+5 typeof print
+.s empty \ Should show 5
+
+\ 2. Type predicates (Observer: should not consume)
+3.14 float? print
+.s empty \ Should show 3.14
+
+\ 3. System words
+pwd typeof print \ Should be 'str'
+.s empty
+
+"whoami" shell typeof print \ Should be 'str'
+.s empty
