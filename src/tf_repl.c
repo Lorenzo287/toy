@@ -10,10 +10,6 @@
 #include "tf_obj.h"
 #include <linenoise.h>
 
-#ifdef _WIN32
-#define strdup _strdup
-#endif
-
 typedef struct {
     int block_depth;
     int var_depth;
@@ -122,7 +118,7 @@ tf_ret run_repl(tf_ctx *ctx, bool debug) {
         }
 
         if (len == 0 && line[0] == '\0') {
-            free(line);
+            linenoiseFree(line);
             continue;
         }
 
@@ -130,14 +126,15 @@ tf_ret run_repl(tf_ctx *ctx, bool debug) {
 
         if (!append_text(&source, &len, &cap, line) ||
             !append_text(&source, &len, &cap, "\n")) {
-            free(line);
+            linenoiseFree(line);
             free(source);
             tf_console_contextf("failed to grow REPL buffer\n");
             return TF_ERR;
         }
+
         feed_state(&state, line);
         feed_state(&state, "\n");
-        free(line);
+        linenoiseFree(line);
 
         if (!input_complete(&state)) { continue; }
 
@@ -193,7 +190,7 @@ static tf_ret run_source(tf_ctx *ctx, char *source, bool debug) {
 }
 
 tf_ret run_string(tf_ctx *ctx, const char *source, bool debug) {
-    char *dup = strdup(source);
+    char *dup = xstrdup(source);
     tf_ret res = run_source(ctx, dup, debug);
     free(dup);
     return res;
@@ -357,7 +354,7 @@ static char *tf_repl_hints(const char *buf, int *color, int *bold) {
         if (strcmp(native_hints[i].name, token) == 0) {
             *color = hints_color;
             *bold = 0;
-            return strdup(native_hints[i].hint);
+            return xstrdup(native_hints[i].hint);
         }
     }
 
@@ -369,7 +366,7 @@ static char *tf_repl_hints(const char *buf, int *color, int *bold) {
     if (f) {
         *color = hints_color;
         *bold = 0;
-        return strdup(" ( user word )");
+        return xstrdup(" ( user word )");
     }
 
     return NULL;

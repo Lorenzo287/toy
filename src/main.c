@@ -43,6 +43,7 @@ int main(int argc, char **argv) {
     if (result == TF_OK) {
         if (config.eval != NULL) {
             result = run_string(ctx, config.eval, config.debug);
+            free(config.eval);
         } else if (config.interactive) {
             result = run_repl(ctx, config.debug);
         } else {
@@ -50,7 +51,6 @@ int main(int argc, char **argv) {
         }
     }
     free_ctx(ctx);
-    free(config.eval);
 
 #ifdef STB_LEAKCHECK
     printf("\n=== stb_leakcheck_dumpmem output ===\n");

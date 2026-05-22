@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #ifdef STB_LEAKCHECK
 #define STB_LEAKCHECK_IMPLEMENTATION
-#include <string.h>
 #endif
 
 #include "tf_alloc.h"
@@ -39,4 +39,11 @@ void *xcalloc(size_t nmemb, size_t size) {
     }
     return ptr;
 #endif
+}
+
+char *xstrdup(const char *s) {
+    size_t len = strlen(s);
+    char *ptr = xmalloc(len + 1);
+    memcpy(ptr, s, len + 1);
+    return ptr;
 }
