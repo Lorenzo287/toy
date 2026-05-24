@@ -9,3 +9,5 @@
 "}" printf "\n" printf
 "{{ }}" printf "\n" printf
 123 "Value: {}" print
+
+"hello" 'dup [ "x" 'swap ] .S empty

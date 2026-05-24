@@ -7,6 +7,40 @@
 #include "tf_obj.h"
 
 /* Helper for binary math operations */
+static bool tf_checked_int_add(int a, int b, int *out) {
+    if ((b > 0 && a > INT_MAX - b) ||
+        (b < 0 && a < INT_MIN - b)) {
+        return false;
+    }
+    *out = a + b;
+    return true;
+}
+
+static bool tf_checked_int_sub(int a, int b, int *out) {
+    if ((b < 0 && a > INT_MAX + b) ||
+        (b > 0 && a < INT_MIN + b)) {
+        return false;
+    }
+    *out = a - b;
+    return true;
+}
+
+static bool tf_checked_int_mul(int a, int b, int *out) {
+    if (a > 0) {
+        if ((b > 0 && a > INT_MAX / b) ||
+            (b < 0 && b < INT_MIN / a)) {
+            return false;
+        }
+    } else if (a < 0) {
+        if ((b > 0 && a < INT_MIN / b) ||
+            (b < 0 && a < INT_MAX / b)) {
+            return false;
+        }
+    }
+    *out = a * b;
+    return true;
+}
+
 static tf_ret tf_binary_math(tf_ctx *ctx, char op) {
     if (stack_len(ctx) < 2) return TF_ERR;
 
@@ -61,16 +95,17 @@ static tf_ret tf_binary_math(tf_ctx *ctx, char op) {
         int ia = a->i;
         int ib = b->i;
         int iresult = 0;
+        bool ok = true;
 
         switch (op) {
         case '+':
-            iresult = ia + ib;
+            ok = tf_checked_int_add(ia, ib, &iresult);
             break;
         case '-':
-            iresult = ia - ib;
+            ok = tf_checked_int_sub(ia, ib, &iresult);
             break;
         case '*':
-            iresult = ia * ib;
+            ok = tf_checked_int_mul(ia, ib, &iresult);
             break;
         case '/':
         case '%':
@@ -96,6 +131,11 @@ static tf_ret tf_binary_math(tf_ctx *ctx, char op) {
             iresult = (ia < ib) ? ia : ib;
             break; /* min */
         default:
+            stack_push(ctx, a);
+            stack_push(ctx, b);
+            return TF_ERR;
+        }
+        if (!ok) {
             stack_push(ctx, a);
             stack_push(ctx, b);
             return TF_ERR;
@@ -255,12 +295,16 @@ tf_ret tf_square(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
     tf_obj *a = stack_pop(ctx);
     if (a->type == TF_OBJ_TYPE_INT) {
-        stack_push(ctx, create_int_obj(a->i * a->i));
+        int result = 0;
+        if (!tf_checked_int_mul(a->i, a->i, &result)) {
+            stack_push(ctx, a);
+            return TF_ERR;
+        }
+        stack_push(ctx, create_int_obj(result));
     } else if (a->type == TF_OBJ_TYPE_FLOAT) {
         stack_push(ctx, create_float_obj(a->f * a->f));
     } else {
         stack_push(ctx, a);
-        release_obj(a);
         return TF_ERR;
     }
     release_obj(a);
@@ -271,12 +315,18 @@ tf_ret tf_cube(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
     tf_obj *a = stack_pop(ctx);
     if (a->type == TF_OBJ_TYPE_INT) {
-        stack_push(ctx, create_int_obj(a->i * a->i * a->i));
+        int squared = 0;
+        int result = 0;
+        if (!tf_checked_int_mul(a->i, a->i, &squared) ||
+            !tf_checked_int_mul(squared, a->i, &result)) {
+            stack_push(ctx, a);
+            return TF_ERR;
+        }
+        stack_push(ctx, create_int_obj(result));
     } else if (a->type == TF_OBJ_TYPE_FLOAT) {
         stack_push(ctx, create_float_obj(a->f * a->f * a->f));
     } else {
         stack_push(ctx, a);
-        release_obj(a);
         return TF_ERR;
     }
     release_obj(a);
@@ -575,6 +625,20 @@ static tf_ret tf_compare(tf_ctx *ctx, const char *op) {
             result = (fa <= fb);
         else if (!strcmp(op, ">="))
             result = (fa >= fb);
+    } else if (a->type == TF_OBJ_TYPE_STR && b->type == TF_OBJ_TYPE_STR) {
+        int cmp = compare_string_obj(a, b);
+        if (!strcmp(op, "=="))
+            result = cmp == 0;
+        else if (!strcmp(op, "!="))
+            result = cmp != 0;
+        else if (!strcmp(op, "<"))
+            result = cmp < 0;
+        else if (!strcmp(op, ">"))
+            result = cmp > 0;
+        else if (!strcmp(op, "<="))
+            result = cmp <= 0;
+        else if (!strcmp(op, ">="))
+            result = cmp >= 0;
     } else if (a->type == b->type) {
         if (!strcmp(op, "==")) {
             result = tf_obj_equal(a, b);

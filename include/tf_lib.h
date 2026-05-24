@@ -6,6 +6,9 @@
 // NOTE: `_r` marks native words that synchronously run quotations by calling exec()
 // and waiting for completion. These still consume C call stack across nested
 // native quotation runners, even though user-defined words use tf_frame.
+// Ordinary native words consume their declared inputs. Predicate quotations run
+// by control/combinator words restore the surrounding data stack after reading a
+// boolean result.
 
 // Core arithmetic and numeric operations
 tf_ret tf_add(tf_ctx *ctx);
@@ -71,6 +74,7 @@ tf_ret tf_print(tf_ctx *ctx);
 tf_ret tf_dot(tf_ctx *ctx);
 tf_ret tf_cr(tf_ctx *ctx);
 tf_ret tf_stack(tf_ctx *ctx);
+tf_ret tf_stack_source(tf_ctx *ctx);
 tf_ret tf_key(tf_ctx *ctx);
 tf_ret tf_input(tf_ctx *ctx);
 tf_ret tf_load_r(tf_ctx *ctx);
@@ -137,6 +141,8 @@ tf_ret tf_linrec_r(tf_ctx *ctx);
 tf_ret tf_binrec_r(tf_ctx *ctx);
 
 // Data, collection, and string operations
+// Shared sequence words accept lists and strings when the result type is clear.
+// String items are represented as one-byte strings.
 tf_ret tf_geth(tf_ctx *ctx);
 tf_ret tf_seth(tf_ctx *ctx);
 tf_ret tf_slice(tf_ctx *ctx);

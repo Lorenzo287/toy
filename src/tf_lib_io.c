@@ -13,9 +13,10 @@
 
 tf_ret tf_printf(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
-    tf_obj *o = stack_pop(ctx);
+    tf_obj *o = stack_peek(ctx, 0);
 
     if (o->type != TF_OBJ_TYPE_STR) {
+        o = stack_pop(ctx);
         print_value(o);
         release_obj(o);
         return TF_OK;
@@ -46,16 +47,17 @@ tf_ret tf_printf(tf_ctx *ctx) {
     }
 
     if (!has_format) {
+        o = stack_pop(ctx);
         print_value(o);
         release_obj(o);
         return TF_OK;
     }
 
-    if (stack_len(ctx) < count) {
-        release_obj(o);
+    if (stack_len(ctx) - 1 < count) {
         return TF_ERR;
     }
 
+    o = stack_pop(ctx);
     tf_obj **args = NULL;
     if (count > 0) {
         args = xmalloc(count * sizeof(tf_obj *));
@@ -123,6 +125,17 @@ tf_ret tf_stack(tf_ctx *ctx) {
     printf("<%zu> ", len);
     for (size_t i = 0; i < len; i++) {
         print_value(stack_peek(ctx, len - 1 - i));
+        printf(" ");
+    }
+    printf("\n");
+    return TF_OK;
+}
+
+tf_ret tf_stack_source(tf_ctx *ctx) {
+    size_t len = stack_len(ctx);
+    printf("<%zu> ", len);
+    for (size_t i = 0; i < len; i++) {
+        print_source_obj(stack_peek(ctx, len - 1 - i));
         printf(" ");
     }
     printf("\n");

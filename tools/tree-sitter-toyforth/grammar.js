@@ -55,7 +55,7 @@ export default grammar({
       'dup', 'drop', 'swap', 'over', 'rot', 'swapd', 'nip', 'tuck', 'pick', 'roll',
       'empty',
       'pi', 'e', 'tau',
-      'print', 'printf', '.', '.s', 'cr',
+      'print', 'printf', '.', '.s', '.S', 'cr',
       'key', 'input', 'load', 'readf', 'writef', 'delf', 'readl', 'exists?', 'clear', 'page',
       'typeof', 'bool?', 'int?', 'float?', 'str?', 'symbol?', 'list?', 'number?', 'nan?', 'inf?',
       'word?', 'var?', 'inf', 'nan', 'body', 'intern', 'name', 'words', 'see',

@@ -18,6 +18,8 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 - First-class quotations for deferred execution and higher-order code.
 - Stack combinators such as `dip`, `keep`, `bi`, `map`, `filter`, `fold`,
   `linrec`, `binrec`, and `genrec`.
+- Shared sequence words for lists and strings when the result type is clear.
+  String items are one-byte strings.
 - Local captures with `{ name }` and `$name` when stack-only code gets too hard
   to read.
 - File I/O, string manipulation, dictionary introspection, process helpers, and
@@ -75,11 +77,40 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 \ Lists, strings, and files are available for small scripts.
 [ 1 2 3 ] uncons                    \ leaves 1 [2 3]
 0 [ 1 2 3 ] cons                    \ leaves [0 1 2 3]
+"abc" first                         \ leaves "a"
+"ab" "c" append                     \ leaves "abc"
+"ab" "cd" concat                    \ leaves "abcd"
 "  alpha,beta,gamma  " trim "," split [ upper ] map "-" join print
 
 "notes.txt" "hello from Toy" writef
 "notes.txt" readf print
 ```
+
+## Stack Effects
+
+Toy words consume their declared inputs by default:
+
+```toy
+"hello" len        \ leaves 5
+[ 1 2 3 ] first   \ leaves 1
+10 int?            \ leaves true
+```
+
+Use stack words or combinators when a value should be preserved:
+
+```toy
+"hello" dup len    \ leaves "hello" 5
+[ 1 2 3 ] [ len ] keep
+```
+
+Predicate quotations used by control and predicate combinators are the main
+exception. Words such as `if`, `while`, `linrec`, `filter`, `split`, and
+`merge` run predicates in a stack sandbox: they read the boolean result and
+restore the surrounding data stack afterward. Side effects performed inside the
+predicate are not undone.
+
+Diagnostic display words are also observers: `.`, `.s`, and `.S` print without
+changing the data stack.
 
 ## Built-in Words
 
@@ -93,7 +124,7 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 | Combinators   | `each`, `map`, `fold`, `filter`, `some`, `all`, `split`, `merge`                                                                                                                                    |
 | List/String   | `geth`, `seth`, `slice`, `take`, `dropn`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `join`, `trim`, `upper`, `lower`, `splitmid`, `range`, `empty?`                             |
 | Introspection | `typeof`, `bool?`, `int?`, `float?`, `str?`, `symbol?`, `list?`, `number?`, `nan?`, `inf?`, `word?`, `var?`, `inf`, `nan`, `body`, `intern`, `name`, `words`, `see`                                 |
-| I/O           | `print`, `printf`, `.`, `.s`, `cr`, `key`, `input`, `load`, `readf`, `writef`, `delf`, `readl`, `exists?`, `clear`, `page`                                                                          |
+| I/O           | `print`, `printf`, `.`, `.s`, `.S`, `cr`, `key`, `input`, `load`, `readf`, `writef`, `delf`, `readl`, `exists?`, `clear`, `page`                                                                    |
 | System        | `rand`, `sleep`, `argc`, `argv`, `getenv`, `setenv`, `pwd`, `shell`, `time`, `clock`, `bye`, `exit`                                                                                                 |
 | Definition    | `def`, `:`                                                                                                                                                                                          |
 
@@ -101,6 +132,7 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 
 - [Build](./docs/build.md)
 - [REPL](./docs/repl.md)
+- [Combinator Examples](./docs/combinators.md)
 - [Tree-sitter](./docs/tree-sitter.md)
 - [LSP](./docs/lsp.md)
 - [VS Code](./docs/vscode.md)

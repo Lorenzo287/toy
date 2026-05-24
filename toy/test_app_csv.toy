@@ -18,15 +18,15 @@ Charlie,35,Chicago" writef
     
     [ 
         trim
-        len 0 > [ \ Only process non-empty lines
+        dup len 0 > [ \ Only process non-empty lines
             "," split
             { record }
             " - " printf 
-            $record 0 geth nip printf \ name
+            $record 0 geth printf \ name
             " (" printf 
-            $record 1 geth nip printf \ age
+            $record 1 geth printf \ age
             ") lives in " printf 
-            $record 2 geth nip print  \ city
+            $record 2 geth print  \ city
         ] [ drop ] ifelse
     ] each
 

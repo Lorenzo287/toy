@@ -14,7 +14,7 @@
 
 "Testing mergesort:" print
 [ 5 3 8 1 9 2 7 4 6 ] mergesort .s
-len nip 9 == [ "len ok" print ] [ "len fail" print ] ifelse
+len 9 == [ "len ok" print ] [ "len fail" print ] ifelse
 
 "Merge preserves ambient stack:" print
 merge-preserves-stack

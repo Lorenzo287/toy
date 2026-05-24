@@ -13,6 +13,8 @@ navigation and development rules.
 - `include/`: internal APIs; read these before engine, lexer, object, or native edits.
 - `toy/`: Toy scripts and regression tests.
 - `docs/`: build, REPL, tooling, and roadmap docs.
+- `docs/combinators.md`: examples for nontrivial control, recursion, and
+  collection combinator usage.
 - `tools/`: Tree-sitter grammar, Go LSP, VS Code extension.
 - `deps/`: vendored `linenoise` and `stb_leakcheck`.
 
@@ -46,6 +48,11 @@ navigation and development rules.
   frames and return.
 - Language direction: prefer quotation-first words and combinators over new
   syntax. Follow `docs/language-roadmap.md` for definition policy.
+- Stack effects: ordinary words consume their declared inputs. Predicate
+  quotations in control/predicate combinators restore the surrounding data stack
+  after reading a boolean result; side effects inside them are not undone.
+- Sequence words should be uniform across lists and strings when the result type
+  is clear. Strings are byte sequences; a string item is a one-byte string.
 - Tooling: keep metadata obvious when words/syntax change. The four source files
   to keep in sync are `src/tf_repl.c` (hints),
   `tools/tree-sitter-toyforth/grammar.js`,

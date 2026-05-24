@@ -1,9 +1,12 @@
 "--- Testing System Utilities ---\n" printf
 
+'check [ [ ] [ "system check failed" error ] ifelse ] def
+
 \ Testing setenv
 "TEST_VAR" "TEST_VALUE" setenv
 [ "setenv worked\n" printf ] [ "setenv failed" error ] ifelse
 
 "TEST_VAR" getenv print
+"cd ." shell "" == check
 
 "--- Done ---\n" printf

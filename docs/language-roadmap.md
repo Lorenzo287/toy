@@ -75,9 +75,18 @@ then bytecode for the existing VM, then LLVM for a constrained subset.
 - Overload existing words when the language concept is the same across types
   (`split` for list partitioning and string splitting); avoid aliases that only
   encode implementation categories.
+- Treat strings as byte sequences for shared sequence words. A string item is a
+  one-byte string; `append` adds one item, while `concat` combines two
+  sequences.
 - Introspection words should push data (`words` pushes a list of strings, `see`
   pushes a string) rather than print directly.
-- Observers such as `len`, `geth`, `first`, `rest`, `empty?` preserve lists.
-- Structural words such as `uncons`, `cons`, `concat` consume list inputs.
-- Update words such as `seth` may stay mutating/consuming.
+- Ordinary words consume their declared stack inputs. Use `dup`, `keep`, `bi`,
+  and related stack combinators when a caller wants preservation.
+- Predicate quotations used by control and predicate combinators observe the
+  surrounding data stack by sandboxing stack changes and reading one boolean
+  result. Side effects inside predicates are still real effects.
+- Diagnostic display words such as `.`, `.s`, and `.S` may observe the stack
+  without consuming values.
+- Update-style data words such as `seth` should return updated values rather
+  than mutating shared objects in place.
 - New native words need focused tests and lightweight tooling metadata updates.

@@ -2,7 +2,7 @@
 
 \ EACH
 
-$list len swap
+$list len $list
 
 "\n{" printf 
 [ 
@@ -18,11 +18,11 @@ drop
 
 "{" printf 
 0
-$list len nip
+$list len
 [
-	$list over geth nip printf
+	$list over geth printf
 	1 +
-	[ $list len nip != ] [ "-"printf ] if
+	[ $list len != ] [ "-"printf ] if
 ] times
 "}\n" print
 
@@ -32,11 +32,11 @@ drop
 
 "{" printf 
 0 
-[ $list len nip != ]
+[ $list len != ]
 [
-	$list over geth nip printf
+	$list over geth printf
 	1 +
-	[ $list len nip != ] [ "-"printf ] if
+	[ $list len != ] [ "-"printf ] if
 ] while
 "}\n" print
 

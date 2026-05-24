@@ -140,7 +140,8 @@ static const tf_native_word native_stack_words[] = {
 
 static const tf_native_word native_io_words[] = {
     {"printf", tf_printf}, {"print", tf_print}, {"cr", tf_cr},
-    {".", tf_dot},         {".s", tf_stack},    {"key", tf_key},
+    {".", tf_dot},         {".s", tf_stack},    {".S", tf_stack_source},
+    {"key", tf_key},
     {"input", tf_input},   {"load", tf_load_r}, {"readf", tf_readf},
     {"writef", tf_writef}, {"delf", tf_delf},   {"readl", tf_readl},
     {"exists?", tf_exists_q}, {"clear", tf_clear}, {"page", tf_clear},
@@ -180,6 +181,9 @@ static const tf_native_word native_collection_combinator_words[] = {
     {NULL, NULL},
 };
 
+/* Sequence data words are shared by lists and strings when the operation has
+ * the same shape. String items are one-byte strings: append adds one item,
+ * while concat combines two sequences. */
 static const tf_native_word native_data_words[] = {
     {"geth", tf_geth},       {"seth", tf_seth},
     {"slice", tf_slice},     {"take", tf_take},

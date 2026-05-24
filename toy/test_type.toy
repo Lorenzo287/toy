@@ -1,12 +1,12 @@
 \ Comprehensive test for new introspection and system words
 
-\ 1. typeof (Observer: should not consume)
+\ 1. typeof consumes its input
 5 typeof print
-.s empty \ Should show 5
+.s empty \ Should show an empty stack
 
-\ 2. Type predicates (Observer: should not consume)
+\ 2. Type predicates consume their input
 3.14 float? print
-.s empty \ Should show 3.14
+.s empty \ Should show an empty stack
 
 \ 3. System words
 pwd typeof print \ Should be 'str'

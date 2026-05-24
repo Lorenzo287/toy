@@ -9,53 +9,48 @@
 
 tf_ret tf_number_q(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
-    tf_obj *o = stack_peek(ctx, 0);
+    tf_obj *o = stack_pop(ctx);
     stack_push(ctx, create_bool_obj(o->type == TF_OBJ_TYPE_INT ||
                                     o->type == TF_OBJ_TYPE_FLOAT));
+    release_obj(o);
     return TF_OK;
 }
 
 tf_ret tf_nan_q(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
-    tf_obj *o = stack_peek(ctx, 0);
-    if (o->type != TF_OBJ_TYPE_FLOAT) {
-        stack_push(ctx, create_bool_obj(false));
-        return TF_OK;
-    }
-    stack_push(ctx, create_bool_obj(isnan(o->f)));
+    tf_obj *o = stack_pop(ctx);
+    bool result = o->type == TF_OBJ_TYPE_FLOAT && isnan(o->f);
+    stack_push(ctx, create_bool_obj(result));
+    release_obj(o);
     return TF_OK;
 }
 
 tf_ret tf_inf_q(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
-    tf_obj *o = stack_peek(ctx, 0);
-    if (o->type != TF_OBJ_TYPE_FLOAT) {
-        stack_push(ctx, create_bool_obj(false));
-        return TF_OK;
-    }
-    stack_push(ctx, create_bool_obj(isinf(o->f)));
+    tf_obj *o = stack_pop(ctx);
+    bool result = o->type == TF_OBJ_TYPE_FLOAT && isinf(o->f);
+    stack_push(ctx, create_bool_obj(result));
+    release_obj(o);
     return TF_OK;
 }
 
 tf_ret tf_word_q(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
-    tf_obj *o = stack_peek(ctx, 0);
-    if (o->type != TF_OBJ_TYPE_SYMBOL && o->type != TF_OBJ_TYPE_STR) {
-        stack_push(ctx, create_bool_obj(false));
-        return TF_OK;
-    }
-    stack_push(ctx, create_bool_obj(get_func(ctx, o) != NULL));
+    tf_obj *o = stack_pop(ctx);
+    bool result = (o->type == TF_OBJ_TYPE_SYMBOL || o->type == TF_OBJ_TYPE_STR) &&
+                  get_func(ctx, o) != NULL;
+    stack_push(ctx, create_bool_obj(result));
+    release_obj(o);
     return TF_OK;
 }
 
 tf_ret tf_var_q(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
-    tf_obj *o = stack_peek(ctx, 0);
-    if (o->type != TF_OBJ_TYPE_SYMBOL && o->type != TF_OBJ_TYPE_STR) {
-        stack_push(ctx, create_bool_obj(false));
-        return TF_OK;
-    }
-    stack_push(ctx, create_bool_obj(tf_var_fetch(ctx, o) != NULL));
+    tf_obj *o = stack_pop(ctx);
+    bool result = (o->type == TF_OBJ_TYPE_SYMBOL || o->type == TF_OBJ_TYPE_STR) &&
+                  tf_var_fetch(ctx, o) != NULL;
+    stack_push(ctx, create_bool_obj(result));
+    release_obj(o);
     return TF_OK;
 }
 
@@ -108,8 +103,9 @@ tf_ret tf_name(tf_ctx *ctx) {
 
 static tf_ret tf_type_check(tf_ctx *ctx, tf_type type) {
     if (stack_len(ctx) < 1) return TF_ERR;
-    tf_obj *o = stack_peek(ctx, 0);
+    tf_obj *o = stack_pop(ctx);
     stack_push(ctx, create_bool_obj(o->type == type));
+    release_obj(o);
     return TF_OK;
 }
 
@@ -134,7 +130,7 @@ tf_ret tf_list_q(tf_ctx *ctx) {
 
 tf_ret tf_typeof(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
-    tf_obj *o = stack_peek(ctx, 0);
+    tf_obj *o = stack_pop(ctx);
     const char *type_str = "unknown";
     switch (o->type) {
     case TF_OBJ_TYPE_BOOL:
@@ -163,6 +159,7 @@ tf_ret tf_typeof(tf_ctx *ctx) {
         break;
     }
     stack_push(ctx, create_string_obj((char *)type_str, strlen(type_str)));
+    release_obj(o);
     return TF_OK;
 }
 

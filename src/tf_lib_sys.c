@@ -17,13 +17,14 @@
 
 tf_ret tf_setenv(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
-    tf_obj *val = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
-    tf_obj *name = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
-    if (!val || !name) {
-        if (val) release_obj(val);
-        if (name) release_obj(name);
+    tf_obj *val = stack_peek(ctx, 0);
+    tf_obj *name = stack_peek(ctx, 1);
+    if (val->type != TF_OBJ_TYPE_STR || name->type != TF_OBJ_TYPE_STR) {
         return TF_ERR;
     }
+
+    val = stack_pop(ctx);
+    name = stack_pop(ctx);
 
 #ifdef _WIN32
     int res = SETENV(name->str.ptr, val->str.ptr);
@@ -67,13 +68,8 @@ tf_ret tf_shell(tf_ctx *ctx) {
     }
 
     int status = pclose(fp);
-    if (output) {
-        stack_push(ctx, create_string_obj(output, total_size));
-        free(output);
-    } else {
-        stack_push(ctx, init_list_obj()); // Push empty list as a "not found" indicator
-        // stack_push(ctx, create_string_obj("", 0));
-    }
+    stack_push(ctx, create_string_obj(output ? output : "", total_size));
+    free(output);
     
     // We could also push the status code, but for now let's just return the output
     (void)status; 
@@ -92,7 +88,6 @@ tf_ret tf_argv(tf_ctx *ctx) {
     for (int i = 0; i < ctx->argc; i++) {
         tf_obj *str = create_string_obj(ctx->argv[i], strlen(ctx->argv[i]));
         push_obj(list, str);
-        release_obj(str);
     }
     stack_push(ctx, list);
     return TF_OK;
