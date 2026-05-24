@@ -75,11 +75,11 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 
 ```toy
 \ Lists, strings, and files are available for small scripts.
-[ 1 2 3 ] uncons                    \ leaves 1 [2 3]
-0 [ 1 2 3 ] cons                    \ leaves [0 1 2 3]
-"abc" first                         \ leaves "a"
-"ab" "c" append                     \ leaves "abc"
-"ab" "cd" concat                    \ leaves "abcd"
+[ 1 2 3 ] uncons     \ leaves 1 [2 3]
+0 [ 1 2 3 ] cons     \ leaves [0 1 2 3]
+"abc" first          \ leaves "a"
+"ab" "c" append      \ leaves "abc"
+"ab" "cd" concat     \ leaves "abcd"
 "  alpha,beta,gamma  " trim "," split [ upper ] map "-" join print
 
 "notes.txt" "hello from Toy" writef
@@ -91,15 +91,15 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 Toy words consume their declared inputs by default:
 
 ```toy
-"hello" len        \ leaves 5
-[ 1 2 3 ] first   \ leaves 1
-10 int?            \ leaves true
+"hello" len          \ leaves 5
+[ 1 2 3 ] first      \ leaves 1
+10 int?              \ leaves true
 ```
 
 Use stack words or combinators when a value should be preserved:
 
 ```toy
-"hello" dup len    \ leaves "hello" 5
+"hello" dup len      \ leaves "hello" 5
 [ 1 2 3 ] [ len ] keep
 ```
 
@@ -130,15 +130,19 @@ changing the data stack.
 
 ## Tooling
 
-- [Build](./docs/build.md)
 - [REPL](./docs/repl.md)
-- [Combinator Examples](./docs/combinators.md)
 - [Tree-sitter](./docs/tree-sitter.md)
 - [LSP](./docs/lsp.md)
 - [VS Code](./docs/vscode.md)
+
+## Extra
+
+- [Combinator Examples](./docs/combinators.md)
 - [Roadmap](./docs/language-roadmap.md)
 
 ## Getting Started
+
+- [Build](./docs/build.md)
 
 ```powershell
 cmake --build build
