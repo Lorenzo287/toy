@@ -7,8 +7,8 @@ len 6 == [ "len ok" print ] [ "len fail" print ] ifelse
 0 geth 1 == [ "elem ok" print ] [ "elem fail" print ] ifelse
 
 "\nTesting split:" print
-"a,b,c" "," splits 
-len nip 3 == [ "len ok" print ] [ "len fail" print ] ifelse
+"a,b,c" "," split
+dup len nip 3 == [ "len ok" print ] [ "len fail" print ] ifelse
 1 geth nip "b" == [ "elem ok" print ] [ "elem fail" print ] ifelse
 
 "\nTesting join:" print

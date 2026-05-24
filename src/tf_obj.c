@@ -40,13 +40,13 @@ tf_obj *create_float_obj(float f) {
     return o;
 }
 
-tf_obj *create_symbol_obj(char *s, size_t len) {
+tf_obj *create_symbol_obj(const char *s, size_t len) {
     tf_obj *o = create_string_obj(s, len);
     o->type = TF_OBJ_TYPE_SYMBOL;
     return o;
 }
 
-tf_obj *create_string_obj(char *s, size_t len) {
+tf_obj *create_string_obj(const char *s, size_t len) {
     tf_obj *o = init_obj(TF_OBJ_TYPE_STR);
     o->str.ptr = xmalloc(len + 1);
     o->str.len = len;

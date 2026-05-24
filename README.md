@@ -16,12 +16,12 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 
 - Integers, floats, booleans, strings, symbols, and lists.
 - First-class quotations for deferred execution and higher-order code.
-- Stack combinators such as `dip`, `keep`, `bi`, `map`, `fold`, `linrec`, and
-  `binrec`.
+- Stack combinators such as `dip`, `keep`, `bi`, `map`, `filter`, `fold`,
+  `linrec`, `binrec`, and `genrec`.
 - Local captures with `{ name }` and `$name` when stack-only code gets too hard
   to read.
-- File I/O, string manipulation, dictionary introspection, and an interactive
-  REPL with history/completion.
+- File I/O, string manipulation, dictionary introspection, process helpers, and
+  an interactive REPL with history/completion.
 - An iterative execution engine, so user-defined recursion does not depend on
   the C call stack.
 
@@ -75,7 +75,7 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 \ Lists, strings, and files are available for small scripts.
 [ 1 2 3 ] uncons                    \ leaves 1 [2 3]
 0 [ 1 2 3 ] cons                    \ leaves [0 1 2 3]
-"  alpha,beta,gamma  " trim "," splits [ upper ] map "-" join print
+"  alpha,beta,gamma  " trim "," split [ upper ] map "-" join print
 
 "notes.txt" "hello from Toy" writef
 "notes.txt" readf print
@@ -83,17 +83,19 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 
 ## Built-in Words
 
-| Category    | Words                                                                                                                                                            |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stack       | `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty`                                                                            |
-| Math        | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `max`, `min`                                                                                                       |
-| Logic       | `and`, `or`, `xor`, `not`, `shl`, `shr`                                                                                                                          |
-| Comparison  | `==`, `!=`, `<`, `>`, `<=`, `>=`                                                                                                                                 |
-| Control     | `if`, `ifelse`, `replicate`, `while`, `times`, `each`, `map`, `fold`, `exec`, `i`, `app2`, `dip`, `keep`, `bi`, `split`, `linrec`, `binrec`                      |
-| List/String | `geth`, `seth`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `join`, `trim`, `upper`, `lower`, `splits`, `splitmid`, `merge`, `range`, `empty?` |
-| I/O         | `print`, `printf`, `.`, `.s`, `cr`, `key`, `input`, `clear`, `page`, `readf`, `writef`, `delf`, `readl`, `exists?`                                               |
-| System      | `rand`, `sleep`, `time`, `clock`, `words`, `see`, `load`, `bye`, `exit`                                                                                          |
-| Definition  | `def`, `:`                                                                                                                                                       |
+| Category      | Words                                                                                                                                                                                               |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stack         | `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty`                                                                                                               |
+| Math          | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `max`, `min`, `sqrt`, `pow`, `exp`, `log`, `log10`, `sin`, `cos`, `tan`, `floor`, `ceil`, `round`, `pred`, `succ`, `square`, `cube`, `pi`, `e`, `tau` |
+| Logic         | `and`, `or`, `xor`, `not`, `shl`, `shr`                                                                                                                                                             |
+| Comparison    | `==`, `!=`, `<`, `>`, `<=`, `>=`                                                                                                                                                                    |
+| Control       | `if`, `ifelse`, `while`, `try`, `error`, `exec`, `i`, `app2`, `infra`, `cond`, `cleave`, `construct`, `replicate`, `times`, `dip`, `keep`, `bi`, `linrec`, `binrec`, `genrec`, `treerec`            |
+| Combinators   | `each`, `map`, `fold`, `filter`, `some`, `all`, `split`, `merge`                                                                                                                                    |
+| List/String   | `geth`, `seth`, `slice`, `take`, `dropn`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `join`, `trim`, `upper`, `lower`, `splitmid`, `range`, `empty?`                             |
+| Introspection | `typeof`, `bool?`, `int?`, `float?`, `str?`, `symbol?`, `list?`, `number?`, `nan?`, `inf?`, `word?`, `var?`, `inf`, `nan`, `body`, `intern`, `name`, `words`, `see`                                 |
+| I/O           | `print`, `printf`, `.`, `.s`, `cr`, `key`, `input`, `load`, `readf`, `writef`, `delf`, `readl`, `exists?`, `clear`, `page`                                                                          |
+| System        | `rand`, `sleep`, `argc`, `argv`, `getenv`, `setenv`, `pwd`, `shell`, `time`, `clock`, `bye`, `exit`                                                                                                 |
+| Definition    | `def`, `:`                                                                                                                                                                                          |
 
 ## Tooling
 

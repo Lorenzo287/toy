@@ -1,0 +1,9 @@
+"--- Testing Introspection Words ---\n" printf
+
+'twice [ dup + ] def
+'twice body [ dup + ] == [ "twice body ok\n" printf ] if
+'twice see "'twice [ dup + ] def" == [ "see ok\n" printf ] if
+words list? [ "words returns list\n" printf ] if
+"X" intern dup print name print
+
+"--- Done ---\n" printf

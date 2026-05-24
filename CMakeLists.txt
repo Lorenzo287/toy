@@ -16,6 +16,7 @@ if(WIN32)
     target_sources(toy PRIVATE ${PROJECT_SOURCE_DIR}/deps/linenoise/linenoise_win.c)
 else()
     target_sources(toy PRIVATE ${PROJECT_SOURCE_DIR}/deps/linenoise/linenoise.c)
+    target_link_libraries(toy PRIVATE m)
 endif()
 target_include_directories(toy PRIVATE ${PROJECT_SOURCE_DIR}/deps/linenoise)
 

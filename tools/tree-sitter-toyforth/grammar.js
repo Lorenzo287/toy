@@ -39,21 +39,29 @@ export default grammar({
       /\d+/,
     )),
     control_word: $ => choice(
-      'if', 'ifelse', 'replicate', 'while', 'times', 'each', 'map', 'fold', 'exec', 'i', 'app2', 'dip',
-      'keep', 'bi', 'split', 'linrec', 'binrec'
+      'if', 'ifelse', 'while', 'try', 'error', 'exec', 'i', 'app2',
+      'infra', 'cond', 'cleave', 'construct', 'replicate', 'times',
+      'dip', 'keep', 'bi', 'linrec', 'binrec', 'genrec', 'treerec',
+      'each', 'map', 'fold', 'filter', 'some', 'all', 'split', 'merge'
     ),
     operator: $ => choice(
       '+', '-', '*', '/', '%', 'mod', 'abs', 'neg', 'max', 'min',
+      'sqrt', 'pow', 'exp', 'log', 'log10', 'sin', 'cos', 'tan',
+      'floor', 'ceil', 'round', 'pred', 'succ', 'square', 'cube',
       'and', 'or', 'xor', 'not', 'shl', 'shr',
       '==', '!=', '<', '>', '<=', '>='
     ),
     builtin_word: $ => choice(
       'dup', 'drop', 'swap', 'over', 'rot', 'swapd', 'nip', 'tuck', 'pick', 'roll',
       'empty',
+      'pi', 'e', 'tau',
       'print', 'printf', '.', '.s', 'cr',
-      'key', 'input', 'time', 'clock', 'clear', 'page', 'words', 'see', 'load', 'readf', 'writef', 'delf', 'readl', 'exists?',
-      'geth', 'seth', 'len', 'first', 'rest', 'uncons', 'cons', 'append', 'concat', 'join', 'trim', 'upper', 'lower', 'splits', 'splitmid', 'merge', 'range', 'empty?',
-      'rand', 'sleep',
+      'key', 'input', 'load', 'readf', 'writef', 'delf', 'readl', 'exists?', 'clear', 'page',
+      'typeof', 'bool?', 'int?', 'float?', 'str?', 'symbol?', 'list?', 'number?', 'nan?', 'inf?',
+      'word?', 'var?', 'inf', 'nan', 'body', 'intern', 'name', 'words', 'see',
+      'geth', 'seth', 'slice', 'take', 'dropn', 'len', 'first', 'rest', 'uncons', 'cons',
+      'append', 'concat', 'join', 'trim', 'upper', 'lower', 'splitmid', 'range', 'empty?',
+      'rand', 'sleep', 'argc', 'argv', 'getenv', 'setenv', 'pwd', 'shell', 'time', 'clock',
       'def', 'bye', 'exit'
     ),
     string: $ => seq(

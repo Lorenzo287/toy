@@ -1,0 +1,33 @@
+"--- Testing Advanced Combinators ---\n" printf
+
+\ Testing infra
+[ 1 2 3 ] [ 1 + ] infra .              \ Increments the last element (3 -> 4)
+[ 1 2 3 ] [ 4 ] infra .                \ Pushes 4 to the list
+
+10 20 [ 100 ] [ 200 ] infra print
+print print                            \ prints 20 10
+
+\ Testing cond
+10 [
+    [ [ 0 < ] [ "negative\n" printf ] ]
+    [ [ 0 == ] [ "zero\n" printf ] ]
+    [ [ 0 > ] [ "positive\n" printf ] ]
+] cond
+
+5 neg [
+    [ [ 0 < ] [ "negative\n" printf ] ]
+    [ [ 0 == ] [ "zero\n" printf ] ]
+    [ [ 0 > ] [ "positive\n" printf ] ]
+] cond
+
+\ Testing cleave
+5 [ [ 1 + ] [ 2 * ] [ dup * ] ] cleave
+print print print                       \ prints 25 10 6
+5 [ 1 + ] [ 2 * ] bi
+print print
+
+\ Testing construct (improved)
+5 [ [ 1 + ] [ 2 * ] [ dup * ] ] construct print
+5 [ [ drop 1 2 3 ] [ drop ] [ 1 + ] ] construct print    \ Should be [1 2 3 6]
+
+"--- Done ---\n" printf

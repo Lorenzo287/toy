@@ -12,7 +12,7 @@ concatenative language inspired by Joy. Quotations (`[ ... ]`) and symbols
 - User-defined words run on the explicit frame stack.
 - Some native quotation runners still call `exec()` synchronously and keep the
   `_r` suffix.
-- Native word source of truth: `src/tf_exec.c:init_ctx()`.
+- Native word source of truth: grouped native tables in `src/tf_exec.c`.
 
 ## Roadmap Tracks
 
@@ -21,10 +21,12 @@ semantics, improves tests/examples, and keeps the interpreter educational.
 
 ### Vocabulary and Resilience
 
-Audit Joy builtins and add only words with clear stack effects and real value.
-This includes type predicates, safer stack/collection predicates, error-handling
-experiments, external interop (`argv`, `getenv`, subprocesses), and explicit
-Toy-level library modules loaded with `load`.
+Continue auditing Joy builtins and add only words with clear stack effects and
+real value. The first vocabulary expansion now covers numeric constants,
+numeric predicates, dictionary introspection, higher-order collection words,
+error handling experiments, and external interop (`argv`, `getenv`, `setenv`,
+`shell`). Future vocabulary work should emphasize semantic cleanup, edge-case
+tests, and consistency over breadth.
 
 Prefer Toy definitions for convenience words. Prefer C natives for direct object
 access, frame scheduling, platform I/O, or measured performance.
@@ -70,6 +72,11 @@ then bytecode for the existing VM, then LLVM for a constrained subset.
 - Semantics before syntax.
 - Prefer reusable combinators over special forms.
 - Keep stack effects explicit and testable.
+- Overload existing words when the language concept is the same across types
+  (`split` for list partitioning and string splitting); avoid aliases that only
+  encode implementation categories.
+- Introspection words should push data (`words` pushes a list of strings, `see`
+  pushes a string) rather than print directly.
 - Observers such as `len`, `geth`, `first`, `rest`, `empty?` preserve lists.
 - Structural words such as `uncons`, `cons`, `concat` consume list inputs.
 - Update words such as `seth` may stay mutating/consuming.

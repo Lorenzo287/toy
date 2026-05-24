@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <math.h>
 #include "tf_alloc.h"
 #include "tf_obj.h"
 
@@ -164,6 +165,139 @@ tf_ret tf_abs(tf_ctx *ctx) {
         return TF_ERR;
     }
     release_obj(a);
+    return TF_OK;
+}
+
+/* Transcendental Math */
+
+static tf_ret tf_unary_float_math(tf_ctx *ctx, double (*func)(double)) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *a = stack_pop(ctx);
+    if (a->type != TF_OBJ_TYPE_INT && a->type != TF_OBJ_TYPE_FLOAT) {
+        stack_push(ctx, a);
+        return TF_ERR;
+    }
+    double val = (a->type == TF_OBJ_TYPE_FLOAT) ? (double)a->f : (double)a->i;
+    stack_push(ctx, create_float_obj((float)func(val)));
+    release_obj(a);
+    return TF_OK;
+}
+
+tf_ret tf_sqrt(tf_ctx *ctx) { return tf_unary_float_math(ctx, sqrt); }
+tf_ret tf_exp(tf_ctx *ctx) { return tf_unary_float_math(ctx, exp); }
+tf_ret tf_log(tf_ctx *ctx) { return tf_unary_float_math(ctx, log); }
+tf_ret tf_log10(tf_ctx *ctx) { return tf_unary_float_math(ctx, log10); }
+tf_ret tf_sin(tf_ctx *ctx) { return tf_unary_float_math(ctx, sin); }
+tf_ret tf_cos(tf_ctx *ctx) { return tf_unary_float_math(ctx, cos); }
+tf_ret tf_tan(tf_ctx *ctx) { return tf_unary_float_math(ctx, tan); }
+
+tf_ret tf_pow(tf_ctx *ctx) {
+    if (stack_len(ctx) < 2) return TF_ERR;
+    tf_obj *b = stack_pop(ctx);
+    tf_obj *a = stack_pop(ctx);
+    if ((a->type != TF_OBJ_TYPE_INT && a->type != TF_OBJ_TYPE_FLOAT) ||
+        (b->type != TF_OBJ_TYPE_INT && b->type != TF_OBJ_TYPE_FLOAT)) {
+        stack_push(ctx, a);
+        stack_push(ctx, b);
+        return TF_ERR;
+    }
+    double val_a = (a->type == TF_OBJ_TYPE_FLOAT) ? (double)a->f : (double)a->i;
+    double val_b = (b->type == TF_OBJ_TYPE_FLOAT) ? (double)b->f : (double)b->i;
+    stack_push(ctx, create_float_obj((float)pow(val_a, val_b)));
+    release_obj(a);
+    release_obj(b);
+    return TF_OK;
+}
+
+static tf_ret tf_unary_int_math(tf_ctx *ctx, double (*func)(double)) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *a = stack_pop(ctx);
+    if (a->type != TF_OBJ_TYPE_INT && a->type != TF_OBJ_TYPE_FLOAT) {
+        stack_push(ctx, a);
+        return TF_ERR;
+    }
+    double val = (a->type == TF_OBJ_TYPE_FLOAT) ? (double)a->f : (double)a->i;
+    stack_push(ctx, create_int_obj((int)func(val)));
+    release_obj(a);
+    return TF_OK;
+}
+
+tf_ret tf_floor(tf_ctx *ctx) { return tf_unary_int_math(ctx, floor); }
+tf_ret tf_ceil(tf_ctx *ctx) { return tf_unary_int_math(ctx, ceil); }
+tf_ret tf_round(tf_ctx *ctx) { return tf_unary_int_math(ctx, round); }
+tf_ret tf_pred(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *a = stack_pop_type(ctx, TF_OBJ_TYPE_INT);
+    if (!a) return TF_ERR;
+    if (a->i == INT_MIN) {
+        stack_push(ctx, a);
+        return TF_ERR;
+    }
+    stack_push(ctx, create_int_obj(a->i - 1));
+    release_obj(a);
+    return TF_OK;
+}
+
+tf_ret tf_succ(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *a = stack_pop_type(ctx, TF_OBJ_TYPE_INT);
+    if (!a) return TF_ERR;
+    if (a->i == INT_MAX) {
+        stack_push(ctx, a);
+        return TF_ERR;
+    }
+    stack_push(ctx, create_int_obj(a->i + 1));
+    release_obj(a);
+    return TF_OK;
+}
+
+tf_ret tf_square(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *a = stack_pop(ctx);
+    if (a->type == TF_OBJ_TYPE_INT) {
+        stack_push(ctx, create_int_obj(a->i * a->i));
+    } else if (a->type == TF_OBJ_TYPE_FLOAT) {
+        stack_push(ctx, create_float_obj(a->f * a->f));
+    } else {
+        stack_push(ctx, a);
+        release_obj(a);
+        return TF_ERR;
+    }
+    release_obj(a);
+    return TF_OK;
+}
+
+tf_ret tf_cube(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *a = stack_pop(ctx);
+    if (a->type == TF_OBJ_TYPE_INT) {
+        stack_push(ctx, create_int_obj(a->i * a->i * a->i));
+    } else if (a->type == TF_OBJ_TYPE_FLOAT) {
+        stack_push(ctx, create_float_obj(a->f * a->f * a->f));
+    } else {
+        stack_push(ctx, a);
+        release_obj(a);
+        return TF_ERR;
+    }
+    release_obj(a);
+    return TF_OK;
+}
+
+#define TF_PI_CONST 3.14159265358979323846f
+#define TF_E_CONST 2.71828182845904523536f
+
+tf_ret tf_pi(tf_ctx *ctx) {
+    stack_push(ctx, create_float_obj(TF_PI_CONST));
+    return TF_OK;
+}
+
+tf_ret tf_e(tf_ctx *ctx) {
+    stack_push(ctx, create_float_obj(TF_E_CONST));
+    return TF_OK;
+}
+
+tf_ret tf_tau(tf_ctx *ctx) {
+    stack_push(ctx, create_float_obj(2.0f * TF_PI_CONST));
     return TF_OK;
 }
 

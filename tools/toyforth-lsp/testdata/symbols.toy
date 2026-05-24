@@ -1,11 +1,11 @@
 \ top-level definitions
-: square ( n -- n*n ) { n } $n $n * ;
+: sqr ( n -- n*n ) { n } $n $n * ;
 
 \ definition comment
-'cube [ { n } $n $n $n * * ] def
+'pow3 [ { n } $n $n $n * * ] def
 
-5 square .
-3 cube .
+5 sqr .
+3 pow3 .
 
 : shadow-demo { outer } $outer [ { outer } $outer ] exec $outer ;
 
@@ -13,4 +13,4 @@
 [ : hidden 1 ; ]
 { shadow }
 
-5 cube print
+5 pow3 print

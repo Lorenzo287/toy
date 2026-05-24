@@ -61,6 +61,7 @@ struct ctx {
 
     int argc;
     char **argv;
+    size_t error_suppression_depth;
 };
 
 size_t stack_len(tf_ctx *ctx);
@@ -75,9 +76,10 @@ void frame_pop(tf_ctx *ctx);
 tf_ctx *init_ctx(int argc, char **argv);
 void free_ctx(tf_ctx *ctx);
 tf_func *init_func(tf_ctx *ctx, tf_obj *name);
-void set_native_func(tf_ctx *ctx, char *name, tf_cb cb);
+void set_native_func(tf_ctx *ctx, const char *name, tf_cb cb);
 void set_user_func(tf_ctx *ctx, tf_obj *name, tf_obj *uf);
 tf_func *get_func(tf_ctx *ctx, tf_obj *name);
+tf_obj *tf_var_fetch(tf_ctx *ctx, tf_obj *name);
 
 tf_ret exec(tf_ctx *ctx, tf_obj *prg);
 tf_ret call_symbol(tf_ctx *ctx, tf_obj *symb);

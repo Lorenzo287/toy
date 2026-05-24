@@ -46,8 +46,8 @@ tf_obj *init_list_obj(void);
 tf_obj *create_int_obj(int i);
 tf_obj *create_bool_obj(bool b);
 tf_obj *create_float_obj(float f);
-tf_obj *create_symbol_obj(char *s, size_t len);
-tf_obj *create_string_obj(char *s, size_t len);
+tf_obj *create_symbol_obj(const char *s, size_t len);
+tf_obj *create_string_obj(const char *s, size_t len);
 
 int compare_string_obj(tf_obj *a, tf_obj *b);
 void push_obj(tf_obj *l, tf_obj *elem);

@@ -1,0 +1,15 @@
+"--- Testing Error Handling ---\n" printf
+
+\ Testing error (will be caught by try)
+[ "intentional error" error ] [ "caught it!\n" printf ] try
+
+\ Testing division by zero catch
+[ 1 0 / ] [ "cannot divide by zero\n" printf ] try
+
+\ Nested try
+[
+    [ "inner error" error ] [ "inner catch\n" printf ] try
+    "after inner\n" printf
+] [ "outer catch\n" printf ] try
+
+"--- Done ---\n" printf

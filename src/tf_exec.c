@@ -100,6 +100,124 @@ static void tf_table_resize(tf_ctx *ctx) {
 
 /* === Context Initialization === */
 
+typedef struct {
+    const char *name;
+    tf_cb cb;
+} tf_native_word;
+
+static void register_native_group(tf_ctx *ctx, const tf_native_word *words) {
+    for (size_t i = 0; words[i].name; i++) {
+        set_native_func(ctx, words[i].name, words[i].cb);
+    }
+}
+
+static const tf_native_word native_math_words[] = {
+    {"+", tf_add},       {"-", tf_sub},     {"*", tf_mul},
+    {"/", tf_div},       {"%", tf_mod},     {"mod", tf_mod},
+    {"neg", tf_neg},     {"abs", tf_abs},   {"max", tf_max},
+    {"min", tf_min},     {"sqrt", tf_sqrt}, {"pow", tf_pow},
+    {"exp", tf_exp},     {"log", tf_log},   {"log10", tf_log10},
+    {"sin", tf_sin},     {"cos", tf_cos},   {"tan", tf_tan},
+    {"floor", tf_floor}, {"ceil", tf_ceil}, {"round", tf_round},
+    {"pred", tf_pred},   {"succ", tf_succ}, {"square", tf_square},
+    {"cube", tf_cube},   {"pi", tf_pi},     {"e", tf_e},
+    {"tau", tf_tau},     {NULL, NULL},
+};
+
+static const tf_native_word native_logic_words[] = {
+    {"and", tf_and}, {"or", tf_or},   {"xor", tf_xor},
+    {"not", tf_not}, {"shl", tf_shl}, {"shr", tf_shr},
+    {NULL, NULL},
+};
+
+static const tf_native_word native_stack_words[] = {
+    {"dup", tf_dup},     {"drop", tf_drop}, {"swap", tf_swap},
+    {"over", tf_over},   {"rot", tf_rot},   {"swapd", tf_swapd},
+    {"nip", tf_nip},     {"tuck", tf_tuck}, {"pick", tf_pick},
+    {"roll", tf_roll},   {"empty", tf_empty},
+    {NULL, NULL},
+};
+
+static const tf_native_word native_io_words[] = {
+    {"printf", tf_printf}, {"print", tf_print}, {"cr", tf_cr},
+    {".", tf_dot},         {".s", tf_stack},    {"key", tf_key},
+    {"input", tf_input},   {"load", tf_load_r}, {"readf", tf_readf},
+    {"writef", tf_writef}, {"delf", tf_delf},   {"readl", tf_readl},
+    {"exists?", tf_exists_q}, {"clear", tf_clear}, {"page", tf_clear},
+    {NULL, NULL},
+};
+
+static const tf_native_word native_comparison_words[] = {
+    {"==", tf_eq}, {"!=", tf_ne}, {"<", tf_lt},
+    {">", tf_gt}, {"<=", tf_le}, {">=", tf_ge},
+    {NULL, NULL},
+};
+
+static const tf_native_word native_definition_words[] = {
+    {":", tf_colon}, {"def", tf_def}, {NULL, NULL},
+};
+
+static const tf_native_word native_control_words[] = {
+    {"exec", tf_exec},       {"i", tf_exec},
+    {"app2", tf_app2},       {"if", tf_if_r},
+    {"ifelse", tf_ifelse_r}, {"while", tf_while_r},
+    {"try", tf_try_r},       {"error", tf_error},
+    {"infra", tf_infra_r},   {"cond", tf_cond_r},
+    {"cleave", tf_cleave_r}, {"construct", tf_construct_r},
+    {"replicate", tf_replicate_r}, {"times", tf_times_r},
+    {"dip", tf_dip_r},       {"keep", tf_keep_r},
+    {"bi", tf_bi_r},         {"linrec", tf_linrec_r},
+    {"binrec", tf_binrec_r}, {"genrec", tf_genrec_r},
+    {"treerec", tf_treerec_r},
+    {NULL, NULL},
+};
+
+static const tf_native_word native_collection_combinator_words[] = {
+    {"each", tf_each_r},     {"map", tf_map_r},
+    {"fold", tf_fold_r},     {"filter", tf_filter_r},
+    {"some", tf_some_r},     {"all", tf_all_r},
+    {"split", tf_split_r},   {"merge", tf_merge_r},
+    {NULL, NULL},
+};
+
+static const tf_native_word native_data_words[] = {
+    {"geth", tf_geth},       {"seth", tf_seth},
+    {"slice", tf_slice},     {"take", tf_take},
+    {"dropn", tf_dropn},     {"len", tf_len},
+    {"first", tf_first},     {"rest", tf_rest},
+    {"uncons", tf_uncons},   {"cons", tf_cons},
+    {"append", tf_append},   {"concat", tf_concat},
+    {"join", tf_join},       {"trim", tf_trim},
+    {"upper", tf_upper},     {"lower", tf_lower},
+    {"splitmid", tf_splitmid},
+    {"range", tf_range},     {"empty?", tf_empty_q},
+    {NULL, NULL},
+};
+
+static const tf_native_word native_introspection_words[] = {
+    {"typeof", tf_typeof},   {"bool?", tf_bool_q},
+    {"int?", tf_int_q},      {"float?", tf_float_q},
+    {"str?", tf_str_q},      {"symbol?", tf_symbol_q},
+    {"list?", tf_list_q},    {"number?", tf_number_q},
+    {"nan?", tf_nan_q},      {"inf?", tf_inf_q},
+    {"word?", tf_word_q},    {"var?", tf_var_q},
+    {"inf", tf_inf},         {"nan", tf_nan},
+    {"body", tf_body},       {"intern", tf_intern},
+    {"name", tf_name},       {"words", tf_words},
+    {"see", tf_see},
+    {NULL, NULL},
+};
+
+static const tf_native_word native_system_words[] = {
+    {"rand", tf_rand},       {"sleep", tf_sleep},
+    {"argc", tf_argc},       {"argv", tf_argv},
+    {"getenv", tf_getenv},   {"setenv", tf_setenv},
+    {"pwd", tf_pwd},         {"shell", tf_shell},
+    {"time", tf_time},       {"clock", tf_clock},
+    {"bye", tf_exit},        {"exit", tf_exit},
+    {NULL, NULL},
+};
+
 tf_ctx *init_ctx(int argc, char **argv) {
     srand(time(NULL));
     tf_ctx *ctx = xmalloc(sizeof(tf_ctx));
@@ -112,120 +230,19 @@ tf_ctx *init_ctx(int argc, char **argv) {
     ctx->cstack_cap = 0;
     ctx->argc = argc;
     ctx->argv = argv;
+    ctx->error_suppression_depth = 0;
 
-    set_native_func(ctx, "+", tf_add);
-    set_native_func(ctx, "-", tf_sub);
-    set_native_func(ctx, "*", tf_mul);
-    set_native_func(ctx, "/", tf_div);
-    set_native_func(ctx, "%", tf_mod);
-    set_native_func(ctx, "neg", tf_neg);
-    set_native_func(ctx, "mod", tf_mod);
-    set_native_func(ctx, "abs", tf_abs);
-    set_native_func(ctx, "max", tf_max);
-    set_native_func(ctx, "min", tf_min);
-    set_native_func(ctx, "and", tf_and);
-    set_native_func(ctx, "or", tf_or);
-    set_native_func(ctx, "xor", tf_xor);
-    set_native_func(ctx, "not", tf_not);
-    set_native_func(ctx, "shl", tf_shl);
-    set_native_func(ctx, "shr", tf_shr);
-
-    set_native_func(ctx, "dup", tf_dup);
-    set_native_func(ctx, "drop", tf_drop);
-    set_native_func(ctx, "swap", tf_swap);
-    set_native_func(ctx, "over", tf_over);
-    set_native_func(ctx, "rot", tf_rot);
-    set_native_func(ctx, "swapd", tf_swapd);
-    set_native_func(ctx, "nip", tf_nip);
-    set_native_func(ctx, "tuck", tf_tuck);
-    set_native_func(ctx, "pick", tf_pick);
-    set_native_func(ctx, "roll", tf_roll);
-    set_native_func(ctx, "empty", tf_empty);
-
-    set_native_func(ctx, "printf", tf_printf);
-    set_native_func(ctx, "print", tf_print);
-    set_native_func(ctx, "cr", tf_cr);
-    set_native_func(ctx, ".", tf_dot);
-    set_native_func(ctx, ".s", tf_stack);
-
-    set_native_func(ctx, "==", tf_eq);
-    set_native_func(ctx, "!=", tf_ne);
-    set_native_func(ctx, "<", tf_lt);
-    set_native_func(ctx, ">", tf_gt);
-    set_native_func(ctx, "<=", tf_le);
-    set_native_func(ctx, ">=", tf_ge);
-
-    set_native_func(ctx, "exec", tf_exec);
-    set_native_func(ctx, "i", tf_exec);
-    set_native_func(ctx, "app2", tf_app2);
-    set_native_func(ctx, "if", tf_if_r);
-    set_native_func(ctx, "ifelse", tf_ifelse_r);
-    set_native_func(ctx, "replicate", tf_replicate_r);
-    set_native_func(ctx, "times", tf_times_r);
-    set_native_func(ctx, "each", tf_each_r);
-    set_native_func(ctx, "map", tf_map_r);
-    set_native_func(ctx, "fold", tf_fold_r);
-    set_native_func(ctx, "while", tf_while_r);
-    set_native_func(ctx, "dip", tf_dip_r);
-    set_native_func(ctx, "keep", tf_keep_r);
-    set_native_func(ctx, "bi", tf_bi_r);
-    set_native_func(ctx, "linrec", tf_linrec_r);
-    set_native_func(ctx, "binrec", tf_binrec_r);
-
-    set_native_func(ctx, ":", tf_colon);
-    set_native_func(ctx, "def", tf_def);
-
-    set_native_func(ctx, "geth", tf_geth);
-    set_native_func(ctx, "seth", tf_seth);
-    set_native_func(ctx, "len", tf_len);
-    set_native_func(ctx, "first", tf_first);
-    set_native_func(ctx, "rest", tf_rest);
-    set_native_func(ctx, "uncons", tf_uncons);
-    set_native_func(ctx, "cons", tf_cons);
-    set_native_func(ctx, "append", tf_append);
-    set_native_func(ctx, "concat", tf_concat);
-    set_native_func(ctx, "join", tf_join);
-    set_native_func(ctx, "trim", tf_trim);
-    set_native_func(ctx, "upper", tf_upper);
-    set_native_func(ctx, "lower", tf_lower);
-    set_native_func(ctx, "split", tf_split_r);
-    set_native_func(ctx, "splits", tf_splits);
-    set_native_func(ctx, "splitmid", tf_splitmid);
-    set_native_func(ctx, "merge", tf_merge_r);
-    set_native_func(ctx, "range", tf_range);
-    set_native_func(ctx, "empty?", tf_empty_q);
-
-    set_native_func(ctx, "key", tf_key);
-    set_native_func(ctx, "input", tf_input);
-    set_native_func(ctx, "rand", tf_rand);
-    set_native_func(ctx, "sleep", tf_sleep);
-    set_native_func(ctx, "argc", tf_argc);
-    set_native_func(ctx, "argv", tf_argv);
-    set_native_func(ctx, "getenv", tf_getenv);
-    set_native_func(ctx, "typeof", tf_typeof);
-    set_native_func(ctx, "bool?", tf_bool_q);
-    set_native_func(ctx, "int?", tf_int_q);
-    set_native_func(ctx, "float?", tf_float_q);
-    set_native_func(ctx, "str?", tf_str_q);
-    set_native_func(ctx, "symbol?", tf_symbol_q);
-    set_native_func(ctx, "list?", tf_list_q);
-    set_native_func(ctx, "pwd", tf_pwd);
-    set_native_func(ctx, "shell", tf_shell);
-    set_native_func(ctx, "time", tf_time);
-    set_native_func(ctx, "clock", tf_clock);
-    set_native_func(ctx, "clear", tf_clear);
-    set_native_func(ctx, "page", tf_clear);
-    set_native_func(ctx, "words", tf_words);
-    set_native_func(ctx, "see", tf_see);
-    set_native_func(ctx, "load", tf_load_r);
-    set_native_func(ctx, "readf", tf_readf);
-    set_native_func(ctx, "writef", tf_writef);
-    set_native_func(ctx, "delf", tf_delf);
-    set_native_func(ctx, "readl", tf_readl);
-    set_native_func(ctx, "exists?", tf_exists_q);
-
-    set_native_func(ctx, "bye", tf_exit);
-    set_native_func(ctx, "exit", tf_exit);
+    register_native_group(ctx, native_math_words);
+    register_native_group(ctx, native_logic_words);
+    register_native_group(ctx, native_stack_words);
+    register_native_group(ctx, native_io_words);
+    register_native_group(ctx, native_comparison_words);
+    register_native_group(ctx, native_definition_words);
+    register_native_group(ctx, native_control_words);
+    register_native_group(ctx, native_collection_combinator_words);
+    register_native_group(ctx, native_data_words);
+    register_native_group(ctx, native_introspection_words);
+    register_native_group(ctx, native_system_words);
 
     return ctx;
 }
@@ -267,7 +284,7 @@ tf_func *init_func(tf_ctx *ctx, tf_obj *name) {
     return f;
 }
 
-void set_native_func(tf_ctx *ctx, char *name, tf_cb cb) {
+void set_native_func(tf_ctx *ctx, const char *name, tf_cb cb) {
     tf_obj *o_name = create_string_obj(name, strlen(name));
     tf_func *f = get_func(ctx, o_name);
     if (f) {  // overwrite if name is already taken
@@ -334,7 +351,7 @@ static void tf_var_bind(tf_ctx *ctx, tf_obj *name, tf_obj *val) {
     f->vars.len++;
 }
 
-static tf_obj *tf_var_fetch(tf_ctx *ctx, tf_obj *name) {
+tf_obj *tf_var_fetch(tf_ctx *ctx, tf_obj *name) {
     for (int i = (int)ctx->cstack_len - 1; i >= 0; i--) {
         tf_frame *f = &ctx->call_stack[i];
         for (int j = (int)f->vars.len - 1; j >= 0; j--) {
@@ -360,7 +377,9 @@ void handle_sigint(int sig) {
  */
 tf_ret exec(tf_ctx *ctx, tf_obj *prg) {
     if (prg->type != TF_OBJ_TYPE_LIST) {
-        tf_console_runtime_errorf("attempted to execute non-block object\n");
+        if (ctx->error_suppression_depth == 0) {
+            tf_console_runtime_errorf("attempted to execute non-block object\n");
+        }
         return TF_ERR;
     }
 
@@ -395,7 +414,10 @@ tf_ret exec(tf_ctx *ctx, tf_obj *prg) {
             } else {
                 tf_func *func = get_func(ctx, o);
                 if (!func) {
-                    tf_console_runtime_errorf("undefined word '%s'\n", o->str.ptr);
+                    if (ctx->error_suppression_depth == 0) {
+                        tf_console_runtime_errorf("undefined word '%s'\n",
+                                                  o->str.ptr);
+                    }
                     while (ctx->cstack_len > target_depth) { frame_pop(ctx); }
                     return TF_ERR;
                 }
@@ -405,8 +427,10 @@ tf_ret exec(tf_ctx *ctx, tf_obj *prg) {
                     return TF_INTERRUPTED;
                 }
                 if (call_res == TF_ERR) {
-                    tf_console_runtime_errorf("execution of word '%s' failed\n",
-                                              o->str.ptr);
+                    if (ctx->error_suppression_depth == 0) {
+                        tf_console_runtime_errorf(
+                            "execution of word '%s' failed\n", o->str.ptr);
+                    }
                     // unwind remaining frames
                     while (ctx->cstack_len > target_depth) { frame_pop(ctx); }
                     return TF_ERR;
@@ -417,8 +441,10 @@ tf_ret exec(tf_ctx *ctx, tf_obj *prg) {
             for (int i = (int)o->list.len - 1; i >= 0; i--) {
                 tf_obj *val = stack_pop(ctx);
                 if (!val) {
-                    tf_console_runtime_errorf(
-                        "stack underflow during variable binding\n");
+                    if (ctx->error_suppression_depth == 0) {
+                        tf_console_runtime_errorf(
+                            "stack underflow during variable binding\n");
+                    }
                     while (ctx->cstack_len > target_depth) { frame_pop(ctx); }
                     return TF_ERR;
                 }
@@ -429,7 +455,10 @@ tf_ret exec(tf_ctx *ctx, tf_obj *prg) {
         case TF_OBJ_TYPE_VARFETCH: {
             tf_obj *val = tf_var_fetch(ctx, o);
             if (!val) {
-                tf_console_runtime_errorf("undefined variable '$%s'\n", o->str.ptr);
+                if (ctx->error_suppression_depth == 0) {
+                    tf_console_runtime_errorf("undefined variable '$%s'\n",
+                                              o->str.ptr);
+                }
                 while (ctx->cstack_len > target_depth) { frame_pop(ctx); }
                 return TF_ERR;
             }

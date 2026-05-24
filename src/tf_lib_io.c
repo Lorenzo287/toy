@@ -2,25 +2,106 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include "tf_obj.h"
 #include "tf_exec.h"
 #include "tf_alloc.h"
+#include "tf_console.h"
+#include "tf_lexer.h"
 
 tf_ret tf_printf(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
     tf_obj *o = stack_pop(ctx);
-    print_value(o);
+
+    if (o->type != TF_OBJ_TYPE_STR) {
+        print_value(o);
+        release_obj(o);
+        return TF_OK;
+    }
+
+    const char *fmt = o->str.ptr;
+    size_t fmt_len = o->str.len;
+
+    // Count placeholders and check for escapes
+    size_t count = 0;
+    bool has_format = false;
+    for (size_t i = 0; i < fmt_len; i++) {
+        if (fmt[i] == '{') {
+            if (i + 1 < fmt_len && fmt[i + 1] == '}') {
+                count++;
+                has_format = true;
+                i++;
+            } else if (i + 1 < fmt_len && fmt[i + 1] == '{') {
+                has_format = true;
+                i++;
+            }
+        } else if (fmt[i] == '}') {
+            if (i + 1 < fmt_len && fmt[i + 1] == '}') {
+                has_format = true;
+                i++;
+            }
+        }
+    }
+
+    if (!has_format) {
+        print_value(o);
+        release_obj(o);
+        return TF_OK;
+    }
+
+    if (stack_len(ctx) < count) {
+        release_obj(o);
+        return TF_ERR;
+    }
+
+    tf_obj **args = NULL;
+    if (count > 0) {
+        args = xmalloc(count * sizeof(tf_obj *));
+        for (size_t i = 0; i < count; i++) {
+            args[count - 1 - i] = stack_pop(ctx);
+        }
+    }
+
+    size_t arg_idx = 0;
+    for (size_t i = 0; i < fmt_len; i++) {
+        if (fmt[i] == '{') {
+            if (i + 1 < fmt_len && fmt[i + 1] == '}') {
+                print_value(args[arg_idx++]);
+                i++;
+            } else if (i + 1 < fmt_len && fmt[i + 1] == '{') {
+                putchar('{');
+                i++;
+            } else {
+                putchar('{');
+            }
+        } else if (fmt[i] == '}') {
+            if (i + 1 < fmt_len && fmt[i + 1] == '}') {
+                putchar('}');
+                i++;
+            } else {
+                putchar('}');
+            }
+        } else {
+            putchar(fmt[i]);
+        }
+    }
+
+    if (args) {
+        for (size_t i = 0; i < count; i++) {
+            release_obj(args[i]);
+        }
+        free(args);
+    }
     release_obj(o);
     return TF_OK;
 }
 
 tf_ret tf_print(tf_ctx *ctx) {
-    if (stack_len(ctx) < 1) return TF_ERR;
-    tf_obj *o = stack_pop(ctx);
-    print_value(o);
-    printf("\n");
-    release_obj(o);
-    return TF_OK;
+    tf_ret res = tf_printf(ctx);
+    if (res == TF_OK) printf("\n");
+    return res;
 }
 
 tf_ret tf_dot(tf_ctx *ctx) {
@@ -48,6 +129,30 @@ tf_ret tf_stack(tf_ctx *ctx) {
     return TF_OK;
 }
 
+tf_ret tf_clear(tf_ctx *ctx) {
+    (void)ctx;
+#ifdef _WIN32
+    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+    CONSOLE_SCREEN_BUFFER_INFO info;
+    if (out != INVALID_HANDLE_VALUE && GetConsoleScreenBufferInfo(out, &info)) {
+        DWORD cell_count = (DWORD)info.dwSize.X * (DWORD)info.dwSize.Y;
+        COORD home = {0, 0};
+        DWORD written = 0;
+
+        if (FillConsoleOutputCharacterA(out, ' ', cell_count, home, &written) &&
+            FillConsoleOutputAttribute(out, info.wAttributes, cell_count, home,
+                                       &written) &&
+            SetConsoleCursorPosition(out, home)) {
+            return TF_OK;
+        }
+    }
+#endif
+
+    printf("\x1b[H\x1b[2J");
+    fflush(stdout);
+    return TF_OK;
+}
+
 tf_ret tf_key(tf_ctx *ctx) {
     int c = getchar();
     if (c == EOF) return TF_ERR;
@@ -62,6 +167,51 @@ tf_ret tf_input(tf_ctx *ctx) {
     buf[strcspn(buf, "\n")] = '\0';
     stack_push(ctx, create_string_obj(buf, strlen(buf)));
     return TF_OK;
+}
+
+tf_ret tf_load_r(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *path = stack_peek(ctx, 0);
+    if (path->type != TF_OBJ_TYPE_STR) return TF_ERR;
+
+    path = stack_pop(ctx);
+    FILE *fp = fopen(path->str.ptr, "rb");
+    if (!fp) {
+        tf_console_runtime_errorf("failed to load '%s'\n", path->str.ptr);
+        release_obj(path);
+        return TF_ERR;
+    }
+
+    if (fseek(fp, 0, SEEK_END) != 0) {
+        fclose(fp);
+        release_obj(path);
+        return TF_ERR;
+    }
+
+    long size = ftell(fp);
+    if (size < 0) {
+        fclose(fp);
+        release_obj(path);
+        return TF_ERR;
+    }
+    rewind(fp);
+
+    char *source = xmalloc((size_t)size + 1);
+    size_t n_read = fread(source, 1, (size_t)size, fp);
+    source[n_read] = '\0';
+    fclose(fp);
+
+    tf_obj *prg = lexer(source);
+    free(source);
+    if (!prg) {
+        release_obj(path);
+        return TF_ERR;
+    }
+
+    tf_ret result = exec(ctx, prg);
+    release_obj(prg);
+    release_obj(path);
+    return result;
 }
 
 tf_ret tf_readf(tf_ctx *ctx) {

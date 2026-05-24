@@ -11,7 +11,7 @@ Charlie,35,Chicago" writef
     "Step 2: File exists. Reading and parsing content..." print cr
     
     "users.csv" readf 
-    "\n" splits \ obtain list of strings (lines)
+    "\n" split \ obtain list of strings (lines)
     
     \ Process lines: skip header, then split each data line
     uncons nip \ remove header, keep tail (the data rows)
@@ -19,7 +19,7 @@ Charlie,35,Chicago" writef
     [ 
         trim
         len 0 > [ \ Only process non-empty lines
-            "," splits
+            "," split
             { record }
             " - " printf 
             $record 0 geth nip printf \ name

@@ -18,27 +18,27 @@ func TestDocumentSymbols(t *testing.T) {
 		t.Fatalf("expected 3 symbols, got %d", len(symbols))
 	}
 
-	if symbols[0].Name != "square" || symbols[0].Detail != "colon definition" {
+	if symbols[0].Name != "sqr" || symbols[0].Detail != "colon definition" {
 		t.Fatalf("unexpected first symbol: %+v", symbols[0])
 	}
 	if symbols[0].Doc != "top-level definitions" {
-		t.Fatalf("unexpected square doc: %+v", symbols[0])
+		t.Fatalf("unexpected sqr doc: %+v", symbols[0])
 	}
 	if symbols[0].StackEffect != "n -- n*n" {
-		t.Fatalf("unexpected square stack effect: %+v", symbols[0])
+		t.Fatalf("unexpected sqr stack effect: %+v", symbols[0])
 	}
 	if symbols[0].SelectionRange.Start.Character != 2 {
-		t.Fatalf("unexpected square selection range: %+v", symbols[0].SelectionRange)
+		t.Fatalf("unexpected sqr selection range: %+v", symbols[0].SelectionRange)
 	}
 
-	if symbols[1].Name != "cube" || symbols[1].Detail != "quoted symbol def" {
+	if symbols[1].Name != "pow3" || symbols[1].Detail != "quoted symbol def" {
 		t.Fatalf("unexpected second symbol: %+v", symbols[1])
 	}
 	if symbols[1].Doc != "definition comment" {
-		t.Fatalf("unexpected cube doc: %+v", symbols[1])
+		t.Fatalf("unexpected pow3 doc: %+v", symbols[1])
 	}
 	if symbols[1].SelectionRange.Start.Character != 1 {
-		t.Fatalf("unexpected cube selection range: %+v", symbols[1].SelectionRange)
+		t.Fatalf("unexpected pow3 selection range: %+v", symbols[1].SelectionRange)
 	}
 
 	if symbols[2].Name != "shadow-demo" || symbols[2].Detail != "colon definition" {
@@ -61,20 +61,20 @@ func TestLookupDefinition(t *testing.T) {
 		want string
 	}{
 		{
-			name: "call to square resolves",
+			name: "call to sqr resolves",
 			pos: Position{
 				Line:      6,
 				Character: 2,
 			},
-			want: "square",
+			want: "sqr",
 		},
 		{
-			name: "call to cube resolves",
+			name: "call to pow3 resolves",
 			pos: Position{
 				Line:      7,
 				Character: 2,
 			},
-			want: "cube",
+			want: "pow3",
 		},
 		{
 			name: "local fetch resolves to local binding",
@@ -111,10 +111,10 @@ func TestLookupDefinition(t *testing.T) {
 			if sym.Name != tc.want {
 				t.Fatalf("expected %q, got %+v", tc.want, sym)
 			}
-			if sym.SelectionRange.Start.Character >= sym.Range.Start.Character && sym.Name == "square" && sym.SelectionRange.Start.Character != 2 {
-				t.Fatalf("unexpected square target range: %+v", sym)
+			if sym.SelectionRange.Start.Character >= sym.Range.Start.Character && sym.Name == "sqr" && sym.SelectionRange.Start.Character != 2 {
+				t.Fatalf("unexpected sqr target range: %+v", sym)
 			}
-			if tc.name == "local fetch resolves to local binding" && sym.SelectionRange.Start.Character != 24 {
+			if tc.name == "local fetch resolves to local binding" && sym.SelectionRange.Start.Character != 21 {
 				t.Fatalf("unexpected local binding target: %+v", sym)
 			}
 			if tc.name == "nested local fetch resolves to inner binding" && sym.SelectionRange.Start.Character != 35 {
@@ -140,7 +140,7 @@ func TestLookupHover(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected hover for user word")
 	}
-	if userHover.Contents != "```toy\ncube\n```\ndefinition comment" {
+	if userHover.Contents != "```toy\npow3\n```\ndefinition comment" {
 		t.Fatalf("unexpected user hover: %q", userHover.Contents)
 	}
 
@@ -148,7 +148,7 @@ func TestLookupHover(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected hover for colon definition call")
 	}
-	if stackEffectHover.Contents != "```toy\nsquare ( n -- n*n )\n```\ntop-level definitions\n\nStack effect: `n -- n*n`" {
+	if stackEffectHover.Contents != "```toy\nsqr ( n -- n*n )\n```\ntop-level definitions\n\nStack effect: `n -- n*n`" {
 		t.Fatalf("unexpected stack effect hover: %q", stackEffectHover.Contents)
 	}
 
@@ -183,13 +183,13 @@ func TestLookupReferences(t *testing.T) {
 
 	wordRefs := LookupReferences(index, Position{Line: 6, Character: 2}, true)
 	if len(wordRefs) != 2 {
-		t.Fatalf("expected 2 references for square including declaration, got %d", len(wordRefs))
+		t.Fatalf("expected 2 references for sqr including declaration, got %d", len(wordRefs))
 	}
 	if wordRefs[0].Start.Line != 1 || wordRefs[0].Start.Character != 2 {
-		t.Fatalf("unexpected square declaration ref: %+v", wordRefs[0])
+		t.Fatalf("unexpected sqr declaration ref: %+v", wordRefs[0])
 	}
 	if wordRefs[1].Start.Line != 6 || wordRefs[1].Start.Character != 2 {
-		t.Fatalf("unexpected square call ref: %+v", wordRefs[1])
+		t.Fatalf("unexpected sqr call ref: %+v", wordRefs[1])
 	}
 
 	localRefs := LookupReferences(index, Position{Line: 9, Character: 43}, true)
@@ -237,13 +237,13 @@ func TestLookupRenameEdits(t *testing.T) {
 
 	wordEdits := LookupRenameEdits(index, Position{Line: 6, Character: 2})
 	if len(wordEdits) != 2 {
-		t.Fatalf("expected 2 rename edits for square, got %d", len(wordEdits))
+		t.Fatalf("expected 2 rename edits for sqr, got %d", len(wordEdits))
 	}
 	if wordEdits[0].Start.Line != 1 || wordEdits[0].Start.Character != 2 {
-		t.Fatalf("unexpected square declaration rename edit: %+v", wordEdits[0])
+		t.Fatalf("unexpected sqr declaration rename edit: %+v", wordEdits[0])
 	}
 	if wordEdits[1].Start.Line != 6 || wordEdits[1].Start.Character != 2 {
-		t.Fatalf("unexpected square use rename edit: %+v", wordEdits[1])
+		t.Fatalf("unexpected sqr use rename edit: %+v", wordEdits[1])
 	}
 
 	localDeclEdits := LookupRenameEdits(index, Position{Line: 9, Character: 35})

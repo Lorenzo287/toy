@@ -1,0 +1,11 @@
+1 2 "{} + {} = 3\n" printf
+"World" "Hello, {}!\n" printf
+"nothing" "Escaped: {{ }} and literally {}\n" printf
+1 2 3 "Multi: {} {} {}" printf "\n" printf
+
+"One" "Two" "{} then {}" print
+
+"{" printf "\n" printf
+"}" printf "\n" printf
+"{{ }}" printf "\n" printf
+123 "Value: {}" print

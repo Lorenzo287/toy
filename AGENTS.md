@@ -31,8 +31,8 @@ navigation and development rules.
 - Start with `git status --short`; do not overwrite user changes.
 - For language behavior, check `README.md`, then the relevant C files and tests.
 - For roadmap work, read `docs/language-roadmap.md` first.
-- For native word changes, update `init_ctx()`, declarations, focused `toy/`
-  tests, and lightweight tooling metadata when practical.
+- For native word changes, update `src/tf_exec.c`, declarations, focused `toy/`
+  tests, and lightweight tooling metadata.
 - Build with `cmake --build build`; run relevant scripts. Use `build-leak` for
   ownership, stack-effect, or execution-flow changes.
 
@@ -46,8 +46,12 @@ navigation and development rules.
   frames and return.
 - Language direction: prefer quotation-first words and combinators over new
   syntax. Follow `docs/language-roadmap.md` for definition policy.
-- Tooling: keep metadata obvious when words/syntax change, but full
-  Tree-sitter/LSP/VS Code checks are only required for tooling-focused work.
+- Tooling: keep metadata obvious when words/syntax change. The four source files
+  to keep in sync are `src/tf_repl.c` (hints),
+  `tools/tree-sitter-toyforth/grammar.js`,
+  `tools/vscode-toyforth/syntaxes/toyforth.tmLanguage.json`, and
+  `tools/toyforth-lsp/internal/analysis/builtins.go`. Regenerate the
+  Tree-sitter parser after grammar changes when the CLI is available.
 - Docs: README is public-facing; AGENTS is for agent rules; roadmap is the
   implementation plan.
 - Shell: assume Windows PowerShell; do not output bash syntax.

@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include "tf_exec.h"
 #include "tf_alloc.h"
+#include "tf_console.h"
 #include "tf_obj.h"
 
 tf_ret tf_exec(tf_ctx *ctx) {
@@ -82,6 +83,39 @@ static void push_retained(tf_obj *list, tf_obj *elem) {
     push_obj(list, elem);
 }
 
+static void tf_save_stack_copy(tf_ctx *ctx, tf_obj ***saved_stack,
+                               size_t *saved_len) {
+    *saved_len = stack_len(ctx);
+    *saved_stack =
+        *saved_len > 0 ? xmalloc(sizeof(tf_obj *) * *saved_len) : NULL;
+    for (size_t i = 0; i < *saved_len; i++) {
+        (*saved_stack)[i] = stack_peek(ctx, *saved_len - 1 - i);
+        retain_obj((*saved_stack)[i]);
+    }
+}
+
+static void tf_release_stack_copy(tf_obj **saved_stack, size_t saved_len) {
+    for (size_t i = 0; i < saved_len; i++) release_obj(saved_stack[i]);
+    free(saved_stack);
+}
+
+static void tf_clear_stack(tf_ctx *ctx) {
+    while (stack_len(ctx) > 0) {
+        tf_obj *o = stack_pop(ctx);
+        release_obj(o);
+    }
+}
+
+static tf_ret tf_collect_outputs(tf_ctx *ctx, size_t base_len,
+                                 tf_obj *outputs) {
+    size_t len = stack_len(ctx);
+    if (len < base_len) return TF_ERR;
+    for (size_t i = base_len; i < len; i++) {
+        push_retained(outputs, ctx->forth_stack->list.elem[i]);
+    }
+    return TF_OK;
+}
+
 static tf_ret tf_eval_condition_r(tf_ctx *ctx, tf_obj *cond, bool allow_bool,
                                   bool *cond_val) {
     if (cond->type == TF_OBJ_TYPE_BOOL) {
@@ -122,6 +156,56 @@ static tf_ret tf_eval_condition_r(tf_ctx *ctx, tf_obj *cond, bool allow_bool,
     return TF_OK;
 }
 
+tf_ret tf_error(tf_ctx *ctx) {
+    if (stack_len(ctx) > 0) {
+        tf_obj *msg = stack_peek(ctx, 0);
+        if (msg->type == TF_OBJ_TYPE_STR) {
+            msg = stack_pop(ctx);
+            if (ctx->error_suppression_depth == 0) {
+                tf_console_runtime_errorf("%s\n", msg->str.ptr);
+            }
+            release_obj(msg);
+            return TF_ERR;
+        }
+    }
+
+    if (ctx->error_suppression_depth == 0) {
+        tf_console_runtime_errorf("error\n");
+    }
+    return TF_ERR;
+}
+
+tf_ret tf_try_r(tf_ctx *ctx) {
+    if (stack_len(ctx) < 2) return TF_ERR;
+    tf_obj *handler = stack_peek(ctx, 0);
+    tf_obj *body = stack_peek(ctx, 1);
+    if (body->type != TF_OBJ_TYPE_LIST || handler->type != TF_OBJ_TYPE_LIST) {
+        return TF_ERR;
+    }
+
+    handler = stack_pop(ctx);
+    body = stack_pop(ctx);
+
+    tf_obj **saved_stack = NULL;
+    size_t saved_len = 0;
+    tf_save_stack_copy(ctx, &saved_stack, &saved_len);
+
+    ctx->error_suppression_depth++;
+    tf_ret res = exec(ctx, body);
+    ctx->error_suppression_depth--;
+    if (res == TF_ERR) {
+        tf_restore_stack_copy(ctx, saved_stack, saved_len);
+        res = exec(ctx, handler);
+    } else if (res == TF_INTERRUPTED) {
+        tf_restore_stack_copy(ctx, saved_stack, saved_len);
+    }
+
+    tf_release_stack_copy(saved_stack, saved_len);
+    release_obj(body);
+    release_obj(handler);
+    return res;
+}
+
 tf_ret tf_if_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
     tf_obj *body = stack_peek(ctx, 0);
@@ -148,6 +232,141 @@ tf_ret tf_if_r(tf_ctx *ctx) {
     release_obj(body);
     release_obj(cond);
     return final_res;
+}
+
+tf_ret tf_infra_r(tf_ctx *ctx) {
+    if (stack_len(ctx) < 2) return TF_ERR;
+    tf_obj *body = stack_peek(ctx, 0);
+    tf_obj *data = stack_peek(ctx, 1);
+    if (body->type != TF_OBJ_TYPE_LIST || data->type != TF_OBJ_TYPE_LIST) {
+        return TF_ERR;
+    }
+
+    body = stack_pop(ctx);
+    data = stack_pop(ctx);
+
+    tf_obj **saved_stack = NULL;
+    size_t saved_len = 0;
+    tf_save_stack_copy(ctx, &saved_stack, &saved_len);
+
+    tf_clear_stack(ctx);
+    for (size_t i = 0; i < data->list.len; i++) {
+        stack_push(ctx, data->list.elem[i]);
+        retain_obj(data->list.elem[i]);
+    }
+
+    tf_ret res = exec(ctx, body);
+    tf_obj *result = NULL;
+    if (res == TF_OK) {
+        result = init_list_obj();
+        res = tf_collect_outputs(ctx, 0, result);
+    }
+
+    tf_restore_stack_copy(ctx, saved_stack, saved_len);
+    if (res == TF_OK) {
+        stack_push(ctx, result);
+    } else if (result) {
+        release_obj(result);
+    }
+
+    tf_release_stack_copy(saved_stack, saved_len);
+    release_obj(body);
+    release_obj(data);
+    return res;
+}
+
+tf_ret tf_cond_r(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *clauses = stack_pop_type(ctx, TF_OBJ_TYPE_LIST);
+    if (!clauses) return TF_ERR;
+
+    tf_ret res = TF_OK;
+    for (size_t i = 0; i < clauses->list.len; i++) {
+        tf_obj *clause = clauses->list.elem[i];
+        if (clause->type != TF_OBJ_TYPE_LIST || clause->list.len != 2) {
+            res = TF_ERR;
+            break;
+        }
+
+        tf_obj *pred = clause->list.elem[0];
+        tf_obj *body = clause->list.elem[1];
+        if (body->type != TF_OBJ_TYPE_LIST) {
+            res = TF_ERR;
+            break;
+        }
+
+        bool cond_val = false;
+        res = tf_eval_condition_r(ctx, pred, true, &cond_val);
+        if (res != TF_OK) break;
+        if (cond_val) {
+            res = exec(ctx, body);
+            break;
+        }
+    }
+
+    release_obj(clauses);
+    return res;
+}
+
+static tf_ret tf_cleave_or_construct_r(tf_ctx *ctx, bool construct_result) {
+    if (stack_len(ctx) < 2) return TF_ERR;
+    tf_obj *branches = stack_peek(ctx, 0);
+    if (branches->type != TF_OBJ_TYPE_LIST) return TF_ERR;
+
+    branches = stack_pop(ctx);
+    tf_obj *value = stack_pop(ctx);
+
+    tf_obj **saved_stack = NULL;
+    size_t saved_len = 0;
+    tf_save_stack_copy(ctx, &saved_stack, &saved_len);
+
+    tf_obj *outputs = init_list_obj();
+    tf_ret res = TF_OK;
+    for (size_t i = 0; i < branches->list.len; i++) {
+        tf_obj *branch = branches->list.elem[i];
+        if (branch->type != TF_OBJ_TYPE_LIST) {
+            res = TF_ERR;
+            break;
+        }
+
+        tf_restore_stack_copy(ctx, saved_stack, saved_len);
+        stack_push(ctx, value);
+        retain_obj(value);
+
+        res = exec(ctx, branch);
+        if (res != TF_OK) break;
+
+        res = tf_collect_outputs(ctx, saved_len, outputs);
+        if (res != TF_OK) break;
+    }
+
+    tf_restore_stack_copy(ctx, saved_stack, saved_len);
+    if (res == TF_OK) {
+        if (construct_result) {
+            stack_push(ctx, outputs);
+        } else {
+            for (size_t i = 0; i < outputs->list.len; i++) {
+                stack_push(ctx, outputs->list.elem[i]);
+                retain_obj(outputs->list.elem[i]);
+            }
+            release_obj(outputs);
+        }
+    } else {
+        release_obj(outputs);
+    }
+
+    tf_release_stack_copy(saved_stack, saved_len);
+    release_obj(value);
+    release_obj(branches);
+    return res;
+}
+
+tf_ret tf_cleave_r(tf_ctx *ctx) {
+    return tf_cleave_or_construct_r(ctx, false);
+}
+
+tf_ret tf_construct_r(tf_ctx *ctx) {
+    return tf_cleave_or_construct_r(ctx, true);
 }
 
 tf_ret tf_ifelse_r(tf_ctx *ctx) {
@@ -501,6 +720,151 @@ tf_ret tf_binrec_r(tf_ctx *ctx) {
     return res;
 }
 
+static bool tf_is_quotation(tf_obj *o) {
+    return o->type == TF_OBJ_TYPE_LIST;
+}
+
+static tf_ret tf_pop_rec_parts(tf_ctx *ctx, tf_obj **pred, tf_obj **then_b,
+                               tf_obj **before, tf_obj **after) {
+    if (stack_len(ctx) >= 4 && tf_is_quotation(stack_peek(ctx, 0)) &&
+        tf_is_quotation(stack_peek(ctx, 1)) &&
+        tf_is_quotation(stack_peek(ctx, 2)) &&
+        tf_is_quotation(stack_peek(ctx, 3))) {
+        *after = stack_pop(ctx);
+        *before = stack_pop(ctx);
+        *then_b = stack_pop(ctx);
+        *pred = stack_pop(ctx);
+        return TF_OK;
+    }
+
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *parts = stack_peek(ctx, 0);
+    if (parts->type != TF_OBJ_TYPE_LIST || parts->list.len != 4) return TF_ERR;
+    for (size_t i = 0; i < 4; i++) {
+        if (!tf_is_quotation(parts->list.elem[i])) return TF_ERR;
+    }
+
+    parts = stack_pop(ctx);
+    *pred = parts->list.elem[0];
+    *then_b = parts->list.elem[1];
+    *before = parts->list.elem[2];
+    *after = parts->list.elem[3];
+    retain_obj(*pred);
+    retain_obj(*then_b);
+    retain_obj(*before);
+    retain_obj(*after);
+    release_obj(parts);
+    return TF_OK;
+}
+
+tf_ret tf_genrec_r(tf_ctx *ctx) {
+    tf_obj *pred = NULL;
+    tf_obj *then_b = NULL;
+    tf_obj *before = NULL;
+    tf_obj *after = NULL;
+    tf_ret res = tf_pop_rec_parts(ctx, &pred, &then_b, &before, &after);
+    if (res != TF_OK) return res;
+
+    bool done = false;
+    res = tf_eval_condition_r(ctx, pred, false, &done);
+    if (res == TF_OK) {
+        if (done) {
+            res = exec(ctx, then_b);
+        } else {
+            res = exec(ctx, before);
+            if (res == TF_OK) {
+                tf_obj *cont = init_list_obj();
+                tf_obj *genrec_sym = create_symbol_obj("genrec", 6);
+                tf_obj *exec_sym = create_symbol_obj("exec", 4);
+
+                push_retained(cont, pred);
+                push_retained(cont, then_b);
+                push_retained(cont, before);
+                push_retained(cont, after);
+                push_obj(cont, genrec_sym);
+                push_retained(cont, after);
+                push_obj(cont, exec_sym);
+
+                frame_push(ctx, cont);
+                release_obj(cont);
+            }
+        }
+    }
+
+    release_obj(after);
+    release_obj(before);
+    release_obj(then_b);
+    release_obj(pred);
+    return res;
+}
+
+static tf_ret tf_exec_single_output_r(tf_ctx *ctx, tf_obj *input, tf_obj *body,
+                                      tf_obj **out) {
+    tf_obj **saved_stack = NULL;
+    size_t saved_len = 0;
+    tf_save_stack_copy(ctx, &saved_stack, &saved_len);
+
+    stack_push(ctx, input);
+    retain_obj(input);
+
+    tf_ret res = exec(ctx, body);
+    if (res == TF_OK) {
+        if (stack_len(ctx) != saved_len + 1) {
+            res = TF_ERR;
+        } else {
+            *out = stack_pop(ctx);
+        }
+    }
+
+    tf_restore_stack_copy(ctx, saved_stack, saved_len);
+    tf_release_stack_copy(saved_stack, saved_len);
+    return res;
+}
+
+static tf_ret tf_treerec_eval_r(tf_ctx *ctx, tf_obj *tree, tf_obj *leaf,
+                                tf_obj *node, tf_obj **out) {
+    if (tree->type != TF_OBJ_TYPE_LIST) {
+        return tf_exec_single_output_r(ctx, tree, leaf, out);
+    }
+
+    tf_obj *mapped = init_list_obj();
+    for (size_t i = 0; i < tree->list.len; i++) {
+        tf_obj *child = NULL;
+        tf_ret res = tf_treerec_eval_r(ctx, tree->list.elem[i], leaf, node, &child);
+        if (res != TF_OK) {
+            release_obj(mapped);
+            return res;
+        }
+        push_obj(mapped, child);
+    }
+
+    tf_ret res = tf_exec_single_output_r(ctx, mapped, node, out);
+    release_obj(mapped);
+    return res;
+}
+
+tf_ret tf_treerec_r(tf_ctx *ctx) {
+    if (stack_len(ctx) < 3) return TF_ERR;
+    tf_obj *node = stack_peek(ctx, 0);
+    tf_obj *leaf = stack_peek(ctx, 1);
+    if (node->type != TF_OBJ_TYPE_LIST || leaf->type != TF_OBJ_TYPE_LIST) {
+        return TF_ERR;
+    }
+
+    node = stack_pop(ctx);
+    leaf = stack_pop(ctx);
+    tf_obj *tree = stack_pop(ctx);
+
+    tf_obj *result = NULL;
+    tf_ret res = tf_treerec_eval_r(ctx, tree, leaf, node, &result);
+    if (res == TF_OK) stack_push(ctx, result);
+
+    release_obj(tree);
+    release_obj(leaf);
+    release_obj(node);
+    return res;
+}
+
 tf_ret tf_replicate_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
     tf_obj *body = stack_peek(ctx, 0);
@@ -703,5 +1067,261 @@ tf_ret tf_fold_r(tf_ctx *ctx) {
     free(saved_stack);
     release_obj(body);
     release_obj(data);
+    return res;
+}
+
+tf_ret tf_split_r(tf_ctx *ctx) {
+    if (stack_len(ctx) < 2) return TF_ERR;
+    tf_obj *pred = stack_peek(ctx, 0);
+    tf_obj *list_obj = stack_peek(ctx, 1);
+
+    if (pred->type == TF_OBJ_TYPE_STR && list_obj->type == TF_OBJ_TYPE_STR) {
+        return tf_split_string(ctx);
+    }
+
+    if (pred->type != TF_OBJ_TYPE_LIST || list_obj->type != TF_OBJ_TYPE_LIST) {
+        return TF_ERR;
+    }
+
+    pred = stack_pop(ctx);
+    list_obj = stack_pop(ctx);
+
+    size_t saved_len = stack_len(ctx);
+    tf_obj **saved_stack =
+        saved_len > 0 ? xmalloc(sizeof(tf_obj *) * saved_len) : NULL;
+    for (size_t i = 0; i < saved_len; i++) {
+        saved_stack[i] = stack_peek(ctx, saved_len - 1 - i);
+        retain_obj(saved_stack[i]);
+    }
+
+    tf_obj *true_list = init_list_obj();
+    tf_obj *false_list = init_list_obj();
+    tf_ret res = TF_OK;
+
+    for (size_t i = 0; i < list_obj->list.len; i++) {
+        tf_obj *elem = list_obj->list.elem[i];
+        stack_push(ctx, elem);
+        retain_obj(elem);
+
+        res = exec(ctx, pred);
+        if (res != TF_OK) break;
+
+        tf_obj *bool_res = stack_pop_type(ctx, TF_OBJ_TYPE_BOOL);
+        if (!bool_res) {
+            res = TF_ERR;
+            break;
+        }
+
+        tf_obj *target = bool_res->b ? true_list : false_list;
+        push_retained(target, elem);
+        release_obj(bool_res);
+
+        tf_restore_stack_copy(ctx, saved_stack, saved_len);
+    }
+
+    if (res != TF_OK) {
+        tf_restore_stack_copy(ctx, saved_stack, saved_len);
+        release_obj(true_list);
+        release_obj(false_list);
+    } else {
+        stack_push(ctx, true_list);
+        stack_push(ctx, false_list);
+    }
+
+    for (size_t i = 0; i < saved_len; i++) release_obj(saved_stack[i]);
+    free(saved_stack);
+    release_obj(pred);
+    release_obj(list_obj);
+    return res;
+}
+
+tf_ret tf_merge_r(tf_ctx *ctx) {
+    if (stack_len(ctx) < 3) return TF_ERR;
+    tf_obj *pred = stack_peek(ctx, 0);
+    tf_obj *l2 = stack_peek(ctx, 1);
+    tf_obj *l1 = stack_peek(ctx, 2);
+    if (pred->type != TF_OBJ_TYPE_LIST || l2->type != TF_OBJ_TYPE_LIST ||
+        l1->type != TF_OBJ_TYPE_LIST) {
+        return TF_ERR;
+    }
+    pred = stack_pop(ctx);
+    l2 = stack_pop(ctx);
+    l1 = stack_pop(ctx);
+
+    size_t saved_len = stack_len(ctx);
+    tf_obj **saved_stack =
+        saved_len > 0 ? xmalloc(sizeof(tf_obj *) * saved_len) : NULL;
+    for (size_t i = 0; i < saved_len; i++) {
+        saved_stack[i] = stack_peek(ctx, saved_len - 1 - i);
+        retain_obj(saved_stack[i]);
+    }
+
+    tf_obj *res = init_list_obj();
+    size_t i1 = 0, i2 = 0;
+    tf_ret ret = TF_OK;
+
+    while (i1 < l1->list.len && i2 < l2->list.len) {
+        tf_obj *o1 = l1->list.elem[i1];
+        tf_obj *o2 = l2->list.elem[i2];
+
+        stack_push(ctx, o1);
+        retain_obj(o1);
+        stack_push(ctx, o2);
+        retain_obj(o2);
+
+        if (exec(ctx, pred) != TF_OK) {
+            ret = TF_ERR;
+            break;
+        }
+
+        if (stack_len(ctx) != saved_len + 1) {
+            ret = TF_ERR;
+            break;
+        }
+
+        tf_obj *bool_obj = stack_pop_type(ctx, TF_OBJ_TYPE_BOOL);
+        if (!bool_obj) {
+            ret = TF_ERR;
+            break;
+        }
+
+        bool take_left = bool_obj->b;
+        release_obj(bool_obj);
+        tf_restore_stack_copy(ctx, saved_stack, saved_len);
+
+        if (take_left) {
+            push_retained(res, o1);
+            i1++;
+        } else {
+            push_retained(res, o2);
+            i2++;
+        }
+    }
+
+    if (ret == TF_OK) {
+        while (i1 < l1->list.len) {
+            push_retained(res, l1->list.elem[i1]);
+            i1++;
+        }
+        while (i2 < l2->list.len) {
+            push_retained(res, l2->list.elem[i2]);
+            i2++;
+        }
+
+        stack_push(ctx, res);
+    } else {
+        tf_restore_stack_copy(ctx, saved_stack, saved_len);
+        release_obj(res);
+    }
+
+    for (size_t i = 0; i < saved_len; i++) release_obj(saved_stack[i]);
+    free(saved_stack);
+    release_obj(pred);
+    release_obj(l1);
+    release_obj(l2);
+    return ret;
+}
+
+static tf_ret tf_eval_item_predicate_r(tf_ctx *ctx, tf_obj *pred, tf_obj *elem,
+                                       bool *cond_val) {
+    stack_push(ctx, elem);
+    retain_obj(elem);
+
+    tf_ret res = tf_eval_condition_r(ctx, pred, true, cond_val);
+
+    tf_obj *restored_elem = stack_pop(ctx);
+    if (!restored_elem) return TF_ERR;
+    release_obj(restored_elem);
+    return res;
+}
+
+tf_ret tf_filter_r(tf_ctx *ctx) {
+    if (stack_len(ctx) < 2) return TF_ERR;
+    tf_obj *pred = stack_peek(ctx, 0);
+    tf_obj *list = stack_peek(ctx, 1);
+    if (pred->type != TF_OBJ_TYPE_LIST || list->type != TF_OBJ_TYPE_LIST) {
+        return TF_ERR;
+    }
+
+    pred = stack_pop(ctx);
+    list = stack_pop(ctx);
+
+    tf_obj *result = init_list_obj();
+    tf_ret res = TF_OK;
+    for (size_t i = 0; i < list->list.len; i++) {
+        bool cond_val = false;
+        res = tf_eval_item_predicate_r(ctx, pred, list->list.elem[i], &cond_val);
+        if (res != TF_OK) break;
+        if (cond_val) push_retained(result, list->list.elem[i]);
+    }
+
+    if (res == TF_OK) {
+        stack_push(ctx, result);
+    } else {
+        release_obj(result);
+    }
+
+    release_obj(pred);
+    release_obj(list);
+    return res;
+}
+
+tf_ret tf_some_r(tf_ctx *ctx) {
+    if (stack_len(ctx) < 2) return TF_ERR;
+    tf_obj *pred = stack_peek(ctx, 0);
+    tf_obj *list = stack_peek(ctx, 1);
+    if (pred->type != TF_OBJ_TYPE_LIST || list->type != TF_OBJ_TYPE_LIST) {
+        return TF_ERR;
+    }
+
+    pred = stack_pop(ctx);
+    list = stack_pop(ctx);
+
+    bool found = false;
+    tf_ret res = TF_OK;
+    for (size_t i = 0; i < list->list.len; i++) {
+        bool cond_val = false;
+        res = tf_eval_item_predicate_r(ctx, pred, list->list.elem[i], &cond_val);
+        if (res != TF_OK) break;
+        if (cond_val) {
+            found = true;
+            break;
+        }
+    }
+
+    if (res == TF_OK) stack_push(ctx, create_bool_obj(found));
+
+    release_obj(pred);
+    release_obj(list);
+    return res;
+}
+
+tf_ret tf_all_r(tf_ctx *ctx) {
+    if (stack_len(ctx) < 2) return TF_ERR;
+    tf_obj *pred = stack_peek(ctx, 0);
+    tf_obj *list = stack_peek(ctx, 1);
+    if (pred->type != TF_OBJ_TYPE_LIST || list->type != TF_OBJ_TYPE_LIST) {
+        return TF_ERR;
+    }
+
+    pred = stack_pop(ctx);
+    list = stack_pop(ctx);
+
+    bool all_match = true;
+    tf_ret res = TF_OK;
+    for (size_t i = 0; i < list->list.len; i++) {
+        bool cond_val = false;
+        res = tf_eval_item_predicate_r(ctx, pred, list->list.elem[i], &cond_val);
+        if (res != TF_OK) break;
+        if (!cond_val) {
+            all_match = false;
+            break;
+        }
+    }
+
+    if (res == TF_OK) stack_push(ctx, create_bool_obj(all_match));
+
+    release_obj(pred);
+    release_obj(list);
     return res;
 }
