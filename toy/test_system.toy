@@ -6,7 +6,10 @@
 "TEST_VAR" "TEST_VALUE" setenv
 [ "setenv worked\n" printf ] [ "setenv failed" error ] ifelse
 
+"TEST_VAR" env? true == check
 "TEST_VAR" getenv print
+[ "TOY_TEST_MISSING_ENV_VAR" getenv drop false ] [ true ] try true == check
+"TOY_TEST_MISSING_ENV_VAR" env? false == check
 "cd ." shell "" == check
 
 "--- Done ---\n" printf

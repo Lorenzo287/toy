@@ -46,6 +46,12 @@ tf_obj *create_symbol_obj(const char *s, size_t len) {
     return o;
 }
 
+tf_obj *create_quoted_symbol_obj(const char *s, size_t len) {
+    tf_obj *o = create_symbol_obj(s, len);
+    o->str.quoted = true;
+    return o;
+}
+
 tf_obj *create_string_obj(const char *s, size_t len) {
     tf_obj *o = init_obj(TF_OBJ_TYPE_STR);
     o->str.ptr = xmalloc(len + 1);

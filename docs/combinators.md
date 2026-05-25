@@ -1,37 +1,38 @@
 # Combinator and Control Examples
 
-Toy is most useful when quotations are treated as values. The words below are
-the ones whose purpose is easiest to miss if you read them like ordinary
-function calls.
+Toy is most useful when deferred code is treated as a value. A callable is
+either an atomic quoted symbol such as `'upper` or a compound quotation such as
+`[ upper ]`. The words below are the ones whose purpose is easiest to miss if
+you read them like ordinary function calls.
 
-Ordinary words consume their declared inputs. Predicate quotations used by
+Ordinary words consume their declared inputs. Predicate callables used by
 control and predicate combinators are the exception: they run in a stack
 sandbox, read one boolean result, and restore the surrounding data stack.
 
 ## Preserving and Branching Values
 
-Use `dip` when one value should wait while a quotation works on the stack below
+Use `dip` when one value should wait while a callable works on the stack below
 it.
 
 ```toy
 1 2 10 [ + ] dip    \ leaves 3 10
 ```
 
-Use `keep` when a quotation should consume a value but the original value is
+Use `keep` when a callable should consume a value but the original value is
 still needed afterward.
 
 ```toy
 10 [ 1 + ] keep     \ leaves 10 11
 ```
 
-Use `bi` when two different quotations should inspect the same value and leave
+Use `bi` when two different callables should inspect the same value and leave
 both results.
 
 ```toy
 10 [ 1 + ] [ 2 * ] bi   \ leaves 11 20
 ```
 
-Use `app2` when the same quotation should be applied independently to two
+Use `app2` when the same callable should be applied independently to two
 values.
 
 ```toy
@@ -51,7 +52,7 @@ when those projections should be collected into a list.
 
 ## Temporary Stacks
 
-`infra` runs a quotation with a list as a temporary stack, then returns the
+`infra` runs a callable with a list as a temporary stack, then returns the
 temporary stack as a list. This is useful when a list is better handled as a
 small stack program.
 
@@ -67,8 +68,8 @@ Lists and strings share sequence words where the result type is clear. Strings
 are byte sequences, so a string item is a one-byte string.
 
 ```toy
-[ 1 2 3 4 ] [ square ] map        \ leaves [1 4 9 16]
-"toy" [ upper ] map               \ leaves "TOY"
+[ 1 2 3 4 ] 'square map           \ leaves [1 4 9 16]
+"toy" 'upper map                  \ leaves "TOY"
 
 [ 1 2 3 4 5 ] [ 2 % 0 == ] filter \ leaves [2 4]
 "toy" [ "o" != ] filter           \ leaves "ty"
@@ -77,7 +78,7 @@ are byte sequences, so a string item is a one-byte string.
 "" "abc" [ concat ] each          \ leaves "abc"
 ```
 
-`split` has two related forms. With a predicate quotation it partitions a list
+`split` has two related forms. With a predicate callable it partitions a list
 or string into matching and non-matching sequences. With two strings it splits a
 string by a separator.
 
@@ -87,8 +88,8 @@ string by a separator.
 "abc" [ "b" == ] split            \ leaves "b" "ac"
 ```
 
-`merge` combines two already sorted sequences. The predicate receives the next
-left item and the next right item; true takes from the left sequence.
+`merge` combines two already sorted sequences. The predicate callable receives
+the next left item and the next right item; true takes from the left sequence.
 
 ```toy
 [ 1 3 5 ] [ 2 4 6 ] [ < ] merge   \ leaves [1 2 3 4 5 6]
@@ -112,8 +113,8 @@ produce exactly one collected result.
 
 ## Control
 
-`if`, `ifelse`, `while`, and `cond` accept predicate quotations. Predicate
-quotations observe the current stack without consuming it.
+`if`, `ifelse`, `while`, and `cond` accept predicate callables. Predicate
+callables observe the current stack without consuming it.
 
 ```toy
 5 [ 0 > ] [ "positive" ] if        \ leaves 5 "positive"
@@ -168,8 +169,8 @@ quicksort.
 `genrec` is the general form: test, base case, before recursion, after
 recursion. Reach for it when `linrec` or `binrec` no longer match the shape.
 
-`treerec` maps a tree-shaped list recursively. The leaf quotation receives each
-non-list leaf; the node quotation receives each transformed child list.
+`treerec` maps a tree-shaped list recursively. The leaf callable receives each
+non-list leaf; the node callable receives each transformed child list.
 
 ```toy
 [ 1 [ 2 3 ] 4 ] [ ] [ 0 swap [ + ] fold ] treerec
@@ -179,6 +180,6 @@ non-list leaf; the node quotation receives each transformed child list.
 ## Words Worth Keeping an Eye On
 
 `app2` overlaps with `bi`, but it is still useful when both values need the same
-quotation. `cleave` and `construct` also overlap at the implementation level,
+callable. `cleave` and `construct` also overlap at the implementation level,
 but they serve different stack shapes: `cleave` leaves multiple outputs, while
 `construct` packages those outputs as data.

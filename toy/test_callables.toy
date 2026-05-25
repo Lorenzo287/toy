@@ -1,0 +1,75 @@
+\ Callable consistency regression tests.
+
+'check [ [ ] [ "callable check failed" error ] ifelse ] def
+
+"abc" 'upper exec "ABC" == check
+"abc" [ upper ] exec "ABC" == check
+
+"abc" 'upper map "ABC" == check
+[ 1 2 3 ] 'succ map [ 2 3 4 ] == check
+[ 1 "x" 3 ] 'number? filter [ 1 3 ] == check
+[ 1 2 3 ] 'number? all true == check
+[ "x" 2 ] 'str? some true == check
+0 [ 1 2 3 ] '+ fold 6 == check
+"" "abc" 'concat each "abc" == check
+
+"a,b,c" "," split [ "a" "b" "c" ] == check
+"abc" 'str? split
+"" == check
+"abc" == check
+
+[ 1 3 ] [ 2 4 ] '< merge [ 1 2 3 4 ] == check
+
+5 'square keep
+25 == check
+5 == check
+
+5 'succ 'square bi
+25 == check
+6 == check
+
+1 2 10 '+ dip
+10 == check
+3 == check
+
+3 4 'square app2
+16 == check
+9 == check
+
+0 3 'succ times 3 == check
+
+'emit-x [ "x" ] def
+3 'emit-x replicate [ "x" "x" "x" ] == check
+
+5 true 'square if 25 == check
+5 true 'succ 'pred ifelse 6 == check
+5 false 'succ 'pred ifelse 4 == check
+
+'pos? [ 0 > ] def
+'dec [ 1 - ] def
+3 'pos? 'dec while 0 == check
+
+'bad-square [ "x" square ] def
+'zero [ 0 ] def
+'bad-square 'zero try 0 == check
+
+'positive [ "positive" ] def
+5 [ [ 'number? 'positive ] ] cond
+"positive" == check
+5 == check
+
+5 [ 'succ 'square ] cleave
+25 == check
+6 == check
+
+5 [ 'succ 'square ] construct [ 6 25 ] == check
+
+'done? [ 1 <= ] def
+'base [ ] def
+'pre [ dup pred ] def
+'post [ * ] def
+5 'done? 'base 'pre 'post linrec 120 == check
+
+'leaf-id [ ] def
+'node-sum [ 0 swap '+ fold ] def
+[ 1 [ 2 3 ] 4 ] 'leaf-id 'node-sum treerec 10 == check

@@ -3,12 +3,11 @@
 
 #include "tf_exec.h"
 
-// NOTE: `_r` marks native words that synchronously run quotations by calling exec()
-// and waiting for completion. These still consume C call stack across nested
-// native quotation runners, even though user-defined words use tf_frame.
-// Ordinary native words consume their declared inputs. Predicate quotations run
-// by control/combinator words restore the surrounding data stack after reading a
-// boolean result.
+// NOTE: `_r` marks native words that synchronously run callables and wait for
+// completion. These still consume C call stack across nested native callable
+// runners, even though user-defined words use tf_frame. Ordinary native words
+// consume their declared inputs. Predicate callables run by control/combinator
+// words restore the surrounding data stack after reading a boolean result.
 
 // Core arithmetic and numeric operations
 tf_ret tf_add(tf_ctx *ctx);
@@ -94,6 +93,8 @@ tf_ret tf_str_q(tf_ctx *ctx);
 tf_ret tf_symbol_q(tf_ctx *ctx);
 tf_ret tf_list_q(tf_ctx *ctx);
 tf_ret tf_number_q(tf_ctx *ctx);
+tf_ret tf_sequence_q(tf_ctx *ctx);
+tf_ret tf_callable_q(tf_ctx *ctx);
 tf_ret tf_nan_q(tf_ctx *ctx);
 tf_ret tf_inf_q(tf_ctx *ctx);
 tf_ret tf_word_q(tf_ctx *ctx);
@@ -169,6 +170,7 @@ tf_ret tf_rand(tf_ctx *ctx);
 tf_ret tf_sleep(tf_ctx *ctx);
 tf_ret tf_argc(tf_ctx *ctx);
 tf_ret tf_argv(tf_ctx *ctx);
+tf_ret tf_env_q(tf_ctx *ctx);
 tf_ret tf_getenv(tf_ctx *ctx);
 tf_ret tf_setenv(tf_ctx *ctx);
 tf_ret tf_pwd(tf_ctx *ctx);

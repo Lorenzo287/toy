@@ -113,12 +113,22 @@ tf_ret tf_getenv(tf_ctx *ctx) {
 
     key = stack_pop(ctx);
     char *val = getenv(key->str.ptr);
-    if (val) {
-        stack_push(ctx, create_string_obj(val, strlen(val)));
-    } else {
-        stack_push(ctx, init_list_obj()); // Push empty list as a "not found" indicator
-        // stack_push(ctx, create_string_obj("", 0));
+    if (!val) {
+        release_obj(key);
+        return TF_ERR;
     }
+    stack_push(ctx, create_string_obj(val, strlen(val)));
+    release_obj(key);
+    return TF_OK;
+}
+
+tf_ret tf_env_q(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *key = stack_peek(ctx, 0);
+    if (key->type != TF_OBJ_TYPE_STR) return TF_ERR;
+
+    key = stack_pop(ctx);
+    stack_push(ctx, create_bool_obj(getenv(key->str.ptr) != NULL));
     release_obj(key);
     return TF_OK;
 }

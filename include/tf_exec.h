@@ -68,6 +68,7 @@ size_t stack_len(tf_ctx *ctx);
 void stack_push(tf_ctx *ctx, tf_obj *o);
 tf_obj *stack_pop(tf_ctx *ctx);
 tf_obj *stack_pop_type(tf_ctx *ctx, tf_type type);
+tf_obj *stack_pop_callable(tf_ctx *ctx);
 tf_obj *stack_peek(tf_ctx *ctx, size_t depth);
 
 void frame_push(tf_ctx *ctx, tf_obj *prg);
@@ -83,5 +84,8 @@ tf_obj *tf_var_fetch(tf_ctx *ctx, tf_obj *name);
 
 tf_ret exec(tf_ctx *ctx, tf_obj *prg);
 tf_ret call_symbol(tf_ctx *ctx, tf_obj *symb);
+bool tf_is_callable(tf_obj *o);
+tf_ret tf_call_callable(tf_ctx *ctx, tf_obj *callable);
+tf_ret tf_call_callable_sync(tf_ctx *ctx, tf_obj *callable);
 
 #endif  // TF_EXEC_H

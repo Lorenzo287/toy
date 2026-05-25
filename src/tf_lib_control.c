@@ -8,32 +8,18 @@
 
 tf_ret tf_exec(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
-    tf_obj *o = stack_peek(ctx, 0);
-    if (o->type != TF_OBJ_TYPE_LIST && o->type != TF_OBJ_TYPE_SYMBOL) {
-        return TF_ERR;
-    }
+    tf_obj *o = stack_pop_callable(ctx);
+    if (!o) return TF_ERR;
 
-    o = stack_pop(ctx);
-    if (o->type == TF_OBJ_TYPE_LIST) {
-        frame_push(ctx, o);
-        release_obj(o);
-        return TF_OK;
-    } else if (o->type == TF_OBJ_TYPE_SYMBOL) {
-        tf_ret res = call_symbol(ctx, o);
-        release_obj(o);
-        return res;
-    } else {
-        release_obj(o);
-        return TF_ERR;
-    }
+    tf_ret res = tf_call_callable(ctx, o);
+    release_obj(o);
+    return res;
 }
 
 tf_ret tf_app2(tf_ctx *ctx) {
     if (stack_len(ctx) < 3) return TF_ERR;
     tf_obj *top = stack_peek(ctx, 0);
-    if (top->type != TF_OBJ_TYPE_LIST && top->type != TF_OBJ_TYPE_SYMBOL) {
-        return TF_ERR;
-    }
+    if (!tf_is_callable(top)) return TF_ERR;
 
     tf_obj *prg = stack_pop(ctx);
     tf_obj *b = stack_pop(ctx);
@@ -85,7 +71,7 @@ static void push_retained(tf_obj *list, tf_obj *elem) {
 }
 
 // Sequence combinators treat strings as byte sequences. A string item is a
-// one-byte string so the same quotation protocol works for lists and strings.
+// one-byte string so the same callable protocol works for lists and strings.
 static bool tf_is_sequence(tf_obj *o) {
     return o->type == TF_OBJ_TYPE_LIST || o->type == TF_OBJ_TYPE_STR;
 }
@@ -166,7 +152,7 @@ static tf_ret tf_collect_outputs(tf_ctx *ctx, size_t base_len,
     return TF_OK;
 }
 
-// Predicate/control quotations are observers of the surrounding data stack.
+// Predicate/control callables are observers of the surrounding data stack.
 // Temporary inputs are pushed before execution; the top result must be bool;
 // all stack changes made by the predicate are discarded afterward.
 static tf_ret tf_eval_predicate_sandbox_r(tf_ctx *ctx, tf_obj *pred,
@@ -178,7 +164,7 @@ static tf_ret tf_eval_predicate_sandbox_r(tf_ctx *ctx, tf_obj *pred,
         return TF_OK;
     }
 
-    if (pred->type != TF_OBJ_TYPE_LIST) return TF_ERR;
+    if (!tf_is_callable(pred)) return TF_ERR;
 
     tf_obj **saved_stack = NULL;
     size_t saved_len = 0;
@@ -189,7 +175,7 @@ static tf_ret tf_eval_predicate_sandbox_r(tf_ctx *ctx, tf_obj *pred,
         retain_obj(inputs[i]);
     }
 
-    tf_ret exec_res = exec(ctx, pred);
+    tf_ret exec_res = tf_call_callable_sync(ctx, pred);
     if (exec_res != TF_OK) {
         tf_restore_stack_owned(ctx, saved_stack, saved_len);
         free(saved_stack);
@@ -240,9 +226,7 @@ tf_ret tf_try_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
     tf_obj *handler = stack_peek(ctx, 0);
     tf_obj *body = stack_peek(ctx, 1);
-    if (body->type != TF_OBJ_TYPE_LIST || handler->type != TF_OBJ_TYPE_LIST) {
-        return TF_ERR;
-    }
+    if (!tf_is_callable(body) || !tf_is_callable(handler)) return TF_ERR;
 
     handler = stack_pop(ctx);
     body = stack_pop(ctx);
@@ -252,11 +236,11 @@ tf_ret tf_try_r(tf_ctx *ctx) {
     tf_save_stack_copy(ctx, &saved_stack, &saved_len);
 
     ctx->error_suppression_depth++;
-    tf_ret res = exec(ctx, body);
+    tf_ret res = tf_call_callable_sync(ctx, body);
     ctx->error_suppression_depth--;
     if (res == TF_ERR) {
         tf_restore_stack_copy(ctx, saved_stack, saved_len);
-        res = exec(ctx, handler);
+        res = tf_call_callable_sync(ctx, handler);
     } else if (res == TF_INTERRUPTED) {
         tf_restore_stack_copy(ctx, saved_stack, saved_len);
     }
@@ -271,10 +255,8 @@ tf_ret tf_if_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
     tf_obj *body = stack_peek(ctx, 0);
     tf_obj *cond = stack_peek(ctx, 1);
-    if (body->type != TF_OBJ_TYPE_LIST) return TF_ERR;
-    if (cond->type != TF_OBJ_TYPE_BOOL && cond->type != TF_OBJ_TYPE_LIST) {
-        return TF_ERR;
-    }
+    if (!tf_is_callable(body)) return TF_ERR;
+    if (cond->type != TF_OBJ_TYPE_BOOL && !tf_is_callable(cond)) return TF_ERR;
 
     body = stack_pop(ctx);
     cond = stack_pop(ctx);
@@ -288,7 +270,7 @@ tf_ret tf_if_r(tf_ctx *ctx) {
     }
 
     tf_ret final_res = TF_OK;
-    if (cond_val) { final_res = exec(ctx, body); }
+    if (cond_val) { final_res = tf_call_callable_sync(ctx, body); }
 
     release_obj(body);
     release_obj(cond);
@@ -299,7 +281,7 @@ tf_ret tf_infra_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
     tf_obj *body = stack_peek(ctx, 0);
     tf_obj *data = stack_peek(ctx, 1);
-    if (body->type != TF_OBJ_TYPE_LIST || data->type != TF_OBJ_TYPE_LIST) {
+    if (!tf_is_callable(body) || data->type != TF_OBJ_TYPE_LIST) {
         return TF_ERR;
     }
 
@@ -316,7 +298,7 @@ tf_ret tf_infra_r(tf_ctx *ctx) {
         retain_obj(data->list.elem[i]);
     }
 
-    tf_ret res = exec(ctx, body);
+    tf_ret res = tf_call_callable_sync(ctx, body);
     tf_obj *result = NULL;
     if (res == TF_OK) {
         result = init_list_obj();
@@ -351,7 +333,7 @@ tf_ret tf_cond_r(tf_ctx *ctx) {
 
         tf_obj *pred = clause->list.elem[0];
         tf_obj *body = clause->list.elem[1];
-        if (body->type != TF_OBJ_TYPE_LIST) {
+        if (!tf_is_callable(body)) {
             res = TF_ERR;
             break;
         }
@@ -360,7 +342,7 @@ tf_ret tf_cond_r(tf_ctx *ctx) {
         res = tf_eval_condition_r(ctx, pred, true, &cond_val);
         if (res != TF_OK) break;
         if (cond_val) {
-            res = exec(ctx, body);
+            res = tf_call_callable_sync(ctx, body);
             break;
         }
     }
@@ -385,7 +367,7 @@ static tf_ret tf_cleave_or_construct_r(tf_ctx *ctx, bool construct_result) {
     tf_ret res = TF_OK;
     for (size_t i = 0; i < branches->list.len; i++) {
         tf_obj *branch = branches->list.elem[i];
-        if (branch->type != TF_OBJ_TYPE_LIST) {
+        if (!tf_is_callable(branch)) {
             res = TF_ERR;
             break;
         }
@@ -394,7 +376,7 @@ static tf_ret tf_cleave_or_construct_r(tf_ctx *ctx, bool construct_result) {
         stack_push(ctx, value);
         retain_obj(value);
 
-        res = exec(ctx, branch);
+        res = tf_call_callable_sync(ctx, branch);
         if (res != TF_OK) break;
 
         res = tf_collect_outputs(ctx, saved_len, outputs);
@@ -435,12 +417,8 @@ tf_ret tf_ifelse_r(tf_ctx *ctx) {
     tf_obj *else_b = stack_peek(ctx, 0);
     tf_obj *then_b = stack_peek(ctx, 1);
     tf_obj *cond = stack_peek(ctx, 2);
-    if (else_b->type != TF_OBJ_TYPE_LIST || then_b->type != TF_OBJ_TYPE_LIST) {
-        return TF_ERR;
-    }
-    if (cond->type != TF_OBJ_TYPE_BOOL && cond->type != TF_OBJ_TYPE_LIST) {
-        return TF_ERR;
-    }
+    if (!tf_is_callable(else_b) || !tf_is_callable(then_b)) return TF_ERR;
+    if (cond->type != TF_OBJ_TYPE_BOOL && !tf_is_callable(cond)) return TF_ERR;
 
     else_b = stack_pop(ctx);
     then_b = stack_pop(ctx);
@@ -457,9 +435,9 @@ tf_ret tf_ifelse_r(tf_ctx *ctx) {
 
     tf_ret final_res = TF_OK;
     if (cond_val) {
-        final_res = exec(ctx, then_b);
+        final_res = tf_call_callable_sync(ctx, then_b);
     } else {
-        final_res = exec(ctx, else_b);
+        final_res = tf_call_callable_sync(ctx, else_b);
     }
 
     release_obj(else_b);
@@ -472,9 +450,7 @@ tf_ret tf_while_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
     tf_obj *body = stack_peek(ctx, 0);
     tf_obj *cond = stack_peek(ctx, 1);
-    if (body->type != TF_OBJ_TYPE_LIST || cond->type != TF_OBJ_TYPE_LIST) {
-        return TF_ERR;
-    }
+    if (!tf_is_callable(body) || !tf_is_callable(cond)) return TF_ERR;
 
     body = stack_pop(ctx);
     cond = stack_pop(ctx);
@@ -490,7 +466,7 @@ tf_ret tf_while_r(tf_ctx *ctx) {
 
         if (!continue_loop) break;
 
-        tf_ret exec_res = exec(ctx, body);
+        tf_ret exec_res = tf_call_callable_sync(ctx, body);
         if (exec_res != TF_OK) {
             final_res = exec_res;
             break;
@@ -505,7 +481,7 @@ tf_ret tf_while_r(tf_ctx *ctx) {
 tf_ret tf_dip_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
     tf_obj *body = stack_peek(ctx, 0);
-    if (body->type != TF_OBJ_TYPE_LIST) return TF_ERR;
+    if (!tf_is_callable(body)) return TF_ERR;
 
     body = stack_pop(ctx);
     tf_obj *saved = stack_pop(ctx);
@@ -514,7 +490,7 @@ tf_ret tf_dip_r(tf_ctx *ctx) {
     size_t saved_len = 0;
     tf_save_stack_copy(ctx, &saved_stack, &saved_len);
 
-    tf_ret res = exec(ctx, body);
+    tf_ret res = tf_call_callable_sync(ctx, body);
     if (res != TF_OK) { tf_restore_stack_copy(ctx, saved_stack, saved_len); }
     stack_push(ctx, saved);
 
@@ -526,7 +502,7 @@ tf_ret tf_dip_r(tf_ctx *ctx) {
 tf_ret tf_keep_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
     tf_obj *body = stack_peek(ctx, 0);
-    if (body->type != TF_OBJ_TYPE_LIST) return TF_ERR;
+    if (!tf_is_callable(body)) return TF_ERR;
 
     body = stack_pop(ctx);
     tf_obj *saved = stack_pop(ctx);
@@ -537,7 +513,7 @@ tf_ret tf_keep_r(tf_ctx *ctx) {
     retain_obj(saved);
     stack_push(ctx, saved);
 
-    tf_ret res = exec(ctx, body);
+    tf_ret res = tf_call_callable_sync(ctx, body);
     if (res != TF_OK) {
         tf_restore_stack_copy(ctx, saved_stack, base_len);
         stack_push(ctx, saved);
@@ -571,9 +547,7 @@ tf_ret tf_bi_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 3) return TF_ERR;
     tf_obj *right = stack_peek(ctx, 0);
     tf_obj *left = stack_peek(ctx, 1);
-    if (left->type != TF_OBJ_TYPE_LIST || right->type != TF_OBJ_TYPE_LIST) {
-        return TF_ERR;
-    }
+    if (!tf_is_callable(left) || !tf_is_callable(right)) return TF_ERR;
 
     right = stack_pop(ctx);
     left = stack_pop(ctx);
@@ -584,7 +558,7 @@ tf_ret tf_bi_r(tf_ctx *ctx) {
 
     retain_obj(saved);
     stack_push(ctx, saved);
-    tf_ret left_res = exec(ctx, left);
+    tf_ret left_res = tf_call_callable_sync(ctx, left);
     if (stack_len(ctx) < base_len) {
         tf_restore_stack_copy(ctx, saved_stack, base_len);
         stack_push(ctx, saved);
@@ -611,7 +585,7 @@ tf_ret tf_bi_r(tf_ctx *ctx) {
 
     retain_obj(saved);
     stack_push(ctx, saved);
-    tf_ret right_res = exec(ctx, right);
+    tf_ret right_res = tf_call_callable_sync(ctx, right);
     if (right_res != TF_OK) {
         tf_restore_stack_copy(ctx, saved_stack, base_len);
         stack_push(ctx, saved);
@@ -659,8 +633,8 @@ tf_ret tf_linrec_r(tf_ctx *ctx) {
     tf_obj *rec1 = stack_peek(ctx, 1);
     tf_obj *then_b = stack_peek(ctx, 2);
     tf_obj *pred = stack_peek(ctx, 3);
-    if (pred->type != TF_OBJ_TYPE_LIST || then_b->type != TF_OBJ_TYPE_LIST ||
-        rec1->type != TF_OBJ_TYPE_LIST || rec2->type != TF_OBJ_TYPE_LIST) {
+    if (!tf_is_callable(pred) || !tf_is_callable(then_b) ||
+        !tf_is_callable(rec1) || !tf_is_callable(rec2)) {
         return TF_ERR;
     }
 
@@ -673,9 +647,9 @@ tf_ret tf_linrec_r(tf_ctx *ctx) {
     tf_ret res = tf_eval_condition_r(ctx, pred, false, &done);
     if (res == TF_OK) {
         if (done) {
-            res = exec(ctx, then_b);
+            res = tf_call_callable_sync(ctx, then_b);
         } else {
-            res = exec(ctx, rec1);
+            res = tf_call_callable_sync(ctx, rec1);
             if (res == TF_OK) {
                 tf_obj *cont = init_list_obj();
                 tf_obj *linrec_sym = create_symbol_obj("linrec", 6);
@@ -708,8 +682,8 @@ tf_ret tf_binrec_r(tf_ctx *ctx) {
     tf_obj *rec1 = stack_peek(ctx, 1);
     tf_obj *then_b = stack_peek(ctx, 2);
     tf_obj *pred = stack_peek(ctx, 3);
-    if (pred->type != TF_OBJ_TYPE_LIST || then_b->type != TF_OBJ_TYPE_LIST ||
-        rec1->type != TF_OBJ_TYPE_LIST || rec2->type != TF_OBJ_TYPE_LIST) {
+    if (!tf_is_callable(pred) || !tf_is_callable(then_b) ||
+        !tf_is_callable(rec1) || !tf_is_callable(rec2)) {
         return TF_ERR;
     }
 
@@ -722,9 +696,9 @@ tf_ret tf_binrec_r(tf_ctx *ctx) {
     tf_ret res = tf_eval_condition_r(ctx, pred, false, &done);
     if (res == TF_OK) {
         if (done) {
-            res = exec(ctx, then_b);
+            res = tf_call_callable_sync(ctx, then_b);
         } else {
-            res = exec(ctx, rec1);
+            res = tf_call_callable_sync(ctx, rec1);
             if (res == TF_OK) {
                 tf_obj *rec_call = init_list_obj();
                 tf_obj *binrec_sym = create_symbol_obj("binrec", 6);
@@ -760,16 +734,12 @@ tf_ret tf_binrec_r(tf_ctx *ctx) {
     return res;
 }
 
-static bool tf_is_quotation(tf_obj *o) {
-    return o->type == TF_OBJ_TYPE_LIST;
-}
-
 static tf_ret tf_pop_rec_parts(tf_ctx *ctx, tf_obj **pred, tf_obj **then_b,
                                tf_obj **before, tf_obj **after) {
-    if (stack_len(ctx) >= 4 && tf_is_quotation(stack_peek(ctx, 0)) &&
-        tf_is_quotation(stack_peek(ctx, 1)) &&
-        tf_is_quotation(stack_peek(ctx, 2)) &&
-        tf_is_quotation(stack_peek(ctx, 3))) {
+    if (stack_len(ctx) >= 4 && tf_is_callable(stack_peek(ctx, 0)) &&
+        tf_is_callable(stack_peek(ctx, 1)) &&
+        tf_is_callable(stack_peek(ctx, 2)) &&
+        tf_is_callable(stack_peek(ctx, 3))) {
         *after = stack_pop(ctx);
         *before = stack_pop(ctx);
         *then_b = stack_pop(ctx);
@@ -781,7 +751,7 @@ static tf_ret tf_pop_rec_parts(tf_ctx *ctx, tf_obj **pred, tf_obj **then_b,
     tf_obj *parts = stack_peek(ctx, 0);
     if (parts->type != TF_OBJ_TYPE_LIST || parts->list.len != 4) return TF_ERR;
     for (size_t i = 0; i < 4; i++) {
-        if (!tf_is_quotation(parts->list.elem[i])) return TF_ERR;
+        if (!tf_is_callable(parts->list.elem[i])) return TF_ERR;
     }
 
     parts = stack_pop(ctx);
@@ -809,9 +779,9 @@ tf_ret tf_genrec_r(tf_ctx *ctx) {
     res = tf_eval_condition_r(ctx, pred, false, &done);
     if (res == TF_OK) {
         if (done) {
-            res = exec(ctx, then_b);
+            res = tf_call_callable_sync(ctx, then_b);
         } else {
-            res = exec(ctx, before);
+            res = tf_call_callable_sync(ctx, before);
             if (res == TF_OK) {
                 tf_obj *cont = init_list_obj();
                 tf_obj *genrec_sym = create_symbol_obj("genrec", 6);
@@ -847,7 +817,7 @@ static tf_ret tf_exec_single_output_r(tf_ctx *ctx, tf_obj *input, tf_obj *body,
     stack_push(ctx, input);
     retain_obj(input);
 
-    tf_ret res = exec(ctx, body);
+    tf_ret res = tf_call_callable_sync(ctx, body);
     if (res == TF_OK) {
         if (stack_len(ctx) != saved_len + 1) {
             res = TF_ERR;
@@ -887,7 +857,7 @@ tf_ret tf_treerec_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 3) return TF_ERR;
     tf_obj *node = stack_peek(ctx, 0);
     tf_obj *leaf = stack_peek(ctx, 1);
-    if (node->type != TF_OBJ_TYPE_LIST || leaf->type != TF_OBJ_TYPE_LIST) {
+    if (!tf_is_callable(node) || !tf_is_callable(leaf)) {
         return TF_ERR;
     }
 
@@ -909,7 +879,7 @@ tf_ret tf_replicate_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
     tf_obj *body = stack_peek(ctx, 0);
     tf_obj *n_obj = stack_peek(ctx, 1);
-    if (body->type != TF_OBJ_TYPE_LIST || n_obj->type != TF_OBJ_TYPE_INT) {
+    if (!tf_is_callable(body) || n_obj->type != TF_OBJ_TYPE_INT) {
         return TF_ERR;
     }
     body = stack_pop(ctx);
@@ -931,7 +901,7 @@ tf_ret tf_replicate_r(tf_ctx *ctx) {
     tf_ret ret = TF_OK;
 
     for (int i = 0; i < n; i++) {
-        ret = exec(ctx, body);
+        ret = tf_call_callable_sync(ctx, body);
         if (ret != TF_OK) break;
         if (stack_len(ctx) != saved_len + 1) {
             ret = TF_ERR;
@@ -958,7 +928,7 @@ tf_ret tf_times_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
     tf_obj *body = stack_peek(ctx, 0);
     tf_obj *n_obj = stack_peek(ctx, 1);
-    if (body->type != TF_OBJ_TYPE_LIST || n_obj->type != TF_OBJ_TYPE_INT) {
+    if (!tf_is_callable(body) || n_obj->type != TF_OBJ_TYPE_INT) {
         return TF_ERR;
     }
 
@@ -974,7 +944,7 @@ tf_ret tf_times_r(tf_ctx *ctx) {
 
     tf_ret res = TF_OK;
     for (int i = 0; i < n; i++) {
-        res = exec(ctx, body);
+        res = tf_call_callable_sync(ctx, body);
         if (res != TF_OK) break;
     }
 
@@ -987,7 +957,7 @@ tf_ret tf_each_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
     tf_obj *body = stack_peek(ctx, 0);
     tf_obj *data = stack_peek(ctx, 1);
-    if (body->type != TF_OBJ_TYPE_LIST || !tf_is_sequence(data)) {
+    if (!tf_is_callable(body) || !tf_is_sequence(data)) {
         return TF_ERR;
     }
 
@@ -998,7 +968,7 @@ tf_ret tf_each_r(tf_ctx *ctx) {
     size_t len = tf_sequence_len(data);
     for (size_t i = 0; i < len; i++) {
         stack_push(ctx, tf_sequence_item_owned(data, i));
-        res = exec(ctx, body);
+        res = tf_call_callable_sync(ctx, body);
         if (res != TF_OK) break;
     }
 
@@ -1011,7 +981,7 @@ tf_ret tf_map_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
     tf_obj *body = stack_peek(ctx, 0);
     tf_obj *data = stack_peek(ctx, 1);
-    if (body->type != TF_OBJ_TYPE_LIST || !tf_is_sequence(data)) {
+    if (!tf_is_callable(body) || !tf_is_sequence(data)) {
         return TF_ERR;
     }
 
@@ -1024,7 +994,7 @@ tf_ret tf_map_r(tf_ctx *ctx) {
 
     bool string_result = data->type == TF_OBJ_TYPE_STR;
     tf_obj *list_result = string_result ? NULL : init_list_obj();
-    tf_bytebuf str_result;
+    tf_bytebuf str_result = {0};
     if (string_result) tf_bytebuf_init(&str_result, data->str.len);
 
     tf_ret res = TF_OK;
@@ -1032,7 +1002,7 @@ tf_ret tf_map_r(tf_ctx *ctx) {
     for (size_t i = 0; i < len; i++) {
         stack_push(ctx, tf_sequence_item_owned(data, i));
 
-        res = exec(ctx, body);
+        res = tf_call_callable_sync(ctx, body);
         if (res != TF_OK) break;
 
         if (stack_len(ctx) != saved_len + 1) {
@@ -1081,7 +1051,7 @@ tf_ret tf_fold_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 3) return TF_ERR;
     tf_obj *body = stack_peek(ctx, 0);
     tf_obj *data = stack_peek(ctx, 1);
-    if (body->type != TF_OBJ_TYPE_LIST || !tf_is_sequence(data)) {
+    if (!tf_is_callable(body) || !tf_is_sequence(data)) {
         return TF_ERR;
     }
 
@@ -1099,7 +1069,7 @@ tf_ret tf_fold_r(tf_ctx *ctx) {
     for (size_t i = 0; i < len; i++) {
         stack_push(ctx, tf_sequence_item_owned(data, i));
 
-        res = exec(ctx, body);
+        res = tf_call_callable_sync(ctx, body);
         if (res != TF_OK) break;
 
         if (stack_len(ctx) != saved_len + 1) {
@@ -1125,7 +1095,7 @@ tf_ret tf_split_r(tf_ctx *ctx) {
         return tf_split_string(ctx);
     }
 
-    if (pred->type != TF_OBJ_TYPE_LIST || !tf_is_sequence(seq)) {
+    if (!tf_is_callable(pred) || !tf_is_sequence(seq)) {
         return TF_ERR;
     }
 
@@ -1135,8 +1105,8 @@ tf_ret tf_split_r(tf_ctx *ctx) {
     bool string_result = seq->type == TF_OBJ_TYPE_STR;
     tf_obj *true_list = string_result ? NULL : init_list_obj();
     tf_obj *false_list = string_result ? NULL : init_list_obj();
-    tf_bytebuf true_str;
-    tf_bytebuf false_str;
+    tf_bytebuf true_str = {0};
+    tf_bytebuf false_str = {0};
     if (string_result) {
         tf_bytebuf_init(&true_str, seq->str.len);
         tf_bytebuf_init(&false_str, seq->str.len);
@@ -1195,7 +1165,7 @@ tf_ret tf_merge_r(tf_ctx *ctx) {
     tf_obj *pred = stack_peek(ctx, 0);
     tf_obj *l2 = stack_peek(ctx, 1);
     tf_obj *l1 = stack_peek(ctx, 2);
-    if (pred->type != TF_OBJ_TYPE_LIST || !tf_is_sequence(l1) ||
+    if (!tf_is_callable(pred) || !tf_is_sequence(l1) ||
         l1->type != l2->type) {
         return TF_ERR;
     }
@@ -1205,7 +1175,7 @@ tf_ret tf_merge_r(tf_ctx *ctx) {
 
     bool string_result = l1->type == TF_OBJ_TYPE_STR;
     tf_obj *list_res = string_result ? NULL : init_list_obj();
-    tf_bytebuf str_res;
+    tf_bytebuf str_res = {0};
     if (string_result) {
         tf_bytebuf_init(&str_res, l1->str.len + l2->str.len);
     }
@@ -1290,7 +1260,7 @@ tf_ret tf_filter_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
     tf_obj *pred = stack_peek(ctx, 0);
     tf_obj *seq = stack_peek(ctx, 1);
-    if (pred->type != TF_OBJ_TYPE_LIST || !tf_is_sequence(seq)) {
+    if (!tf_is_callable(pred) || !tf_is_sequence(seq)) {
         return TF_ERR;
     }
 
@@ -1299,7 +1269,7 @@ tf_ret tf_filter_r(tf_ctx *ctx) {
 
     bool string_result = seq->type == TF_OBJ_TYPE_STR;
     tf_obj *list_result = string_result ? NULL : init_list_obj();
-    tf_bytebuf str_result;
+    tf_bytebuf str_result = {0};
     if (string_result) tf_bytebuf_init(&str_result, seq->str.len);
     tf_ret res = TF_OK;
     size_t len = tf_sequence_len(seq);
@@ -1347,7 +1317,7 @@ tf_ret tf_some_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
     tf_obj *pred = stack_peek(ctx, 0);
     tf_obj *seq = stack_peek(ctx, 1);
-    if (pred->type != TF_OBJ_TYPE_LIST || !tf_is_sequence(seq)) {
+    if (!tf_is_callable(pred) || !tf_is_sequence(seq)) {
         return TF_ERR;
     }
 
@@ -1380,7 +1350,7 @@ tf_ret tf_all_r(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
     tf_obj *pred = stack_peek(ctx, 0);
     tf_obj *seq = stack_peek(ctx, 1);
-    if (pred->type != TF_OBJ_TYPE_LIST || !tf_is_sequence(seq)) {
+    if (!tf_is_callable(pred) || !tf_is_sequence(seq)) {
         return TF_ERR;
     }
 

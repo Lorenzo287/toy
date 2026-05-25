@@ -57,11 +57,11 @@ export default grammar({
       'pi', 'e', 'tau',
       'print', 'printf', '.', '.s', '.S', 'cr',
       'key', 'input', 'load', 'readf', 'writef', 'delf', 'readl', 'exists?', 'clear', 'page',
-      'typeof', 'bool?', 'int?', 'float?', 'str?', 'symbol?', 'list?', 'number?', 'nan?', 'inf?',
+      'typeof', 'bool?', 'int?', 'float?', 'str?', 'symbol?', 'list?', 'number?', 'sequence?', 'callable?', 'nan?', 'inf?',
       'word?', 'var?', 'inf', 'nan', 'body', 'intern', 'name', 'words', 'see',
       'geth', 'seth', 'slice', 'take', 'dropn', 'len', 'first', 'rest', 'uncons', 'cons',
       'append', 'concat', 'join', 'trim', 'upper', 'lower', 'splitmid', 'range', 'empty?',
-      'rand', 'sleep', 'argc', 'argv', 'getenv', 'setenv', 'pwd', 'shell', 'time', 'clock',
+      'rand', 'sleep', 'argc', 'argv', 'env?', 'getenv', 'setenv', 'pwd', 'shell', 'time', 'clock',
       'def', 'bye', 'exit'
     ),
     string: $ => seq(

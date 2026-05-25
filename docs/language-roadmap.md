@@ -19,13 +19,23 @@ concatenative language inspired by Joy. Quotations (`[ ... ]`) and symbols
 These tracks are not a strict priority order. Prefer work that clarifies
 semantics, improves tests/examples, and keeps the interpreter educational.
 
+### Callable Consistency
+
+Introduce an explicit callable abstraction so higher-order words accept both
+atomic quoted symbols (`'word`) and compound quotations (`[ ... ]`) where they
+consume deferred code. Keep symbols and lists distinct as data types, and keep
+sequence dispatch for lists/strings separate from callable dispatch unless a
+cleaner language model replaces those distinctions. Backwards compatibility is
+secondary to semantic clarity while the language is still being designed. See
+[Callable Refactor Plan](./callables-refactor.md).
+
 ### Vocabulary and Resilience
 
 Continue auditing Joy builtins and add only words with clear stack effects and
 real value. The first vocabulary expansion now covers numeric constants,
 numeric predicates, dictionary introspection, higher-order collection words,
-error handling experiments, and external interop (`argv`, `getenv`, `setenv`,
-`shell`). Future vocabulary work should emphasize semantic cleanup, edge-case
+error handling experiments, and external interop (`argv`, `env?`, `getenv`,
+`setenv`, `shell`). Future vocabulary work should emphasize semantic cleanup, edge-case
 tests, and consistency over breadth.
 
 Prefer Toy definitions for convenience words. Prefer C natives for direct object
@@ -78,8 +88,11 @@ then bytecode for the existing VM, then LLVM for a constrained subset.
 - Treat strings as byte sequences for shared sequence words. A string item is a
   one-byte string; `append` adds one item, while `concat` combines two
   sequences.
-- Introspection words should push data (`words` pushes a list of strings, `see`
-  pushes a string) rather than print directly.
+- Introspection words should push data rather than print directly. Word names
+  are symbols: `words` pushes a list of symbols, while `see` pushes source text
+  as a string.
+- Absence should be represented explicitly with a predicate word or a runtime
+  error, not by returning an unrelated sentinel value such as `[]`.
 - Ordinary words consume their declared stack inputs. Use `dup`, `keep`, `bi`,
   and related stack combinators when a caller wants preservation.
 - Predicate quotations used by control and predicate combinators observe the

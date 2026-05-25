@@ -16,6 +16,25 @@ tf_ret tf_number_q(tf_ctx *ctx) {
     return TF_OK;
 }
 
+tf_ret tf_sequence_q(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *o = stack_pop(ctx);
+    stack_push(ctx, create_bool_obj(o->type == TF_OBJ_TYPE_LIST ||
+                                    o->type == TF_OBJ_TYPE_STR));
+    release_obj(o);
+    return TF_OK;
+}
+
+tf_ret tf_callable_q(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *o = stack_pop(ctx);
+    bool result = o->type == TF_OBJ_TYPE_LIST ||
+                  (o->type == TF_OBJ_TYPE_SYMBOL && get_func(ctx, o) != NULL);
+    stack_push(ctx, create_bool_obj(result));
+    release_obj(o);
+    return TF_OK;
+}
+
 tf_ret tf_nan_q(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
     tf_obj *o = stack_pop(ctx);
@@ -37,8 +56,7 @@ tf_ret tf_inf_q(tf_ctx *ctx) {
 tf_ret tf_word_q(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
     tf_obj *o = stack_pop(ctx);
-    bool result = (o->type == TF_OBJ_TYPE_SYMBOL || o->type == TF_OBJ_TYPE_STR) &&
-                  get_func(ctx, o) != NULL;
+    bool result = o->type == TF_OBJ_TYPE_SYMBOL && get_func(ctx, o) != NULL;
     stack_push(ctx, create_bool_obj(result));
     release_obj(o);
     return TF_OK;
@@ -47,8 +65,7 @@ tf_ret tf_word_q(tf_ctx *ctx) {
 tf_ret tf_var_q(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
     tf_obj *o = stack_pop(ctx);
-    bool result = (o->type == TF_OBJ_TYPE_SYMBOL || o->type == TF_OBJ_TYPE_STR) &&
-                  tf_var_fetch(ctx, o) != NULL;
+    bool result = o->type == TF_OBJ_TYPE_SYMBOL && tf_var_fetch(ctx, o) != NULL;
     stack_push(ctx, create_bool_obj(result));
     release_obj(o);
     return TF_OK;
@@ -86,7 +103,7 @@ tf_ret tf_intern(tf_ctx *ctx) {
     tf_obj *str = stack_pop_type(ctx, TF_OBJ_TYPE_STR);
     if (!str) return TF_ERR;
 
-    stack_push(ctx, create_symbol_obj(str->str.ptr, str->str.len));
+    stack_push(ctx, create_quoted_symbol_obj(str->str.ptr, str->str.len));
     release_obj(str);
     return TF_OK;
 }
@@ -294,8 +311,8 @@ tf_ret tf_words(tf_ctx *ctx) {
 
     qsort(funcs, j, sizeof(tf_func *), tf_func_name_cmp);
     for (size_t i = 0; i < j; i++) {
-        push_obj(result, create_string_obj(funcs[i]->name->str.ptr,
-                                           funcs[i]->name->str.len));
+        push_obj(result, create_quoted_symbol_obj(funcs[i]->name->str.ptr,
+                                                  funcs[i]->name->str.len));
     }
     free(funcs);
     stack_push(ctx, result);

@@ -5,7 +5,7 @@ traditional Forth shape, but is evolving into a quotation-first concatenative
 language inspired by Joy, the language designed by Manfred von Thun.
 
 The core idea: code is data. Quotations (`[ ... ]`) and quoted symbols (`'name`)
-are values that can be stored, passed, composed, and executed.
+are callable values that can be stored, passed, composed, and executed.
 
 Based on the original [toyforth](https://github.com/antirez/toyforth) project by
 **Salvatore Sanfilippo (antirez)**. Toy adds a persistent REPL using **antirez**'s
@@ -20,6 +20,8 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
   `linrec`, `binrec`, and `genrec`.
 - Shared sequence words for lists and strings when the result type is clear.
   String items are one-byte strings.
+- Representation predicates such as `list?` and `symbol?`, plus capability
+  predicates such as `sequence?` and `callable?`.
 - Local captures with `{ name }` and `$name` when stack-only code gets too hard
   to read.
 - File I/O, string manipulation, dictionary introspection, process helpers, and
@@ -42,24 +44,25 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 ```
 
 ```toy
-\ Quotations are first-class code blocks.
+\ Quotations and quoted symbols are first-class callable values.
 [ 1 2 + ] exec       \ leaves 3
 [ 1 2 + ] i          \ same
+'dup exec            \ executes dup
 'dup                 \ leaves the symbol 'dup as data
 
-\ Combinators apply quotations in different stack contexts.
+\ Combinators apply callables in different stack contexts.
 1 2 4 [ + ] dip      \ leaves 3 4
 5 [ 1 + ] keep       \ leaves 5 6
-5 [ 1 + ] [ 2 * ] bi \ leaves 6 10
+5 'succ 'square bi   \ leaves 6 25
 ```
 
 ```toy
-\ Conditions can be quotations that inspect the stack.
+\ Conditions can be callables that inspect the stack.
 5 [ 0 > ] [ "Positive" print ] if
 
-\ Iteration and mapping are words over quotations.
+\ Iteration and mapping are words over callables.
 10 [ 0 > ] [ . 1 - ] while
-[ 1 2 3 ] [ 1 + ] map .s
+[ 1 2 3 ] 'succ map .s
 
 \ Recursion schemes can express algorithms without naming recursive helpers.
 'qsort [
@@ -103,7 +106,7 @@ Use stack words or combinators when a value should be preserved:
 [ 1 2 3 ] [ len ] keep
 ```
 
-Predicate quotations used by control and predicate combinators are the main
+Predicate callables used by control and predicate combinators are the main
 exception. Words such as `if`, `while`, `linrec`, `filter`, `split`, and
 `merge` run predicates in a stack sandbox: they read the boolean result and
 restore the surrounding data stack afterward. Side effects performed inside the
@@ -123,9 +126,9 @@ changing the data stack.
 | Control       | `if`, `ifelse`, `while`, `try`, `error`, `exec`, `i`, `app2`, `infra`, `cond`, `cleave`, `construct`, `replicate`, `times`, `dip`, `keep`, `bi`, `linrec`, `binrec`, `genrec`, `treerec`            |
 | Combinators   | `each`, `map`, `fold`, `filter`, `some`, `all`, `split`, `merge`                                                                                                                                    |
 | List/String   | `geth`, `seth`, `slice`, `take`, `dropn`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `join`, `trim`, `upper`, `lower`, `splitmid`, `range`, `empty?`                             |
-| Introspection | `typeof`, `bool?`, `int?`, `float?`, `str?`, `symbol?`, `list?`, `number?`, `nan?`, `inf?`, `word?`, `var?`, `inf`, `nan`, `body`, `intern`, `name`, `words`, `see`                                 |
+| Introspection | `typeof`, `bool?`, `int?`, `float?`, `str?`, `symbol?`, `list?`, `number?`, `sequence?`, `callable?`, `nan?`, `inf?`, `word?`, `var?`, `inf`, `nan`, `body`, `intern`, `name`, `words`, `see`         |
 | I/O           | `print`, `printf`, `.`, `.s`, `.S`, `cr`, `key`, `input`, `load`, `readf`, `writef`, `delf`, `readl`, `exists?`, `clear`, `page`                                                                    |
-| System        | `rand`, `sleep`, `argc`, `argv`, `getenv`, `setenv`, `pwd`, `shell`, `time`, `clock`, `bye`, `exit`                                                                                                 |
+| System        | `rand`, `sleep`, `argc`, `argv`, `env?`, `getenv`, `setenv`, `pwd`, `shell`, `time`, `clock`, `bye`, `exit`                                                                                          |
 | Definition    | `def`, `:`                                                                                                                                                                                          |
 
 ## Tooling

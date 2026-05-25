@@ -25,6 +25,13 @@ tf_obj *stack_pop_type(tf_ctx *ctx, tf_type type) {
     return pop_obj_type(ctx->forth_stack, type);
 }
 
+tf_obj *stack_pop_callable(tf_ctx *ctx) {
+    if (stack_len(ctx) == 0) return NULL;
+    tf_obj *o = stack_peek(ctx, 0);
+    if (!tf_is_callable(o)) return NULL;
+    return stack_pop(ctx);
+}
+
 tf_obj *stack_peek(tf_ctx *ctx, size_t depth) {
     size_t len = stack_len(ctx);
     if (depth >= len) return NULL;
@@ -202,8 +209,10 @@ static const tf_native_word native_introspection_words[] = {
     {"typeof", tf_typeof},   {"bool?", tf_bool_q},
     {"int?", tf_int_q},      {"float?", tf_float_q},
     {"str?", tf_str_q},      {"symbol?", tf_symbol_q},
-    {"list?", tf_list_q},    {"number?", tf_number_q},
-    {"nan?", tf_nan_q},      {"inf?", tf_inf_q},
+    {"list?", tf_list_q},       {"number?", tf_number_q},
+    {"sequence?", tf_sequence_q},
+    {"callable?", tf_callable_q},
+    {"nan?", tf_nan_q},         {"inf?", tf_inf_q},
     {"word?", tf_word_q},    {"var?", tf_var_q},
     {"inf", tf_inf},         {"nan", tf_nan},
     {"body", tf_body},       {"intern", tf_intern},
@@ -215,7 +224,8 @@ static const tf_native_word native_introspection_words[] = {
 static const tf_native_word native_system_words[] = {
     {"rand", tf_rand},       {"sleep", tf_sleep},
     {"argc", tf_argc},       {"argv", tf_argv},
-    {"getenv", tf_getenv},   {"setenv", tf_setenv},
+    {"env?", tf_env_q},      {"getenv", tf_getenv},
+    {"setenv", tf_setenv},
     {"pwd", tf_pwd},         {"shell", tf_shell},
     {"time", tf_time},       {"clock", tf_clock},
     {"bye", tf_exit},        {"exit", tf_exit},
@@ -289,7 +299,7 @@ tf_func *init_func(tf_ctx *ctx, tf_obj *name) {
 }
 
 void set_native_func(tf_ctx *ctx, const char *name, tf_cb cb) {
-    tf_obj *o_name = create_string_obj(name, strlen(name));
+    tf_obj *o_name = create_symbol_obj(name, strlen(name));
     tf_func *f = get_func(ctx, o_name);
     if (f) {  // overwrite if name is already taken
         if (f->type == TF_FUNC_TYPE_USER) release_obj(f->user_impl);
@@ -314,6 +324,7 @@ void set_user_func(tf_ctx *ctx, tf_obj *name, tf_obj *uf) {
 }
 
 tf_func *get_func(tf_ctx *ctx, tf_obj *name) {
+    if (!name || name->type != TF_OBJ_TYPE_SYMBOL) return NULL;
     if (ctx->functions.capacity == 0) return NULL;
     unsigned long h = tf_hash(name);
     size_t idx = h % ctx->functions.capacity;
@@ -495,4 +506,34 @@ tf_ret call_symbol(tf_ctx *ctx, tf_obj *symb) {
     } else {
         return f->native_impl(ctx);
     }
+}
+
+bool tf_is_callable(tf_obj *o) {
+    return o && (o->type == TF_OBJ_TYPE_LIST || o->type == TF_OBJ_TYPE_SYMBOL);
+}
+
+tf_ret tf_call_callable(tf_ctx *ctx, tf_obj *callable) {
+    if (callable->type == TF_OBJ_TYPE_LIST) {
+        frame_push(ctx, callable);
+        return TF_OK;
+    }
+    if (callable->type == TF_OBJ_TYPE_SYMBOL) {
+        return call_symbol(ctx, callable);
+    }
+    return TF_ERR;
+}
+
+tf_ret tf_call_callable_sync(tf_ctx *ctx, tf_obj *callable) {
+    if (callable->type == TF_OBJ_TYPE_LIST) {
+        return exec(ctx, callable);
+    }
+    if (callable->type == TF_OBJ_TYPE_SYMBOL) {
+        tf_func *f = get_func(ctx, callable);
+        if (!f) return TF_ERR;
+        if (f->type == TF_FUNC_TYPE_USER) {
+            return exec(ctx, f->user_impl);
+        }
+        return f->native_impl(ctx);
+    }
+    return TF_ERR;
 }

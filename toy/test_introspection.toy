@@ -1,9 +1,27 @@
 "--- Testing Introspection Words ---\n" printf
 
+'check [ [ ] [ "introspection check failed" error ] ifelse ] def
+
 'twice [ dup + ] def
 'twice body [ dup + ] == [ "twice body ok\n" printf ] if
 'twice see "'twice [ dup + ] def" == [ "see ok\n" printf ] if
-words list? [ "words returns list\n" printf ] if
+words list? [ "words returns symbol list\n" printf ] if
+words [ symbol? ] all true == check
 "X" intern dup print name print
+
+[ 1 2 3 ] sequence? true == check
+"abc" sequence? true == check
+'twice sequence? false == check
+
+[ 1 2 + ] callable? true == check
+'twice callable? true == check
+'missing-word callable? false == check
+"twice" callable? false == check
+
+'twice word? true == check
+"twice" word? false == check
+
+10 { x } 'x var? true == check
+"x" var? false == check
 
 "--- Done ---\n" printf
