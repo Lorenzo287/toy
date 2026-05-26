@@ -182,7 +182,7 @@ tf_ret tf_input(tf_ctx *ctx) {
     return TF_OK;
 }
 
-tf_ret tf_load_r(tf_ctx *ctx) {
+tf_ret tf_load(tf_ctx *ctx) {
     if (stack_len(ctx) < 1) return TF_ERR;
     tf_obj *path = stack_peek(ctx, 0);
     if (path->type != TF_OBJ_TYPE_STR) return TF_ERR;
@@ -221,10 +221,10 @@ tf_ret tf_load_r(tf_ctx *ctx) {
         return TF_ERR;
     }
 
-    tf_ret result = exec(ctx, prg);
+    frame_push(ctx, prg);
     release_obj(prg);
     release_obj(path);
-    return result;
+    return TF_OK;
 }
 
 tf_ret tf_readf(tf_ctx *ctx) {

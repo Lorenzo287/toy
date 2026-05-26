@@ -43,9 +43,9 @@ navigation and development rules.
 - C style: snake_case, 4-space indentation, `tf_` prefix for project symbols.
 - Memory: `retain_obj` when storing references, `release_obj` when done, use
   `xmalloc` helpers.
-- Native naming: `_r` means the native still calls `exec()` synchronously and
-  waits for a quotation result. Remove `_r` only after converting it to schedule
-  frames and return.
+- Native callable runners should schedule frames or native continuations and
+  return to the VM loop. Do not add synchronous `exec()` re-entry for new
+  native words.
 - Language direction: prefer quotation-first words and combinators over new
   syntax. Follow `docs/language-roadmap.md` for definition policy.
 - Stack effects: ordinary words consume their declared inputs. Predicate

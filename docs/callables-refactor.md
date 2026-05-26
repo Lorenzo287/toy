@@ -119,7 +119,6 @@ Add a small execution-level interface, probably in `include/tf_exec.h` and
 ```c
 bool tf_is_callable(tf_obj *o);
 tf_ret tf_call_callable(tf_ctx *ctx, tf_obj *callable);
-tf_ret tf_call_callable_sync(tf_ctx *ctx, tf_obj *callable);
 tf_obj *stack_pop_callable(tf_ctx *ctx);
 ```
 
@@ -139,13 +138,9 @@ that dispatches callable values. Native words should stop calling `exec()` or
 quotation/list frame" primitive. The native word `exec`/`i` should become a thin
 wrapper around `tf_call_callable()`.
 
-There are two execution modes:
-
-- `tf_call_callable()` schedules the callable in the current frame context. This
-  is appropriate for the native `exec`/`i` word.
-- `tf_call_callable_sync()` runs the callable and waits for completion. This is
-  required by `_r` natives such as `map`, `filter`, `while`, and recursion
-  combinators, because they need to inspect stack results before returning.
+Native words that need to inspect callable results should schedule a native
+continuation frame. The continuation resumes after the callable frame finishes,
+so callable-running natives do not synchronously re-enter `exec()`.
 
 ## Quotedness and Symbols
 
@@ -323,14 +318,14 @@ existing stack rule:
 > changes and reading one boolean result. Side effects inside predicates remain
 > real effects.
 
-The current helper:
+The predicate helper:
 
 ```c
-tf_eval_predicate_sandbox_r(...)
+tf_predicate_eval_step(...)
 ```
 
-should accept a callable instead of only `TF_OBJ_TYPE_LIST`, then call
-`tf_call_callable()` internally.
+accepts callables, schedules them with `tf_call_callable()`, then restores the
+surrounding data stack after reading the boolean result.
 
 Careful regression cases:
 
@@ -419,8 +414,7 @@ atomic symbol value and make introspection/source round-tripping worse.
 
 5. Convert stack/control combinators that execute ordinary bodies.
    - `dip`, `keep`, `bi`, `app2`, `times`, `replicate`, `try`, and `infra`.
-   - Keep `_r` suffixes until each native no longer calls synchronous
-     `exec()`/callable execution directly.
+   - Use native continuations for words that need to resume after user code.
 
 6. Convert predicate and recursion combinators.
    - Update `if`, `ifelse`, `while`, `linrec`, `binrec`, `genrec`, `treerec`,
@@ -508,9 +502,8 @@ Predicate sandboxing:
 - Do not make every list context executable.
 - Do not change list/string sequence semantics accidentally. If they change,
   handle that as an explicit sequence-design decision.
-- Do not remove `_r` suffixes merely because a word accepts symbols; `_r` is
-  about synchronous execution and C call stack behavior, not about accepted
-  argument types.
+- Do not reintroduce synchronous `exec()` re-entry merely because it is simpler
+  for a native word to wait for a callable result.
 
 ## Success Criteria
 

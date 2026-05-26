@@ -1,0 +1,11 @@
+\ Continuation-style callable runner regressions.
+
+'check [ [ ] [ "continuation check failed" error ] ifelse ] def
+
+0 20000 [ 1 + ] times 20000 == check
+
+'done? [ 0 == ] def
+'base [ ] def
+'pre [ 1 - ] def
+'post [ ] def
+5000 'done? 'base 'pre 'post linrec 0 != check

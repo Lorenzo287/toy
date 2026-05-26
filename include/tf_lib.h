@@ -3,11 +3,10 @@
 
 #include "tf_exec.h"
 
-// NOTE: `_r` marks native words that synchronously run callables and wait for
-// completion. These still consume C call stack across nested native callable
-// runners, even though user-defined words use tf_frame. Ordinary native words
-// consume their declared inputs. Predicate callables run by control/combinator
-// words restore the surrounding data stack after reading a boolean result.
+// Native words that run user callables schedule frames and return to the VM
+// loop. Ordinary native words consume their declared inputs. Predicate
+// callables run by control/combinator words restore the surrounding data stack
+// after reading a boolean result.
 
 // Core arithmetic and numeric operations
 tf_ret tf_add(tf_ctx *ctx);
@@ -76,7 +75,7 @@ tf_ret tf_stack(tf_ctx *ctx);
 tf_ret tf_stack_source(tf_ctx *ctx);
 tf_ret tf_key(tf_ctx *ctx);
 tf_ret tf_input(tf_ctx *ctx);
-tf_ret tf_load_r(tf_ctx *ctx);
+tf_ret tf_load(tf_ctx *ctx);
 tf_ret tf_readf(tf_ctx *ctx);
 tf_ret tf_writef(tf_ctx *ctx);
 tf_ret tf_delf(tf_ctx *ctx);
@@ -110,36 +109,34 @@ tf_ret tf_colon(tf_ctx *ctx);
 tf_ret tf_def(tf_ctx *ctx);
 
 // Quotation execution, control flow, and recursion
-// `_r` words still call exec() synchronously and should eventually be converted
-// to continuation-style frame scheduling.
 tf_ret tf_exec(tf_ctx *ctx);
 tf_ret tf_app2(tf_ctx *ctx);
-tf_ret tf_if_r(tf_ctx *ctx);
-tf_ret tf_ifelse_r(tf_ctx *ctx);
-tf_ret tf_while_r(tf_ctx *ctx);
-tf_ret tf_try_r(tf_ctx *ctx);
+tf_ret tf_if(tf_ctx *ctx);
+tf_ret tf_ifelse(tf_ctx *ctx);
+tf_ret tf_while(tf_ctx *ctx);
+tf_ret tf_try(tf_ctx *ctx);
 tf_ret tf_error(tf_ctx *ctx);
-tf_ret tf_infra_r(tf_ctx *ctx);
-tf_ret tf_cond_r(tf_ctx *ctx);
-tf_ret tf_cleave_r(tf_ctx *ctx);
-tf_ret tf_construct_r(tf_ctx *ctx);
-tf_ret tf_genrec_r(tf_ctx *ctx);
-tf_ret tf_treerec_r(tf_ctx *ctx);
-tf_ret tf_replicate_r(tf_ctx *ctx);
-tf_ret tf_times_r(tf_ctx *ctx);
-tf_ret tf_each_r(tf_ctx *ctx);
-tf_ret tf_map_r(tf_ctx *ctx);
-tf_ret tf_fold_r(tf_ctx *ctx);
-tf_ret tf_filter_r(tf_ctx *ctx);
-tf_ret tf_some_r(tf_ctx *ctx);
-tf_ret tf_all_r(tf_ctx *ctx);
-tf_ret tf_split_r(tf_ctx *ctx);
-tf_ret tf_merge_r(tf_ctx *ctx);
-tf_ret tf_dip_r(tf_ctx *ctx);
-tf_ret tf_keep_r(tf_ctx *ctx);
-tf_ret tf_bi_r(tf_ctx *ctx);
-tf_ret tf_linrec_r(tf_ctx *ctx);
-tf_ret tf_binrec_r(tf_ctx *ctx);
+tf_ret tf_infra(tf_ctx *ctx);
+tf_ret tf_cond(tf_ctx *ctx);
+tf_ret tf_cleave(tf_ctx *ctx);
+tf_ret tf_construct(tf_ctx *ctx);
+tf_ret tf_genrec(tf_ctx *ctx);
+tf_ret tf_treerec(tf_ctx *ctx);
+tf_ret tf_replicate(tf_ctx *ctx);
+tf_ret tf_times(tf_ctx *ctx);
+tf_ret tf_each(tf_ctx *ctx);
+tf_ret tf_map(tf_ctx *ctx);
+tf_ret tf_fold(tf_ctx *ctx);
+tf_ret tf_filter(tf_ctx *ctx);
+tf_ret tf_some(tf_ctx *ctx);
+tf_ret tf_all(tf_ctx *ctx);
+tf_ret tf_split(tf_ctx *ctx);
+tf_ret tf_merge(tf_ctx *ctx);
+tf_ret tf_dip(tf_ctx *ctx);
+tf_ret tf_keep(tf_ctx *ctx);
+tf_ret tf_bi(tf_ctx *ctx);
+tf_ret tf_linrec(tf_ctx *ctx);
+tf_ret tf_binrec(tf_ctx *ctx);
 
 // Data, collection, and string operations
 // Shared sequence words accept lists and strings when the result type is clear.

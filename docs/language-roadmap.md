@@ -9,9 +9,9 @@ concatenative language inspired by Joy. Quotations (`[ ... ]`) and symbols
 - Preferred definition style: `'name [ ... ] def`; `: name ... ;` remains
   supported for existing Forth-style code.
 - Quotations/lists are first-class values; `exec`/`i` apply them.
-- User-defined words run on the explicit frame stack.
-- Some native quotation runners still call `exec()` synchronously and keep the
-  `_r` suffix.
+- User-defined words and native callable runners use the explicit frame stack.
+- Native continuations represent words that need to resume after user code,
+  including predicate sandboxes and error boundaries.
 - Native word source of truth: grouped native tables in `src/tf_exec.c`.
 
 ## Roadmap Tracks
@@ -43,10 +43,10 @@ access, frame scheduling, platform I/O, or measured performance.
 
 ### Explicit Execution Boundary
 
-Convert `_r` native words to continuation-style frame scheduling so nested user
-code no longer grows the C call stack. Preserve existing stack effects and
-predicate-inspection behavior. Add regression scripts and run leak checks for
-each conversion.
+Completed: native words no longer synchronously re-enter `exec()` to wait for
+callable results. Keep new callable-running natives on continuation-style frame
+scheduling so nested user code does not grow the C call stack. Preserve stack
+effects, predicate-inspection behavior, and error-boundary semantics.
 
 ### High-Level Data Structures
 
