@@ -10,6 +10,46 @@ static bool tf_is_char_obj(tf_obj *o) {
     return o->type == TF_OBJ_TYPE_STR && o->str.len == 1;
 }
 
+typedef enum {
+    TF_CHAR_PRED_LETTER,
+    TF_CHAR_PRED_DIGIT,
+    TF_CHAR_PRED_ALNUM,
+    TF_CHAR_PRED_SPACE,
+    TF_CHAR_PRED_UPPER,
+    TF_CHAR_PRED_LOWER,
+    TF_CHAR_PRED_PUNCT
+} tf_char_pred;
+
+static bool tf_match_char_pred(unsigned char c, tf_char_pred pred) {
+    switch (pred) {
+    case TF_CHAR_PRED_LETTER:
+        return isalpha(c) != 0;
+    case TF_CHAR_PRED_DIGIT:
+        return isdigit(c) != 0;
+    case TF_CHAR_PRED_ALNUM:
+        return isalnum(c) != 0;
+    case TF_CHAR_PRED_SPACE:
+        return isspace(c) != 0;
+    case TF_CHAR_PRED_UPPER:
+        return isupper(c) != 0;
+    case TF_CHAR_PRED_LOWER:
+        return islower(c) != 0;
+    case TF_CHAR_PRED_PUNCT:
+        return ispunct(c) != 0;
+    }
+    return false;
+}
+
+static tf_ret tf_char_predicate(tf_ctx *ctx, tf_char_pred pred) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *o = stack_pop(ctx);
+    bool result = tf_is_char_obj(o) &&
+                  tf_match_char_pred((unsigned char)o->str.ptr[0], pred);
+    stack_push(ctx, create_bool_obj(result));
+    release_obj(o);
+    return TF_OK;
+}
+
 static char *tf_find_mem(char *haystack, size_t haystack_len,
                          const char *needle, size_t needle_len) {
     if (needle_len == 0) return haystack;
@@ -415,6 +455,38 @@ tf_ret tf_concat(tf_ctx *ctx) {
     return TF_OK;
 }
 
+tf_ret tf_reverse(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *seq = stack_pop(ctx);
+
+    if (seq->type == TF_OBJ_TYPE_LIST) {
+        tf_obj *result = init_list_obj();
+        for (size_t i = seq->list.len; i > 0; i--) {
+            tf_obj *elem = seq->list.elem[i - 1];
+            retain_obj(elem);
+            push_obj(result, elem);
+        }
+        stack_push(ctx, result);
+        release_obj(seq);
+        return TF_OK;
+    }
+
+    if (seq->type == TF_OBJ_TYPE_STR) {
+        char *buf = xmalloc(seq->str.len + 1);
+        for (size_t i = 0; i < seq->str.len; i++) {
+            buf[i] = seq->str.ptr[seq->str.len - 1 - i];
+        }
+        buf[seq->str.len] = '\0';
+        stack_push(ctx, create_string_obj(buf, seq->str.len));
+        free(buf);
+        release_obj(seq);
+        return TF_OK;
+    }
+
+    stack_push(ctx, seq);
+    return TF_ERR;
+}
+
 tf_ret tf_split_string(tf_ctx *ctx) {
     if (stack_len(ctx) < 2) return TF_ERR;
     tf_obj *arg2 = stack_peek(ctx, 0);
@@ -627,4 +699,40 @@ tf_ret tf_empty_q(tf_ctx *ctx) {
     stack_push(ctx, create_bool_obj(is_empty));
     release_obj(coll);
     return TF_OK;
+}
+
+tf_ret tf_char_q(tf_ctx *ctx) {
+    if (stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *o = stack_pop(ctx);
+    stack_push(ctx, create_bool_obj(tf_is_char_obj(o)));
+    release_obj(o);
+    return TF_OK;
+}
+
+tf_ret tf_letter_q(tf_ctx *ctx) {
+    return tf_char_predicate(ctx, TF_CHAR_PRED_LETTER);
+}
+
+tf_ret tf_digit_q(tf_ctx *ctx) {
+    return tf_char_predicate(ctx, TF_CHAR_PRED_DIGIT);
+}
+
+tf_ret tf_alnum_q(tf_ctx *ctx) {
+    return tf_char_predicate(ctx, TF_CHAR_PRED_ALNUM);
+}
+
+tf_ret tf_space_q(tf_ctx *ctx) {
+    return tf_char_predicate(ctx, TF_CHAR_PRED_SPACE);
+}
+
+tf_ret tf_upper_q(tf_ctx *ctx) {
+    return tf_char_predicate(ctx, TF_CHAR_PRED_UPPER);
+}
+
+tf_ret tf_lower_q(tf_ctx *ctx) {
+    return tf_char_predicate(ctx, TF_CHAR_PRED_LOWER);
+}
+
+tf_ret tf_punct_q(tf_ctx *ctx) {
+    return tf_char_predicate(ctx, TF_CHAR_PRED_PUNCT);
 }

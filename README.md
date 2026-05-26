@@ -117,19 +117,19 @@ changing the data stack.
 
 ## Built-in Words
 
-| Category      | Words                                                                                                                                                                                               |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stack         | `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty`                                                                                                               |
-| Math          | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `max`, `min`, `sqrt`, `pow`, `exp`, `log`, `log10`, `sin`, `cos`, `tan`, `floor`, `ceil`, `round`, `pred`, `succ`, `square`, `cube`, `pi`, `e`, `tau` |
-| Logic         | `and`, `or`, `xor`, `not`, `shl`, `shr`                                                                                                                                                             |
-| Comparison    | `==`, `!=`, `<`, `>`, `<=`, `>=`                                                                                                                                                                    |
-| Control       | `if`, `ifelse`, `while`, `try`, `error`, `exec`, `i`, `app2`, `infra`, `cond`, `cleave`, `construct`, `replicate`, `times`, `dip`, `keep`, `bi`, `linrec`, `binrec`, `genrec`, `treerec`            |
-| Combinators   | `each`, `map`, `fold`, `filter`, `some`, `all`, `split`, `merge`                                                                                                                                    |
-| List/String   | `geth`, `seth`, `slice`, `take`, `dropn`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `join`, `trim`, `upper`, `lower`, `splitmid`, `range`, `empty?`                             |
-| Introspection | `typeof`, `bool?`, `int?`, `float?`, `str?`, `symbol?`, `list?`, `number?`, `sequence?`, `callable?`, `nan?`, `inf?`, `word?`, `var?`, `inf`, `nan`, `body`, `intern`, `name`, `words`, `see`         |
-| I/O           | `print`, `printf`, `.`, `.s`, `.S`, `cr`, `key`, `input`, `load`, `readf`, `writef`, `delf`, `readl`, `exists?`, `clear`, `page`                                                                    |
-| System        | `rand`, `sleep`, `argc`, `argv`, `env?`, `getenv`, `setenv`, `pwd`, `shell`, `time`, `clock`, `bye`, `exit`                                                                                          |
-| Definition    | `def`, `:`                                                                                                                                                                                          |
+| Category      | Words                                                                                                                                                                                                                                                              |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Stack         | `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty`                                                                                                                                                                              |
+| Math          | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `max`, `min`, `sqrt`, `pow`, `exp`, `log`, `log10`, `sin`, `cos`, `tan`, `floor`, `ceil`, `round`, `pred`, `succ`, `square`, `cube`, `pi`, `e`, `tau`                                                                |
+| Logic         | `and`, `or`, `xor`, `not`, `shl`, `shr`                                                                                                                                                                                                                            |
+| Comparison    | `==`, `!=`, `<`, `>`, `<=`, `>=`                                                                                                                                                                                                                                   |
+| Control       | `if`, `ifelse`, `while`, `try`, `error`, `exec`, `i`, `app2`, `infra`, `cond`, `cleave`, `construct`, `replicate`, `times`, `dip`, `keep`, `bi`, `linrec`, `binrec`, `genrec`, `treerec`                                                                           |
+| Combinators   | `each`, `map`, `fold`, `filter`, `some`, `all`, `split`, `merge`                                                                                                                                                                                                   |
+| List/String   | `geth`, `seth`, `slice`, `take`, `dropn`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `reverse`, `join`, `trim`, `upper`, `lower`, `splitmid`, `range`, `empty?`, `char?`, `letter?`, `digit?`, `alnum?`, `space?`, `upper?`, `lower?`, `punct?` |
+| Introspection | `typeof`, `bool?`, `int?`, `float?`, `str?`, `symbol?`, `list?`, `number?`, `sequence?`, `callable?`, `nan?`, `inf?`, `word?`, `var?`, `inf`, `nan`, `body`, `intern`, `name`, `words`, `see`                                                                      |
+| I/O           | `print`, `printf`, `.`, `.s`, `.S`, `cr`, `key`, `input`, `load`, `readf`, `writef`, `delf`, `readl`, `exists?`, `clear`, `page`                                                                                                                                   |
+| System        | `rand`, `sleep`, `argc`, `argv`, `env?`, `getenv`, `setenv`, `pwd`, `shell`, `time`, `clock`, `bye`, `exit`                                                                                                                                                        |
+| Definition    | `def`, `:`                                                                                                                                                                                                                                                         |
 
 ## Tooling
 

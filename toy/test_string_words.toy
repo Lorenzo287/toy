@@ -1,0 +1,38 @@
+"--- Testing String Helpers ---\n" printf
+
+'check [ [ ] [ "string helper check failed" error ] ifelse ] def
+
+[ 1 2 3 ] reverse [ 3 2 1 ] == check
+[] reverse [] == check
+"Toy" reverse "yoT" == check
+"" reverse "" == check
+
+"A" char? true == check
+"" char? false == check
+"ab" char? false == check
+1 char? false == check
+
+"A" letter? true == check
+"z" letter? true == check
+"5" letter? false == check
+"5" digit? true == check
+"A" digit? false == check
+"A" alnum? true == check
+"5" alnum? true == check
+"!" alnum? false == check
+" " space? true == check
+"\n" space? true == check
+"A" upper? true == check
+"a" upper? false == check
+"a" lower? true == check
+"A" lower? false == check
+"!" punct? true == check
+"A" punct? false == check
+
+"Az 09!" 'letter? filter "Az" == check
+"Az 09!" 'digit? filter "09" == check
+"Az 09!" 'alnum? filter "Az09" == check
+"Az 09!" 'space? filter " " == check
+"Az 09!" 'punct? filter "!" == check
+
+"--- Done ---\n" printf

@@ -198,10 +198,15 @@ static const tf_native_word native_data_words[] = {
     {"first", tf_first},     {"rest", tf_rest},
     {"uncons", tf_uncons},   {"cons", tf_cons},
     {"append", tf_append},   {"concat", tf_concat},
+    {"reverse", tf_reverse},
     {"join", tf_join},       {"trim", tf_trim},
     {"upper", tf_upper},     {"lower", tf_lower},
     {"splitmid", tf_splitmid},
     {"range", tf_range},     {"empty?", tf_empty_q},
+    {"char?", tf_char_q},    {"letter?", tf_letter_q},
+    {"digit?", tf_digit_q},  {"alnum?", tf_alnum_q},
+    {"space?", tf_space_q},  {"upper?", tf_upper_q},
+    {"lower?", tf_lower_q},  {"punct?", tf_punct_q},
     {NULL, NULL},
 };
 

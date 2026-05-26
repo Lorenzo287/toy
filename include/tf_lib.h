@@ -156,6 +156,7 @@ tf_ret tf_uncons(tf_ctx *ctx);
 tf_ret tf_cons(tf_ctx *ctx);
 tf_ret tf_append(tf_ctx *ctx);
 tf_ret tf_concat(tf_ctx *ctx);
+tf_ret tf_reverse(tf_ctx *ctx);
 tf_ret tf_join(tf_ctx *ctx);
 tf_ret tf_trim(tf_ctx *ctx);
 tf_ret tf_upper(tf_ctx *ctx);
@@ -164,6 +165,14 @@ tf_ret tf_split_string(tf_ctx *ctx);
 tf_ret tf_splitmid(tf_ctx *ctx);
 tf_ret tf_range(tf_ctx *ctx);
 tf_ret tf_empty_q(tf_ctx *ctx);
+tf_ret tf_char_q(tf_ctx *ctx);
+tf_ret tf_letter_q(tf_ctx *ctx);
+tf_ret tf_digit_q(tf_ctx *ctx);
+tf_ret tf_alnum_q(tf_ctx *ctx);
+tf_ret tf_space_q(tf_ctx *ctx);
+tf_ret tf_upper_q(tf_ctx *ctx);
+tf_ret tf_lower_q(tf_ctx *ctx);
+tf_ret tf_punct_q(tf_ctx *ctx);
 
 // System and process operations
 tf_ret tf_rand(tf_ctx *ctx);
