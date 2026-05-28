@@ -16,15 +16,15 @@
 #include "tf_exec.h"
 
 tf_ret tf_setenv(tf_ctx *ctx) {
-    if (stack_len(ctx) < 2) return TF_ERR;
-    tf_obj *val = stack_peek(ctx, 0);
-    tf_obj *name = stack_peek(ctx, 1);
+    if (tf_stack_len(ctx) < 2) return TF_ERR;
+    tf_obj *val = tf_stack_peek(ctx, 0);
+    tf_obj *name = tf_stack_peek(ctx, 1);
     if (val->type != TF_OBJ_TYPE_STR || name->type != TF_OBJ_TYPE_STR) {
         return TF_ERR;
     }
 
-    val = stack_pop(ctx);
-    name = stack_pop(ctx);
+    val = tf_stack_pop(ctx);
+    name = tf_stack_pop(ctx);
 
 #ifdef _WIN32
     int res = SETENV(name->str.ptr, val->str.ptr);
@@ -32,9 +32,9 @@ tf_ret tf_setenv(tf_ctx *ctx) {
     int res = SETENV(name->str.ptr, val->str.ptr, 1);
 #endif
 
-    stack_push(ctx, create_bool_obj(res == 0));
-    release_obj(val);
-    release_obj(name);
+    tf_stack_push(ctx, tf_obj_new_bool(res == 0));
+    tf_obj_release(val);
+    tf_obj_release(name);
     return TF_OK;
 }
 
@@ -44,14 +44,14 @@ tf_ret tf_setenv(tf_ctx *ctx) {
 #endif
 
 tf_ret tf_shell(tf_ctx *ctx) {
-    if (stack_len(ctx) < 1) return TF_ERR;
-    tf_obj *cmd_obj = stack_peek(ctx, 0);
+    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *cmd_obj = tf_stack_peek(ctx, 0);
     if (cmd_obj->type != TF_OBJ_TYPE_STR) return TF_ERR;
 
-    cmd_obj = stack_pop(ctx);
+    cmd_obj = tf_stack_pop(ctx);
     FILE *fp = popen(cmd_obj->str.ptr, "r");
     if (!fp) {
-        release_obj(cmd_obj);
+        tf_obj_release(cmd_obj);
         return TF_ERR;
     }
 
@@ -61,35 +61,35 @@ tf_ret tf_shell(tf_ctx *ctx) {
 
     while (fgets(buffer, sizeof(buffer), fp)) {
         size_t len = strlen(buffer);
-        output = xrealloc(output, total_size + len + 1);
+        output = tf_xrealloc(output, total_size + len + 1);
         memcpy(output + total_size, buffer, len);
         total_size += len;
         output[total_size] = '\0';
     }
 
     int status = pclose(fp);
-    stack_push(ctx, create_string_obj(output ? output : "", total_size));
+    tf_stack_push(ctx, tf_obj_new_string(output ? output : "", total_size));
     free(output);
     
     // We could also push the status code, but for now let's just return the output
     (void)status; 
 
-    release_obj(cmd_obj);
+    tf_obj_release(cmd_obj);
     return TF_OK;
 }
 
 tf_ret tf_argc(tf_ctx *ctx) {
-    stack_push(ctx, create_int_obj(ctx->argc > 0 ? ctx->argc : 0));
+    tf_stack_push(ctx, tf_obj_new_int(ctx->argc > 0 ? ctx->argc : 0));
     return TF_OK;
 }
 
 tf_ret tf_argv(tf_ctx *ctx) {
-    tf_obj *list = init_list_obj();
+    tf_obj *list = tf_obj_new_list();
     for (int i = 0; i < ctx->argc; i++) {
-        tf_obj *str = create_string_obj(ctx->argv[i], strlen(ctx->argv[i]));
-        push_obj(list, str);
+        tf_obj *str = tf_obj_new_string(ctx->argv[i], strlen(ctx->argv[i]));
+        tf_list_push(list, str);
     }
-    stack_push(ctx, list);
+    tf_stack_push(ctx, list);
     return TF_OK;
 }
 
@@ -100,50 +100,50 @@ tf_ret tf_pwd(tf_ctx *ctx) {
 #else
     if (getcwd(buf, sizeof(buf))) {
 #endif
-        stack_push(ctx, create_string_obj(buf, strlen(buf)));
+        tf_stack_push(ctx, tf_obj_new_string(buf, strlen(buf)));
         return TF_OK;
     }
     return TF_ERR;
 }
 
 tf_ret tf_getenv(tf_ctx *ctx) {
-    if (stack_len(ctx) < 1) return TF_ERR;
-    tf_obj *key = stack_peek(ctx, 0);
+    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *key = tf_stack_peek(ctx, 0);
     if (key->type != TF_OBJ_TYPE_STR) return TF_ERR;
 
-    key = stack_pop(ctx);
+    key = tf_stack_pop(ctx);
     char *val = getenv(key->str.ptr);
     if (!val) {
-        release_obj(key);
+        tf_obj_release(key);
         return TF_ERR;
     }
-    stack_push(ctx, create_string_obj(val, strlen(val)));
-    release_obj(key);
+    tf_stack_push(ctx, tf_obj_new_string(val, strlen(val)));
+    tf_obj_release(key);
     return TF_OK;
 }
 
 tf_ret tf_env_q(tf_ctx *ctx) {
-    if (stack_len(ctx) < 1) return TF_ERR;
-    tf_obj *key = stack_peek(ctx, 0);
+    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *key = tf_stack_peek(ctx, 0);
     if (key->type != TF_OBJ_TYPE_STR) return TF_ERR;
 
-    key = stack_pop(ctx);
-    stack_push(ctx, create_bool_obj(getenv(key->str.ptr) != NULL));
-    release_obj(key);
+    key = tf_stack_pop(ctx);
+    tf_stack_push(ctx, tf_obj_new_bool(getenv(key->str.ptr) != NULL));
+    tf_obj_release(key);
     return TF_OK;
 }
 
 tf_ret tf_rand(tf_ctx *ctx) {
-    stack_push(ctx, create_int_obj(rand()));
+    tf_stack_push(ctx, tf_obj_new_int(rand()));
     return TF_OK;
 }
 
 tf_ret tf_sleep(tf_ctx *ctx) {
-    if (stack_len(ctx) < 1) return TF_ERR;
-    tf_obj *ms_obj = stack_peek(ctx, 0);
+    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    tf_obj *ms_obj = tf_stack_peek(ctx, 0);
     if (ms_obj->type != TF_OBJ_TYPE_INT) return TF_ERR;
     if (ms_obj->i < 0) return TF_ERR;
-    ms_obj = stack_pop(ctx);
+    ms_obj = tf_stack_pop(ctx);
 #ifdef _WIN32
     Sleep(ms_obj->i);
 #else
@@ -151,17 +151,17 @@ tf_ret tf_sleep(tf_ctx *ctx) {
                            .tv_nsec = (long)(ms_obj->i % 1000) * 1000000L};
     nanosleep(&req, NULL);
 #endif
-    release_obj(ms_obj);
+    tf_obj_release(ms_obj);
     return TF_OK;
 }
 
 tf_ret tf_time(tf_ctx *ctx) {
-    stack_push(ctx, create_int_obj((int)time(NULL)));
+    tf_stack_push(ctx, tf_obj_new_int((int)time(NULL)));
     return TF_OK;
 }
 
 tf_ret tf_clock(tf_ctx *ctx) {
-    stack_push(ctx, create_int_obj((int)clock()));
+    tf_stack_push(ctx, tf_obj_new_int((int)clock()));
     return TF_OK;
 }
 

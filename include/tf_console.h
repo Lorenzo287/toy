@@ -11,9 +11,12 @@
 #define TF_CLR_WARN "\x1b[93m"
 #define TF_CLR_INFO "\x1b[90m"
 
+/* Console color setup and escape-code selection. */
 void tf_console_init(void);
 bool tf_console_use_color(void);
 const char *tf_console_clr(const char *code);
+
+/* User-facing diagnostics grouped by interpreter layer. */
 void tf_console_runtime_errorf(const char *fmt, ...);
 void tf_console_program_errorf(const char *fmt, ...);
 void tf_console_lexer_errorf(const char *fmt, ...);

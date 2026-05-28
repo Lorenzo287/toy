@@ -8,10 +8,10 @@ typedef struct {
     char *pos;
 } tf_lexer;
 
-tf_obj *lexer(char *prg);
-int tf_is_sym_char(int c);
-tf_obj *tokenize_number(tf_lexer *lexer);
-tf_obj *tokenize_symbol(tf_lexer *lexer);
-tf_obj *tokenize_string(tf_lexer *lexer);
+/* Parse Toy source into a top-level program list. */
+tf_obj *tf_lexer_parse(char *prg);
+
+/* Shared by the lexer and REPL input scanner. */
+int tf_lexer_is_symbol_char(int c);
 
 #endif  // TF_LEXER_H

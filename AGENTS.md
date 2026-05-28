@@ -20,7 +20,8 @@ navigation and development rules.
 
 ## Fast Context
 
-- Native word registry: `src/tf_exec.c:init_ctx()`.
+- Native word registry: grouped native tables in `src/tf_exec.c`, registered by
+  `tf_ctx_new()`.
 - Native declarations: `include/tf_lib.h`.
 - Execution engine: `include/tf_exec.h`, `src/tf_exec.c`.
 - Objects/ownership: `include/tf_obj.h`, `src/tf_obj.c`, `include/tf_alloc.h`.
@@ -40,11 +41,12 @@ navigation and development rules.
 
 ## Development Rules
 
-- C style: snake_case, 4-space indentation, `tf_` prefix for project symbols.
-- Memory: `retain_obj` when storing references, `release_obj` when done, use
-  `xmalloc` helpers.
+- C style: snake_case, 4-space indentation. Use `tf_` for exported/project-wide
+  symbols; file-local `static` helpers may use unprefixed module-local names.
+- Memory: `tf_obj_retain` when storing references, `tf_obj_release` when done,
+  use `tf_xmalloc` helpers.
 - Native callable runners should schedule frames or native continuations and
-  return to the VM loop. Do not add synchronous `exec()` re-entry for new
+  return to the VM loop. Do not add synchronous `tf_vm_exec()` re-entry for new
   native words.
 - Language direction: prefer quotation-first words and combinators over new
   syntax. Follow `docs/language-roadmap.md` for definition policy.

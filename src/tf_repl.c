@@ -21,35 +21,35 @@ typedef struct {
     bool token_active;
     char token_first;
     size_t token_len;
-} tf_repl_state;
+} repl_state;
 
 static tf_ret run_source(tf_ctx *ctx, char *source, bool debug);
 static char *read_repl_line(bool complete);
 static bool append_text(char **buf, size_t *len, size_t *cap, const char *text);
-static void reset_state(tf_repl_state *state);
-static void feed_state(tf_repl_state *state, const char *text);
-static bool input_complete(const tf_repl_state *state);
-static void finish_token(tf_repl_state *state);
+static void reset_state(repl_state *state);
+static void feed_state(repl_state *state, const char *text);
+static bool input_complete(const repl_state *state);
+static void finish_token(repl_state *state);
 static void init_repl_ui(tf_ctx *ctx);
 static void free_repl_ui(void);
 static void save_history_atexit(void);
 
-static tf_ctx *tf_repl_completion_ctx = NULL;
-static char *tf_repl_history_path = NULL;
+static tf_ctx *completion_ctx = NULL;
+static char *history_path = NULL;
 static bool hints_enabled = true;
 static int hints_color = 90;  // Bright black / Gray
 static int history_atexit_registered = 0;
 
 static void save_history_atexit(void) {
-    if (tf_repl_history_path) { linenoiseHistorySave(tf_repl_history_path); }
+    if (history_path) { linenoiseHistorySave(history_path); }
 }
 
 static char *get_history_path(void);
-static void tf_repl_completion(const char *buf, linenoiseCompletions *lc);
-static char *tf_repl_hints(const char *buf, int *color, int *bold);
-static void tf_repl_free_hints(void *ptr);
+static void repl_completion(const char *buf, linenoiseCompletions *lc);
+static char *repl_hints(const char *buf, int *color, int *bold);
+static void repl_free_hints(void *ptr);
 
-tf_ret run_file(tf_ctx *ctx, const char *filename, bool debug) {
+tf_ret tf_run_file(tf_ctx *ctx, const char *filename, bool debug) {
     FILE *fp = fopen(filename, "r");
     if (!fp) {
         perror("Failed to open program");
@@ -60,7 +60,7 @@ tf_ret run_file(tf_ctx *ctx, const char *filename, bool debug) {
     size_t size = ftell(fp);
     rewind(fp);
 
-    char *prg_text = xmalloc(size + 1);
+    char *prg_text = tf_xmalloc(size + 1);
     size_t n_read = fread(prg_text, 1, size, fp);
     prg_text[n_read] = '\0';
     fclose(fp);
@@ -70,7 +70,7 @@ tf_ret run_file(tf_ctx *ctx, const char *filename, bool debug) {
     return result;
 }
 
-static tf_ret tf_hints_toggle(tf_ctx *ctx) {
+static tf_ret hints_toggle(tf_ctx *ctx) {
     (void)ctx;
     hints_enabled = !hints_enabled;
     printf("%shints: %s%s\n", tf_console_clr(TF_CLR_INFO),
@@ -78,11 +78,11 @@ static tf_ret tf_hints_toggle(tf_ctx *ctx) {
     return TF_OK;
 }
 
-tf_ret run_repl(tf_ctx *ctx, bool debug) {
+tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
     char *source = NULL;
     size_t len = 0;
     size_t cap = 0;
-    tf_repl_state state;
+    repl_state state;
 
     reset_state(&state);
     init_repl_ui(ctx);
@@ -161,43 +161,43 @@ tf_ret run_repl(tf_ctx *ctx, bool debug) {
 }
 
 static tf_ret run_source(tf_ctx *ctx, char *source, bool debug) {
-    tf_obj *prg = lexer(source);
+    tf_obj *prg = tf_lexer_parse(source);
     if (!prg) return TF_ERR;
 
     if (debug) {
         printf("=== Tokenized program ===\n");
         size_t count = 0;
-        print_obj(prg, &count);
+        tf_obj_print(prg, &count);
         printf("\n\n");
     }
 
-    tf_ret result = exec(ctx, prg);
+    tf_ret result = tf_vm_exec(ctx, prg);
     if (result == TF_INTERRUPTED) {
         tf_console_interruptf("execution interrupted\n");
-        release_obj(prg);
+        tf_obj_release(prg);
         return TF_INTERRUPTED;
     }
 
     if (debug) {
         printf("\n=== Stack content after execution ===\n");
         size_t count = 0;
-        print_obj(ctx->forth_stack, &count);
+        tf_obj_print(ctx->data_stack, &count);
         printf("\n");
     }
 
-    release_obj(prg);
+    tf_obj_release(prg);
     return result;
 }
 
-tf_ret run_string(tf_ctx *ctx, const char *source, bool debug) {
-    char *dup = xstrdup(source);
+tf_ret tf_run_string(tf_ctx *ctx, const char *source, bool debug) {
+    char *dup = tf_xstrdup(source);
     tf_ret res = run_source(ctx, dup, debug);
     free(dup);
     return res;
 }
 
-static void tf_repl_completion(const char *buf, linenoiseCompletions *lc) {
-    if (!tf_repl_completion_ctx) return;
+static void repl_completion(const char *buf, linenoiseCompletions *lc) {
+    if (!completion_ctx) return;
 
     const char *token = buf;
     const char *prefix = "";
@@ -219,14 +219,14 @@ static void tf_repl_completion(const char *buf, linenoiseCompletions *lc) {
     size_t stem_len = strlen(token);
     size_t head_len = (size_t)(token - buf);
 
-    for (size_t i = 0; i < tf_repl_completion_ctx->functions.capacity; i++) {
-        tf_func *func = tf_repl_completion_ctx->functions.buckets[i];
+    for (size_t i = 0; i < completion_ctx->words.capacity; i++) {
+        tf_word *func = completion_ctx->words.buckets[i];
         if (!func) continue;
 
         if (strncmp(func->name->str.ptr, token, stem_len) != 0) continue;
 
         size_t word_len = func->name->str.len;
-        char *completion = xmalloc(head_len + prefix_len + word_len + 1);
+        char *completion = tf_xmalloc(head_len + prefix_len + word_len + 1);
         memcpy(completion, buf, head_len);
         if (prefix_len) memcpy(completion + head_len, prefix, prefix_len);
         memcpy(completion + head_len + prefix_len, func->name->str.ptr, word_len);
@@ -239,9 +239,9 @@ static void tf_repl_completion(const char *buf, linenoiseCompletions *lc) {
 typedef struct {
     const char *name;
     const char *hint;
-} tf_hint_entry;
+} hint_entry;
 
-static const tf_hint_entry native_hints[] = {
+static const hint_entry native_hints[] = {
     {"dup", " ( x -- x x )"},
     {"drop", " ( x -- )"},
     {"swap", " ( a b -- b a )"},
@@ -414,8 +414,8 @@ static const tf_hint_entry native_hints[] = {
     {":", " ( : name ... ; -- )"},
     {NULL, NULL}};
 
-static char *tf_repl_hints(const char *buf, int *color, int *bold) {
-    if (!hints_enabled || !tf_repl_completion_ctx) return NULL;
+static char *repl_hints(const char *buf, int *color, int *bold) {
+    if (!hints_enabled || !completion_ctx) return NULL;
 
     const char *token = buf;
     for (const char *p = buf; *p != '\0'; p++) {
@@ -432,25 +432,25 @@ static char *tf_repl_hints(const char *buf, int *color, int *bold) {
         if (strcmp(native_hints[i].name, token) == 0) {
             *color = hints_color;
             *bold = 0;
-            return xstrdup(native_hints[i].hint);
+            return tf_xstrdup(native_hints[i].hint);
         }
     }
 
     // Also look for user-defined words
-    tf_obj *sym = create_symbol_obj((char *)token, stem_len);
-    tf_func *f = get_func(tf_repl_completion_ctx, sym);
-    release_obj(sym);
+    tf_obj *sym = tf_obj_new_symbol((char *)token, stem_len);
+    tf_word *f = tf_dict_lookup(completion_ctx, sym);
+    tf_obj_release(sym);
 
     if (f) {
         *color = hints_color;
         *bold = 0;
-        return xstrdup(" ( user word )");
+        return tf_xstrdup(" ( user word )");
     }
 
     return NULL;
 }
 
-static void tf_repl_free_hints(void *ptr) {
+static void repl_free_hints(void *ptr) {
     free(ptr);
 }
 
@@ -466,7 +466,7 @@ static bool append_text(char **buf, size_t *len, size_t *cap, const char *text) 
     if (required > *cap) {
         size_t new_cap = *cap == 0 ? 128 : *cap;
         while (new_cap < required) { new_cap *= 2; }
-        *buf = xrealloc(*buf, new_cap);
+        *buf = tf_xrealloc(*buf, new_cap);
         *cap = new_cap;
     }
 
@@ -475,11 +475,11 @@ static bool append_text(char **buf, size_t *len, size_t *cap, const char *text) 
     return true;
 }
 
-static void reset_state(tf_repl_state *state) {
+static void reset_state(repl_state *state) {
     memset(state, 0, sizeof(*state));
 }
 
-static void feed_state(tf_repl_state *state, const char *text) {
+static void feed_state(repl_state *state, const char *text) {
     for (size_t i = 0; text[i] != '\0'; i++) {
         char c = text[i];
 
@@ -553,7 +553,7 @@ static void feed_state(tf_repl_state *state, const char *text) {
             finish_token(state);
             continue;
         }
-        if (tf_is_sym_char((unsigned char)c)) {
+        if (tf_lexer_is_symbol_char((unsigned char)c)) {
             if (!state->token_active) {
                 state->token_active = true;
                 state->token_first = c;
@@ -568,30 +568,30 @@ static void feed_state(tf_repl_state *state, const char *text) {
     }
 }
 
-static bool input_complete(const tf_repl_state *state) {
+static bool input_complete(const repl_state *state) {
     return !state->in_string && !state->escape && !state->line_comment &&
            !state->paren_comment && state->block_depth == 0 &&
            state->var_depth == 0 && state->colon_depth == 0;
 }
 
 static void init_repl_ui(tf_ctx *ctx) {
-    tf_repl_completion_ctx = ctx;
-    tf_repl_history_path = get_history_path();
+    completion_ctx = ctx;
+    history_path = get_history_path();
 
     if (!history_atexit_registered) {
         atexit(save_history_atexit);
         history_atexit_registered = 1;
     }
 
-    set_native_func(ctx, "hints", tf_hints_toggle);
+    tf_dict_set_native(ctx, "hints", hints_toggle);
 
     linenoiseSetMultiLine(1);
     linenoiseHistorySetMaxLen(256);
-    linenoiseSetCompletionCallback(tf_repl_completion);
-    linenoiseSetHintsCallback(tf_repl_hints);
-    linenoiseSetFreeHintsCallback(tf_repl_free_hints);
-    if (tf_repl_history_path) {
-        int history_status = linenoiseHistoryLoad(tf_repl_history_path);
+    linenoiseSetCompletionCallback(repl_completion);
+    linenoiseSetHintsCallback(repl_hints);
+    linenoiseSetFreeHintsCallback(repl_free_hints);
+    if (history_path) {
+        int history_status = linenoiseHistoryLoad(history_path);
         if (history_status == -1 && errno != ENOENT) {
             tf_console_contextf("failed to load REPL history\n");
         }
@@ -599,14 +599,14 @@ static void init_repl_ui(tf_ctx *ctx) {
 }
 
 static void free_repl_ui(void) {
-    if (tf_repl_history_path) {
-        if (linenoiseHistorySave(tf_repl_history_path) == -1) {
+    if (history_path) {
+        if (linenoiseHistorySave(history_path) == -1) {
             tf_console_contextf("failed to save REPL history\n");
         }
-        free(tf_repl_history_path);
-        tf_repl_history_path = NULL;
+        free(history_path);
+        history_path = NULL;
     }
-    tf_repl_completion_ctx = NULL;
+    completion_ctx = NULL;
 }
 
 static char *get_history_path(void) {
@@ -621,12 +621,12 @@ static char *get_history_path(void) {
     name = "\\.toy_history";
 #endif
     size_t len = strlen(home) + strlen(name) + 1;
-    char *path = xmalloc(len);
+    char *path = tf_xmalloc(len);
     snprintf(path, len, "%s%s", home, name);
     return path;
 }
 
-static void finish_token(tf_repl_state *state) {
+static void finish_token(repl_state *state) {
     if (!state->token_active) return;
 
     if (state->token_len == 1) {

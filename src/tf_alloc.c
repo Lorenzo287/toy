@@ -8,7 +8,7 @@
 
 #include "tf_alloc.h"
 
-void *xmalloc(size_t size) {
+void *tf_xmalloc(size_t size) {
     void *ptr = malloc(size);
     if (!ptr) {
         fprintf(stderr, "Out of memory allocating %zu bytes\n", size);
@@ -17,7 +17,7 @@ void *xmalloc(size_t size) {
     return ptr;
 }
 
-void *xrealloc(void *ptr, size_t size) {
+void *tf_xrealloc(void *ptr, size_t size) {
     ptr = realloc(ptr, size);
     if (!ptr) {
         fprintf(stderr, "Out of memory reallocating %zu bytes\n", size);
@@ -26,9 +26,9 @@ void *xrealloc(void *ptr, size_t size) {
     return ptr;
 }
 
-void *xcalloc(size_t nmemb, size_t size) {
+void *tf_xcalloc(size_t nmemb, size_t size) {
 #ifdef STB_LEAKCHECK
-    void *ptr = xmalloc(nmemb * size);
+    void *ptr = tf_xmalloc(nmemb * size);
     memset(ptr, 0, nmemb * size);
     return ptr;
 #else
@@ -41,9 +41,9 @@ void *xcalloc(size_t nmemb, size_t size) {
 #endif
 }
 
-char *xstrdup(const char *s) {
+char *tf_xstrdup(const char *s) {
     size_t len = strlen(s);
-    char *ptr = xmalloc(len + 1);
+    char *ptr = tf_xmalloc(len + 1);
     memcpy(ptr, s, len + 1);
     return ptr;
 }

@@ -13,16 +13,15 @@ typedef struct {
     int script_argc;
     char **script_argv;
     bool debug, help, interactive;
-} config;
+} cli_config;
 
-extern void handle_sigint(int sig);
-int parse_args(int argc, char **argv, config *config);
+static int parse_args(int argc, char **argv, cli_config *config);
 
 int main(int argc, char **argv) {
-    signal(SIGINT, handle_sigint);
+    signal(SIGINT, tf_vm_handle_sigint);
     tf_console_init();
 
-    config config = {NULL, NULL, 0, NULL, false, false, false};
+    cli_config config = {NULL, NULL, 0, NULL, false, false, false};
     tf_ret ret = parse_args(argc, argv, &config);
     if (ret == TF_ERR || config.help) {
         fprintf(stderr, "=== Toy Interpreter ===\n");
@@ -35,22 +34,22 @@ int main(int argc, char **argv) {
         return ret;
     }
 
-    tf_ctx *ctx = init_ctx(config.script_argc, config.script_argv);
+    tf_ctx *ctx = tf_ctx_new(config.script_argc, config.script_argv);
     if (!ctx) { return TF_ERR; }
 
     tf_ret result = TF_OK;
 
     if (result == TF_OK) {
         if (config.eval != NULL) {
-            result = run_string(ctx, config.eval, config.debug);
+            result = tf_run_string(ctx, config.eval, config.debug);
             free(config.eval);
         } else if (config.interactive) {
-            result = run_repl(ctx, config.debug);
+            result = tf_run_repl(ctx, config.debug);
         } else {
-            result = run_file(ctx, config.filename, config.debug);
+            result = tf_run_file(ctx, config.filename, config.debug);
         }
     }
-    free_ctx(ctx);
+    tf_ctx_free(ctx);
 
 #ifdef STB_LEAKCHECK
     printf("\n=== stb_leakcheck_dumpmem output ===\n");
@@ -59,7 +58,7 @@ int main(int argc, char **argv) {
     return result;
 }
 
-int parse_args(int argc, char **argv, config *config) {
+static int parse_args(int argc, char **argv, cli_config *config) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--debug") == 0 || strcmp(argv[i], "-d") == 0) {
             config->debug = true;
@@ -70,7 +69,7 @@ int parse_args(int argc, char **argv, config *config) {
                 fprintf(stderr, "-e requires an argument\n");
                 return TF_ERR;
             }
-            config->eval = xmalloc(strlen(argv[i + 1]) + 1);
+            config->eval = tf_xmalloc(strlen(argv[i + 1]) + 1);
             strcpy(config->eval, argv[i + 1]);
             i++;  // consume eval argument
         } else if (config->filename == NULL) {

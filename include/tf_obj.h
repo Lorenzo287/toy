@@ -4,8 +4,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-/* === Types Definition === */
-
 typedef enum {
     TF_OBJ_TYPE_BOOL,
     TF_OBJ_TYPE_INT,
@@ -17,8 +15,13 @@ typedef enum {
     TF_OBJ_TYPE_VARFETCH
 } tf_type;
 
-/* === Object Definition === */
-
+/*
+ * Refcounted runtime value.
+ *
+ * Lists back both data lists and executable quotations. Symbols use the same
+ * string storage as strings, plus a quoted flag that preserves source/eval
+ * mode for parsed programs and source printing.
+ */
 typedef struct tf_obj {
     int refcount;
     tf_type type;
@@ -39,27 +42,30 @@ typedef struct tf_obj {
     };
 } tf_obj;
 
-/* === Object Functions === */
+/* Object constructors. Returned objects start with refcount 1. */
+tf_obj *tf_obj_new(int type);
+tf_obj *tf_obj_new_list(void);
+tf_obj *tf_obj_new_int(int i);
+tf_obj *tf_obj_new_bool(bool b);
+tf_obj *tf_obj_new_float(float f);
+tf_obj *tf_obj_new_symbol(const char *s, size_t len);
+tf_obj *tf_obj_new_quoted_symbol(const char *s, size_t len);
+tf_obj *tf_obj_new_string(const char *s, size_t len);
 
-tf_obj *init_obj(int type);
-tf_obj *init_list_obj(void);
-tf_obj *create_int_obj(int i);
-tf_obj *create_bool_obj(bool b);
-tf_obj *create_float_obj(float f);
-tf_obj *create_symbol_obj(const char *s, size_t len);
-tf_obj *create_quoted_symbol_obj(const char *s, size_t len);
-tf_obj *create_string_obj(const char *s, size_t len);
+/* String/symbol comparison and list storage helpers. */
+int tf_obj_compare_string(tf_obj *a, tf_obj *b);
+void tf_list_push(tf_obj *l, tf_obj *elem);
+tf_obj *tf_list_pop_type(tf_obj *l, tf_type type);
+tf_obj *tf_list_pop(tf_obj *l);
 
-int compare_string_obj(tf_obj *a, tf_obj *b);
-void push_obj(tf_obj *l, tf_obj *elem);
-tf_obj *pop_obj_type(tf_obj *l, tf_type type);
-tf_obj *pop_obj(tf_obj *l);
-void retain_obj(tf_obj *o);
-void release_obj(tf_obj *o);
-void free_obj(tf_obj *o);
+/* Reference-count ownership. */
+void tf_obj_retain(tf_obj *o);
+void tf_obj_release(tf_obj *o);
+void tf_obj_free(tf_obj *o);
 
-void print_obj(tf_obj *o, size_t *count);
-void print_value(tf_obj *o);
-void print_source_obj(tf_obj *o);
+/* Debug, runtime-value, and source-form printers. */
+void tf_obj_print(tf_obj *o, size_t *count);
+void tf_obj_print_value(tf_obj *o);
+void tf_obj_print_source(tf_obj *o);
 
 #endif  // TF_OBJ_H

@@ -7,54 +7,54 @@
 
 /* === Object Creation === */
 
-tf_obj *init_obj(int type) {
-    tf_obj *o = xmalloc(sizeof(tf_obj));
+tf_obj *tf_obj_new(int type) {
+    tf_obj *o = tf_xmalloc(sizeof(tf_obj));
     o->type = type;
     o->refcount = 1;
     return o;
 }
 
-tf_obj *init_list_obj(void) {
-    tf_obj *o = init_obj(TF_OBJ_TYPE_LIST);
+tf_obj *tf_obj_new_list(void) {
+    tf_obj *o = tf_obj_new(TF_OBJ_TYPE_LIST);
     o->list.len = 0;
     o->list.cap = 32;
-    o->list.elem = xmalloc(sizeof(tf_obj *) * o->list.cap);
+    o->list.elem = tf_xmalloc(sizeof(tf_obj *) * o->list.cap);
     return o;
 }
 
-tf_obj *create_int_obj(int i) {
-    tf_obj *o = init_obj(TF_OBJ_TYPE_INT);
+tf_obj *tf_obj_new_int(int i) {
+    tf_obj *o = tf_obj_new(TF_OBJ_TYPE_INT);
     o->i = i;
     return o;
 }
 
-tf_obj *create_bool_obj(bool b) {
-    tf_obj *o = init_obj(TF_OBJ_TYPE_BOOL);
+tf_obj *tf_obj_new_bool(bool b) {
+    tf_obj *o = tf_obj_new(TF_OBJ_TYPE_BOOL);
     o->b = b;
     return o;
 }
 
-tf_obj *create_float_obj(float f) {
-    tf_obj *o = init_obj(TF_OBJ_TYPE_FLOAT);
+tf_obj *tf_obj_new_float(float f) {
+    tf_obj *o = tf_obj_new(TF_OBJ_TYPE_FLOAT);
     o->f = f;
     return o;
 }
 
-tf_obj *create_symbol_obj(const char *s, size_t len) {
-    tf_obj *o = create_string_obj(s, len);
+tf_obj *tf_obj_new_symbol(const char *s, size_t len) {
+    tf_obj *o = tf_obj_new_string(s, len);
     o->type = TF_OBJ_TYPE_SYMBOL;
     return o;
 }
 
-tf_obj *create_quoted_symbol_obj(const char *s, size_t len) {
-    tf_obj *o = create_symbol_obj(s, len);
+tf_obj *tf_obj_new_quoted_symbol(const char *s, size_t len) {
+    tf_obj *o = tf_obj_new_symbol(s, len);
     o->str.quoted = true;
     return o;
 }
 
-tf_obj *create_string_obj(const char *s, size_t len) {
-    tf_obj *o = init_obj(TF_OBJ_TYPE_STR);
-    o->str.ptr = xmalloc(len + 1);
+tf_obj *tf_obj_new_string(const char *s, size_t len) {
+    tf_obj *o = tf_obj_new(TF_OBJ_TYPE_STR);
+    o->str.ptr = tf_xmalloc(len + 1);
     o->str.len = len;
     o->str.quoted = false;
     memcpy(o->str.ptr, s, len);
@@ -64,7 +64,7 @@ tf_obj *create_string_obj(const char *s, size_t len) {
 
 /* === Object Utilities === */
 
-int compare_string_obj(tf_obj *a, tf_obj *b) {
+int tf_obj_compare_string(tf_obj *a, tf_obj *b) {
     size_t min_len = a->str.len < b->str.len ? a->str.len : b->str.len;
     int cmp = memcmp(a->str.ptr, b->str.ptr, min_len);
     if (cmp == 0) {
@@ -80,49 +80,49 @@ int compare_string_obj(tf_obj *a, tf_obj *b) {
     }
 }
 
-void push_obj(tf_obj *l, tf_obj *elem) {
+void tf_list_push(tf_obj *l, tf_obj *elem) {
     if (l->list.len >= l->list.cap) {
         l->list.cap *= 2;
-        l->list.elem = xrealloc(l->list.elem, sizeof(tf_obj *) * l->list.cap);
+        l->list.elem = tf_xrealloc(l->list.elem, sizeof(tf_obj *) * l->list.cap);
     }
     l->list.elem[l->list.len++] = elem;
 }
 
 // pop object only if the type is correct
-tf_obj *pop_obj_type(tf_obj *l, tf_type type) {
+tf_obj *tf_list_pop_type(tf_obj *l, tf_type type) {
     if (l->list.len == 0) return NULL;
     tf_obj *o = l->list.elem[l->list.len - 1];
     if (o->type != type) return NULL;
-    return pop_obj(l);
+    return tf_list_pop(l);
 }
 
-tf_obj *pop_obj(tf_obj *l) {
+tf_obj *tf_list_pop(tf_obj *l) {
     if (l->list.len == 0) return NULL;
     tf_obj *o = l->list.elem[l->list.len - 1];
 
     l->list.len--;
     if (l->list.len < l->list.cap / 4 && l->list.cap > 32) {
         l->list.cap /= 2;
-        l->list.elem = xrealloc(l->list.elem, sizeof(tf_obj *) * l->list.cap);
+        l->list.elem = tf_xrealloc(l->list.elem, sizeof(tf_obj *) * l->list.cap);
     }
     return o;
 }
 
-void retain_obj(tf_obj *o) {
+void tf_obj_retain(tf_obj *o) {
     o->refcount++;
 }
 
-void release_obj(tf_obj *o) {
+void tf_obj_release(tf_obj *o) {
     assert(o->refcount > 0);
     o->refcount--;
-    if (o->refcount == 0) free_obj(o);
+    if (o->refcount == 0) tf_obj_free(o);
 }
 
-void free_obj(tf_obj *o) {
+void tf_obj_free(tf_obj *o) {
     switch (o->type) {
     case TF_OBJ_TYPE_VARLIST:
     case TF_OBJ_TYPE_LIST:
-        for (size_t i = 0; i < o->list.len; i++) release_obj(o->list.elem[i]);
+        for (size_t i = 0; i < o->list.len; i++) tf_obj_release(o->list.elem[i]);
         free(o->list.elem);
         break;
     case TF_OBJ_TYPE_VARFETCH:
@@ -162,7 +162,7 @@ static void print_escaped_string(const char *s, size_t len) {
 }
 
 // Debug printer: includes type tags and is intended for developer inspection
-void print_obj(tf_obj *o, size_t *count) {
+void tf_obj_print(tf_obj *o, size_t *count) {
     (*count)++;
     switch (o->type) {
     case TF_OBJ_TYPE_INT:
@@ -189,7 +189,7 @@ void print_obj(tf_obj *o, size_t *count) {
         (*count)--;
         printf("{");
         for (size_t i = 0; i < o->list.len; i++) {
-            print_obj(o->list.elem[i], count);
+            tf_obj_print(o->list.elem[i], count);
             if (i != o->list.len - 1) printf(" ");
         }
         printf("}");
@@ -198,7 +198,7 @@ void print_obj(tf_obj *o, size_t *count) {
         (*count)--;
         printf("[");
         for (size_t i = 0; i < o->list.len; i++) {
-            print_obj(o->list.elem[i], count);
+            tf_obj_print(o->list.elem[i], count);
             if (i != o->list.len - 1) {
                 if (*count % 6 == 0)
                     printf("\n");
@@ -214,7 +214,7 @@ void print_obj(tf_obj *o, size_t *count) {
 }
 
 // Runtime printer: prints values the way user-facing words like `print` expect
-void print_value(tf_obj *o) {
+void tf_obj_print_value(tf_obj *o) {
     switch (o->type) {
     case TF_OBJ_TYPE_INT:
         printf("%d", o->i);
@@ -237,7 +237,7 @@ void print_value(tf_obj *o) {
     case TF_OBJ_TYPE_VARLIST:
         printf("{");
         for (size_t i = 0; i < o->list.len; i++) {
-            print_value(o->list.elem[i]);
+            tf_obj_print_value(o->list.elem[i]);
             if (i != o->list.len - 1) printf(" ");
         }
         printf("}");
@@ -245,7 +245,7 @@ void print_value(tf_obj *o) {
     case TF_OBJ_TYPE_LIST:
         printf("[");
         for (size_t i = 0; i < o->list.len; i++) {
-            print_value(o->list.elem[i]);
+            tf_obj_print_value(o->list.elem[i]);
             if (i != o->list.len - 1) printf(" ");
         }
         printf("]");
@@ -257,7 +257,7 @@ void print_value(tf_obj *o) {
 
 // Source printer: reconstructs objects in a source-like form for words like
 // `see`
-void print_source_obj(tf_obj *o) {
+void tf_obj_print_source(tf_obj *o) {
     switch (o->type) {
     case TF_OBJ_TYPE_INT:
         printf("%d", o->i);
@@ -283,7 +283,7 @@ void print_source_obj(tf_obj *o) {
     case TF_OBJ_TYPE_VARLIST:
         printf("{");
         for (size_t i = 0; i < o->list.len; i++) {
-            print_source_obj(o->list.elem[i]);
+            tf_obj_print_source(o->list.elem[i]);
             if (i + 1 < o->list.len) printf(" ");
         }
         printf("}");
@@ -291,7 +291,7 @@ void print_source_obj(tf_obj *o) {
     case TF_OBJ_TYPE_LIST:
         printf("[");
         for (size_t i = 0; i < o->list.len; i++) {
-            print_source_obj(o->list.elem[i]);
+            tf_obj_print_source(o->list.elem[i]);
             if (i + 1 < o->list.len) printf(" ");
         }
         printf("]");

@@ -6,37 +6,34 @@
 #include "tf_alloc.h"
 #include "tf_console.h"
 
-// private helper
 static void skip_spaces(tf_lexer *lexer) {
     while (isspace(lexer->pos[0])) lexer->pos++;
 }
 
-int tf_is_sym_char(int c) {
+int tf_lexer_is_symbol_char(int c) {
     // NOTE: the lexer is intentionally mostly whitespace-delimited. We only
     // split punctuation into standalone tokens when it has structural meaning
     // in the grammar (currently ':' and ';'). Other punctuation can still be
     // part of ordinary word names such as '.s', '<=', or 'empty?'.
-	if (c == '\0') return 0;
+    if (c == '\0') return 0;
     unsigned char uc = (unsigned char)c;
     const char *sym_chars = "+-*/%<>=!.?";
     return isalpha(uc) || isdigit(uc) || c == '_' || strchr(sym_chars, uc) != NULL;
 }
 
-static tf_obj *tokenize_until(tf_lexer *lexer, int terminator);
+static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator);
+static tf_obj *lexer_tokenize_number(tf_lexer *lexer);
+static tf_obj *lexer_tokenize_symbol(tf_lexer *lexer);
+static tf_obj *lexer_tokenize_string(tf_lexer *lexer);
 
-/* receive a string as input and return a list of tokens,
- * namely a list of tf_obj type objects */
-tf_obj *lexer(char *prg_text) {
+/* Parse source text into a list of runtime objects. */
+tf_obj *tf_lexer_parse(char *prg_text) {
     tf_lexer lexer_state = {.start = prg_text, .pos = prg_text};
-    return tokenize_until(&lexer_state, 0);
+    return lexer_tokenize_until(&lexer_state, 0);
 }
 
-/* tokenize until terminator, needed to tokenize blocks '[ ... ]'
- * where ']' is the terminator
- *
- * recursive function wrapped by lexer() */
-tf_obj *tokenize_until(tf_lexer *lexer, int terminator) {
-    tf_obj *prg = init_list_obj();
+static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
+    tf_obj *prg = tf_obj_new_list();
 
     while (lexer->pos && lexer->pos[0] != 0) {
         skip_spaces(lexer);
@@ -53,7 +50,6 @@ tf_obj *tokenize_until(tf_lexer *lexer, int terminator) {
             continue;
         }
 
-        // BASE CASE, we reached ']' terminator
         if (terminator && *lexer->pos == terminator) {
             lexer->pos++;
             return prg;
@@ -61,52 +57,52 @@ tf_obj *tokenize_until(tf_lexer *lexer, int terminator) {
 
         tf_obj *o = NULL;
         if (isdigit(lexer->pos[0])) {
-            o = tokenize_number(lexer);
+            o = lexer_tokenize_number(lexer);
         } else if (lexer->pos[0] == '[') {
             lexer->pos++;
-            o = tokenize_until(lexer, ']');
+            o = lexer_tokenize_until(lexer, ']');
         } else if (lexer->pos[0] == '{') {
             lexer->pos++;
-            o = tokenize_until(lexer, '}');
+            o = lexer_tokenize_until(lexer, '}');
             if (o) o->type = TF_OBJ_TYPE_VARLIST;
         } else if (lexer->pos[0] == '$') {
             lexer->pos++;
-            o = tokenize_symbol(lexer);
+            o = lexer_tokenize_symbol(lexer);
             if (o) {
                 if (o->type == TF_OBJ_TYPE_SYMBOL) {
                     o->type = TF_OBJ_TYPE_VARFETCH;
                 } else {
-                    release_obj(o);
+                    tf_obj_release(o);
                     o = NULL;
                 }
             }
         } else if (lexer->pos[0] == '\'') {
             lexer->pos++;
-            o = tokenize_symbol(lexer);
+            o = lexer_tokenize_symbol(lexer);
             if (o && o->type == TF_OBJ_TYPE_SYMBOL) { o->str.quoted = true; }
         } else if (lexer->pos[0] == ':') {
-            o = create_symbol_obj(lexer->pos, 1);
+            o = tf_obj_new_symbol(lexer->pos, 1);
             lexer->pos++;
         } else if (lexer->pos[0] == ';') {
-            o = create_symbol_obj(lexer->pos, 1);
+            o = tf_obj_new_symbol(lexer->pos, 1);
             lexer->pos++;
-        } else if (tf_is_sym_char(lexer->pos[0])) {
-            o = tokenize_symbol(lexer);
+        } else if (tf_lexer_is_symbol_char(lexer->pos[0])) {
+            o = lexer_tokenize_symbol(lexer);
         } else if (lexer->pos[0] == '"' && lexer->pos[1] != 0) {
-            o = tokenize_string(lexer);
+            o = lexer_tokenize_string(lexer);
         }
 
         if (o == NULL) {
-            release_obj(prg);
+            tf_obj_release(prg);
             tf_console_lexer_errorf("syntax at character %zu: ... %.16s ...\n",
                                     lexer->pos - lexer->start, lexer->pos);
             return NULL;
         }
-        push_obj(prg, o);
+        tf_list_push(prg, o);
     }
 
     if (terminator != 0) {
-        release_obj(prg);
+        tf_obj_release(prg);
         tf_console_lexer_errorf("expected '%c' but reached end of program\n",
                                 terminator);
         return NULL;
@@ -116,7 +112,7 @@ tf_obj *tokenize_until(tf_lexer *lexer, int terminator) {
 }
 
 #define MAX_NUM_LEN 128
-tf_obj *tokenize_number(tf_lexer *lexer) {
+static tf_obj *lexer_tokenize_number(tf_lexer *lexer) {
     char buf[MAX_NUM_LEN];
     char *start = lexer->pos;
     bool flt = false;
@@ -132,33 +128,33 @@ tf_obj *tokenize_number(tf_lexer *lexer) {
     if (num_len >= MAX_NUM_LEN) return NULL;
     memcpy(buf, start, num_len);
     buf[num_len] = 0;
-    return flt ? create_float_obj(atof(buf)) : create_int_obj(atoi(buf));
+    return flt ? tf_obj_new_float(atof(buf)) : tf_obj_new_int(atoi(buf));
 }
 
-tf_obj *tokenize_symbol(tf_lexer *lexer) {
+static tf_obj *lexer_tokenize_symbol(tf_lexer *lexer) {
     char *start = lexer->pos;
-    while (tf_is_sym_char(lexer->pos[0])) lexer->pos++;
+    while (tf_lexer_is_symbol_char(lexer->pos[0])) lexer->pos++;
     int sym_len = lexer->pos - start;
     tf_obj *o = NULL;
     if (sym_len == 4 && !strncmp(start, "true", 4))
-        o = create_bool_obj(1);
+        o = tf_obj_new_bool(1);
     else if (sym_len == 5 && !strncmp(start, "false", 5))
-        o = create_bool_obj(0);
+        o = tf_obj_new_bool(0);
     else
-        o = create_symbol_obj(start, sym_len);
+        o = tf_obj_new_symbol(start, sym_len);
     return o;
 }
 
-tf_obj *tokenize_string(tf_lexer *lexer) {
+static tf_obj *lexer_tokenize_string(tf_lexer *lexer) {
     lexer->pos++;  // skip opening "
     size_t cap = 64;
     size_t len = 0;
-    char *buf = xmalloc(cap);
+    char *buf = tf_xmalloc(cap);
 
     while (lexer->pos[0] != '"' && lexer->pos[0] != 0) {
         if (len + 1 >= cap) {
             cap *= 2;
-            buf = xrealloc(buf, cap);
+            buf = tf_xrealloc(buf, cap);
         }
 
         if (lexer->pos[0] == '\\') {
@@ -205,7 +201,7 @@ tf_obj *tokenize_string(tf_lexer *lexer) {
     }
     lexer->pos++;  // skip closing "
 
-    tf_obj *o = create_string_obj(buf, len);
+    tf_obj *o = tf_obj_new_string(buf, len);
     free(buf);
     return o;
 }

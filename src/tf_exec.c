@@ -8,139 +8,140 @@
 #include "tf_lib.h"
 #include <signal.h>
 
-/* === Context Manipulation Helpers === */
+/* === Data Stack === */
 
-/* wrappers for managing the context forth stack, based on less abstract object
-   manipulation functions defined in tf_obj */
-size_t stack_len(tf_ctx *ctx) {
-    return ctx->forth_stack->list.len;
-}
-void stack_push(tf_ctx *ctx, tf_obj *o) {
-    push_obj(ctx->forth_stack, o);
-}
-tf_obj *stack_pop(tf_ctx *ctx) {
-    return pop_obj(ctx->forth_stack);
-}
-tf_obj *stack_pop_type(tf_ctx *ctx, tf_type type) {
-    return pop_obj_type(ctx->forth_stack, type);
+size_t tf_stack_len(tf_ctx *ctx) {
+    return ctx->data_stack->list.len;
 }
 
-tf_obj *stack_pop_callable(tf_ctx *ctx) {
-    if (stack_len(ctx) == 0) return NULL;
-    tf_obj *o = stack_peek(ctx, 0);
-    if (!tf_is_callable(o)) return NULL;
-    return stack_pop(ctx);
+void tf_stack_push(tf_ctx *ctx, tf_obj *o) {
+    tf_list_push(ctx->data_stack, o);
 }
 
-tf_obj *stack_peek(tf_ctx *ctx, size_t depth) {
-    size_t len = stack_len(ctx);
+tf_obj *tf_stack_pop(tf_ctx *ctx) {
+    return tf_list_pop(ctx->data_stack);
+}
+
+tf_obj *tf_stack_pop_type(tf_ctx *ctx, tf_type type) {
+    return tf_list_pop_type(ctx->data_stack, type);
+}
+
+tf_obj *tf_stack_pop_callable(tf_ctx *ctx) {
+    if (tf_stack_len(ctx) == 0) return NULL;
+    tf_obj *o = tf_stack_peek(ctx, 0);
+    if (!tf_obj_is_callable(o)) return NULL;
+    return tf_stack_pop(ctx);
+}
+
+tf_obj *tf_stack_peek(tf_ctx *ctx, size_t depth) {
+    size_t len = tf_stack_len(ctx);
     if (depth >= len) return NULL;
-    return ctx->forth_stack->list.elem[len - 1 - depth];
+    return ctx->data_stack->list.elem[len - 1 - depth];
 }
 
-/* helpers for managing the context call stack */
-void frame_push(tf_ctx *ctx, tf_obj *prg) {
-    if (ctx->cstack_len >= ctx->cstack_cap) {
-        ctx->cstack_cap = ctx->cstack_cap == 0 ? 64 : ctx->cstack_cap * 2;
+/* === Execution Frames === */
+
+void tf_frame_push_program(tf_ctx *ctx, tf_obj *program) {
+    if (ctx->call_stack_len >= ctx->call_stack_cap) {
+        ctx->call_stack_cap =
+            ctx->call_stack_cap == 0 ? 64 : ctx->call_stack_cap * 2;
         ctx->call_stack =
-            xrealloc(ctx->call_stack, sizeof(tf_frame) * ctx->cstack_cap);
+            tf_xrealloc(ctx->call_stack, sizeof(tf_frame) * ctx->call_stack_cap);
     }
-    ctx->call_stack[ctx->cstack_len].kind = TF_FRAME_PROGRAM;
-    ctx->call_stack[ctx->cstack_len].prg = prg;
-    ctx->call_stack[ctx->cstack_len].pc = 0;
-    ctx->call_stack[ctx->cstack_len].vars.vars = NULL;
-    ctx->call_stack[ctx->cstack_len].vars.len = 0;
-    ctx->call_stack[ctx->cstack_len].vars.cap = 0;
-    ctx->call_stack[ctx->cstack_len].step = NULL;
-    ctx->call_stack[ctx->cstack_len].cleanup = NULL;
-    ctx->call_stack[ctx->cstack_len].on_error = NULL;
-    ctx->call_stack[ctx->cstack_len].state = NULL;
-    retain_obj(prg);
-    ctx->cstack_len++;
+    ctx->call_stack[ctx->call_stack_len].kind = TF_FRAME_PROGRAM;
+    ctx->call_stack[ctx->call_stack_len].program = program;
+    ctx->call_stack[ctx->call_stack_len].pc = 0;
+    ctx->call_stack[ctx->call_stack_len].vars.vars = NULL;
+    ctx->call_stack[ctx->call_stack_len].vars.len = 0;
+    ctx->call_stack[ctx->call_stack_len].vars.cap = 0;
+    ctx->call_stack[ctx->call_stack_len].step = NULL;
+    ctx->call_stack[ctx->call_stack_len].cleanup = NULL;
+    ctx->call_stack[ctx->call_stack_len].on_error = NULL;
+    ctx->call_stack[ctx->call_stack_len].state = NULL;
+    tf_obj_retain(program);
+    ctx->call_stack_len++;
 }
 
-void native_frame_push_handler(tf_ctx *ctx, tf_native_frame_step step,
-                               tf_native_frame_cleanup cleanup,
-                               tf_native_frame_error on_error, void *state) {
-    if (ctx->cstack_len >= ctx->cstack_cap) {
-        ctx->cstack_cap = ctx->cstack_cap == 0 ? 64 : ctx->cstack_cap * 2;
+void tf_frame_push_native_handler(tf_ctx *ctx, tf_frame_step_fn step,
+                                  tf_frame_cleanup_fn cleanup,
+                                  tf_frame_error_fn on_error, void *state) {
+    if (ctx->call_stack_len >= ctx->call_stack_cap) {
+        ctx->call_stack_cap =
+            ctx->call_stack_cap == 0 ? 64 : ctx->call_stack_cap * 2;
         ctx->call_stack =
-            xrealloc(ctx->call_stack, sizeof(tf_frame) * ctx->cstack_cap);
+            tf_xrealloc(ctx->call_stack, sizeof(tf_frame) * ctx->call_stack_cap);
     }
-    ctx->call_stack[ctx->cstack_len].kind = TF_FRAME_NATIVE;
-    ctx->call_stack[ctx->cstack_len].prg = NULL;
-    ctx->call_stack[ctx->cstack_len].pc = 0;
-    ctx->call_stack[ctx->cstack_len].vars.vars = NULL;
-    ctx->call_stack[ctx->cstack_len].vars.len = 0;
-    ctx->call_stack[ctx->cstack_len].vars.cap = 0;
-    ctx->call_stack[ctx->cstack_len].step = step;
-    ctx->call_stack[ctx->cstack_len].cleanup = cleanup;
-    ctx->call_stack[ctx->cstack_len].on_error = on_error;
-    ctx->call_stack[ctx->cstack_len].state = state;
-    ctx->cstack_len++;
+    ctx->call_stack[ctx->call_stack_len].kind = TF_FRAME_NATIVE;
+    ctx->call_stack[ctx->call_stack_len].program = NULL;
+    ctx->call_stack[ctx->call_stack_len].pc = 0;
+    ctx->call_stack[ctx->call_stack_len].vars.vars = NULL;
+    ctx->call_stack[ctx->call_stack_len].vars.len = 0;
+    ctx->call_stack[ctx->call_stack_len].vars.cap = 0;
+    ctx->call_stack[ctx->call_stack_len].step = step;
+    ctx->call_stack[ctx->call_stack_len].cleanup = cleanup;
+    ctx->call_stack[ctx->call_stack_len].on_error = on_error;
+    ctx->call_stack[ctx->call_stack_len].state = state;
+    ctx->call_stack_len++;
 }
 
-void native_frame_push(tf_ctx *ctx, tf_native_frame_step step,
-                       tf_native_frame_cleanup cleanup, void *state) {
-    native_frame_push_handler(ctx, step, cleanup, NULL, state);
+void tf_frame_push_native(tf_ctx *ctx, tf_frame_step_fn step,
+                          tf_frame_cleanup_fn cleanup, void *state) {
+    tf_frame_push_native_handler(ctx, step, cleanup, NULL, state);
 }
 
-static void frame_pop_status(tf_ctx *ctx, tf_ret status) {
-    if (ctx->cstack_len == 0) return;
-    tf_frame *f = &ctx->call_stack[ctx->cstack_len - 1];
+void tf_frame_pop(tf_ctx *ctx, tf_ret status) {
+    if (ctx->call_stack_len == 0) return;
+    tf_frame *f = &ctx->call_stack[ctx->call_stack_len - 1];
 
     if (f->kind == TF_FRAME_PROGRAM) {
         for (size_t i = 0; i < f->vars.len; i++) {
-            release_obj(f->vars.vars[i].name);
-            release_obj(f->vars.vars[i].val);
+            tf_obj_release(f->vars.vars[i].name);
+            tf_obj_release(f->vars.vars[i].val);
         }
         free(f->vars.vars);
-        release_obj(f->prg);
+        tf_obj_release(f->program);
     } else if (f->cleanup) {
         f->cleanup(ctx, f->state, status);
     }
 
-    ctx->cstack_len--;
+    ctx->call_stack_len--;
 
-    if (ctx->cstack_len < ctx->cstack_cap / 4 && ctx->cstack_cap > 64) {
-        ctx->cstack_cap /= 2;
+    if (ctx->call_stack_len < ctx->call_stack_cap / 4 &&
+        ctx->call_stack_cap > 64) {
+        ctx->call_stack_cap /= 2;
         ctx->call_stack =
-            xrealloc(ctx->call_stack, sizeof(tf_frame) * ctx->cstack_cap);
+            tf_xrealloc(ctx->call_stack, sizeof(tf_frame) * ctx->call_stack_cap);
     }
 }
 
-void frame_pop(tf_ctx *ctx) {
-    frame_pop_status(ctx, TF_OK);
-}
-
 static void frame_unwind_to(tf_ctx *ctx, size_t entry_depth, tf_ret status) {
-    while (ctx->cstack_len > entry_depth) {
-        frame_pop_status(ctx, status);
+    while (ctx->call_stack_len > entry_depth) {
+        tf_frame_pop(ctx, status);
     }
 }
 
 static bool frame_handle_error(tf_ctx *ctx, size_t entry_depth,
                                tf_ret status) {
-    while (ctx->cstack_len > entry_depth) {
-        tf_frame *f = &ctx->call_stack[ctx->cstack_len - 1];
+    while (ctx->call_stack_len > entry_depth) {
+        tf_frame *f = &ctx->call_stack[ctx->call_stack_len - 1];
         if (f->kind == TF_FRAME_NATIVE && f->on_error) {
             bool handled = false;
             tf_ret res = f->on_error(ctx, f->state, status, &handled);
             if (res != TF_OK) {
-                frame_pop_status(ctx, res);
+                tf_frame_pop(ctx, res);
                 status = res;
                 continue;
             }
             if (handled) return true;
         }
-        frame_pop_status(ctx, status);
+        tf_frame_pop(ctx, status);
     }
     return false;
 }
 
-/* === Function Table Helpers === */
+/* === Word Dictionary === */
 
-static unsigned long tf_hash(tf_obj *o) {
+static unsigned long dict_hash(tf_obj *o) {
     unsigned long hash = 5381;
     char *ptr = o->str.ptr;
     size_t len = o->str.len;
@@ -148,22 +149,22 @@ static unsigned long tf_hash(tf_obj *o) {
     return hash;
 }
 
-static void tf_table_resize(tf_ctx *ctx) {
-    size_t old_cap = ctx->functions.capacity;
-    tf_func **old_buckets = ctx->functions.buckets;
+static void dict_resize(tf_ctx *ctx) {
+    size_t old_cap = ctx->words.capacity;
+    tf_word **old_buckets = ctx->words.buckets;
 
-    ctx->functions.capacity *= 2;
-    ctx->functions.buckets = xcalloc(ctx->functions.capacity, sizeof(tf_func *));
+    ctx->words.capacity *= 2;
+    ctx->words.buckets = tf_xcalloc(ctx->words.capacity, sizeof(tf_word *));
 
     for (size_t i = 0; i < old_cap; i++) {
-        tf_func *f = old_buckets[i];
+        tf_word *f = old_buckets[i];
         if (f) {
-            unsigned long h = tf_hash(f->name);
-            size_t idx = h % ctx->functions.capacity;
-            while (ctx->functions.buckets[idx]) {
-                idx = (idx + 1) % ctx->functions.capacity;
+            unsigned long h = dict_hash(f->name);
+            size_t idx = h % ctx->words.capacity;
+            while (ctx->words.buckets[idx]) {
+                idx = (idx + 1) % ctx->words.capacity;
             }
-            ctx->functions.buckets[idx] = f;
+            ctx->words.buckets[idx] = f;
         }
     }
     free(old_buckets);
@@ -173,16 +174,16 @@ static void tf_table_resize(tf_ctx *ctx) {
 
 typedef struct {
     const char *name;
-    tf_callback cb;
-} tf_native_word;
+    tf_native_fn cb;
+} builtin_word;
 
-static void register_native_group(tf_ctx *ctx, const tf_native_word *words) {
+static void register_builtin_group(tf_ctx *ctx, const builtin_word *words) {
     for (size_t i = 0; words[i].name; i++) {
-        set_native_func(ctx, words[i].name, words[i].cb);
+        tf_dict_set_native(ctx, words[i].name, words[i].cb);
     }
 }
 
-static const tf_native_word native_math_words[] = {
+static const builtin_word native_math_words[] = {
     {"+", tf_add},       {"-", tf_sub},     {"*", tf_mul},
     {"/", tf_div},       {"%", tf_mod},     {"mod", tf_mod},
     {"neg", tf_neg},     {"abs", tf_abs},   {"max", tf_max},
@@ -195,13 +196,13 @@ static const tf_native_word native_math_words[] = {
     {"tau", tf_tau},     {NULL, NULL},
 };
 
-static const tf_native_word native_logic_words[] = {
+static const builtin_word native_logic_words[] = {
     {"and", tf_and}, {"or", tf_or},   {"xor", tf_xor},
     {"not", tf_not}, {"shl", tf_shl}, {"shr", tf_shr},
     {NULL, NULL},
 };
 
-static const tf_native_word native_stack_words[] = {
+static const builtin_word native_stack_words[] = {
     {"dup", tf_dup},     {"drop", tf_drop}, {"swap", tf_swap},
     {"over", tf_over},   {"rot", tf_rot},   {"swapd", tf_swapd},
     {"nip", tf_nip},     {"tuck", tf_tuck}, {"pick", tf_pick},
@@ -209,7 +210,7 @@ static const tf_native_word native_stack_words[] = {
     {NULL, NULL},
 };
 
-static const tf_native_word native_io_words[] = {
+static const builtin_word native_io_words[] = {
     {"printf", tf_printf}, {"print", tf_print}, {"cr", tf_cr},
     {".", tf_dot},         {".s", tf_stack},    {".S", tf_stack_source},
     {"key", tf_key},
@@ -219,17 +220,17 @@ static const tf_native_word native_io_words[] = {
     {NULL, NULL},
 };
 
-static const tf_native_word native_comparison_words[] = {
+static const builtin_word native_comparison_words[] = {
     {"==", tf_eq}, {"!=", tf_ne}, {"<", tf_lt},
     {">", tf_gt}, {"<=", tf_le}, {">=", tf_ge},
     {NULL, NULL},
 };
 
-static const tf_native_word native_definition_words[] = {
+static const builtin_word native_definition_words[] = {
     {":", tf_colon}, {"def", tf_def}, {NULL, NULL},
 };
 
-static const tf_native_word native_control_words[] = {
+static const builtin_word native_control_words[] = {
     {"exec", tf_exec},       {"i", tf_exec},
     {"app2", tf_app2},       {"if", tf_if},
     {"ifelse", tf_ifelse}, {"while", tf_while},
@@ -244,7 +245,7 @@ static const tf_native_word native_control_words[] = {
     {NULL, NULL},
 };
 
-static const tf_native_word native_collection_combinator_words[] = {
+static const builtin_word native_collection_combinator_words[] = {
     {"each", tf_each},     {"map", tf_map},
     {"fold", tf_fold},     {"filter", tf_filter},
     {"some", tf_some},     {"all", tf_all},
@@ -255,7 +256,7 @@ static const tf_native_word native_collection_combinator_words[] = {
 /* Sequence data words are shared by lists and strings when the operation has
  * the same shape. String items are one-byte strings: append adds one item,
  * while concat combines two sequences. */
-static const tf_native_word native_data_words[] = {
+static const builtin_word native_data_words[] = {
     {"geth", tf_geth},       {"seth", tf_seth},
     {"slice", tf_slice},     {"take", tf_take},
     {"dropn", tf_dropn},     {"len", tf_len},
@@ -274,7 +275,7 @@ static const tf_native_word native_data_words[] = {
     {NULL, NULL},
 };
 
-static const tf_native_word native_introspection_words[] = {
+static const builtin_word native_introspection_words[] = {
     {"typeof", tf_typeof},   {"bool?", tf_bool_q},
     {"int?", tf_int_q},      {"float?", tf_float_q},
     {"str?", tf_str_q},      {"symbol?", tf_symbol_q},
@@ -290,7 +291,7 @@ static const tf_native_word native_introspection_words[] = {
     {NULL, NULL},
 };
 
-static const tf_native_word native_system_words[] = {
+static const builtin_word native_system_words[] = {
     {"rand", tf_rand},       {"sleep", tf_sleep},
     {"argc", tf_argc},       {"argv", tf_argv},
     {"env?", tf_env_q},      {"getenv", tf_getenv},
@@ -301,126 +302,126 @@ static const tf_native_word native_system_words[] = {
     {NULL, NULL},
 };
 
-tf_ctx *init_ctx(int argc, char **argv) {
+tf_ctx *tf_ctx_new(int argc, char **argv) {
     srand(time(NULL));
-    tf_ctx *ctx = xmalloc(sizeof(tf_ctx));
-    ctx->forth_stack = init_list_obj();
-    ctx->functions.capacity = 128;
-    ctx->functions.count = 0;
-    ctx->functions.buckets = xcalloc(ctx->functions.capacity, sizeof(tf_func *));
+    tf_ctx *ctx = tf_xmalloc(sizeof(tf_ctx));
+    ctx->data_stack = tf_obj_new_list();
+    ctx->words.capacity = 128;
+    ctx->words.count = 0;
+    ctx->words.buckets = tf_xcalloc(ctx->words.capacity, sizeof(tf_word *));
     ctx->call_stack = NULL;
-    ctx->cstack_len = 0;
-    ctx->cstack_cap = 0;
+    ctx->call_stack_len = 0;
+    ctx->call_stack_cap = 0;
     ctx->argc = argc;
     ctx->argv = argv;
     ctx->error_suppression_depth = 0;
     ctx->error_reported = false;
 
-    register_native_group(ctx, native_math_words);
-    register_native_group(ctx, native_logic_words);
-    register_native_group(ctx, native_stack_words);
-    register_native_group(ctx, native_io_words);
-    register_native_group(ctx, native_comparison_words);
-    register_native_group(ctx, native_definition_words);
-    register_native_group(ctx, native_control_words);
-    register_native_group(ctx, native_collection_combinator_words);
-    register_native_group(ctx, native_data_words);
-    register_native_group(ctx, native_introspection_words);
-    register_native_group(ctx, native_system_words);
+    register_builtin_group(ctx, native_math_words);
+    register_builtin_group(ctx, native_logic_words);
+    register_builtin_group(ctx, native_stack_words);
+    register_builtin_group(ctx, native_io_words);
+    register_builtin_group(ctx, native_comparison_words);
+    register_builtin_group(ctx, native_definition_words);
+    register_builtin_group(ctx, native_control_words);
+    register_builtin_group(ctx, native_collection_combinator_words);
+    register_builtin_group(ctx, native_data_words);
+    register_builtin_group(ctx, native_introspection_words);
+    register_builtin_group(ctx, native_system_words);
 
     return ctx;
 }
 
-void free_ctx(tf_ctx *ctx) {
-    release_obj(ctx->forth_stack);
-    for (size_t i = 0; i < ctx->functions.capacity; i++) {
-        tf_func *f = ctx->functions.buckets[i];
+void tf_ctx_free(tf_ctx *ctx) {
+    tf_obj_release(ctx->data_stack);
+    for (size_t i = 0; i < ctx->words.capacity; i++) {
+        tf_word *f = ctx->words.buckets[i];
         if (f) {
-            release_obj(f->name);
-            if (f->type == TF_FUNC_USER) { release_obj(f->user_impl); }
+            tf_obj_release(f->name);
+            if (f->type == TF_WORD_USER) { tf_obj_release(f->user_impl); }
             free(f);
         }
     }
-    free(ctx->functions.buckets);
-    while (ctx->cstack_len > 0) { frame_pop(ctx); }
+    free(ctx->words.buckets);
+    while (ctx->call_stack_len > 0) tf_frame_pop(ctx, TF_OK);
     free(ctx->call_stack);
     free(ctx);
 }
 
-tf_func *init_func(tf_ctx *ctx, tf_obj *name) {
-    if (ctx->functions.count >= ctx->functions.capacity * 0.7) {
-        tf_table_resize(ctx);
+static tf_word *dict_insert_word(tf_ctx *ctx, tf_obj *name) {
+    if (ctx->words.count >= ctx->words.capacity * 0.7) {
+        dict_resize(ctx);
     }
 
-    unsigned long h = tf_hash(name);
-    size_t idx = h % ctx->functions.capacity;
-    while (ctx->functions.buckets[idx]) {
-        idx = (idx + 1) % ctx->functions.capacity;
+    unsigned long h = dict_hash(name);
+    size_t idx = h % ctx->words.capacity;
+    while (ctx->words.buckets[idx]) {
+        idx = (idx + 1) % ctx->words.capacity;
     }
 
-    tf_func *f = xmalloc(sizeof(tf_func));
+    tf_word *f = tf_xmalloc(sizeof(tf_word));
     f->name = name;
-    retain_obj(name);
-    f->type = TF_FUNC_NATIVE;
+    tf_obj_retain(name);
+    f->type = TF_WORD_NATIVE;
     f->native_impl = NULL;
-    ctx->functions.buckets[idx] = f;
-    ctx->functions.count++;
+    ctx->words.buckets[idx] = f;
+    ctx->words.count++;
     return f;
 }
 
-void set_native_func(tf_ctx *ctx, const char *name, tf_callback cb) {
-    tf_obj *o_name = create_symbol_obj(name, strlen(name));
-    tf_func *f = get_func(ctx, o_name);
+void tf_dict_set_native(tf_ctx *ctx, const char *name, tf_native_fn cb) {
+    tf_obj *o_name = tf_obj_new_symbol(name, strlen(name));
+    tf_word *f = tf_dict_lookup(ctx, o_name);
     if (f) {  // overwrite if name is already taken
-        if (f->type == TF_FUNC_USER) release_obj(f->user_impl);
+        if (f->type == TF_WORD_USER) tf_obj_release(f->user_impl);
     } else {  // allocate if name is not taken
-        f = init_func(ctx, o_name);
+        f = dict_insert_word(ctx, o_name);
     }
-    f->type = TF_FUNC_NATIVE;
+    f->type = TF_WORD_NATIVE;
     f->native_impl = cb;
-    release_obj(o_name);
+    tf_obj_release(o_name);
 }
 
-void set_user_func(tf_ctx *ctx, tf_obj *name, tf_obj *uf) {
-    tf_func *f = get_func(ctx, name);
+void tf_dict_set_user(tf_ctx *ctx, tf_obj *name, tf_obj *uf) {
+    tf_word *f = tf_dict_lookup(ctx, name);
     if (f) {
-        if (f->type == TF_FUNC_USER) { release_obj(f->user_impl); }
+        if (f->type == TF_WORD_USER) { tf_obj_release(f->user_impl); }
     } else {
-        f = init_func(ctx, name);
+        f = dict_insert_word(ctx, name);
     }
-    f->type = TF_FUNC_USER;
+    f->type = TF_WORD_USER;
     f->user_impl = uf;
-    retain_obj(uf);
+    tf_obj_retain(uf);
 }
 
-tf_func *get_func(tf_ctx *ctx, tf_obj *name) {
+tf_word *tf_dict_lookup(tf_ctx *ctx, tf_obj *name) {
     if (!name || name->type != TF_OBJ_TYPE_SYMBOL) return NULL;
-    if (ctx->functions.capacity == 0) return NULL;
-    unsigned long h = tf_hash(name);
-    size_t idx = h % ctx->functions.capacity;
+    if (ctx->words.capacity == 0) return NULL;
+    unsigned long h = dict_hash(name);
+    size_t idx = h % ctx->words.capacity;
     // linear probing
-    while (ctx->functions.buckets[idx]) {
-        if (compare_string_obj(ctx->functions.buckets[idx]->name, name) == 0) {
-            return ctx->functions.buckets[idx];
+    while (ctx->words.buckets[idx]) {
+        if (tf_obj_compare_string(ctx->words.buckets[idx]->name, name) == 0) {
+            return ctx->words.buckets[idx];
         }
-        idx = (idx + 1) % ctx->functions.capacity;
+        idx = (idx + 1) % ctx->words.capacity;
     }
     return NULL;
 }
 
-/* === Variable Helpers === */
+/* === Dynamic Capture Scope === */
 
-static void tf_var_bind(tf_ctx *ctx, tf_obj *name, tf_obj *val) {
-    if (ctx->cstack_len == 0) return;
-    tf_frame *f = &ctx->call_stack[ctx->cstack_len - 1];
+static void scope_bind_var(tf_ctx *ctx, tf_obj *name, tf_obj *val) {
+    if (ctx->call_stack_len == 0) return;
+    tf_frame *f = &ctx->call_stack[ctx->call_stack_len - 1];
     if (f->kind != TF_FRAME_PROGRAM) return;
 
     // check if variable already exists in current frame and update it
     for (int i = (int)f->vars.len - 1; i >= 0; i--) {
-        if (compare_string_obj(f->vars.vars[i].name, name) == 0) {
-            release_obj(f->vars.vars[i].val);
+        if (tf_obj_compare_string(f->vars.vars[i].name, name) == 0) {
+            tf_obj_release(f->vars.vars[i].val);
             f->vars.vars[i].val = val;
-            retain_obj(val);
+            tf_obj_retain(val);
             return;
         }
     }
@@ -428,21 +429,21 @@ static void tf_var_bind(tf_ctx *ctx, tf_obj *name, tf_obj *val) {
     // otherwise append new binding
     if (f->vars.len >= f->vars.cap) {
         f->vars.cap = f->vars.cap == 0 ? 16 : f->vars.cap * 2;
-        f->vars.vars = xrealloc(f->vars.vars, sizeof(tf_var) * f->vars.cap);
+        f->vars.vars = tf_xrealloc(f->vars.vars, sizeof(tf_var) * f->vars.cap);
     }
     f->vars.vars[f->vars.len].name = name;
     f->vars.vars[f->vars.len].val = val;
-    retain_obj(name);
-    retain_obj(val);
+    tf_obj_retain(name);
+    tf_obj_retain(val);
     f->vars.len++;
 }
 
-tf_obj *tf_var_fetch(tf_ctx *ctx, tf_obj *name) {
-    for (int i = (int)ctx->cstack_len - 1; i >= 0; i--) {
+tf_obj *tf_scope_lookup_var(tf_ctx *ctx, tf_obj *name) {
+    for (int i = (int)ctx->call_stack_len - 1; i >= 0; i--) {
         tf_frame *f = &ctx->call_stack[i];
         if (f->kind != TF_FRAME_PROGRAM) continue;
         for (int j = (int)f->vars.len - 1; j >= 0; j--) {
-            if (compare_string_obj(f->vars.vars[j].name, name) == 0) {
+            if (tf_obj_compare_string(f->vars.vars[j].name, name) == 0) {
                 return f->vars.vars[j].val;
             }
         }
@@ -451,23 +452,23 @@ tf_obj *tf_var_fetch(tf_ctx *ctx, tf_obj *name) {
 }
 
 static volatile sig_atomic_t interrupted = 0;
-void handle_sigint(int sig) {
+void tf_vm_handle_sigint(int sig) {
     (void)sig;
-    signal(SIGINT, handle_sigint);
+    signal(SIGINT, tf_vm_handle_sigint);
     interrupted = 1;
 }
 
 /*
- * Dispatch a dictionary entry that has already been resolved by get_func().
+ * Dispatch a dictionary entry that has already been resolved by tf_dict_lookup().
  * User words schedule program frames; native words run immediately and may
  * schedule continuations before returning.
  */
-static tf_ret call_resolved_func(tf_ctx *ctx, tf_func *f) {
-    if (f->type == TF_FUNC_USER) {
-        frame_push(ctx, f->user_impl);
+static tf_ret dict_call_resolved(tf_ctx *ctx, tf_word *word) {
+    if (word->type == TF_WORD_USER) {
+        tf_frame_push_program(ctx, word->user_impl);
         return TF_OK;
     }
-    return f->native_impl(ctx);
+    return word->native_impl(ctx);
 }
 
 /*
@@ -475,8 +476,8 @@ static tf_ret call_resolved_func(tf_ctx *ctx, tf_func *f) {
  * Instead of recursive C calls, it uses an explicit `call_stack` of frames.
  * This ensures deep user-defined word recursion does not overflow the C stack.
  */
-tf_ret exec(tf_ctx *ctx, tf_obj *prg) {
-    if (prg->type != TF_OBJ_TYPE_LIST) {
+tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
+    if (program->type != TF_OBJ_TYPE_LIST) {
         if (ctx->error_suppression_depth == 0) {
             tf_console_runtime_errorf("attempted to execute non-block object\n");
         }
@@ -485,19 +486,19 @@ tf_ret exec(tf_ctx *ctx, tf_obj *prg) {
 
     /* Run until this invocation's root frame has been popped. Native words
      * that need to resume after user code use TF_FRAME_NATIVE continuations
-     * instead of re-entering exec(). */
-    size_t entry_depth = ctx->cstack_len;
+     * instead of re-entering tf_vm_exec(). */
+    size_t entry_depth = ctx->call_stack_len;
     ctx->error_reported = false;
-    frame_push(ctx, prg);
+    tf_frame_push_program(ctx, program);
 
-    while (ctx->cstack_len > entry_depth) {
+    while (ctx->call_stack_len > entry_depth) {
         if (interrupted) {
             frame_unwind_to(ctx, entry_depth, TF_INTERRUPTED);
             interrupted = 0;  // reset for next run
             return TF_INTERRUPTED;
         }
 
-        tf_frame *f = &ctx->call_stack[ctx->cstack_len - 1];
+        tf_frame *f = &ctx->call_stack[ctx->call_stack_len - 1];
         if (f->kind == TF_FRAME_NATIVE) {
             bool done = false;
             tf_ret cont_res = f->step(ctx, f->state, &done);
@@ -505,24 +506,24 @@ tf_ret exec(tf_ctx *ctx, tf_obj *prg) {
                 if (frame_handle_error(ctx, entry_depth, cont_res)) continue;
                 return cont_res;
             }
-            if (done) frame_pop_status(ctx, TF_OK);
+            if (done) tf_frame_pop(ctx, TF_OK);
             continue;
         }
 
-        if (f->pc >= f->prg->list.len) {
-            frame_pop_status(ctx, TF_OK);
+        if (f->pc >= f->program->list.len) {
+            tf_frame_pop(ctx, TF_OK);
             continue;
         }
 
-        tf_obj *o = f->prg->list.elem[f->pc++];
+        tf_obj *o = f->program->list.elem[f->pc++];
         switch (o->type) {
         case TF_OBJ_TYPE_SYMBOL:
             if (o->str.quoted) {
-                stack_push(ctx, o);
-                retain_obj(o);
+                tf_stack_push(ctx, o);
+                tf_obj_retain(o);
             } else {
-                tf_func *func = get_func(ctx, o);
-                if (!func) {
+                tf_word *word = tf_dict_lookup(ctx, o);
+                if (!word) {
                     if (ctx->error_suppression_depth == 0) {
                         tf_console_runtime_errorf("undefined word '%s'\n",
                                                   o->str.ptr);
@@ -532,7 +533,7 @@ tf_ret exec(tf_ctx *ctx, tf_obj *prg) {
                     }
                     return TF_ERR;
                 }
-                tf_ret call_res = call_resolved_func(ctx, func);
+                tf_ret call_res = dict_call_resolved(ctx, word);
                 if (call_res == TF_INTERRUPTED) {
                     frame_unwind_to(ctx, entry_depth, TF_INTERRUPTED);
                     return TF_INTERRUPTED;
@@ -553,7 +554,7 @@ tf_ret exec(tf_ctx *ctx, tf_obj *prg) {
             break;
         case TF_OBJ_TYPE_VARLIST:
             for (int i = (int)o->list.len - 1; i >= 0; i--) {
-                tf_obj *val = stack_pop(ctx);
+                tf_obj *val = tf_stack_pop(ctx);
                 if (!val) {
                     if (ctx->error_suppression_depth == 0) {
                         tf_console_runtime_errorf(
@@ -564,12 +565,12 @@ tf_ret exec(tf_ctx *ctx, tf_obj *prg) {
                     }
                     return TF_ERR;
                 }
-                tf_var_bind(ctx, o->list.elem[i], val);
-                release_obj(val);
+                scope_bind_var(ctx, o->list.elem[i], val);
+                tf_obj_release(val);
             }
             break;
         case TF_OBJ_TYPE_VARFETCH: {
-            tf_obj *val = tf_var_fetch(ctx, o);
+            tf_obj *val = tf_scope_lookup_var(ctx, o);
             if (!val) {
                 if (ctx->error_suppression_depth == 0) {
                     tf_console_runtime_errorf("undefined variable '$%s'\n",
@@ -580,32 +581,32 @@ tf_ret exec(tf_ctx *ctx, tf_obj *prg) {
                 }
                 return TF_ERR;
             }
-            stack_push(ctx, val);
-            retain_obj(val);
+            tf_stack_push(ctx, val);
+            tf_obj_retain(val);
             break;
         }
         default:
-            stack_push(ctx, o);
-            retain_obj(o);
+            tf_stack_push(ctx, o);
+            tf_obj_retain(o);
             break;
         }
     }
     return TF_OK;
 }
 
-bool tf_is_callable(tf_obj *o) {
+bool tf_obj_is_callable(tf_obj *o) {
     return o && (o->type == TF_OBJ_TYPE_LIST || o->type == TF_OBJ_TYPE_SYMBOL);
 }
 
-tf_ret tf_call_callable(tf_ctx *ctx, tf_obj *callable) {
+tf_ret tf_vm_call_callable(tf_ctx *ctx, tf_obj *callable) {
     if (callable->type == TF_OBJ_TYPE_LIST) {
-        frame_push(ctx, callable);
+        tf_frame_push_program(ctx, callable);
         return TF_OK;
     }
     if (callable->type == TF_OBJ_TYPE_SYMBOL) {
-        tf_func *func = get_func(ctx, callable);
-        if (!func) return TF_ERR;
-        return call_resolved_func(ctx, func);
+        tf_word *word = tf_dict_lookup(ctx, callable);
+        if (!word) return TF_ERR;
+        return dict_call_resolved(ctx, word);
     }
     return TF_ERR;
 }

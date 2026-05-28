@@ -43,7 +43,7 @@ access, frame scheduling, platform I/O, or measured performance.
 
 ### Explicit Execution Boundary
 
-Completed: native words no longer synchronously re-enter `exec()` to wait for
+Completed: native words no longer synchronously re-enter `tf_vm_exec()` to wait for
 callable results. Keep new callable-running natives on continuation-style frame
 scheduling so nested user code does not grow the C call stack. Preserve stack
 effects, predicate-inspection behavior, and error-boundary semantics.

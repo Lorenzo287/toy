@@ -117,30 +117,30 @@ Add a small execution-level interface, probably in `include/tf_exec.h` and
 `src/tf_exec.c`:
 
 ```c
-bool tf_is_callable(tf_obj *o);
-tf_ret tf_call_callable(tf_ctx *ctx, tf_obj *callable);
-tf_obj *stack_pop_callable(tf_ctx *ctx);
+bool tf_obj_is_callable(tf_obj *o);
+tf_ret tf_vm_call_callable(tf_ctx *ctx, tf_obj *callable);
+tf_obj *tf_stack_pop_callable(tf_ctx *ctx);
 ```
 
 Initial behavior:
 
 ```c
-TF_OBJ_TYPE_LIST   -> frame_push(ctx, callable)
-TF_OBJ_TYPE_SYMBOL -> get_func(ctx, callable), then dispatch the tf_func
+TF_OBJ_TYPE_LIST   -> tf_frame_push_program(ctx, callable)
+TF_OBJ_TYPE_SYMBOL -> tf_dict_lookup(ctx, callable), then dispatch the tf_word
 otherwise          -> TF_ERR
 ```
 
-`tf_call_callable()` should be the only place, outside the main frame evaluator,
-that dispatches callable values. Native words should stop calling `exec()` or
+`tf_vm_call_callable()` should be the only place, outside the main frame evaluator,
+that dispatches callable values. Native words should stop calling `tf_vm_exec()` or
 resolving symbols directly when what they mean is "run deferred code".
 
-`exec(tf_ctx *, tf_obj *)` can remain list-only as the low-level "execute a
+`tf_vm_exec(tf_ctx *, tf_obj *)` can remain list-only as the low-level "execute a
 quotation/list frame" primitive. The native word `exec`/`i` should become a thin
-wrapper around `tf_call_callable()`.
+wrapper around `tf_vm_call_callable()`.
 
 Native words that need to inspect callable results should schedule a native
 continuation frame. The continuation resumes after the callable frame finishes,
-so callable-running natives do not synchronously re-enter `exec()`.
+so callable-running natives do not synchronously re-enter `tf_vm_exec()`.
 
 ## Quotedness and Symbols
 
@@ -155,13 +155,13 @@ printing.
 
 Short-term rule:
 
-- `tf_is_callable()` accepts `TF_OBJ_TYPE_SYMBOL` regardless of `str.quoted`.
+- `tf_obj_is_callable()` accepts `TF_OBJ_TYPE_SYMBOL` regardless of `str.quoted`.
 - The frame evaluator still uses `str.quoted` to decide whether a symbol token
   in a program is pushed or resolved.
 - Callable dispatch ignores `str.quoted`; when a symbol has been passed to a
   word that consumes a callable, the caller has explicitly requested execution.
-- Lexer-created bare word tokens use `create_symbol_obj()`. Words that
-  manufacture symbol values as data should use `create_quoted_symbol_obj()` so
+- Lexer-created bare word tokens use `tf_obj_new_symbol()`. Words that
+  manufacture symbol values as data should use `tf_obj_new_quoted_symbol()` so
   source-style printing reconstructs literal symbols rather than executable word
   tokens.
 
@@ -181,16 +181,16 @@ accidentally behave differently as runtime data.
 Keep word lookup as a separate layer:
 
 ```c
-tf_func *get_func(tf_ctx *ctx, tf_obj *name);
-tf_ret tf_call_callable(tf_ctx *ctx, tf_obj *callable);
+tf_word *tf_dict_lookup(tf_ctx *ctx, tf_obj *name);
+tf_ret tf_vm_call_callable(tf_ctx *ctx, tf_obj *callable);
 ```
 
 Responsibilities:
 
-- `get_func()` only resolves a symbol name to a dictionary entry. Strings are
+- `tf_dict_lookup()` only resolves a symbol name to a dictionary entry. Strings are
   not accepted as alternate word-name values.
-- `tf_call_callable()` dispatches lists versus symbols and reports
-  callable-level type errors. Symbol callables are resolved with `get_func()`
+- `tf_vm_call_callable()` dispatches lists versus symbols and reports
+  callable-level type errors. Symbol callables are resolved with `tf_dict_lookup()`
   and then dispatched as user or native dictionary entries.
 
 This keeps dictionary lookup, callable dispatch, and frame execution separate
@@ -205,7 +205,7 @@ Resolved for the current design:
 
 Open question for a later pass:
 
-- Should calling an undefined symbol fail at `tf_call_callable()` type/lookup
+- Should calling an undefined symbol fail at `tf_vm_call_callable()` type/lookup
   time with a callable-specific diagnostic, or should it reuse the ordinary
   undefined-word path?
 
@@ -320,10 +320,10 @@ existing stack rule:
 The predicate helper:
 
 ```c
-tf_predicate_eval_step(...)
+predicate_eval_step(...)
 ```
 
-accepts callables, schedules them with `tf_call_callable()`, then restores the
+accepts callables, schedules them with `tf_vm_call_callable()`, then restores the
 surrounding data stack after reading the boolean result.
 
 Careful regression cases:
@@ -378,7 +378,7 @@ The lexer should continue to parse:
 - `{ ... }` as capture binding syntax.
 - `$name` as variable fetch syntax.
 
-Source printers (`print_source_obj`, `see`) should keep preserving the current
+Source printers (`tf_obj_print_source`, `see`) should keep preserving the current
 surface syntax. A quoted symbol should still print as `'word`; a quotation
 should still print as `[ ... ]`.
 
@@ -396,8 +396,8 @@ atomic symbol value and make introspection/source round-tripping worse.
 
 2. Add callable helpers in `tf_exec`.
    - Add declarations to `include/tf_exec.h`.
-   - Implement `tf_is_callable()`, `stack_pop_callable()`, and
-     `tf_call_callable()`.
+   - Implement `tf_obj_is_callable()`, `tf_stack_pop_callable()`, and
+     `tf_vm_call_callable()`.
    - Convert native `exec`/`i` to use the helper.
 
 3. Add focused tests for callable equivalence.
@@ -501,7 +501,7 @@ Predicate sandboxing:
 - Do not make every list context executable.
 - Do not change list/string sequence semantics accidentally. If they change,
   handle that as an explicit sequence-design decision.
-- Do not reintroduce synchronous `exec()` re-entry merely because it is simpler
+- Do not reintroduce synchronous `tf_vm_exec()` re-entry merely because it is simpler
   for a native word to wait for a callable result.
 
 ## Success Criteria
