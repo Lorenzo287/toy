@@ -32,11 +32,16 @@ export default grammar({
     ),
 
     line_comment: $ => token(seq('\\', /.*/)),
-    block_comment: $ => token(seq('(', /[^)]*/, ')')),
+    block_comment: $ => seq(
+      '(',
+      repeat(choice(/[^()]+/, $.block_comment)),
+      ')',
+    ),
     boolean: $ => choice('true', 'false'),
     number: $ => token(choice(
-      /\d+\.\d+/,  // float first
-      /\d+/,
+      /[+-]?\d+\.\d*/,  // float first
+      /[+-]?\.\d+/,
+      /[+-]?\d+/,
     )),
     control_word: $ => choice(
       'if', 'ifelse', 'while', 'try', 'error', 'exec', 'i', 'app2',
@@ -110,8 +115,8 @@ export default grammar({
       repeat(choice($._expression, $.line_comment, $.block_comment)),
       ';',
     ),
-    _def_name: $ => token(/[a-zA-Z0-9_+\-*/%<>=!.?]+/),
+    _def_name: $ => token(/[a-zA-Z_+\-*/%<>=!.?][a-zA-Z0-9_+\-*/%<>=!.?]*/),
 
-    word: $ => /[a-zA-Z0-9_+\-*/%<>=!.?]+/,
+    word: $ => /[a-zA-Z_+\-*/%<>=!.?][a-zA-Z0-9_+\-*/%<>=!.?]*/,
   }
 });

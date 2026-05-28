@@ -8,7 +8,7 @@
 #include "tf_obj.h"
 
 tf_ret tf_number_q(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
     tf_stack_push(ctx, tf_obj_new_bool(o->type == TF_OBJ_TYPE_INT ||
                                     o->type == TF_OBJ_TYPE_FLOAT));
@@ -17,7 +17,7 @@ tf_ret tf_number_q(tf_ctx *ctx) {
 }
 
 tf_ret tf_sequence_q(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
     tf_stack_push(ctx, tf_obj_new_bool(o->type == TF_OBJ_TYPE_LIST ||
                                        o->type == TF_OBJ_TYPE_STR));
@@ -26,7 +26,7 @@ tf_ret tf_sequence_q(tf_ctx *ctx) {
 }
 
 tf_ret tf_callable_q(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
     bool result =
         o->type == TF_OBJ_TYPE_LIST ||
@@ -37,7 +37,7 @@ tf_ret tf_callable_q(tf_ctx *ctx) {
 }
 
 tf_ret tf_nan_q(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
     bool result = o->type == TF_OBJ_TYPE_FLOAT && isnan(o->f);
     tf_stack_push(ctx, tf_obj_new_bool(result));
@@ -46,7 +46,7 @@ tf_ret tf_nan_q(tf_ctx *ctx) {
 }
 
 tf_ret tf_inf_q(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
     bool result = o->type == TF_OBJ_TYPE_FLOAT && isinf(o->f);
     tf_stack_push(ctx, tf_obj_new_bool(result));
@@ -55,7 +55,7 @@ tf_ret tf_inf_q(tf_ctx *ctx) {
 }
 
 tf_ret tf_word_q(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
     bool result = o->type == TF_OBJ_TYPE_SYMBOL && tf_dict_lookup(ctx, o) != NULL;
     tf_stack_push(ctx, tf_obj_new_bool(result));
@@ -64,7 +64,7 @@ tf_ret tf_word_q(tf_ctx *ctx) {
 }
 
 tf_ret tf_var_q(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
     bool result =
         o->type == TF_OBJ_TYPE_SYMBOL && tf_scope_lookup_var(ctx, o) != NULL;
@@ -84,12 +84,13 @@ tf_ret tf_nan(tf_ctx *ctx) {
 }
 
 tf_ret tf_body(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_SYMBOL)) return TF_ERR;
     tf_obj *name = tf_stack_pop_type(ctx, TF_OBJ_TYPE_SYMBOL);
-    if (!name) return TF_ERR;
 
     tf_word *f = tf_dict_lookup(ctx, name);
     if (!f || f->type != TF_WORD_USER) {
+        tf_ctx_runtime_errorf(ctx, "'%s' expected a user-defined word, found '%s'\n",
+                              ctx->current_word, name->str.ptr);
         tf_obj_release(name);
         return TF_ERR;
     }
@@ -101,9 +102,8 @@ tf_ret tf_body(tf_ctx *ctx) {
 }
 
 tf_ret tf_intern(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_STR)) return TF_ERR;
     tf_obj *str = tf_stack_pop_type(ctx, TF_OBJ_TYPE_STR);
-    if (!str) return TF_ERR;
 
     tf_stack_push(ctx, tf_obj_new_quoted_symbol(str->str.ptr, str->str.len));
     tf_obj_release(str);
@@ -111,9 +111,8 @@ tf_ret tf_intern(tf_ctx *ctx) {
 }
 
 tf_ret tf_name(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_SYMBOL)) return TF_ERR;
     tf_obj *sym = tf_stack_pop_type(ctx, TF_OBJ_TYPE_SYMBOL);
-    if (!sym) return TF_ERR;
 
     tf_stack_push(ctx, tf_obj_new_string(sym->str.ptr, sym->str.len));
     tf_obj_release(sym);
@@ -121,7 +120,7 @@ tf_ret tf_name(tf_ctx *ctx) {
 }
 
 static tf_ret type_check(tf_ctx *ctx, tf_type type) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
     tf_stack_push(ctx, tf_obj_new_bool(o->type == type));
     tf_obj_release(o);
@@ -148,7 +147,7 @@ tf_ret tf_list_q(tf_ctx *ctx) {
 }
 
 tf_ret tf_typeof(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
     const char *type_str = "unknown";
     switch (o->type) {
@@ -322,12 +321,13 @@ tf_ret tf_words(tf_ctx *ctx) {
 }
 
 tf_ret tf_see(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_SYMBOL)) return TF_ERR;
     tf_obj *name = tf_stack_pop_type(ctx, TF_OBJ_TYPE_SYMBOL);
-    if (!name) return TF_ERR;
 
     tf_word *word = tf_dict_lookup(ctx, name);
     if (!word) {
+        tf_ctx_runtime_errorf(ctx, "'%s' expected a defined word, found '%s'\n",
+                              ctx->current_word, name->str.ptr);
         tf_obj_release(name);
         return TF_ERR;
     }
@@ -355,12 +355,22 @@ tf_ret tf_see(tf_ctx *ctx) {
 }
 
 tf_ret tf_colon(tf_ctx *ctx) {
-    if (ctx->call_stack_len == 0) return TF_ERR;
+    if (ctx->call_stack_len == 0) {
+        tf_ctx_runtime_errorf(ctx, "':' requires an active program frame\n");
+        return TF_ERR;
+    }
     tf_frame *f = &ctx->call_stack[ctx->call_stack_len - 1];
 
-    if (f->pc >= f->program->list.len) return TF_ERR;
+    if (f->pc >= f->program->list.len) {
+        tf_ctx_runtime_errorf(ctx, "':' expected a word name\n");
+        return TF_ERR;
+    }
     tf_obj *word_name = f->program->list.elem[f->pc];
-    if (word_name->type != TF_OBJ_TYPE_SYMBOL) return TF_ERR;
+    if (word_name->type != TF_OBJ_TYPE_SYMBOL) {
+        tf_ctx_runtime_errorf(ctx, "':' expected symbol word name, found %s\n",
+                              tf_obj_type_name(word_name));
+        return TF_ERR;
+    }
 
     tf_obj *body = tf_obj_new_list();
     f->pc++;
@@ -374,6 +384,7 @@ tf_ret tf_colon(tf_ctx *ctx) {
 
     if (f->pc >= f->program->list.len) {
         tf_obj_release(body);
+        tf_ctx_runtime_errorf(ctx, "':' expected ';' to close definition\n");
         return TF_ERR;
     }
 
@@ -384,10 +395,17 @@ tf_ret tf_colon(tf_ctx *ctx) {
 }
 
 tf_ret tf_def(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 2)) return TF_ERR;
     tf_obj *body = tf_stack_peek(ctx, 0);
     tf_obj *word_name = tf_stack_peek(ctx, 1);
-    if (body->type != TF_OBJ_TYPE_LIST || word_name->type != TF_OBJ_TYPE_SYMBOL) {
+    if (word_name->type != TF_OBJ_TYPE_SYMBOL) {
+        tf_ctx_runtime_errorf(ctx, "'def' expected symbol at stack depth 1, found %s\n",
+                              tf_obj_type_name(word_name));
+        return TF_ERR;
+    }
+    if (body->type != TF_OBJ_TYPE_LIST) {
+        tf_ctx_runtime_errorf(ctx, "'def' expected list at stack depth 0, found %s\n",
+                              tf_obj_type_name(body));
         return TF_ERR;
     }
 

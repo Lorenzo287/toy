@@ -42,17 +42,12 @@ static bool checked_int_mul(int a, int b, int *out) {
 }
 
 static tf_ret binary_math(tf_ctx *ctx, char op) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
+    if (!tf_ctx_require_number(ctx, 1) || !tf_ctx_require_number(ctx, 0)) {
+        return TF_ERR;
+    }
 
     tf_obj *b = tf_stack_pop(ctx);
     tf_obj *a = tf_stack_pop(ctx);
-
-    if ((a->type != TF_OBJ_TYPE_INT && a->type != TF_OBJ_TYPE_FLOAT) ||
-        (b->type != TF_OBJ_TYPE_INT && b->type != TF_OBJ_TYPE_FLOAT)) {
-        tf_stack_push(ctx, a);
-        tf_stack_push(ctx, b);
-        return TF_ERR;
-    }
 
     bool is_float = (a->type == TF_OBJ_TYPE_FLOAT || b->type == TF_OBJ_TYPE_FLOAT);
 
@@ -75,6 +70,8 @@ static tf_ret binary_math(tf_ctx *ctx, char op) {
             if (fb == 0.0f) {
                 tf_stack_push(ctx, a);
                 tf_stack_push(ctx, b);
+                tf_ctx_runtime_errorf(ctx, "'%s' cannot divide by zero\n",
+                                      ctx->current_word);
                 return TF_ERR;
             }
             fresult = fa / fb;
@@ -112,11 +109,15 @@ static tf_ret binary_math(tf_ctx *ctx, char op) {
             if (ib == 0) {
                 tf_stack_push(ctx, a);
                 tf_stack_push(ctx, b);
+                tf_ctx_runtime_errorf(ctx, "'%s' cannot divide by zero\n",
+                                      ctx->current_word);
                 return TF_ERR;
             }
             if (ia == INT_MIN && ib == -1) {
                 tf_stack_push(ctx, a);
                 tf_stack_push(ctx, b);
+                tf_ctx_runtime_errorf(ctx, "'%s' integer result would overflow\n",
+                                      ctx->current_word);
                 return TF_ERR;
             }
             if (op == '/')
@@ -138,6 +139,8 @@ static tf_ret binary_math(tf_ctx *ctx, char op) {
         if (!ok) {
             tf_stack_push(ctx, a);
             tf_stack_push(ctx, b);
+            tf_ctx_runtime_errorf(ctx, "'%s' integer result would overflow\n",
+                                  ctx->current_word);
             return TF_ERR;
         }
         tf_stack_push(ctx, tf_obj_new_int(iresult));
@@ -171,38 +174,36 @@ tf_ret tf_min(tf_ctx *ctx) {
 }
 
 tf_ret tf_neg(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_number(ctx, 0)) return TF_ERR;
     tf_obj *a = tf_stack_pop(ctx);
     if (a->type == TF_OBJ_TYPE_INT) {
         if (a->i == INT_MIN) {
             tf_stack_push(ctx, a);
+            tf_ctx_runtime_errorf(ctx, "'%s' integer result would overflow\n",
+                                  ctx->current_word);
             return TF_ERR;
         }
         tf_stack_push(ctx, tf_obj_new_int(-a->i));
     } else if (a->type == TF_OBJ_TYPE_FLOAT) {
         tf_stack_push(ctx, tf_obj_new_float(-a->f));
-    } else {
-        tf_stack_push(ctx, a);
-        return TF_ERR;
     }
     tf_obj_release(a);
     return TF_OK;
 }
 
 tf_ret tf_abs(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_number(ctx, 0)) return TF_ERR;
     tf_obj *a = tf_stack_pop(ctx);
     if (a->type == TF_OBJ_TYPE_INT) {
         if (a->i == INT_MIN) {
             tf_stack_push(ctx, a);
+            tf_ctx_runtime_errorf(ctx, "'%s' integer result would overflow\n",
+                                  ctx->current_word);
             return TF_ERR;
         }
         tf_stack_push(ctx, tf_obj_new_int(a->i < 0 ? -a->i : a->i));
     } else if (a->type == TF_OBJ_TYPE_FLOAT) {
         tf_stack_push(ctx, tf_obj_new_float(a->f < 0 ? -a->f : a->f));
-    } else {
-        tf_stack_push(ctx, a);
-        return TF_ERR;
     }
     tf_obj_release(a);
     return TF_OK;
@@ -211,12 +212,8 @@ tf_ret tf_abs(tf_ctx *ctx) {
 /* Transcendental Math */
 
 static tf_ret unary_float_math(tf_ctx *ctx, double (*func)(double)) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_number(ctx, 0)) return TF_ERR;
     tf_obj *a = tf_stack_pop(ctx);
-    if (a->type != TF_OBJ_TYPE_INT && a->type != TF_OBJ_TYPE_FLOAT) {
-        tf_stack_push(ctx, a);
-        return TF_ERR;
-    }
     double val = (a->type == TF_OBJ_TYPE_FLOAT) ? (double)a->f : (double)a->i;
     tf_stack_push(ctx, tf_obj_new_float((float)func(val)));
     tf_obj_release(a);
@@ -232,15 +229,11 @@ tf_ret tf_cos(tf_ctx *ctx) { return unary_float_math(ctx, cos); }
 tf_ret tf_tan(tf_ctx *ctx) { return unary_float_math(ctx, tan); }
 
 tf_ret tf_pow(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
-    tf_obj *b = tf_stack_pop(ctx);
-    tf_obj *a = tf_stack_pop(ctx);
-    if ((a->type != TF_OBJ_TYPE_INT && a->type != TF_OBJ_TYPE_FLOAT) ||
-        (b->type != TF_OBJ_TYPE_INT && b->type != TF_OBJ_TYPE_FLOAT)) {
-        tf_stack_push(ctx, a);
-        tf_stack_push(ctx, b);
+    if (!tf_ctx_require_number(ctx, 1) || !tf_ctx_require_number(ctx, 0)) {
         return TF_ERR;
     }
+    tf_obj *b = tf_stack_pop(ctx);
+    tf_obj *a = tf_stack_pop(ctx);
     double val_a = (a->type == TF_OBJ_TYPE_FLOAT) ? (double)a->f : (double)a->i;
     double val_b = (b->type == TF_OBJ_TYPE_FLOAT) ? (double)b->f : (double)b->i;
     tf_stack_push(ctx, tf_obj_new_float((float)pow(val_a, val_b)));
@@ -250,12 +243,8 @@ tf_ret tf_pow(tf_ctx *ctx) {
 }
 
 static tf_ret unary_int_math(tf_ctx *ctx, double (*func)(double)) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_number(ctx, 0)) return TF_ERR;
     tf_obj *a = tf_stack_pop(ctx);
-    if (a->type != TF_OBJ_TYPE_INT && a->type != TF_OBJ_TYPE_FLOAT) {
-        tf_stack_push(ctx, a);
-        return TF_ERR;
-    }
     double val = (a->type == TF_OBJ_TYPE_FLOAT) ? (double)a->f : (double)a->i;
     tf_stack_push(ctx, tf_obj_new_int((int)func(val)));
     tf_obj_release(a);
@@ -266,11 +255,12 @@ tf_ret tf_floor(tf_ctx *ctx) { return unary_int_math(ctx, floor); }
 tf_ret tf_ceil(tf_ctx *ctx) { return unary_int_math(ctx, ceil); }
 tf_ret tf_round(tf_ctx *ctx) { return unary_int_math(ctx, round); }
 tf_ret tf_pred(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_INT)) return TF_ERR;
     tf_obj *a = tf_stack_pop_type(ctx, TF_OBJ_TYPE_INT);
-    if (!a) return TF_ERR;
     if (a->i == INT_MIN) {
         tf_stack_push(ctx, a);
+        tf_ctx_runtime_errorf(ctx, "'%s' integer result would overflow\n",
+                              ctx->current_word);
         return TF_ERR;
     }
     tf_stack_push(ctx, tf_obj_new_int(a->i - 1));
@@ -279,11 +269,12 @@ tf_ret tf_pred(tf_ctx *ctx) {
 }
 
 tf_ret tf_succ(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_INT)) return TF_ERR;
     tf_obj *a = tf_stack_pop_type(ctx, TF_OBJ_TYPE_INT);
-    if (!a) return TF_ERR;
     if (a->i == INT_MAX) {
         tf_stack_push(ctx, a);
+        tf_ctx_runtime_errorf(ctx, "'%s' integer result would overflow\n",
+                              ctx->current_word);
         return TF_ERR;
     }
     tf_stack_push(ctx, tf_obj_new_int(a->i + 1));
@@ -292,27 +283,26 @@ tf_ret tf_succ(tf_ctx *ctx) {
 }
 
 tf_ret tf_square(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_number(ctx, 0)) return TF_ERR;
     tf_obj *a = tf_stack_pop(ctx);
     if (a->type == TF_OBJ_TYPE_INT) {
         int result = 0;
         if (!checked_int_mul(a->i, a->i, &result)) {
             tf_stack_push(ctx, a);
+            tf_ctx_runtime_errorf(ctx, "'%s' integer result would overflow\n",
+                                  ctx->current_word);
             return TF_ERR;
         }
         tf_stack_push(ctx, tf_obj_new_int(result));
     } else if (a->type == TF_OBJ_TYPE_FLOAT) {
         tf_stack_push(ctx, tf_obj_new_float(a->f * a->f));
-    } else {
-        tf_stack_push(ctx, a);
-        return TF_ERR;
     }
     tf_obj_release(a);
     return TF_OK;
 }
 
 tf_ret tf_cube(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_number(ctx, 0)) return TF_ERR;
     tf_obj *a = tf_stack_pop(ctx);
     if (a->type == TF_OBJ_TYPE_INT) {
         int squared = 0;
@@ -320,14 +310,13 @@ tf_ret tf_cube(tf_ctx *ctx) {
         if (!checked_int_mul(a->i, a->i, &squared) ||
             !checked_int_mul(squared, a->i, &result)) {
             tf_stack_push(ctx, a);
+            tf_ctx_runtime_errorf(ctx, "'%s' integer result would overflow\n",
+                                  ctx->current_word);
             return TF_ERR;
         }
         tf_stack_push(ctx, tf_obj_new_int(result));
     } else if (a->type == TF_OBJ_TYPE_FLOAT) {
         tf_stack_push(ctx, tf_obj_new_float(a->f * a->f * a->f));
-    } else {
-        tf_stack_push(ctx, a);
-        return TF_ERR;
     }
     tf_obj_release(a);
     return TF_OK;
@@ -353,7 +342,7 @@ tf_ret tf_tau(tf_ctx *ctx) {
 
 /* Helper for logical and bitwise operations */
 static tf_ret logic_op(tf_ctx *ctx, char op) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 2)) return TF_ERR;
 
     tf_obj *b = tf_stack_pop(ctx);
     tf_obj *a = tf_stack_pop(ctx);
@@ -379,6 +368,9 @@ static tf_ret logic_op(tf_ctx *ctx, char op) {
     } else {
         tf_stack_push(ctx, a);
         tf_stack_push(ctx, b);
+        tf_ctx_runtime_errorf(
+            ctx, "'%s' expected both values to be bools or both values to be ints\n",
+            ctx->current_word);
         return TF_ERR;
     }
 
@@ -388,25 +380,25 @@ static tf_ret logic_op(tf_ctx *ctx, char op) {
 }
 
 static tf_ret shift_op(tf_ctx *ctx, bool left) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
+    if (!tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_INT) ||
+        !tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_INT)) {
+        return TF_ERR;
+    }
 
     tf_obj *b = tf_stack_pop(ctx);
     tf_obj *a = tf_stack_pop(ctx);
 
-    if (a->type == TF_OBJ_TYPE_INT && b->type == TF_OBJ_TYPE_INT) {
-        if (b->i < 0 || b->i >= (int)(sizeof(unsigned int) * CHAR_BIT)) {
-            tf_stack_push(ctx, a);
-            tf_stack_push(ctx, b);
-            return TF_ERR;
-        }
-        unsigned int value = (unsigned int)a->i;
-        unsigned int res = left ? (value << b->i) : (value >> b->i);
-        tf_stack_push(ctx, tf_obj_new_int((int)res));
-    } else {
+    if (b->i < 0 || b->i >= (int)(sizeof(unsigned int) * CHAR_BIT)) {
         tf_stack_push(ctx, a);
         tf_stack_push(ctx, b);
+        tf_ctx_runtime_errorf(ctx, "'%s' shift count must be between 0 and %zu\n",
+                              ctx->current_word,
+                              sizeof(unsigned int) * CHAR_BIT - 1);
         return TF_ERR;
     }
+    unsigned int value = (unsigned int)a->i;
+    unsigned int res = left ? (value << b->i) : (value >> b->i);
+    tf_stack_push(ctx, tf_obj_new_int((int)res));
 
     tf_obj_release(a);
     tf_obj_release(b);
@@ -430,7 +422,7 @@ tf_ret tf_xor(tf_ctx *ctx) {
 }
 
 tf_ret tf_not(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *a = tf_stack_pop(ctx);
     if (a->type == TF_OBJ_TYPE_BOOL) {
         tf_stack_push(ctx, tf_obj_new_bool(!a->b));
@@ -438,6 +430,8 @@ tf_ret tf_not(tf_ctx *ctx) {
         tf_stack_push(ctx, tf_obj_new_int(~a->i));
     } else {
         tf_stack_push(ctx, a);
+        tf_ctx_runtime_errorf(ctx, "'%s' expected bool or int, found %s\n",
+                              ctx->current_word, tf_obj_type_name(a));
         return TF_ERR;
     }
     tf_obj_release(a);
@@ -445,7 +439,7 @@ tf_ret tf_not(tf_ctx *ctx) {
 }
 
 tf_ret tf_dup(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_peek(ctx, 0);
     tf_stack_push(ctx, o);
     tf_obj_retain(o);
@@ -453,14 +447,14 @@ tf_ret tf_dup(tf_ctx *ctx) {
 }
 
 tf_ret tf_drop(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
     tf_obj_release(o);
     return TF_OK;
 }
 
 tf_ret tf_swap(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 2)) return TF_ERR;
     tf_obj *a = tf_stack_pop(ctx);
     tf_obj *b = tf_stack_pop(ctx);
     tf_stack_push(ctx, a);
@@ -469,7 +463,7 @@ tf_ret tf_swap(tf_ctx *ctx) {
 }
 
 tf_ret tf_over(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 2)) return TF_ERR;
     tf_obj *o = tf_stack_peek(ctx, 1);
     tf_stack_push(ctx, o);
     tf_obj_retain(o);
@@ -477,7 +471,7 @@ tf_ret tf_over(tf_ctx *ctx) {
 }
 
 tf_ret tf_rot(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 3) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 3)) return TF_ERR;
     tf_obj *c = tf_stack_pop(ctx);
     tf_obj *b = tf_stack_pop(ctx);
     tf_obj *a = tf_stack_pop(ctx);
@@ -488,7 +482,7 @@ tf_ret tf_rot(tf_ctx *ctx) {
 }
 
 tf_ret tf_swapd(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 3) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 3)) return TF_ERR;
     tf_obj *c = tf_stack_pop(ctx);
     tf_obj *b = tf_stack_pop(ctx);
     tf_obj *a = tf_stack_pop(ctx);
@@ -499,7 +493,7 @@ tf_ret tf_swapd(tf_ctx *ctx) {
 }
 
 tf_ret tf_nip(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 2)) return TF_ERR;
     tf_obj *a = tf_stack_pop(ctx);
     tf_obj *b = tf_stack_pop(ctx);
     tf_obj_release(b);
@@ -508,7 +502,7 @@ tf_ret tf_nip(tf_ctx *ctx) {
 }
 
 tf_ret tf_tuck(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 2)) return TF_ERR;
     tf_obj *a = tf_stack_pop(ctx);
     tf_obj *b = tf_stack_pop(ctx);
     tf_stack_push(ctx, a);
@@ -519,12 +513,16 @@ tf_ret tf_tuck(tf_ctx *ctx) {
 }
 
 tf_ret tf_pick(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_INT)) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 2)) return TF_ERR;
     tf_obj *o = tf_stack_peek(ctx, 0);
-    if (o->type != TF_OBJ_TYPE_INT) return TF_ERR;
     int pos = o->i;
     size_t len = tf_stack_len(ctx);
-    if (pos < 0 || len < (size_t)pos + 2) return TF_ERR;
+    if (pos < 0 || len < (size_t)pos + 2) {
+        tf_ctx_runtime_errorf(ctx, "'%s' stack position %d is out of range\n",
+                              ctx->current_word, pos);
+        return TF_ERR;
+    }
 
     o = tf_stack_pop(ctx);
     tf_obj_release(o);
@@ -536,11 +534,15 @@ tf_ret tf_pick(tf_ctx *ctx) {
 }
 
 tf_ret tf_roll(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_INT)) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 2)) return TF_ERR;
     tf_obj *o = tf_stack_peek(ctx, 0);
-    if (o->type != TF_OBJ_TYPE_INT) return TF_ERR;
     int pos = o->i;
-    if (pos < 0 || tf_stack_len(ctx) < (size_t)pos + 2) return TF_ERR;
+    if (pos < 0 || tf_stack_len(ctx) < (size_t)pos + 2) {
+        tf_ctx_runtime_errorf(ctx, "'%s' stack position %d is out of range\n",
+                              ctx->current_word, pos);
+        return TF_ERR;
+    }
 
     o = tf_stack_pop(ctx);
     tf_obj_release(o);
@@ -601,7 +603,7 @@ static bool obj_equal(tf_obj *a, tf_obj *b) {
 }
 
 static tf_ret compare_op(tf_ctx *ctx, const char *op) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 2)) return TF_ERR;
 
     tf_obj *b = tf_stack_pop(ctx);
     tf_obj *a = tf_stack_pop(ctx);
@@ -647,6 +649,9 @@ static tf_ret compare_op(tf_ctx *ctx, const char *op) {
         } else {
             tf_stack_push(ctx, a);
             tf_stack_push(ctx, b);
+            tf_ctx_runtime_errorf(ctx,
+                                  "'%s' cannot order values of type %s\n",
+                                  ctx->current_word, tf_obj_type_name(a));
             return TF_ERR;
         }
     } else {
@@ -657,6 +662,9 @@ static tf_ret compare_op(tf_ctx *ctx, const char *op) {
         else {
             tf_stack_push(ctx, a);
             tf_stack_push(ctx, b);
+            tf_ctx_runtime_errorf(
+                ctx, "'%s' cannot compare %s with %s\n", ctx->current_word,
+                tf_obj_type_name(a), tf_obj_type_name(b));
             return TF_ERR;
         }
     }

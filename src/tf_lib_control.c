@@ -3,13 +3,11 @@
 #include <stdlib.h>
 #include "tf_exec.h"
 #include "tf_alloc.h"
-#include "tf_console.h"
 #include "tf_obj.h"
 
 tf_ret tf_exec(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_callable(ctx, 0)) return TF_ERR;
     tf_obj *o = tf_stack_pop_callable(ctx);
-    if (!o) return TF_ERR;
 
     tf_ret res = tf_vm_call_callable(ctx, o);
     tf_obj_release(o);
@@ -17,9 +15,9 @@ tf_ret tf_exec(tf_ctx *ctx) {
 }
 
 tf_ret tf_app2(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 3) return TF_ERR;
-    tf_obj *top = tf_stack_peek(ctx, 0);
-    if (!tf_obj_is_callable(top)) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 3) || !tf_ctx_require_callable(ctx, 0)) {
+        return TF_ERR;
+    }
 
     tf_obj *callable = tf_stack_pop(ctx);
     tf_obj *b = tf_stack_pop(ctx);
@@ -74,6 +72,34 @@ static void push_retained(tf_obj *list, tf_obj *elem) {
 // one-byte string so the same callable protocol works for lists and strings.
 static bool is_sequence(tf_obj *o) {
     return o->type == TF_OBJ_TYPE_LIST || o->type == TF_OBJ_TYPE_STR;
+}
+
+static bool require_condition(tf_ctx *ctx, size_t depth) {
+    if (!tf_ctx_require_stack(ctx, depth + 1)) return false;
+    tf_obj *o = tf_stack_peek(ctx, depth);
+    if (o->type == TF_OBJ_TYPE_BOOL || tf_obj_is_callable(o)) return true;
+
+    tf_ctx_runtime_errorf(ctx,
+                          "'%s' expected bool or callable at stack depth %zu, found %s\n",
+                          ctx->current_word, depth, tf_obj_type_name(o));
+    return false;
+}
+
+static bool require_callable_list(tf_ctx *ctx, tf_obj *list, const char *word) {
+    if (list->type != TF_OBJ_TYPE_LIST) {
+        tf_ctx_runtime_errorf(ctx, "'%s' expected list, found %s\n", word,
+                              tf_obj_type_name(list));
+        return false;
+    }
+    for (size_t i = 0; i < list->list.len; i++) {
+        if (!tf_obj_is_callable(list->list.elem[i])) {
+            tf_ctx_runtime_errorf(
+                ctx, "'%s' expected list item %zu to be callable, found %s\n",
+                word, i, tf_obj_type_name(list->list.elem[i]));
+            return false;
+        }
+    }
+    return true;
 }
 
 static size_t sequence_len(tf_obj *seq) {
@@ -1575,7 +1601,7 @@ tf_ret tf_error(tf_ctx *ctx) {
         if (msg->type == TF_OBJ_TYPE_STR) {
             msg = tf_stack_pop(ctx);
             if (ctx->error_suppression_depth == 0) {
-                tf_console_program_errorf("%s\n", msg->str.ptr);
+                tf_ctx_program_errorf(ctx, "%s\n", msg->str.ptr);
                 ctx->error_reported = true;
             }
             tf_obj_release(msg);
@@ -1584,17 +1610,18 @@ tf_ret tf_error(tf_ctx *ctx) {
     }
 
     if (ctx->error_suppression_depth == 0) {
-        tf_console_program_errorf("error\n");
+        tf_ctx_program_errorf(ctx, "error\n");
         ctx->error_reported = true;
     }
     return TF_ERR;
 }
 
 tf_ret tf_try(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
+    if (!tf_ctx_require_callable(ctx, 1) || !tf_ctx_require_callable(ctx, 0)) {
+        return TF_ERR;
+    }
     tf_obj *handler = tf_stack_peek(ctx, 0);
     tf_obj *body = tf_stack_peek(ctx, 1);
-    if (!tf_obj_is_callable(body) || !tf_obj_is_callable(handler)) return TF_ERR;
 
     handler = tf_stack_pop(ctx);
     body = tf_stack_pop(ctx);
@@ -1614,11 +1641,11 @@ tf_ret tf_try(tf_ctx *ctx) {
 }
 
 tf_ret tf_if(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
+    if (!require_condition(ctx, 1) || !tf_ctx_require_callable(ctx, 0)) {
+        return TF_ERR;
+    }
     tf_obj *body = tf_stack_peek(ctx, 0);
     tf_obj *cond = tf_stack_peek(ctx, 1);
-    if (!tf_obj_is_callable(body)) return TF_ERR;
-    if (cond->type != TF_OBJ_TYPE_BOOL && !tf_obj_is_callable(cond)) return TF_ERR;
 
     body = tf_stack_pop(ctx);
     cond = tf_stack_pop(ctx);
@@ -1636,12 +1663,12 @@ tf_ret tf_if(tf_ctx *ctx) {
 }
 
 tf_ret tf_infra(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
-    tf_obj *body = tf_stack_peek(ctx, 0);
-    tf_obj *data = tf_stack_peek(ctx, 1);
-    if (!tf_obj_is_callable(body) || data->type != TF_OBJ_TYPE_LIST) {
+    if (!tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_LIST) ||
+        !tf_ctx_require_callable(ctx, 0)) {
         return TF_ERR;
     }
+    tf_obj *body = tf_stack_peek(ctx, 0);
+    tf_obj *data = tf_stack_peek(ctx, 1);
 
     body = tf_stack_pop(ctx);
     data = tf_stack_pop(ctx);
@@ -1666,9 +1693,8 @@ tf_ret tf_infra(tf_ctx *ctx) {
 }
 
 tf_ret tf_cond(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_LIST)) return TF_ERR;
     tf_obj *clauses = tf_stack_pop_type(ctx, TF_OBJ_TYPE_LIST);
-    if (!clauses) return TF_ERR;
 
     cond_state *state = tf_xmalloc(sizeof(*state));
     state->clauses = clauses;
@@ -1681,9 +1707,15 @@ tf_ret tf_cond(tf_ctx *ctx) {
 }
 
 static tf_ret cleave_or_construct(tf_ctx *ctx, bool construct_result) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 2) ||
+        !tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_LIST)) {
+        return TF_ERR;
+    }
     tf_obj *branches = tf_stack_peek(ctx, 0);
-    if (branches->type != TF_OBJ_TYPE_LIST) return TF_ERR;
+    if (!require_callable_list(ctx, branches,
+                               construct_result ? "construct" : "cleave")) {
+        return TF_ERR;
+    }
 
     branches = tf_stack_pop(ctx);
     tf_obj *value = tf_stack_pop(ctx);
@@ -1712,12 +1744,13 @@ tf_ret tf_construct(tf_ctx *ctx) {
 }
 
 tf_ret tf_ifelse(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 3) return TF_ERR;
+    if (!require_condition(ctx, 2) || !tf_ctx_require_callable(ctx, 1) ||
+        !tf_ctx_require_callable(ctx, 0)) {
+        return TF_ERR;
+    }
     tf_obj *else_b = tf_stack_peek(ctx, 0);
     tf_obj *then_b = tf_stack_peek(ctx, 1);
     tf_obj *cond = tf_stack_peek(ctx, 2);
-    if (!tf_obj_is_callable(else_b) || !tf_obj_is_callable(then_b)) return TF_ERR;
-    if (cond->type != TF_OBJ_TYPE_BOOL && !tf_obj_is_callable(cond)) return TF_ERR;
 
     else_b = tf_stack_pop(ctx);
     then_b = tf_stack_pop(ctx);
@@ -1736,10 +1769,11 @@ tf_ret tf_ifelse(tf_ctx *ctx) {
 }
 
 tf_ret tf_while(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
+    if (!tf_ctx_require_callable(ctx, 1) || !tf_ctx_require_callable(ctx, 0)) {
+        return TF_ERR;
+    }
     tf_obj *body = tf_stack_peek(ctx, 0);
     tf_obj *cond = tf_stack_peek(ctx, 1);
-    if (!tf_obj_is_callable(body) || !tf_obj_is_callable(cond)) return TF_ERR;
 
     body = tf_stack_pop(ctx);
     cond = tf_stack_pop(ctx);
@@ -1755,9 +1789,10 @@ tf_ret tf_while(tf_ctx *ctx) {
 }
 
 tf_ret tf_dip(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 2) || !tf_ctx_require_callable(ctx, 0)) {
+        return TF_ERR;
+    }
     tf_obj *body = tf_stack_peek(ctx, 0);
-    if (!tf_obj_is_callable(body)) return TF_ERR;
 
     body = tf_stack_pop(ctx);
     tf_obj *saved = tf_stack_pop(ctx);
@@ -1775,9 +1810,10 @@ tf_ret tf_dip(tf_ctx *ctx) {
 }
 
 tf_ret tf_keep(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 2) || !tf_ctx_require_callable(ctx, 0)) {
+        return TF_ERR;
+    }
     tf_obj *body = tf_stack_peek(ctx, 0);
-    if (!tf_obj_is_callable(body)) return TF_ERR;
 
     body = tf_stack_pop(ctx);
     tf_obj *saved = tf_stack_pop(ctx);
@@ -1795,10 +1831,12 @@ tf_ret tf_keep(tf_ctx *ctx) {
 }
 
 tf_ret tf_bi(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 3) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 3) || !tf_ctx_require_callable(ctx, 1) ||
+        !tf_ctx_require_callable(ctx, 0)) {
+        return TF_ERR;
+    }
     tf_obj *right = tf_stack_peek(ctx, 0);
     tf_obj *left = tf_stack_peek(ctx, 1);
-    if (!tf_obj_is_callable(left) || !tf_obj_is_callable(right)) return TF_ERR;
 
     right = tf_stack_pop(ctx);
     left = tf_stack_pop(ctx);
@@ -1820,15 +1858,14 @@ tf_ret tf_bi(tf_ctx *ctx) {
 }
 
 tf_ret tf_linrec(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 4) return TF_ERR;
+    if (!tf_ctx_require_callable(ctx, 3) || !tf_ctx_require_callable(ctx, 2) ||
+        !tf_ctx_require_callable(ctx, 1) || !tf_ctx_require_callable(ctx, 0)) {
+        return TF_ERR;
+    }
     tf_obj *rec2 = tf_stack_peek(ctx, 0);
     tf_obj *rec1 = tf_stack_peek(ctx, 1);
     tf_obj *then_b = tf_stack_peek(ctx, 2);
     tf_obj *pred = tf_stack_peek(ctx, 3);
-    if (!tf_obj_is_callable(pred) || !tf_obj_is_callable(then_b) ||
-        !tf_obj_is_callable(rec1) || !tf_obj_is_callable(rec2)) {
-        return TF_ERR;
-    }
 
     rec2 = tf_stack_pop(ctx);
     rec1 = tf_stack_pop(ctx);
@@ -1848,15 +1885,14 @@ tf_ret tf_linrec(tf_ctx *ctx) {
 }
 
 tf_ret tf_binrec(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 4) return TF_ERR;
+    if (!tf_ctx_require_callable(ctx, 3) || !tf_ctx_require_callable(ctx, 2) ||
+        !tf_ctx_require_callable(ctx, 1) || !tf_ctx_require_callable(ctx, 0)) {
+        return TF_ERR;
+    }
     tf_obj *rec2 = tf_stack_peek(ctx, 0);
     tf_obj *rec1 = tf_stack_peek(ctx, 1);
     tf_obj *then_b = tf_stack_peek(ctx, 2);
     tf_obj *pred = tf_stack_peek(ctx, 3);
-    if (!tf_obj_is_callable(pred) || !tf_obj_is_callable(then_b) ||
-        !tf_obj_is_callable(rec1) || !tf_obj_is_callable(rec2)) {
-        return TF_ERR;
-    }
 
     rec2 = tf_stack_pop(ctx);
     rec1 = tf_stack_pop(ctx);
@@ -1888,11 +1924,21 @@ static tf_ret pop_rec_parts(tf_ctx *ctx, tf_obj **pred, tf_obj **then_b,
         return TF_OK;
     }
 
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *parts = tf_stack_peek(ctx, 0);
-    if (parts->type != TF_OBJ_TYPE_LIST || parts->list.len != 4) return TF_ERR;
+    if (parts->type != TF_OBJ_TYPE_LIST || parts->list.len != 4) {
+        tf_ctx_runtime_errorf(ctx,
+                              "'%s' expected four callables or a list of four callables\n",
+                              ctx->current_word);
+        return TF_ERR;
+    }
     for (size_t i = 0; i < 4; i++) {
-        if (!tf_obj_is_callable(parts->list.elem[i])) return TF_ERR;
+        if (!tf_obj_is_callable(parts->list.elem[i])) {
+            tf_ctx_runtime_errorf(
+                ctx, "'%s' expected recursion part %zu to be callable, found %s\n",
+                ctx->current_word, i, tf_obj_type_name(parts->list.elem[i]));
+            return TF_ERR;
+        }
     }
 
     parts = tf_stack_pop(ctx);
@@ -1929,12 +1975,12 @@ tf_ret tf_genrec(tf_ctx *ctx) {
 }
 
 tf_ret tf_treerec(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 3) return TF_ERR;
-    tf_obj *node = tf_stack_peek(ctx, 0);
-    tf_obj *leaf = tf_stack_peek(ctx, 1);
-    if (!tf_obj_is_callable(node) || !tf_obj_is_callable(leaf)) {
+    if (!tf_ctx_require_stack(ctx, 3) || !tf_ctx_require_callable(ctx, 1) ||
+        !tf_ctx_require_callable(ctx, 0)) {
         return TF_ERR;
     }
+    tf_obj *node = tf_stack_peek(ctx, 0);
+    tf_obj *leaf = tf_stack_peek(ctx, 1);
 
     node = tf_stack_pop(ctx);
     leaf = tf_stack_pop(ctx);
@@ -1945,12 +1991,12 @@ tf_ret tf_treerec(tf_ctx *ctx) {
 }
 
 tf_ret tf_replicate(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
-    tf_obj *body = tf_stack_peek(ctx, 0);
-    tf_obj *n_obj = tf_stack_peek(ctx, 1);
-    if (!tf_obj_is_callable(body) || n_obj->type != TF_OBJ_TYPE_INT) {
+    if (!tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_INT) ||
+        !tf_ctx_require_callable(ctx, 0)) {
         return TF_ERR;
     }
+    tf_obj *body = tf_stack_peek(ctx, 0);
+    tf_obj *n_obj = tf_stack_peek(ctx, 1);
     body = tf_stack_pop(ctx);
     n_obj = tf_stack_pop(ctx);
 
@@ -1959,6 +2005,8 @@ tf_ret tf_replicate(tf_ctx *ctx) {
 
     if (n < 0) {
         tf_obj_release(body);
+        tf_ctx_runtime_errorf(ctx, "'%s' count must be non-negative\n",
+                              ctx->current_word);
         return TF_ERR;
     }
 
@@ -1976,12 +2024,12 @@ tf_ret tf_replicate(tf_ctx *ctx) {
 }
 
 tf_ret tf_times(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
-    tf_obj *body = tf_stack_peek(ctx, 0);
-    tf_obj *n_obj = tf_stack_peek(ctx, 1);
-    if (!tf_obj_is_callable(body) || n_obj->type != TF_OBJ_TYPE_INT) {
+    if (!tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_INT) ||
+        !tf_ctx_require_callable(ctx, 0)) {
         return TF_ERR;
     }
+    tf_obj *body = tf_stack_peek(ctx, 0);
+    tf_obj *n_obj = tf_stack_peek(ctx, 1);
 
     body = tf_stack_pop(ctx);
     n_obj = tf_stack_pop(ctx);
@@ -1990,6 +2038,8 @@ tf_ret tf_times(tf_ctx *ctx) {
     if (n < 0) {
         tf_obj_release(body);
         tf_obj_release(n_obj);
+        tf_ctx_runtime_errorf(ctx, "'%s' count must be non-negative\n",
+                              ctx->current_word);
         return TF_ERR;
     }
 
@@ -2007,12 +2057,11 @@ tf_ret tf_times(tf_ctx *ctx) {
 }
 
 tf_ret tf_each(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
-    tf_obj *body = tf_stack_peek(ctx, 0);
-    tf_obj *data = tf_stack_peek(ctx, 1);
-    if (!tf_obj_is_callable(body) || !is_sequence(data)) {
+    if (!tf_ctx_require_sequence(ctx, 1) || !tf_ctx_require_callable(ctx, 0)) {
         return TF_ERR;
     }
+    tf_obj *body = tf_stack_peek(ctx, 0);
+    tf_obj *data = tf_stack_peek(ctx, 1);
 
     body = tf_stack_pop(ctx);
     data = tf_stack_pop(ctx);
@@ -2026,12 +2075,11 @@ tf_ret tf_each(tf_ctx *ctx) {
 }
 
 tf_ret tf_map(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
-    tf_obj *body = tf_stack_peek(ctx, 0);
-    tf_obj *data = tf_stack_peek(ctx, 1);
-    if (!tf_obj_is_callable(body) || !is_sequence(data)) {
+    if (!tf_ctx_require_sequence(ctx, 1) || !tf_ctx_require_callable(ctx, 0)) {
         return TF_ERR;
     }
+    tf_obj *body = tf_stack_peek(ctx, 0);
+    tf_obj *data = tf_stack_peek(ctx, 1);
 
     body = tf_stack_pop(ctx);
     data = tf_stack_pop(ctx);
@@ -2056,12 +2104,12 @@ tf_ret tf_map(tf_ctx *ctx) {
 }
 
 tf_ret tf_fold(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 3) return TF_ERR;
-    tf_obj *body = tf_stack_peek(ctx, 0);
-    tf_obj *data = tf_stack_peek(ctx, 1);
-    if (!tf_obj_is_callable(body) || !is_sequence(data)) {
+    if (!tf_ctx_require_stack(ctx, 3) || !tf_ctx_require_sequence(ctx, 1) ||
+        !tf_ctx_require_callable(ctx, 0)) {
         return TF_ERR;
     }
+    tf_obj *body = tf_stack_peek(ctx, 0);
+    tf_obj *data = tf_stack_peek(ctx, 1);
 
     body = tf_stack_pop(ctx);
     data = tf_stack_pop(ctx);
@@ -2082,7 +2130,7 @@ tf_ret tf_fold(tf_ctx *ctx) {
 }
 
 tf_ret tf_split(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 2)) return TF_ERR;
     tf_obj *pred = tf_stack_peek(ctx, 0);
     tf_obj *seq = tf_stack_peek(ctx, 1);
 
@@ -2091,6 +2139,13 @@ tf_ret tf_split(tf_ctx *ctx) {
     }
 
     if (!tf_obj_is_callable(pred) || !is_sequence(seq)) {
+        if (!is_sequence(seq)) {
+            tf_ctx_runtime_errorf(ctx, "'%s' expected sequence at stack depth 1, found %s\n",
+                                  ctx->current_word, tf_obj_type_name(seq));
+        } else {
+            tf_ctx_runtime_errorf(ctx, "'%s' expected callable or string separator at stack depth 0, found %s\n",
+                                  ctx->current_word, tf_obj_type_name(pred));
+        }
         return TF_ERR;
     }
 
@@ -2122,12 +2177,22 @@ tf_ret tf_split(tf_ctx *ctx) {
 }
 
 tf_ret tf_merge(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 3) return TF_ERR;
+    if (!tf_ctx_require_stack(ctx, 3) || !tf_ctx_require_callable(ctx, 0) ||
+        !tf_ctx_require_sequence(ctx, 2)) {
+        return TF_ERR;
+    }
     tf_obj *pred = tf_stack_peek(ctx, 0);
     tf_obj *l2 = tf_stack_peek(ctx, 1);
     tf_obj *l1 = tf_stack_peek(ctx, 2);
-    if (!tf_obj_is_callable(pred) || !is_sequence(l1) ||
-        l1->type != l2->type) {
+    if (!is_sequence(l2)) {
+        tf_ctx_runtime_errorf(ctx, "'%s' expected sequence at stack depth 1, found %s\n",
+                              ctx->current_word, tf_obj_type_name(l2));
+        return TF_ERR;
+    }
+    if (l1->type != l2->type) {
+        tf_ctx_runtime_errorf(ctx, "'%s' expected matching sequence types, found %s and %s\n",
+                              ctx->current_word, tf_obj_type_name(l1),
+                              tf_obj_type_name(l2));
         return TF_ERR;
     }
     pred = tf_stack_pop(ctx);
@@ -2157,12 +2222,11 @@ tf_ret tf_merge(tf_ctx *ctx) {
 }
 
 tf_ret tf_filter(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
-    tf_obj *pred = tf_stack_peek(ctx, 0);
-    tf_obj *seq = tf_stack_peek(ctx, 1);
-    if (!tf_obj_is_callable(pred) || !is_sequence(seq)) {
+    if (!tf_ctx_require_sequence(ctx, 1) || !tf_ctx_require_callable(ctx, 0)) {
         return TF_ERR;
     }
+    tf_obj *pred = tf_stack_peek(ctx, 0);
+    tf_obj *seq = tf_stack_peek(ctx, 1);
 
     pred = tf_stack_pop(ctx);
     seq = tf_stack_pop(ctx);
@@ -2185,12 +2249,11 @@ tf_ret tf_filter(tf_ctx *ctx) {
 }
 
 tf_ret tf_some(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
-    tf_obj *pred = tf_stack_peek(ctx, 0);
-    tf_obj *seq = tf_stack_peek(ctx, 1);
-    if (!tf_obj_is_callable(pred) || !is_sequence(seq)) {
+    if (!tf_ctx_require_sequence(ctx, 1) || !tf_ctx_require_callable(ctx, 0)) {
         return TF_ERR;
     }
+    tf_obj *pred = tf_stack_peek(ctx, 0);
+    tf_obj *seq = tf_stack_peek(ctx, 1);
 
     pred = tf_stack_pop(ctx);
     seq = tf_stack_pop(ctx);
@@ -2208,12 +2271,11 @@ tf_ret tf_some(tf_ctx *ctx) {
 }
 
 tf_ret tf_all(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
-    tf_obj *pred = tf_stack_peek(ctx, 0);
-    tf_obj *seq = tf_stack_peek(ctx, 1);
-    if (!tf_obj_is_callable(pred) || !is_sequence(seq)) {
+    if (!tf_ctx_require_sequence(ctx, 1) || !tf_ctx_require_callable(ctx, 0)) {
         return TF_ERR;
     }
+    tf_obj *pred = tf_stack_peek(ctx, 0);
+    tf_obj *seq = tf_stack_peek(ctx, 1);
 
     pred = tf_stack_pop(ctx);
     seq = tf_stack_pop(ctx);

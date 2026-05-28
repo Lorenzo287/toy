@@ -69,6 +69,7 @@ typedef struct {
     tf_frame_cleanup_fn cleanup;
     tf_frame_error_fn on_error;
     void *state;
+    tf_source_span call_site;
 } tf_frame;
 
 /*
@@ -85,6 +86,8 @@ struct tf_ctx {
     char **argv;
     size_t error_suppression_depth;
     bool error_reported;
+    tf_source_span current_span;
+    const char *current_word;
 };
 
 /* Data stack API used by native word implementations. */
@@ -94,6 +97,21 @@ tf_obj *tf_stack_pop(tf_ctx *ctx);
 tf_obj *tf_stack_pop_type(tf_ctx *ctx, tf_type type);
 tf_obj *tf_stack_pop_callable(tf_ctx *ctx);
 tf_obj *tf_stack_peek(tf_ctx *ctx, size_t depth);
+
+/*
+ * Native-word validation helpers.
+ *
+ * Depth is counted from the top of the stack: depth 0 is the next value that
+ * would be popped. Helpers report a ctx-aware diagnostic and return false on
+ * failure; callers should then return TF_ERR without modifying the stack.
+ */
+const char *tf_type_name(tf_type type);
+const char *tf_obj_type_name(tf_obj *o);
+bool tf_ctx_require_stack(tf_ctx *ctx, size_t needed);
+bool tf_ctx_require_type(tf_ctx *ctx, size_t depth, tf_type type);
+bool tf_ctx_require_number(tf_ctx *ctx, size_t depth);
+bool tf_ctx_require_sequence(tf_ctx *ctx, size_t depth);
+bool tf_ctx_require_callable(tf_ctx *ctx, size_t depth);
 
 /* Execution frame scheduling. Native words schedule work here, then return. */
 void tf_frame_push_program(tf_ctx *ctx, tf_obj *program);
@@ -121,5 +139,9 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program);
 bool tf_obj_is_callable(tf_obj *o);
 tf_ret tf_vm_call_callable(tf_ctx *ctx, tf_obj *callable);
 void tf_vm_handle_sigint(int sig);
+
+/* Context-aware diagnostics used by the VM and native words. */
+void tf_ctx_runtime_errorf(tf_ctx *ctx, const char *fmt, ...);
+void tf_ctx_program_errorf(tf_ctx *ctx, const char *fmt, ...);
 
 #endif  // TF_EXEC_H

@@ -11,6 +11,7 @@ tf_obj *tf_obj_new(int type) {
     tf_obj *o = tf_xmalloc(sizeof(tf_obj));
     o->type = type;
     o->refcount = 1;
+    o->span = (tf_source_span){0};
     return o;
 }
 
@@ -60,6 +61,13 @@ tf_obj *tf_obj_new_string(const char *s, size_t len) {
     memcpy(o->str.ptr, s, len);
     o->str.ptr[len] = 0;
     return o;
+}
+
+void tf_obj_set_span(tf_obj *o, tf_source_span span) {
+    if (!o) return;
+    if (o->span.valid && o->span.filename) { free((char *)o->span.filename); }
+    o->span = span;
+    if (span.valid && span.filename) { o->span.filename = tf_xstrdup(span.filename); }
 }
 
 /* === Object Utilities === */
@@ -119,6 +127,7 @@ void tf_obj_release(tf_obj *o) {
 }
 
 void tf_obj_free(tf_obj *o) {
+    if (o->span.valid && o->span.filename) { free((char *)o->span.filename); }
     switch (o->type) {
     case TF_OBJ_TYPE_VARLIST:
     case TF_OBJ_TYPE_LIST:

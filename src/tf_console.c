@@ -48,22 +48,6 @@ const char *tf_console_clr(const char *code) {
     return console_color_enabled ? code : "";
 }
 
-void tf_console_runtime_errorf(const char *fmt, ...) {
-    va_list args;
-
-    va_start(args, fmt);
-    console_vmessage("runtime error", TF_CLR_ERR, fmt, args);
-    va_end(args);
-}
-
-void tf_console_program_errorf(const char *fmt, ...) {
-    va_list args;
-
-    va_start(args, fmt);
-    console_vmessage("program error", TF_CLR_PROGRAM_ERR, fmt, args);
-    va_end(args);
-}
-
 void tf_console_lexer_errorf(const char *fmt, ...) {
     va_list args;
 

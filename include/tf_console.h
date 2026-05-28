@@ -16,9 +16,7 @@ void tf_console_init(void);
 bool tf_console_use_color(void);
 const char *tf_console_clr(const char *code);
 
-/* User-facing diagnostics grouped by interpreter layer. */
-void tf_console_runtime_errorf(const char *fmt, ...);
-void tf_console_program_errorf(const char *fmt, ...);
+/* User-facing diagnostics that do not depend on interpreter source context. */
 void tf_console_lexer_errorf(const char *fmt, ...);
 void tf_console_interruptf(const char *fmt, ...);
 void tf_console_contextf(const char *fmt, ...);

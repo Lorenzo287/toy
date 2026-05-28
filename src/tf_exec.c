@@ -1,4 +1,5 @@
 #include "tf_exec.h"
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -58,6 +59,7 @@ void tf_frame_push_program(tf_ctx *ctx, tf_obj *program) {
     ctx->call_stack[ctx->call_stack_len].cleanup = NULL;
     ctx->call_stack[ctx->call_stack_len].on_error = NULL;
     ctx->call_stack[ctx->call_stack_len].state = NULL;
+    ctx->call_stack[ctx->call_stack_len].call_site = ctx->current_span;
     tf_obj_retain(program);
     ctx->call_stack_len++;
 }
@@ -81,6 +83,7 @@ void tf_frame_push_native_handler(tf_ctx *ctx, tf_frame_step_fn step,
     ctx->call_stack[ctx->call_stack_len].cleanup = cleanup;
     ctx->call_stack[ctx->call_stack_len].on_error = on_error;
     ctx->call_stack[ctx->call_stack_len].state = state;
+    ctx->call_stack[ctx->call_stack_len].call_site = ctx->current_span;
     ctx->call_stack_len++;
 }
 
@@ -118,6 +121,142 @@ static void frame_unwind_to(tf_ctx *ctx, size_t entry_depth, tf_ret status) {
     while (ctx->call_stack_len > entry_depth) {
         tf_frame_pop(ctx, status);
     }
+}
+
+static tf_source_span ctx_best_span(tf_ctx *ctx) {
+    if (ctx->call_stack_len > 0) {
+        tf_frame *f = &ctx->call_stack[ctx->call_stack_len - 1];
+        if (f->kind == TF_FRAME_NATIVE && f->call_site.valid) {
+            return f->call_site;
+        }
+    }
+    if (ctx->current_span.valid) return ctx->current_span;
+    return (tf_source_span){0};
+}
+
+static const char *source_basename(const char *path) {
+    if (!path) return "<unknown>";
+    const char *name = path;
+    for (const char *p = path; *p != '\0'; p++) {
+        if (*p == '/' || *p == '\\') name = p + 1;
+    }
+    return name;
+}
+
+static const char *current_word_name(tf_ctx *ctx) {
+    return ctx->current_word ? ctx->current_word : "<native>";
+}
+
+static void ctx_diagnostic_vf(tf_ctx *ctx, const char *label, const char *color,
+                              const char *fmt, va_list args) {
+    fprintf(stderr, "%s%s:%s ", tf_console_clr(color), label,
+            tf_console_clr(TF_CLR_RESET));
+    vfprintf(stderr, fmt, args);
+
+    tf_source_span span = ctx_best_span(ctx);
+    if (span.valid) {
+        fprintf(stderr, "  at %s:%zu:%zu\n", source_basename(span.filename),
+                span.line, span.col);
+    }
+}
+
+void tf_ctx_runtime_errorf(tf_ctx *ctx, const char *fmt, ...) {
+    if (ctx->error_suppression_depth > 0) return;
+    va_list args;
+    va_start(args, fmt);
+    ctx_diagnostic_vf(ctx, "runtime error", TF_CLR_ERR, fmt, args);
+    va_end(args);
+    ctx->error_reported = true;
+}
+
+void tf_ctx_program_errorf(tf_ctx *ctx, const char *fmt, ...) {
+    if (ctx->error_suppression_depth > 0) return;
+    va_list args;
+    va_start(args, fmt);
+    ctx_diagnostic_vf(ctx, "program error", TF_CLR_PROGRAM_ERR, fmt, args);
+    va_end(args);
+    ctx->error_reported = true;
+}
+
+const char *tf_type_name(tf_type type) {
+    switch (type) {
+    case TF_OBJ_TYPE_BOOL:
+        return "bool";
+    case TF_OBJ_TYPE_INT:
+        return "int";
+    case TF_OBJ_TYPE_FLOAT:
+        return "float";
+    case TF_OBJ_TYPE_STR:
+        return "string";
+    case TF_OBJ_TYPE_SYMBOL:
+        return "symbol";
+    case TF_OBJ_TYPE_LIST:
+        return "list";
+    case TF_OBJ_TYPE_VARLIST:
+        return "capture list";
+    case TF_OBJ_TYPE_VARFETCH:
+        return "variable fetch";
+    }
+    return "unknown";
+}
+
+const char *tf_obj_type_name(tf_obj *o) {
+    return o ? tf_type_name(o->type) : "missing";
+}
+
+bool tf_ctx_require_stack(tf_ctx *ctx, size_t needed) {
+    size_t found = tf_stack_len(ctx);
+    if (found >= needed) return true;
+
+    tf_ctx_runtime_errorf(ctx, "'%s' expected %zu value%s on the stack, found %zu\n",
+                          current_word_name(ctx), needed, needed == 1 ? "" : "s",
+                          found);
+    return false;
+}
+
+bool tf_ctx_require_type(tf_ctx *ctx, size_t depth, tf_type type) {
+    if (!tf_ctx_require_stack(ctx, depth + 1)) return false;
+
+    tf_obj *o = tf_stack_peek(ctx, depth);
+    if (o->type == type) return true;
+
+    tf_ctx_runtime_errorf(ctx, "'%s' expected %s at stack depth %zu, found %s\n",
+                          current_word_name(ctx), tf_type_name(type), depth,
+                          tf_obj_type_name(o));
+    return false;
+}
+
+bool tf_ctx_require_number(tf_ctx *ctx, size_t depth) {
+    if (!tf_ctx_require_stack(ctx, depth + 1)) return false;
+
+    tf_obj *o = tf_stack_peek(ctx, depth);
+    if (o->type == TF_OBJ_TYPE_INT || o->type == TF_OBJ_TYPE_FLOAT) return true;
+
+    tf_ctx_runtime_errorf(ctx, "'%s' expected number at stack depth %zu, found %s\n",
+                          current_word_name(ctx), depth, tf_obj_type_name(o));
+    return false;
+}
+
+bool tf_ctx_require_sequence(tf_ctx *ctx, size_t depth) {
+    if (!tf_ctx_require_stack(ctx, depth + 1)) return false;
+
+    tf_obj *o = tf_stack_peek(ctx, depth);
+    if (o->type == TF_OBJ_TYPE_LIST || o->type == TF_OBJ_TYPE_STR) return true;
+
+    tf_ctx_runtime_errorf(ctx, "'%s' expected sequence at stack depth %zu, found %s\n",
+                          current_word_name(ctx), depth, tf_obj_type_name(o));
+    return false;
+}
+
+bool tf_ctx_require_callable(tf_ctx *ctx, size_t depth) {
+    if (!tf_ctx_require_stack(ctx, depth + 1)) return false;
+
+    tf_obj *o = tf_stack_peek(ctx, depth);
+    if (tf_obj_is_callable(o)) return true;
+
+    tf_ctx_runtime_errorf(ctx, "'%s' expected callable at stack depth %zu, found %s\n",
+                          current_word_name(ctx), depth, tf_obj_type_name(o));
+    return false;
 }
 
 static bool frame_handle_error(tf_ctx *ctx, size_t entry_depth,
@@ -316,6 +455,8 @@ tf_ctx *tf_ctx_new(int argc, char **argv) {
     ctx->argv = argv;
     ctx->error_suppression_depth = 0;
     ctx->error_reported = false;
+    ctx->current_span = (tf_source_span){0};
+    ctx->current_word = NULL;
 
     register_builtin_group(ctx, native_math_words);
     register_builtin_group(ctx, native_logic_words);
@@ -477,9 +618,10 @@ static tf_ret dict_call_resolved(tf_ctx *ctx, tf_word *word) {
  * This ensures deep user-defined word recursion does not overflow the C stack.
  */
 tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
+    ctx->current_span = program ? program->span : (tf_source_span){0};
     if (program->type != TF_OBJ_TYPE_LIST) {
         if (ctx->error_suppression_depth == 0) {
-            tf_console_runtime_errorf("attempted to execute non-block object\n");
+            tf_ctx_runtime_errorf(ctx, "attempted to execute non-block object\n");
         }
         return TF_ERR;
     }
@@ -503,6 +645,9 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
             bool done = false;
             tf_ret cont_res = f->step(ctx, f->state, &done);
             if (cont_res != TF_OK) {
+                if (ctx->error_suppression_depth == 0 && !ctx->error_reported) {
+                    tf_ctx_runtime_errorf(ctx, "execution failed\n");
+                }
                 if (frame_handle_error(ctx, entry_depth, cont_res)) continue;
                 return cont_res;
             }
@@ -516,17 +661,19 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
         }
 
         tf_obj *o = f->program->list.elem[f->pc++];
+        ctx->current_span = o->span;
         switch (o->type) {
         case TF_OBJ_TYPE_SYMBOL:
             if (o->str.quoted) {
                 tf_stack_push(ctx, o);
                 tf_obj_retain(o);
             } else {
+                ctx->current_word = o->str.ptr;
                 tf_word *word = tf_dict_lookup(ctx, o);
                 if (!word) {
                     if (ctx->error_suppression_depth == 0) {
-                        tf_console_runtime_errorf("undefined word '%s'\n",
-                                                  o->str.ptr);
+                        tf_ctx_runtime_errorf(ctx, "undefined word '%s'\n",
+                                              o->str.ptr);
                     }
                     if (frame_handle_error(ctx, entry_depth, TF_ERR)) {
                         continue;
@@ -541,8 +688,8 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
                 if (call_res == TF_ERR) {
                     if (ctx->error_suppression_depth == 0 &&
                         !ctx->error_reported) {
-                        tf_console_runtime_errorf(
-                            "execution of word '%s' failed\n", o->str.ptr);
+                        tf_ctx_runtime_errorf(ctx, "execution of word '%s' failed\n",
+                                              o->str.ptr);
                     }
                     // unwind remaining frames
                     if (frame_handle_error(ctx, entry_depth, TF_ERR)) {
@@ -557,7 +704,7 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
                 tf_obj *val = tf_stack_pop(ctx);
                 if (!val) {
                     if (ctx->error_suppression_depth == 0) {
-                        tf_console_runtime_errorf(
+                        tf_ctx_runtime_errorf(ctx,
                             "stack underflow during variable binding\n");
                     }
                     if (frame_handle_error(ctx, entry_depth, TF_ERR)) {
@@ -573,8 +720,8 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
             tf_obj *val = tf_scope_lookup_var(ctx, o);
             if (!val) {
                 if (ctx->error_suppression_depth == 0) {
-                    tf_console_runtime_errorf("undefined variable '$%s'\n",
-                                              o->str.ptr);
+                    tf_ctx_runtime_errorf(ctx, "undefined variable '$%s'\n",
+                                          o->str.ptr);
                 }
                 if (frame_handle_error(ctx, entry_depth, TF_ERR)) {
                     continue;

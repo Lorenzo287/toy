@@ -16,15 +16,13 @@
 #include "tf_exec.h"
 
 tf_ret tf_setenv(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 2) return TF_ERR;
-    tf_obj *val = tf_stack_peek(ctx, 0);
-    tf_obj *name = tf_stack_peek(ctx, 1);
-    if (val->type != TF_OBJ_TYPE_STR || name->type != TF_OBJ_TYPE_STR) {
+    if (!tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_STR) ||
+        !tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_STR)) {
         return TF_ERR;
     }
 
-    val = tf_stack_pop(ctx);
-    name = tf_stack_pop(ctx);
+    tf_obj *val = tf_stack_pop(ctx);
+    tf_obj *name = tf_stack_pop(ctx);
 
 #ifdef _WIN32
     int res = SETENV(name->str.ptr, val->str.ptr);
@@ -44,13 +42,12 @@ tf_ret tf_setenv(tf_ctx *ctx) {
 #endif
 
 tf_ret tf_shell(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
-    tf_obj *cmd_obj = tf_stack_peek(ctx, 0);
-    if (cmd_obj->type != TF_OBJ_TYPE_STR) return TF_ERR;
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_STR)) return TF_ERR;
 
-    cmd_obj = tf_stack_pop(ctx);
+    tf_obj *cmd_obj = tf_stack_pop(ctx);
     FILE *fp = popen(cmd_obj->str.ptr, "r");
     if (!fp) {
+        tf_ctx_runtime_errorf(ctx, "'shell' failed to start command\n");
         tf_obj_release(cmd_obj);
         return TF_ERR;
     }
@@ -103,17 +100,18 @@ tf_ret tf_pwd(tf_ctx *ctx) {
         tf_stack_push(ctx, tf_obj_new_string(buf, strlen(buf)));
         return TF_OK;
     }
+    tf_ctx_runtime_errorf(ctx, "'pwd' failed to read current directory\n");
     return TF_ERR;
 }
 
 tf_ret tf_getenv(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
-    tf_obj *key = tf_stack_peek(ctx, 0);
-    if (key->type != TF_OBJ_TYPE_STR) return TF_ERR;
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_STR)) return TF_ERR;
 
-    key = tf_stack_pop(ctx);
+    tf_obj *key = tf_stack_pop(ctx);
     char *val = getenv(key->str.ptr);
     if (!val) {
+        tf_ctx_runtime_errorf(ctx, "'getenv' variable is not set: %s\n",
+                              key->str.ptr);
         tf_obj_release(key);
         return TF_ERR;
     }
@@ -123,11 +121,9 @@ tf_ret tf_getenv(tf_ctx *ctx) {
 }
 
 tf_ret tf_env_q(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
-    tf_obj *key = tf_stack_peek(ctx, 0);
-    if (key->type != TF_OBJ_TYPE_STR) return TF_ERR;
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_STR)) return TF_ERR;
 
-    key = tf_stack_pop(ctx);
+    tf_obj *key = tf_stack_pop(ctx);
     tf_stack_push(ctx, tf_obj_new_bool(getenv(key->str.ptr) != NULL));
     tf_obj_release(key);
     return TF_OK;
@@ -139,10 +135,12 @@ tf_ret tf_rand(tf_ctx *ctx) {
 }
 
 tf_ret tf_sleep(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) < 1) return TF_ERR;
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_INT)) return TF_ERR;
     tf_obj *ms_obj = tf_stack_peek(ctx, 0);
-    if (ms_obj->type != TF_OBJ_TYPE_INT) return TF_ERR;
-    if (ms_obj->i < 0) return TF_ERR;
+    if (ms_obj->i < 0) {
+        tf_ctx_runtime_errorf(ctx, "'sleep' duration must be non-negative\n");
+        return TF_ERR;
+    }
     ms_obj = tf_stack_pop(ctx);
 #ifdef _WIN32
     Sleep(ms_obj->i);

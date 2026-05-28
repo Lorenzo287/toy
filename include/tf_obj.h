@@ -15,6 +15,15 @@ typedef enum {
     TF_OBJ_TYPE_VARFETCH
 } tf_type;
 
+typedef struct {
+    const char *filename;
+    size_t offset;
+    size_t line;
+    size_t col;
+    size_t len;
+    bool valid;
+} tf_source_span;
+
 /*
  * Refcounted runtime value.
  *
@@ -25,6 +34,7 @@ typedef enum {
 typedef struct tf_obj {
     int refcount;
     tf_type type;
+    tf_source_span span;
     union {
         int i;
         float f;
@@ -51,6 +61,7 @@ tf_obj *tf_obj_new_float(float f);
 tf_obj *tf_obj_new_symbol(const char *s, size_t len);
 tf_obj *tf_obj_new_quoted_symbol(const char *s, size_t len);
 tf_obj *tf_obj_new_string(const char *s, size_t len);
+void tf_obj_set_span(tf_obj *o, tf_source_span span);
 
 /* String/symbol comparison and list storage helpers. */
 int tf_obj_compare_string(tf_obj *a, tf_obj *b);

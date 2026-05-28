@@ -17,13 +17,14 @@ typedef struct {
     bool in_string;
     bool escape;
     bool line_comment;
-    bool paren_comment;
+    int paren_comment_depth;
     bool token_active;
     char token_first;
     size_t token_len;
 } repl_state;
 
-static tf_ret run_source(tf_ctx *ctx, char *source, bool debug);
+static tf_ret run_source(tf_ctx *ctx, const char *filename, char *source,
+                         bool debug);
 static char *read_repl_line(bool complete);
 static bool append_text(char **buf, size_t *len, size_t *cap, const char *text);
 static void reset_state(repl_state *state);
@@ -65,7 +66,7 @@ tf_ret tf_run_file(tf_ctx *ctx, const char *filename, bool debug) {
     prg_text[n_read] = '\0';
     fclose(fp);
 
-    tf_ret result = run_source(ctx, prg_text, debug);
+    tf_ret result = run_source(ctx, filename, prg_text, debug);
     free(prg_text);
     return result;
 }
@@ -138,7 +139,7 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
 
         if (!input_complete(&state)) { continue; }
 
-        tf_ret result = run_source(ctx, source, debug);
+        tf_ret result = run_source(ctx, "<repl>", source, debug);
         if (result == TF_ERR) {
             printf("%snot ok%s\n", tf_console_clr(TF_CLR_ERR),
                    tf_console_clr(TF_CLR_RESET));
@@ -160,8 +161,9 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
     return TF_OK;
 }
 
-static tf_ret run_source(tf_ctx *ctx, char *source, bool debug) {
-    tf_obj *prg = tf_lexer_parse(source);
+static tf_ret run_source(tf_ctx *ctx, const char *filename, char *source,
+                         bool debug) {
+    tf_obj *prg = tf_lexer_parse(filename, source);
     if (!prg) return TF_ERR;
 
     if (debug) {
@@ -191,7 +193,7 @@ static tf_ret run_source(tf_ctx *ctx, char *source, bool debug) {
 
 tf_ret tf_run_string(tf_ctx *ctx, const char *source, bool debug) {
     char *dup = tf_xstrdup(source);
-    tf_ret res = run_source(ctx, dup, debug);
+    tf_ret res = run_source(ctx, "<eval>", dup, debug);
     free(dup);
     return res;
 }
@@ -488,8 +490,12 @@ static void feed_state(repl_state *state, const char *text) {
             continue;
         }
 
-        if (state->paren_comment) {
-            if (c == ')') state->paren_comment = false;
+        if (state->paren_comment_depth > 0) {
+            if (c == '(') {
+                state->paren_comment_depth++;
+            } else if (c == ')') {
+                state->paren_comment_depth--;
+            }
             continue;
         }
 
@@ -513,7 +519,7 @@ static void feed_state(repl_state *state, const char *text) {
         }
         if (c == '(') {
             finish_token(state);
-            state->paren_comment = true;
+            state->paren_comment_depth = 1;
             continue;
         }
         if (c == '"') {
@@ -570,7 +576,7 @@ static void feed_state(repl_state *state, const char *text) {
 
 static bool input_complete(const repl_state *state) {
     return !state->in_string && !state->escape && !state->line_comment &&
-           !state->paren_comment && state->block_depth == 0 &&
+           state->paren_comment_depth == 0 && state->block_depth == 0 &&
            state->var_depth == 0 && state->colon_depth == 0;
 }
 
