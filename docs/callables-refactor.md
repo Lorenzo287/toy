@@ -126,13 +126,13 @@ Initial behavior:
 
 ```c
 TF_OBJ_TYPE_LIST   -> frame_push(ctx, callable)
-TF_OBJ_TYPE_SYMBOL -> call_symbol(ctx, callable)
+TF_OBJ_TYPE_SYMBOL -> get_func(ctx, callable), then dispatch the tf_func
 otherwise          -> TF_ERR
 ```
 
 `tf_call_callable()` should be the only place, outside the main frame evaluator,
 that dispatches callable values. Native words should stop calling `exec()` or
-`call_symbol()` directly when what they mean is "run deferred code".
+resolving symbols directly when what they mean is "run deferred code".
 
 `exec(tf_ctx *, tf_obj *)` can remain list-only as the low-level "execute a
 quotation/list frame" primitive. The native word `exec`/`i` should become a thin
@@ -158,8 +158,8 @@ Short-term rule:
 - `tf_is_callable()` accepts `TF_OBJ_TYPE_SYMBOL` regardless of `str.quoted`.
 - The frame evaluator still uses `str.quoted` to decide whether a symbol token
   in a program is pushed or resolved.
-- `call_symbol()` ignores `str.quoted`; when a symbol has been passed to a word
-  that consumes a callable, the caller has explicitly requested execution.
+- Callable dispatch ignores `str.quoted`; when a symbol has been passed to a
+  word that consumes a callable, the caller has explicitly requested execution.
 - Lexer-created bare word tokens use `create_symbol_obj()`. Words that
   manufacture symbol values as data should use `create_quoted_symbol_obj()` so
   source-style printing reconstructs literal symbols rather than executable word
@@ -182,7 +182,6 @@ Keep word lookup as a separate layer:
 
 ```c
 tf_func *get_func(tf_ctx *ctx, tf_obj *name);
-tf_ret call_symbol(tf_ctx *ctx, tf_obj *symb);
 tf_ret tf_call_callable(tf_ctx *ctx, tf_obj *callable);
 ```
 
@@ -190,12 +189,12 @@ Responsibilities:
 
 - `get_func()` only resolves a symbol name to a dictionary entry. Strings are
   not accepted as alternate word-name values.
-- `call_symbol()` executes a resolved word name, using frame scheduling for user
-  words and direct calls for native words.
 - `tf_call_callable()` dispatches lists versus symbols and reports
-  callable-level type errors.
+  callable-level type errors. Symbol callables are resolved with `get_func()`
+  and then dispatched as user or native dictionary entries.
 
-This keeps dictionary lookup, callable dispatch, and frame execution separate.
+This keeps dictionary lookup, callable dispatch, and frame execution separate
+without exposing a second symbol-call API.
 
 Resolved for the current design:
 

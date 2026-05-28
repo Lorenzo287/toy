@@ -337,7 +337,7 @@ void free_ctx(tf_ctx *ctx) {
         tf_func *f = ctx->functions.buckets[i];
         if (f) {
             release_obj(f->name);
-            if (f->type == TF_FUNC_TYPE_USER) { release_obj(f->user_impl); }
+            if (f->type == TF_FUNC_USER) { release_obj(f->user_impl); }
             free(f);
         }
     }
@@ -361,7 +361,7 @@ tf_func *init_func(tf_ctx *ctx, tf_obj *name) {
     tf_func *f = xmalloc(sizeof(tf_func));
     f->name = name;
     retain_obj(name);
-    f->type = TF_FUNC_TYPE_NATIVE;
+    f->type = TF_FUNC_NATIVE;
     f->native_impl = NULL;
     ctx->functions.buckets[idx] = f;
     ctx->functions.count++;
@@ -372,11 +372,11 @@ void set_native_func(tf_ctx *ctx, const char *name, tf_callback cb) {
     tf_obj *o_name = create_symbol_obj(name, strlen(name));
     tf_func *f = get_func(ctx, o_name);
     if (f) {  // overwrite if name is already taken
-        if (f->type == TF_FUNC_TYPE_USER) release_obj(f->user_impl);
+        if (f->type == TF_FUNC_USER) release_obj(f->user_impl);
     } else {  // allocate if name is not taken
         f = init_func(ctx, o_name);
     }
-    f->type = TF_FUNC_TYPE_NATIVE;
+    f->type = TF_FUNC_NATIVE;
     f->native_impl = cb;
     release_obj(o_name);
 }
@@ -384,11 +384,11 @@ void set_native_func(tf_ctx *ctx, const char *name, tf_callback cb) {
 void set_user_func(tf_ctx *ctx, tf_obj *name, tf_obj *uf) {
     tf_func *f = get_func(ctx, name);
     if (f) {
-        if (f->type == TF_FUNC_TYPE_USER) { release_obj(f->user_impl); }
+        if (f->type == TF_FUNC_USER) { release_obj(f->user_impl); }
     } else {
         f = init_func(ctx, name);
     }
-    f->type = TF_FUNC_TYPE_USER;
+    f->type = TF_FUNC_USER;
     f->user_impl = uf;
     retain_obj(uf);
 }
@@ -458,6 +458,19 @@ void handle_sigint(int sig) {
 }
 
 /*
+ * Dispatch a dictionary entry that has already been resolved by get_func().
+ * User words schedule program frames; native words run immediately and may
+ * schedule continuations before returning.
+ */
+static tf_ret call_resolved_func(tf_ctx *ctx, tf_func *f) {
+    if (f->type == TF_FUNC_USER) {
+        frame_push(ctx, f->user_impl);
+        return TF_OK;
+    }
+    return f->native_impl(ctx);
+}
+
+/*
  * The main iterative execution engine.
  * Instead of recursive C calls, it uses an explicit `call_stack` of frames.
  * This ensures deep user-defined word recursion does not overflow the C stack.
@@ -519,7 +532,7 @@ tf_ret exec(tf_ctx *ctx, tf_obj *prg) {
                     }
                     return TF_ERR;
                 }
-                tf_ret call_res = call_symbol(ctx, o);
+                tf_ret call_res = call_resolved_func(ctx, func);
                 if (call_res == TF_INTERRUPTED) {
                     frame_unwind_to(ctx, entry_depth, TF_INTERRUPTED);
                     return TF_INTERRUPTED;
@@ -580,23 +593,6 @@ tf_ret exec(tf_ctx *ctx, tf_obj *prg) {
     return TF_OK;
 }
 
-/*
- * Hybrid symbol dispatcher:
- * - User-defined words are pushed to the call_stack to continue iteration.
- * - Native words are called directly; native words that execute user callables
- *   schedule frames or native continuations before returning.
- */
-tf_ret call_symbol(tf_ctx *ctx, tf_obj *symb) {
-    tf_func *f = get_func(ctx, symb);
-    if (!f) return TF_ERR;
-    if (f->type == TF_FUNC_TYPE_USER) {
-        frame_push(ctx, f->user_impl);
-        return TF_OK;
-    } else {
-        return f->native_impl(ctx);
-    }
-}
-
 bool tf_is_callable(tf_obj *o) {
     return o && (o->type == TF_OBJ_TYPE_LIST || o->type == TF_OBJ_TYPE_SYMBOL);
 }
@@ -607,7 +603,9 @@ tf_ret tf_call_callable(tf_ctx *ctx, tf_obj *callable) {
         return TF_OK;
     }
     if (callable->type == TF_OBJ_TYPE_SYMBOL) {
-        return call_symbol(ctx, callable);
+        tf_func *func = get_func(ctx, callable);
+        if (!func) return TF_ERR;
+        return call_resolved_func(ctx, func);
     }
     return TF_ERR;
 }

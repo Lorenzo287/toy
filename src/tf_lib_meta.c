@@ -87,7 +87,7 @@ tf_ret tf_body(tf_ctx *ctx) {
     if (!name) return TF_ERR;
 
     tf_func *f = get_func(ctx, name);
-    if (!f || f->type != TF_FUNC_TYPE_USER) {
+    if (!f || f->type != TF_FUNC_USER) {
         release_obj(name);
         return TF_ERR;
     }
@@ -332,7 +332,7 @@ tf_ret tf_see(tf_ctx *ctx) {
 
     tf_strbuf buf;
     tf_strbuf_init(&buf);
-    if (func->type == TF_FUNC_TYPE_NATIVE) {
+    if (func->type == TF_FUNC_NATIVE) {
         tf_strbuf_append_mem(&buf, func->name->str.ptr, func->name->str.len);
         tf_strbuf_append_cstr(&buf, " is a native word");
     } else {

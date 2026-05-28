@@ -8,4 +8,4 @@
 'base [ ] def
 'pre [ 1 - ] def
 'post [ ] def
-5000 'done? 'base 'pre 'post linrec 0 != check
+5000 'done? 'base 'pre 'post linrec 0 == check

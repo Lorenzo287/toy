@@ -13,7 +13,7 @@ typedef void (*tf_native_frame_cleanup)(tf_ctx *ctx, void *state,
 typedef tf_ret (*tf_native_frame_error)(tf_ctx *ctx, void *state,
                                         tf_ret status, bool *handled);
 
-typedef enum { TF_FUNC_TYPE_NATIVE, TF_FUNC_TYPE_USER } tf_func_type;
+typedef enum { TF_FUNC_NATIVE, TF_FUNC_USER } tf_func_type;
 typedef enum { TF_FRAME_PROGRAM, TF_FRAME_NATIVE } tf_frame_kind;
 
 // NOTE: name is stored as a heap-allocated tf_obj* rather than a plain char*
@@ -66,7 +66,7 @@ typedef struct {
 struct ctx {
     tf_obj *forth_stack;  // forth data stack
     tf_func_table functions;
-    tf_frame *call_stack;  // funtions call stack
+    tf_frame *call_stack;  // explicit execution stack
     size_t cstack_len;
     size_t cstack_cap;
 
@@ -100,7 +100,6 @@ tf_func *get_func(tf_ctx *ctx, tf_obj *name);
 tf_obj *tf_var_fetch(tf_ctx *ctx, tf_obj *name);
 
 tf_ret exec(tf_ctx *ctx, tf_obj *prg);
-tf_ret call_symbol(tf_ctx *ctx, tf_obj *symb);
 bool tf_is_callable(tf_obj *o);
 tf_ret tf_call_callable(tf_ctx *ctx, tf_obj *callable);
 
