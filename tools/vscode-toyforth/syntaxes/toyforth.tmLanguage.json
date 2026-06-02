@@ -57,7 +57,7 @@
                 },
                 {
                     "name": "storage.type.toyforth",
-                    "match": "(?<=\\s|^)(:|def|{)(?=\\s|$)"
+                    "match": "(?<=\\s|^)(:|def|\\|)(?=\\s|$)"
                 },
                 {
                     "name": "keyword.operator.toyforth",

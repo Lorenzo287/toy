@@ -21,7 +21,7 @@ words [ symbol? ] all true == check
 'twice word? true == check
 "twice" word? false == check
 
-10 { x } 'x var? true == check
+10 | x | 'x var? true == check
 "x" var? false == check
 
 "--- Done ---\n" printf

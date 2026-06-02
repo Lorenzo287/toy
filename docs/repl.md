@@ -27,25 +27,25 @@ The REPL keeps one interpreter context alive across entries. This means:
 Example:
 
 ```toy
-: sq {n} $n $n * ;
+: sq |n| $n $n * ;
 5 sq print
 ```
 
 ## What Does Not Persist
 
-Variable captures created with `{ ... }` are local to the current execution,
+Variable captures created with `| ... |` are local to the current execution,
 not to the whole REPL session.
 
 This works:
 
 ```toy
-5 {a} $a print
+5 |a| $a print
 ```
 
 This does not:
 
 ```toy
-5 {a}
+5 |a|
 $a print
 ```
 
@@ -67,7 +67,7 @@ Example:
 
 ```toy
 : sq
-{n}
+|n|
 $n $n *
 ;
 ```

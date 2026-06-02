@@ -22,7 +22,7 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
   String items are one-byte strings.
 - Representation predicates such as `list?` and `symbol?`, plus capability
   predicates such as `sequence?` and `callable?`.
-- Local captures with `{ name }` and `$name` when stack-only code gets too hard
+- Local captures with `| name |` and `$name` when stack-only code gets too hard
   to read.
 - File I/O, string manipulation, dictionary introspection, process helpers, and
   an interactive REPL with history/completion.
@@ -39,7 +39,7 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 3 cube .             \ prints 27, leaves it on the stack
 
 \ Local captures give names to stack values inside a frame.
-'hypot2 [ { x y } $x $x * $y $y * + ] def
+'hypot2 [ | x y | $x $x * $y $y * + ] def
 3 4 hypot2 print     \ 25
 ```
 
@@ -141,6 +141,7 @@ changing the data stack.
 ## Extra
 
 - [Combinator Examples](./docs/combinators.md)
+- [Data Model Plan](./docs/data-model.md)
 - [Roadmap](./docs/language-roadmap.md)
 
 ## Getting Started

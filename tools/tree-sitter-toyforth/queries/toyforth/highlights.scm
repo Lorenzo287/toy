@@ -28,9 +28,9 @@
 (var_list (word) @variable)
 (var_fetch (variable_name) @variable)
 
-;; Braces and Fetch Symbol
+;; Capture Delimiters and Fetch Symbol
 (var_fetch "$" @type)
-(var_list "{" @type "}" @type)
+(var_list "|" @type "|" @type)
 
 ;; Brackets
 (block "[" @punctuation.bracket "]" @punctuation.bracket)

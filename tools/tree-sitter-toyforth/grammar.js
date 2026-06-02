@@ -102,11 +102,11 @@ export default grammar({
       repeat(choice($._expression, $.line_comment, $.block_comment)),
       ']',
     ),
-    // fix 1: allow any expression inside {}, mirroring the lexer
+    // Captures bind names from the data stack inside the current frame.
     var_list: $ => seq(
-      '{',
-      repeat(choice($._expression, $.line_comment, $.block_comment)),
-      '}',
+      '|',
+      repeat1($.word),
+      '|',
     ),
     // fix 2: use dedicated _def_name rule instead of aliasing $.word
     colon_definition: $ => seq(

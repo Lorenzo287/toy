@@ -48,11 +48,13 @@ callable results. Keep new callable-running natives on continuation-style frame
 scheduling so nested user code does not grow the C call stack. Preserve stack
 effects, predicate-inspection behavior, and error-boundary semantics.
 
-### High-Level Data Structures
+### Data Model and Collections
 
-Add maps/dictionaries as first-class values, then consider JSON support. Decide
-early whether maps are mutable or persistent. Start with a small API: create,
-get, set, delete, keys, values, predicates.
+Rethink collections around boxed `tf_obj` values, capabilities, and explicit
+conversion between data structures. Keep `[ ... ]` as the default ordered
+quotation/sequence while adding constructor words such as `>map` and `>set`
+only after equality, hashing, ownership, and conversion semantics are clear.
+See [Data Model Plan](./data-model.md).
 
 ### Debugger
 
@@ -81,6 +83,8 @@ then bytecode for the existing VM, then LLVM for a constrained subset.
 
 - Semantics before syntax.
 - Prefer reusable combinators over special forms.
+- Captures use `| name ... |` so braces remain available for future data
+  literal design.
 - Keep stack effects explicit and testable.
 - Overload existing words when the language concept is the same across types
   (`split` for list partitioning and string splitting); avoid aliases that only

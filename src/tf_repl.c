@@ -206,8 +206,8 @@ static void repl_completion(const char *buf, linenoiseCompletions *lc) {
     size_t prefix_len = 0;
 
     for (const char *p = buf; *p != '\0'; p++) {
-        if (isspace((unsigned char)*p) || *p == '[' || *p == ']' || *p == '{' ||
-            *p == '}' || *p == '(' || *p == ')') {
+        if (isspace((unsigned char)*p) || *p == '[' || *p == ']' || *p == '|' ||
+            *p == '{' || *p == '}' || *p == '(' || *p == ')') {
             token = p + 1;
         }
     }
@@ -421,8 +421,8 @@ static char *repl_hints(const char *buf, int *color, int *bold) {
 
     const char *token = buf;
     for (const char *p = buf; *p != '\0'; p++) {
-        if (isspace((unsigned char)*p) || *p == '[' || *p == ']' || *p == '{' ||
-            *p == '}' || *p == '(' || *p == ')') {
+        if (isspace((unsigned char)*p) || *p == '[' || *p == ']' || *p == '|' ||
+            *p == '{' || *p == '}' || *p == '(' || *p == ')') {
             token = p + 1;
         }
     }
@@ -537,14 +537,13 @@ static void feed_state(repl_state *state, const char *text) {
             if (state->block_depth > 0) state->block_depth--;
             continue;
         }
-        if (c == '{') {
+        if (c == '|') {
             finish_token(state);
-            state->var_depth++;
-            continue;
-        }
-        if (c == '}') {
-            finish_token(state);
-            if (state->var_depth > 0) state->var_depth--;
+            if (state->var_depth > 0) {
+                state->var_depth--;
+            } else {
+                state->var_depth++;
+            }
             continue;
         }
         if (c == ':' || c == ';') {

@@ -121,7 +121,7 @@ static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
         }
 
         tf_obj *o = NULL;
-        if (!terminator && (lexer->pos[0] == ']' || lexer->pos[0] == '}')) {
+        if (!terminator && lexer->pos[0] == ']') {
             lexer_errorf(lexer, "unexpected '%c'\n", lexer->pos[0]);
         } else if (isdigit((unsigned char)lexer->pos[0]) ||
                    lexer_starts_signed_number(lexer)) {
@@ -134,10 +134,10 @@ static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
                 lexer_finish_span(lexer, &span);
                 tf_obj_set_span(o, span);
             }
-        } else if (lexer->pos[0] == '{') {
+        } else if (lexer->pos[0] == '|') {
             tf_source_span span = lexer_mark(lexer);
             lexer_advance(lexer);
-            o = lexer_tokenize_until(lexer, '}');
+            o = lexer_tokenize_until(lexer, '|');
             if (o) {
                 o->type = TF_OBJ_TYPE_VARLIST;
                 lexer_finish_span(lexer, &span);
@@ -392,5 +392,5 @@ static int lexer_at_token_boundary(tf_lexer *lexer) {
 }
 
 static int lexer_is_structural_char(int c) {
-    return c == '[' || c == ']' || c == '{' || c == '}' || c == ':' || c == ';';
+    return c == '[' || c == ']' || c == '|' || c == ':' || c == ';';
 }

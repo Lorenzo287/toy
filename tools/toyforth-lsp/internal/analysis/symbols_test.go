@@ -156,7 +156,7 @@ func TestLookupHover(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected hover for local binding")
 	}
-	if localHover.Contents != "```toy\n$outer\n```\nLocal binding from `{ outer }`." {
+	if localHover.Contents != "```toy\n$outer\n```\nLocal binding from `| outer |`." {
 		t.Fatalf("unexpected local hover: %q", localHover.Contents)
 	}
 

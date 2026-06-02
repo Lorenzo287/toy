@@ -20,7 +20,7 @@ Charlie,35,Chicago" writef
         trim
         dup len 0 > [ \ Only process non-empty lines
             "," split
-            { record }
+            | record |
             " - " printf 
             $record 0 geth printf \ name
             " (" printf 

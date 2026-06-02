@@ -5,7 +5,7 @@ Tree-sitter grammar for Toy. It provides a robust, incremental parser that power
 ## Features
 
 - **Syntax Highlighting**: Precise, scope-based highlighting via Tree-sitter queries.
-- **Indentation**: Automatic indentation rules for blocks `[ ]`, definitions `: ;`, and local variable lists `{ }`.
+- **Indentation**: Automatic indentation rules for blocks `[ ]`, definitions `: ;`, and local capture lists `| |`.
 - **Folding**: Logical folding ranges for definitions and blocks.
 
 ## Editor Setup

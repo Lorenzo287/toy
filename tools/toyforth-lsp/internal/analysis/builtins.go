@@ -187,7 +187,7 @@ func LookupHover(index DocumentIndex, pos Position) (Hover, bool) {
 			return Hover{}, false
 		}
 		return Hover{
-			Contents: "```toy\n$" + local.Name + "\n```\nLocal binding from `{ " + local.Name + " }`.",
+			Contents: "```toy\n$" + local.Name + "\n```\nLocal binding from `| " + local.Name + " |`.",
 			Range:    tok.Range,
 		}, true
 	}

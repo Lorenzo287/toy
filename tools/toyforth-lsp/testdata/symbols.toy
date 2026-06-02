@@ -1,16 +1,16 @@
 \ top-level definitions
-: sqr ( n -- n*n ) { n } $n $n * ;
+: sqr ( n -- n*n ) | n | $n $n * ;
 
 \ definition comment
-'pow3 [ { n } $n $n $n * * ] def
+'pow3 [ | n | $n $n $n * * ] def
 
 5 sqr .
 3 pow3 .
 
-: shadow-demo { outer } $outer [ { outer } $outer ] exec $outer ;
+: shadow-demo | outer | $outer [ | outer | $outer ] exec $outer ;
 
 \ nested forms should not create top-level symbols
 [ : hidden 1 ; ]
-{ shadow }
+| shadow |
 
 5 pow3 print

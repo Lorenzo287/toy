@@ -58,10 +58,10 @@ drop
 3 cube .
 drop
 
-"Vars: capture and fetch (10 {x} $x $x + = 20)" print
-10 {x} $x $x + .
+"Vars: capture and fetch (10 |x| $x $x + = 20)" print
+10 |x| $x $x + .
 drop
 
-"Vars: dynamic scoping (100 {y} [ $y ] exec = 100)" print
-100 {y} [ $y . ] exec
+"Vars: dynamic scoping (100 |y| [ $y ] exec = 100)" print
+100 |y| [ $y . ] exec
 drop

@@ -9,7 +9,7 @@
 'dup word? [ "dup is defined globally\n" printf ] if
 'dup var? [ "dup is a var (WRONG)\n" printf ] [ "dup is not a var (OK)\n" printf ] ifelse
 
-[ { x } 'x var? [ "local x is defined\n" printf ] if ] 123 swap exec
+[ | x | 'x var? [ "local x is defined\n" printf ] if ] 123 swap exec
 'x var? [ "global x is defined (WRONG)\n" printf ] [ "global x is not defined\n" printf ] ifelse
 
 \ Testing number?

@@ -1,7 +1,7 @@
 # Toy: Agent Manual
 
 Toy is a minimalist stack-based interpreter in C. It has refcounted dynamic
-objects, first-class quotations/lists, dynamic captures (`{ a b }` / `$a`), a
+objects, first-class quotations/lists, dynamic captures (`| a b |` / `$a`), a
 global word dictionary, and an iterative frame stack for user words.
 
 Roadmap work lives in `docs/language-roadmap.md`. Keep this file focused on
@@ -15,6 +15,8 @@ navigation and development rules.
 - `docs/`: build, REPL, tooling, and roadmap docs.
 - `docs/combinators.md`: examples for nontrivial control, recursion, and
   collection combinator usage.
+- `docs/data-model.md`: collection, conversion, equality, and hashing design
+  plan.
 - `tools/`: Tree-sitter grammar, Go LSP, VS Code extension.
 - `deps/`: vendored `linenoise` and `stb_leakcheck`.
 
@@ -28,12 +30,14 @@ navigation and development rules.
 - Lexer: `include/tf_lexer.h`, `src/tf_lexer.c`.
 - REPL: `include/tf_repl.h`, `src/tf_repl.c`.
 - Language plan: `docs/language-roadmap.md`.
+- Data model plan: `docs/data-model.md`.
 
 ## Workflow
 
 - Start with `git status --short`; do not overwrite user changes.
 - For language behavior, check `README.md`, then the relevant C files and tests.
-- For roadmap work, read `docs/language-roadmap.md` first.
+- For roadmap work, read `docs/language-roadmap.md` first. For collection or
+  data-structure work, read `docs/data-model.md` too.
 - For native word changes, update `src/tf_exec.c`, declarations, focused `toy/`
   tests, and lightweight tooling metadata.
 - Build with `cmake --build build`; run relevant scripts. Use `build-leak` for

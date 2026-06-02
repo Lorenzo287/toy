@@ -375,7 +375,7 @@ The lexer should continue to parse:
 - `word` as a symbol token that the frame evaluator resolves.
 - `'word` as a symbol token that the frame evaluator pushes.
 - `[ ... ]` as a list/quotation.
-- `{ ... }` as capture binding syntax.
+- `| ... |` as capture binding syntax.
 - `$name` as variable fetch syntax.
 
 Source printers (`tf_obj_print_source`, `see`) should keep preserving the current

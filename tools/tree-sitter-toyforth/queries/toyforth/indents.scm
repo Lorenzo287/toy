@@ -7,5 +7,5 @@
   ";" @indent.end)
 
 (var_list
-  "{" @indent.begin
-  "}" @indent.end)
+  "|" @indent.begin
+  "|" @indent.end)

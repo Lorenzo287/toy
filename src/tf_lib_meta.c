@@ -277,12 +277,12 @@ static void strbuf_append_source_obj(strbuf *buf, tf_obj *o) {
         strbuf_append_mem(buf, o->str.ptr, o->str.len);
         break;
     case TF_OBJ_TYPE_VARLIST:
-        strbuf_append_char(buf, '{');
+        strbuf_append_char(buf, '|');
         for (size_t i = 0; i < o->list.len; i++) {
             if (i > 0) strbuf_append_char(buf, ' ');
             strbuf_append_source_obj(buf, o->list.elem[i]);
         }
-        strbuf_append_char(buf, '}');
+        strbuf_append_char(buf, '|');
         break;
     case TF_OBJ_TYPE_LIST:
         strbuf_append_char(buf, '[');

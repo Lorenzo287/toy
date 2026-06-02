@@ -1,7 +1,7 @@
 \ Benchmarking utility
 \ Usage: [ block ] count "Name" bench
 'bench [
-	{ block count name }
+	| block count name |
 	$name printf ": " printf
 	clock
 	0 $count [ $block exec ] times
