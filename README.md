@@ -144,6 +144,10 @@ changing the data stack.
 - [Data Model Plan](./docs/data-model.md)
 - [Roadmap](./docs/language-roadmap.md)
 
+## Releases
+
+Download pre-built binaries for Windows, Linux, and macOS from the [Releases](https://github.com/Lorenzo287/toy/releases) page.
+
 ## Getting Started
 
 - [Build](./docs/build.md)
