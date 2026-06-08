@@ -320,6 +320,7 @@ tf_ret tf_words(tf_ctx *ctx) {
     return TF_OK;
 }
 
+// WARN: to maintain the equality between ' and [] see should accept a list with a word inside
 tf_ret tf_see(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_SYMBOL)) return TF_ERR;
     tf_obj *name = tf_stack_pop_type(ctx, TF_OBJ_TYPE_SYMBOL);
