@@ -9,12 +9,12 @@
 [ 1 2 3 ] 'succ map [ 2 3 4 ] == check
 [ 1 "x" 3 ] 'number? filter [ 1 3 ] == check
 [ 1 2 3 ] 'number? all true == check
-[ "x" 2 ] 'str? some true == check
+[ "x" 2 ] 'string? some true == check
 0 [ 1 2 3 ] '+ fold 6 == check
 "" "abc" 'concat each "abc" == check
 
 "a,b,c" "," split [ "a" "b" "c" ] == check
-"abc" 'str? split
+"abc" 'string? split
 "" == check
 "abc" == check
 

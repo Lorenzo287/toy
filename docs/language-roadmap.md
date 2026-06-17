@@ -110,6 +110,6 @@ then bytecode for the existing VM, then LLVM for a constrained subset.
   result. Side effects inside predicates are still real effects.
 - Diagnostic display words such as `.`, `.s`, and `.S` may observe the stack
   without consuming values.
-- Update-style data words such as `seth` should return updated values rather
+- Update-style data words such as `set-at` should return updated values rather
   than mutating shared objects in place.
 - New native words need focused tests and lightweight tooling metadata updates.

@@ -88,7 +88,7 @@ tf_ret tf_typeof(tf_ctx *ctx);
 tf_ret tf_bool_q(tf_ctx *ctx);
 tf_ret tf_int_q(tf_ctx *ctx);
 tf_ret tf_float_q(tf_ctx *ctx);
-tf_ret tf_str_q(tf_ctx *ctx);
+tf_ret tf_string_q(tf_ctx *ctx);
 tf_ret tf_symbol_q(tf_ctx *ctx);
 tf_ret tf_vector_q(tf_ctx *ctx);
 tf_ret tf_list_q(tf_ctx *ctx);
@@ -146,12 +146,18 @@ tf_ret tf_binrec(tf_ctx *ctx);
 // Data, collection, and string operations
 // Shared sequence words accept vectors, lists, and strings when the result type is clear.
 // String items are represented as one-byte strings.
-tf_ret tf_geth(tf_ctx *ctx);
-tf_ret tf_seth(tf_ctx *ctx);
+tf_ret tf_at(tf_ctx *ctx);
+tf_ret tf_set_at(tf_ctx *ctx);
+tf_ret tf_to_vector(tf_ctx *ctx);
+tf_ret tf_to_list(tf_ctx *ctx);
 tf_ret tf_to_map(tf_ctx *ctx);
 tf_ret tf_to_set(tf_ctx *ctx);
 tf_ret tf_to_deque(tf_ctx *ctx);
 tf_ret tf_to_pqueue(tf_ctx *ctx);
+tf_ret tf_contains_q(tf_ctx *ctx);
+tf_ret tf_indexof(tf_ctx *ctx);
+tf_ret tf_unique(tf_ctx *ctx);
+tf_ret tf_sort(tf_ctx *ctx);
 tf_ret tf_has_q(tf_ctx *ctx);
 tf_ret tf_get(tf_ctx *ctx);
 tf_ret tf_assoc(tf_ctx *ctx);

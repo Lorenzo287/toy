@@ -223,7 +223,7 @@ The current predicates expose raw object representation:
 typeof
 symbol?
 list?
-str?
+string?
 sequence?
 callable?
 word?
@@ -248,7 +248,7 @@ predicates:
 'upper sequence?        \ false
 ```
 
-`typeof`, `symbol?`, `list?`, and `str?` describe storage representation.
+`typeof`, `symbol?`, `list?`, and `string?` describe storage representation.
 `sequence?` and `callable?` describe behavior that words may consume.
 
 Related decisions:
@@ -336,7 +336,7 @@ Careful regression cases:
 
 ```toy
 [ 1 2 3 ] 'int? all
-"abc" 'str? all
+"abc" 'string? all
 [ 1 "x" 3 ] 'number? filter
 5 'positive? [ "yes" ] if
 ```
@@ -479,7 +479,7 @@ Overloads:
 
 ```toy
 "a,b,c" "," split
-"abc" 'str? split
+"abc" 'string? split
 "abc" [ "b" == ] split
 ```
 

@@ -32,7 +32,7 @@ The primary collection syntaxes are permanent language surface:
 They also serve as compound quotations when a word consumes a callable.
 
 `( ... )` creates a linked list. Lists are ordered sequence data. They are not
-callable and are not indexed by `geth`, `seth`, or `slice`.
+callable and are not indexed by `at`, `set-at`, or `slice`.
 
 `{ ... }` creates an associative map from alternating key/value forms.
 `#{ ... }` creates a membership set with duplicate items rejected in literals.
@@ -42,6 +42,8 @@ Secondary structures are built explicitly:
 ```toy
 [ 1 2 3 ] >deque
 ( 1 2 3 ) >deque
+[ 1 2 3 ] >list
+( 1 2 3 ) >vector
 [ [ 10 "low" ] [ 1 "urgent" ] ] >pqueue
 [ [ 'name "Ada" ] [ 'age 36 ] ] >map
 ```
@@ -76,8 +78,15 @@ list returns a list, mapping a vector returns a vector, and mapping a string
 returns a string when each result is a one-byte string.
 
 Words: `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`,
-`reverse`, `take`, `dropn`, `each`, `map`, `fold`, `filter`, `split`, `merge`,
-`splitmid`, `join`.
+`reverse`, `take`, `dropn`, `contains?`, `indexof`, `unique`, `sort`, `each`,
+`map`, `fold`, `filter`, `split`, `merge`, `splitmid`.
+
+`contains?` and `indexof` are sequence membership/search words. For strings,
+the searched item is a one-byte string. `indexof` returns `-1` when the item is
+absent.
+
+`join` is adjacent to sequence words but narrower: it accepts a vector or list
+of strings plus a separator and returns a string.
 
 ### Indexed
 
@@ -86,7 +95,7 @@ Indexed values support efficient random access by integer index:
 - vector
 - string
 
-Words: `geth`, `seth`, `slice`.
+Words: `at`, `set-at`, `slice`.
 
 Do not treat every sequence as indexed. A linked list, stream, tree traversal,
 or generator can be a sequence without cheap random access.
@@ -99,7 +108,7 @@ Associative values support lookup by key:
 
 Words: `has?`, `get`, `assoc`, `dissoc`, `keys`, `values`, `pairs`.
 
-Do not overload `geth` for maps. Indexed lookup and associative lookup are
+Do not overload `at` for maps. Indexed lookup and associative lookup are
 separate concepts.
 
 ### Membership
@@ -110,6 +119,9 @@ Membership values support containment by equality/hash:
 - map keys
 
 Words: `has?`, `adjoin`, `remove`, `items`.
+
+This capability is separate from sequence search. Use `contains?` for
+vector/list/string item search; use `has?` for map keys and set items.
 
 Mapping over a set should be explicit through projection:
 
@@ -150,11 +162,13 @@ input contract:
 | `take`/`dropn` | vector/list/string                 | same family                                |
 | `concat`       | two vectors, two lists, two strings | same family                                |
 | `reverse`      | vector/list/string                 | same family                                |
+| `unique`       | vector/list/string                 | same family                                |
+| `sort`         | vector/list/string                 | same family                                |
 
 Indexed update words preserve indexed families:
 
-- vector `seth` returns a vector
-- string `seth` returns a string
+- vector `set-at` returns a vector
+- string `set-at` returns a string
 
 ## Conversion Rules
 
@@ -165,6 +179,8 @@ stack effect, and error behavior.
 Examples:
 
 ```toy
+[ 1 2 3 ] >list       \ choose linked-list sequence behavior
+( 1 2 3 ) >vector     \ choose indexed vector behavior
 [ 1 2 2 3 ] >set       \ duplicates intentionally collapse
 ( 1 2 3 ) >deque       \ choose front/back discipline
 m keys                 \ choose key projection
@@ -201,7 +217,7 @@ Toy data words return updated values rather than exposing in-place mutation as a
 language guarantee:
 
 ```toy
-vector idx value seth
+vector idx value set-at
 map key value assoc
 map key dissoc
 set item adjoin
@@ -254,7 +270,8 @@ Rules:
 - conversion preserves front-to-back order
 - `push-front` and `push-back` return updated deques
 - `pop-front` and `pop-back` return `item deque`
-- `front` and `back` inspect one end of a non-empty deque
+- `front` and `back` consume a non-empty deque and return one end; use
+  `dup front` or `dup back` when the deque should be preserved
 - `items` projects a deque to a vector
 - `len` and `empty?` treat deques as finite collections
 
@@ -270,7 +287,9 @@ Rules:
 - lower priorities are returned first
 - equal priorities are returned in insertion order
 - `pqueue-push` returns an updated priority queue
-- `pqueue-peek` and `pqueue-pop` return values, not raw heap entries
+- `pqueue-peek` consumes a priority queue and returns the next value; use
+  `dup pqueue-peek` when the queue should be preserved
+- `pqueue-pop` returns `value pqueue`
 - `pqueue-drain` projects values to a vector in priority order
 - `len` and `empty?` treat priority queues as finite collections
 

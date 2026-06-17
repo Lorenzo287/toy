@@ -20,7 +20,7 @@ drop
 0
 $vec len
 [
-	$vec over geth printf
+	$vec over at printf
 	1 +
 	[ $vec len != ] [ "-"printf ] if
 ] times
@@ -34,7 +34,7 @@ drop
 0 
 [ $vec len != ]
 [
-	$vec over geth printf
+	$vec over at printf
 	1 +
 	[ $vec len != ] [ "-"printf ] if
 ] while

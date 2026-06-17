@@ -9,8 +9,8 @@
 .s empty \ Should show an empty stack
 
 \ 3. System words
-pwd typeof print \ Should be 'str'
+pwd typeof print \ Should be "string"
 .s empty
 
-"whoami" shell typeof print \ Should be 'str'
+"whoami" shell typeof print \ Should be "string"
 .s empty

@@ -137,7 +137,7 @@ tf_ret tf_int_q(tf_ctx *ctx) {
 tf_ret tf_float_q(tf_ctx *ctx) {
     return type_check(ctx, TF_OBJ_TYPE_FLOAT);
 }
-tf_ret tf_str_q(tf_ctx *ctx) {
+tf_ret tf_string_q(tf_ctx *ctx) {
     return type_check(ctx, TF_OBJ_TYPE_STR);
 }
 tf_ret tf_symbol_q(tf_ctx *ctx) {
@@ -177,7 +177,7 @@ tf_ret tf_typeof(tf_ctx *ctx) {
         type_str = "float";
         break;
     case TF_OBJ_TYPE_STR:
-        type_str = "str";
+        type_str = "string";
         break;
     case TF_OBJ_TYPE_SYMBOL:
         type_str = "symbol";

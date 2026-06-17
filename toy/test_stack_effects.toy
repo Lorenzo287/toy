@@ -38,10 +38,29 @@
 1 == check
 "" empty? true == check
 ( ) empty? true == check
-[ 1 2 3 ] 1 99 seth [ 1 99 3 ] == check
-[ 1 2 3 ] dup 1 99 seth [ 1 99 3 ] == check
+[ 1 2 3 ] 1 99 set-at [ 1 99 3 ] == check
+[ 1 2 3 ] dup 1 99 set-at [ 1 99 3 ] == check
 [ 1 2 3 ] == check
-"abc" 1 "x" seth "axc" == check
+"abc" 1 "x" set-at "axc" == check
+[ 1 2 3 ] 1 at 2 == check
+"abc" 1 at "b" == check
+( 1 2 3 ) >vector [ 1 2 3 ] == check
+[ 1 2 3 ] >list ( 1 2 3 ) == check
+"abc" >vector [ "a" "b" "c" ] == check
+"abc" >list ( "a" "b" "c" ) == check
+[ 1 2 3 ] 2 contains? true == check
+( 1 2 3 ) 4 contains? false == check
+"abc" "b" contains? true == check
+"abc" "bc" contains? false == check
+[ "a" "b" "a" ] "a" indexof 0 == check
+( 1 2 3 ) 3 indexof 2 == check
+"abc" "x" indexof -1 == check
+[ 1 2 1 3 ] unique [ 1 2 3 ] == check
+( 1 2 1 3 ) unique ( 1 2 3 ) == check
+"banana" unique "ban" == check
+[ 3 1 2 ] sort [ 1 2 3 ] == check
+( "b" "a" "c" ) sort ( "a" "b" "c" ) == check
+"cba" sort "abc" == check
 "abc" 0 1 neg slice "" == check
 
 [ "x" square ] [ "square-error" ] try "square-error" == check
@@ -65,7 +84,7 @@
 "abc" [ upper ] map "ABC" == check
 "abc" [ "b" != ] filter "ac" == check
 "abc" [ "b" == ] some true == check
-"abc" [ str? ] all true == check
+"abc" [ string? ] all true == check
 "" [ upper ] map "" == check
 "" [ "x" == ] filter "" == check
 "" [ "x" == ] some false == check

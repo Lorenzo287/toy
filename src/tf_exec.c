@@ -407,9 +407,12 @@ static const builtin_word native_collection_combinator_words[] = {
  * operation has the same shape. String items are one-byte strings: append adds
  * one item, while concat combines two sequences. */
 static const builtin_word native_data_words[] = {
-    {"geth", tf_geth},       {"seth", tf_seth},
+    {"at", tf_at},           {"set-at", tf_set_at},
+    {">vector", tf_to_vector}, {">list", tf_to_list},
     {">map", tf_to_map},     {">set", tf_to_set},
     {">deque", tf_to_deque}, {">pqueue", tf_to_pqueue},
+    {"contains?", tf_contains_q}, {"indexof", tf_indexof},
+    {"unique", tf_unique},   {"sort", tf_sort},
     {"has?", tf_has_q},      {"get", tf_get},
     {"assoc", tf_assoc},     {"dissoc", tf_dissoc},
     {"keys", tf_keys},       {"values", tf_values},
@@ -444,7 +447,7 @@ static const builtin_word native_data_words[] = {
 static const builtin_word native_introspection_words[] = {
     {"typeof", tf_typeof},   {"bool?", tf_bool_q},
     {"int?", tf_int_q},      {"float?", tf_float_q},
-    {"str?", tf_str_q},      {"symbol?", tf_symbol_q},
+    {"string?", tf_string_q}, {"symbol?", tf_symbol_q},
     {"vector?", tf_vector_q}, {"list?", tf_list_q},
     {"map?", tf_map_q},
     {"set?", tf_set_q},      {"deque?", tf_deque_q},
@@ -783,7 +786,11 @@ tf_ret tf_vm_call_callable(tf_ctx *ctx, tf_obj *callable) {
     }
     if (callable->type == TF_OBJ_TYPE_SYMBOL) {
         tf_word *word = tf_dict_lookup(ctx, callable);
-        if (!word) return TF_ERR;
+        if (!word) {
+            tf_ctx_runtime_errorf(ctx, "undefined word '%s'\n",
+                                  callable->str.ptr);
+            return TF_ERR;
+        }
         return dict_call_resolved(ctx, word);
     }
     return TF_ERR;

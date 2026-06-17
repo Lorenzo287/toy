@@ -22,11 +22,11 @@ Charlie,35,Chicago" writef
             "," split
             | record |
             " - " printf 
-            $record 0 geth printf \ name
+            $record 0 at printf \ name
             " (" printf 
-            $record 1 geth printf \ age
+            $record 1 at printf \ age
             ") lives in " printf 
-            $record 2 geth print  \ city
+            $record 2 at print  \ city
         ] [ drop ] ifelse
     ] each
 

@@ -79,6 +79,9 @@ Strings are byte sequences, so a string item is a one-byte string.
 "" "abc" [ concat ] each          \ leaves "abc"
 ```
 
+`each` threads the current stack through the body for every item. Use `map`
+when each item must produce exactly one collected result.
+
 `split` has two related forms. With a predicate callable it partitions a vector,
 list, or string into matching and non-matching sequences. With two strings it
 splits a string by a separator.

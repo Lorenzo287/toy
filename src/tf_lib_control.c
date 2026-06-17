@@ -164,6 +164,11 @@ static tf_obj *bytebuf_to_string(bytebuf *buf) {
     return tf_obj_new_string(buf->ptr, buf->len);
 }
 
+static size_t stack_results_after(tf_ctx *ctx, size_t base_len) {
+    size_t len = tf_stack_len(ctx);
+    return len > base_len ? len - base_len : 0;
+}
+
 static void save_stack_copy(tf_ctx *ctx, tf_obj ***saved_stack,
                             size_t *saved_len) {
     *saved_len = tf_stack_len(ctx);
@@ -348,7 +353,13 @@ static tf_ret fold_step(tf_ctx *ctx, void *state, bool *done) {
     fold_state *s = state;
 
     if (s->awaiting_body) {
-        if (tf_stack_len(ctx) != s->saved_len + 1) return TF_ERR;
+        if (tf_stack_len(ctx) != s->saved_len + 1) {
+            tf_ctx_runtime_errorf(
+                ctx,
+                "'fold' expected body to consume accumulator and item and leave one accumulator, found %zu value(s) above the saved stack\n",
+                stack_results_after(ctx, s->saved_len));
+            return TF_ERR;
+        }
         s->awaiting_body = false;
     }
 
@@ -392,11 +403,21 @@ static tf_ret map_step(tf_ctx *ctx, void *state, bool *done) {
     map_state *s = state;
 
     if (s->awaiting_body) {
-        if (tf_stack_len(ctx) != s->saved_len + 1) return TF_ERR;
+        if (tf_stack_len(ctx) != s->saved_len + 1) {
+            tf_ctx_runtime_errorf(
+                ctx,
+                "'map' expected body to consume one item and leave one result, found %zu value(s) above the saved stack\n",
+                stack_results_after(ctx, s->saved_len));
+            return TF_ERR;
+        }
 
         tf_obj *mapped = tf_stack_pop(ctx);
         if (s->string_result) {
             if (!is_char_string(mapped)) {
+                tf_ctx_runtime_errorf(
+                    ctx,
+                    "'map' expected string body to return a one-byte string, found %s\n",
+                    tf_obj_type_name(mapped));
                 tf_obj_release(mapped);
                 return TF_ERR;
             }
@@ -459,7 +480,13 @@ static tf_ret replicate_step(tf_ctx *ctx, void *state, bool *done) {
     replicate_state *s = state;
 
     if (s->awaiting_body) {
-        if (tf_stack_len(ctx) != s->saved_len + 1) return TF_ERR;
+        if (tf_stack_len(ctx) != s->saved_len + 1) {
+            tf_ctx_runtime_errorf(
+                ctx,
+                "'replicate' expected body to leave one result, found %zu value(s) above the saved stack\n",
+                stack_results_after(ctx, s->saved_len));
+            return TF_ERR;
+        }
         tf_obj *item = tf_stack_pop(ctx);
         tf_vector_push(s->result, item);
         restore_stack_copy(ctx, s->saved_stack, s->saved_len);
