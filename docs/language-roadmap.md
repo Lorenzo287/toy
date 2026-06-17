@@ -51,10 +51,11 @@ effects, predicate-inspection behavior, and error-boundary semantics.
 ### Data Model and Collections
 
 Rethink collections around boxed `tf_obj` values, capabilities, and explicit
-conversion between data structures. Keep `[ ... ]` as the default ordered
-quotation/sequence while adding constructor words such as `>map` and `>set`
-only after equality, hashing, ownership, and conversion semantics are clear.
-See [Data Model Plan](./data-model.md).
+conversion between data structures. Keep `[ ... ]` as the ordered
+quotation/sequence form, use `{ ... }` for maps and `#{ ... }` for sets, and
+use explicit constructor words such as `>map`, `>set`, and future `>queue`
+when converting runtime data or building secondary structures. See
+[Data Model Plan](./data-model.md).
 
 ### Debugger
 
@@ -83,8 +84,7 @@ then bytecode for the existing VM, then LLVM for a constrained subset.
 
 - Semantics before syntax.
 - Prefer reusable combinators over special forms.
-- Captures use `| name ... |` so braces remain available for future data
-  literal design.
+- Captures use `| name ... |`; maps use `{ ... }`, and sets use `#{ ... }`.
 - Keep stack effects explicit and testable.
 - Overload existing words when the language concept is the same across types
   (`split` for list partitioning and string splitting); avoid aliases that only
@@ -95,6 +95,9 @@ then bytecode for the existing VM, then LLVM for a constrained subset.
 - Introspection words should push data rather than print directly. Word names
   are symbols: `words` pushes a list of symbols, while `see` pushes source text
   as a string.
+- Callable equivalence applies only where a word consumes deferred code.
+  Name/introspection words consume symbols as names, not single-symbol
+  quotations.
 - Absence should be represented explicitly with a predicate word or a runtime
   error, not by returning an unrelated sentinel value such as `[]`.
 - Ordinary words consume their declared stack inputs. Use `dup`, `keep`, `bi`,

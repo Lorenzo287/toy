@@ -10,6 +10,22 @@ static bool is_char_obj(tf_obj *o) {
     return o->type == TF_OBJ_TYPE_STR && o->str.len == 1;
 }
 
+static bool is_countable(tf_obj *o) {
+    return o->type == TF_OBJ_TYPE_LIST || o->type == TF_OBJ_TYPE_STR ||
+           o->type == TF_OBJ_TYPE_MAP || o->type == TF_OBJ_TYPE_SET;
+}
+
+static bool require_countable(tf_ctx *ctx, size_t depth) {
+    if (!tf_ctx_require_stack(ctx, depth + 1)) return false;
+    tf_obj *o = tf_stack_peek(ctx, depth);
+    if (is_countable(o)) return true;
+
+    tf_ctx_runtime_errorf(ctx,
+                          "'%s' expected finite collection at stack depth %zu, found %s\n",
+                          ctx->current_word, depth, tf_obj_type_name(o));
+    return false;
+}
+
 static bool require_char(tf_ctx *ctx, size_t depth) {
     if (!tf_ctx_require_stack(ctx, depth + 1)) return false;
     tf_obj *o = tf_stack_peek(ctx, depth);
@@ -77,6 +93,40 @@ static char *find_mem(char *haystack, size_t haystack_len,
         }
     }
     return NULL;
+}
+
+static tf_obj *map_clone(tf_obj *src) {
+    tf_obj *result = tf_obj_new_map();
+    for (size_t i = 0; i < src->map.len; i++) {
+        tf_map_set(result, src->map.entries[i].key, src->map.entries[i].value);
+    }
+    return result;
+}
+
+static tf_obj *map_clone_without(tf_obj *src, tf_obj *key) {
+    tf_obj *result = tf_obj_new_map();
+    for (size_t i = 0; i < src->map.len; i++) {
+        if (tf_obj_equal(src->map.entries[i].key, key)) continue;
+        tf_map_set(result, src->map.entries[i].key, src->map.entries[i].value);
+    }
+    return result;
+}
+
+static tf_obj *set_clone(tf_obj *src) {
+    tf_obj *result = tf_obj_new_set();
+    for (size_t i = 0; i < src->set.len; i++) {
+        tf_set_add(result, src->set.entries[i].item);
+    }
+    return result;
+}
+
+static tf_obj *set_clone_without(tf_obj *src, tf_obj *item) {
+    tf_obj *result = tf_obj_new_set();
+    for (size_t i = 0; i < src->set.len; i++) {
+        if (tf_obj_equal(src->set.entries[i].item, item)) continue;
+        tf_set_add(result, src->set.entries[i].item);
+    }
+    return result;
 }
 
 tf_ret tf_geth(tf_ctx *ctx) {
@@ -198,13 +248,17 @@ tf_ret tf_slice(tf_ctx *ctx) {
 }
 
 tf_ret tf_len(tf_ctx *ctx) {
-    if (!tf_ctx_require_sequence(ctx, 0)) return TF_ERR;
+    if (!require_countable(ctx, 0)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
     int len = 0;
     if (o->type == TF_OBJ_TYPE_LIST) {
         len = (int)o->list.len;
-    } else {
+    } else if (o->type == TF_OBJ_TYPE_STR) {
         len = (int)o->str.len;
+    } else if (o->type == TF_OBJ_TYPE_MAP) {
+        len = (int)o->map.len;
+    } else {
+        len = (int)o->set.len;
     }
     tf_stack_push(ctx, tf_obj_new_int(len));
     tf_obj_release(o);
@@ -539,6 +593,285 @@ tf_ret tf_split_string(tf_ctx *ctx) {
     return TF_OK;
 }
 
+tf_ret tf_to_map(tf_ctx *ctx) {
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_LIST)) return TF_ERR;
+    tf_obj *pairs = tf_stack_pop_type(ctx, TF_OBJ_TYPE_LIST);
+    tf_obj *map = tf_obj_new_map();
+
+    for (size_t i = 0; i < pairs->list.len; i++) {
+        tf_obj *pair = pairs->list.elem[i];
+        if (pair->type != TF_OBJ_TYPE_LIST || pair->list.len != 2) {
+            tf_ctx_runtime_errorf(
+                ctx, "'%s' expected item %zu to be a two-item list\n",
+                ctx->current_word, i);
+            tf_obj_release(map);
+            tf_obj_release(pairs);
+            return TF_ERR;
+        }
+
+        tf_obj *key = pair->list.elem[0];
+        tf_obj *value = pair->list.elem[1];
+        if (!tf_obj_hashable(key)) {
+            tf_ctx_runtime_errorf(ctx, "'%s' expected hashable key at item %zu\n",
+                                  ctx->current_word, i);
+            tf_obj_release(map);
+            tf_obj_release(pairs);
+            return TF_ERR;
+        }
+        if (tf_map_has(map, key)) {
+            tf_ctx_runtime_errorf(ctx, "'%s' duplicate map key at item %zu\n",
+                                  ctx->current_word, i);
+            tf_obj_release(map);
+            tf_obj_release(pairs);
+            return TF_ERR;
+        }
+        tf_map_set(map, key, value);
+    }
+
+    tf_stack_push(ctx, map);
+    tf_obj_release(pairs);
+    return TF_OK;
+}
+
+tf_ret tf_to_set(tf_ctx *ctx) {
+    if (!tf_ctx_require_sequence(ctx, 0)) return TF_ERR;
+    tf_obj *seq = tf_stack_pop(ctx);
+    tf_obj *set = tf_obj_new_set();
+
+    if (seq->type == TF_OBJ_TYPE_LIST) {
+        for (size_t i = 0; i < seq->list.len; i++) {
+            tf_obj *item = seq->list.elem[i];
+            if (!tf_obj_hashable(item)) {
+                tf_ctx_runtime_errorf(
+                    ctx, "'%s' expected hashable set item at index %zu\n",
+                    ctx->current_word, i);
+                tf_obj_release(set);
+                tf_obj_release(seq);
+                return TF_ERR;
+            }
+            tf_set_add(set, item);
+        }
+    } else {
+        for (size_t i = 0; i < seq->str.len; i++) {
+            tf_obj *item = tf_obj_new_string(seq->str.ptr + i, 1);
+            tf_set_add(set, item);
+            tf_obj_release(item);
+        }
+    }
+
+    tf_stack_push(ctx, set);
+    tf_obj_release(seq);
+    return TF_OK;
+}
+
+tf_ret tf_has_q(tf_ctx *ctx) {
+    if (!tf_ctx_require_stack(ctx, 2)) return TF_ERR;
+    tf_obj *coll = tf_stack_peek(ctx, 1);
+    tf_obj *key = tf_stack_peek(ctx, 0);
+
+    if (coll->type != TF_OBJ_TYPE_MAP && coll->type != TF_OBJ_TYPE_SET) {
+        tf_ctx_runtime_errorf(ctx,
+                              "'%s' expected map or set at stack depth 1, found %s\n",
+                              ctx->current_word, tf_obj_type_name(coll));
+        return TF_ERR;
+    }
+    if (!tf_obj_hashable(key)) {
+        tf_ctx_runtime_errorf(ctx, "'%s' expected hashable key/item, found %s\n",
+                              ctx->current_word, tf_obj_type_name(key));
+        return TF_ERR;
+    }
+
+    key = tf_stack_pop(ctx);
+    coll = tf_stack_pop(ctx);
+    bool result = coll->type == TF_OBJ_TYPE_MAP ? tf_map_has(coll, key)
+                                                : tf_set_has(coll, key);
+    tf_stack_push(ctx, tf_obj_new_bool(result));
+    tf_obj_release(key);
+    tf_obj_release(coll);
+    return TF_OK;
+}
+
+tf_ret tf_get(tf_ctx *ctx) {
+    if (!tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_MAP) ||
+        !tf_ctx_require_stack(ctx, 2)) {
+        return TF_ERR;
+    }
+    tf_obj *map = tf_stack_peek(ctx, 1);
+    tf_obj *key = tf_stack_peek(ctx, 0);
+    if (!tf_obj_hashable(key)) {
+        tf_ctx_runtime_errorf(ctx, "'%s' expected hashable key, found %s\n",
+                              ctx->current_word, tf_obj_type_name(key));
+        return TF_ERR;
+    }
+
+    tf_obj *value = NULL;
+    if (!tf_map_get(map, key, &value)) {
+        tf_ctx_runtime_errorf(ctx, "'%s' key not found\n", ctx->current_word);
+        return TF_ERR;
+    }
+
+    key = tf_stack_pop(ctx);
+    map = tf_stack_pop(ctx);
+    tf_stack_push(ctx, value);
+    tf_obj_retain(value);
+    tf_obj_release(key);
+    tf_obj_release(map);
+    return TF_OK;
+}
+
+tf_ret tf_assoc(tf_ctx *ctx) {
+    if (!tf_ctx_require_type(ctx, 2, TF_OBJ_TYPE_MAP) ||
+        !tf_ctx_require_stack(ctx, 3)) {
+        return TF_ERR;
+    }
+    tf_obj *map = tf_stack_peek(ctx, 2);
+    tf_obj *key = tf_stack_peek(ctx, 1);
+    if (!tf_obj_hashable(key)) {
+        tf_ctx_runtime_errorf(ctx, "'%s' expected hashable key, found %s\n",
+                              ctx->current_word, tf_obj_type_name(key));
+        return TF_ERR;
+    }
+
+    tf_obj *value = tf_stack_pop(ctx);
+    key = tf_stack_pop(ctx);
+    map = tf_stack_pop(ctx);
+
+    tf_obj *result = map_clone(map);
+    tf_map_set(result, key, value);
+    tf_stack_push(ctx, result);
+
+    tf_obj_release(value);
+    tf_obj_release(key);
+    tf_obj_release(map);
+    return TF_OK;
+}
+
+tf_ret tf_dissoc(tf_ctx *ctx) {
+    if (!tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_MAP) ||
+        !tf_ctx_require_stack(ctx, 2)) {
+        return TF_ERR;
+    }
+    tf_obj *map = tf_stack_peek(ctx, 1);
+    tf_obj *key = tf_stack_peek(ctx, 0);
+    if (!tf_obj_hashable(key)) {
+        tf_ctx_runtime_errorf(ctx, "'%s' expected hashable key, found %s\n",
+                              ctx->current_word, tf_obj_type_name(key));
+        return TF_ERR;
+    }
+
+    key = tf_stack_pop(ctx);
+    map = tf_stack_pop(ctx);
+    tf_stack_push(ctx, map_clone_without(map, key));
+    tf_obj_release(key);
+    tf_obj_release(map);
+    return TF_OK;
+}
+
+tf_ret tf_keys(tf_ctx *ctx) {
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_MAP)) return TF_ERR;
+    tf_obj *map = tf_stack_pop_type(ctx, TF_OBJ_TYPE_MAP);
+    tf_obj *keys = tf_obj_new_list();
+    for (size_t i = 0; i < map->map.len; i++) {
+        tf_obj *key = map->map.entries[i].key;
+        tf_obj_retain(key);
+        tf_list_push(keys, key);
+    }
+    tf_stack_push(ctx, keys);
+    tf_obj_release(map);
+    return TF_OK;
+}
+
+tf_ret tf_values(tf_ctx *ctx) {
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_MAP)) return TF_ERR;
+    tf_obj *map = tf_stack_pop_type(ctx, TF_OBJ_TYPE_MAP);
+    tf_obj *values = tf_obj_new_list();
+    for (size_t i = 0; i < map->map.len; i++) {
+        tf_obj *value = map->map.entries[i].value;
+        tf_obj_retain(value);
+        tf_list_push(values, value);
+    }
+    tf_stack_push(ctx, values);
+    tf_obj_release(map);
+    return TF_OK;
+}
+
+tf_ret tf_pairs(tf_ctx *ctx) {
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_MAP)) return TF_ERR;
+    tf_obj *map = tf_stack_pop_type(ctx, TF_OBJ_TYPE_MAP);
+    tf_obj *pairs = tf_obj_new_list();
+    for (size_t i = 0; i < map->map.len; i++) {
+        tf_obj *pair = tf_obj_new_list();
+        tf_obj *key = map->map.entries[i].key;
+        tf_obj *value = map->map.entries[i].value;
+        tf_obj_retain(key);
+        tf_obj_retain(value);
+        tf_list_push(pair, key);
+        tf_list_push(pair, value);
+        tf_list_push(pairs, pair);
+    }
+    tf_stack_push(ctx, pairs);
+    tf_obj_release(map);
+    return TF_OK;
+}
+
+tf_ret tf_items(tf_ctx *ctx) {
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_SET)) return TF_ERR;
+    tf_obj *set = tf_stack_pop_type(ctx, TF_OBJ_TYPE_SET);
+    tf_obj *items = tf_obj_new_list();
+    for (size_t i = 0; i < set->set.len; i++) {
+        tf_obj *item = set->set.entries[i].item;
+        tf_obj_retain(item);
+        tf_list_push(items, item);
+    }
+    tf_stack_push(ctx, items);
+    tf_obj_release(set);
+    return TF_OK;
+}
+
+tf_ret tf_adjoin(tf_ctx *ctx) {
+    if (!tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_SET) ||
+        !tf_ctx_require_stack(ctx, 2)) {
+        return TF_ERR;
+    }
+    tf_obj *set = tf_stack_peek(ctx, 1);
+    tf_obj *item = tf_stack_peek(ctx, 0);
+    if (!tf_obj_hashable(item)) {
+        tf_ctx_runtime_errorf(ctx, "'%s' expected hashable set item, found %s\n",
+                              ctx->current_word, tf_obj_type_name(item));
+        return TF_ERR;
+    }
+
+    item = tf_stack_pop(ctx);
+    set = tf_stack_pop(ctx);
+    tf_obj *result = set_clone(set);
+    tf_set_add(result, item);
+    tf_stack_push(ctx, result);
+    tf_obj_release(item);
+    tf_obj_release(set);
+    return TF_OK;
+}
+
+tf_ret tf_remove(tf_ctx *ctx) {
+    if (!tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_SET) ||
+        !tf_ctx_require_stack(ctx, 2)) {
+        return TF_ERR;
+    }
+    tf_obj *set = tf_stack_peek(ctx, 1);
+    tf_obj *item = tf_stack_peek(ctx, 0);
+    if (!tf_obj_hashable(item)) {
+        tf_ctx_runtime_errorf(ctx, "'%s' expected hashable set item, found %s\n",
+                              ctx->current_word, tf_obj_type_name(item));
+        return TF_ERR;
+    }
+
+    item = tf_stack_pop(ctx);
+    set = tf_stack_pop(ctx);
+    tf_stack_push(ctx, set_clone_without(set, item));
+    tf_obj_release(item);
+    tf_obj_release(set);
+    return TF_OK;
+}
+
 tf_ret tf_join(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_LIST) ||
         !tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_STR)) {
@@ -702,13 +1035,17 @@ tf_ret tf_range(tf_ctx *ctx) {
 }
 
 tf_ret tf_empty_q(tf_ctx *ctx) {
-    if (!tf_ctx_require_sequence(ctx, 0)) return TF_ERR;
+    if (!require_countable(ctx, 0)) return TF_ERR;
     tf_obj *coll = tf_stack_pop(ctx);
     bool is_empty = false;
     if (coll->type == TF_OBJ_TYPE_LIST) {
         is_empty = coll->list.len == 0;
     } else if (coll->type == TF_OBJ_TYPE_STR) {
         is_empty = coll->str.len == 0;
+    } else if (coll->type == TF_OBJ_TYPE_MAP) {
+        is_empty = coll->map.len == 0;
+    } else if (coll->type == TF_OBJ_TYPE_SET) {
+        is_empty = coll->set.len == 0;
     }
     tf_stack_push(ctx, tf_obj_new_bool(is_empty));
     tf_obj_release(coll);

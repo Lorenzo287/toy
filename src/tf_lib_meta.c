@@ -145,6 +145,12 @@ tf_ret tf_symbol_q(tf_ctx *ctx) {
 tf_ret tf_list_q(tf_ctx *ctx) {
     return type_check(ctx, TF_OBJ_TYPE_LIST);
 }
+tf_ret tf_map_q(tf_ctx *ctx) {
+    return type_check(ctx, TF_OBJ_TYPE_MAP);
+}
+tf_ret tf_set_q(tf_ctx *ctx) {
+    return type_check(ctx, TF_OBJ_TYPE_SET);
+}
 
 tf_ret tf_typeof(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
@@ -168,6 +174,12 @@ tf_ret tf_typeof(tf_ctx *ctx) {
         break;
     case TF_OBJ_TYPE_LIST:
         type_str = "list";
+        break;
+    case TF_OBJ_TYPE_MAP:
+        type_str = "map";
+        break;
+    case TF_OBJ_TYPE_SET:
+        type_str = "set";
         break;
     case TF_OBJ_TYPE_VARLIST:
         type_str = "varlist";
@@ -292,6 +304,24 @@ static void strbuf_append_source_obj(strbuf *buf, tf_obj *o) {
         }
         strbuf_append_char(buf, ']');
         break;
+    case TF_OBJ_TYPE_MAP:
+        strbuf_append_char(buf, '{');
+        for (size_t i = 0; i < o->map.len; i++) {
+            if (i > 0) strbuf_append_char(buf, ' ');
+            strbuf_append_source_obj(buf, o->map.entries[i].key);
+            strbuf_append_char(buf, ' ');
+            strbuf_append_source_obj(buf, o->map.entries[i].value);
+        }
+        strbuf_append_char(buf, '}');
+        break;
+    case TF_OBJ_TYPE_SET:
+        strbuf_append_cstr(buf, "#{");
+        for (size_t i = 0; i < o->set.len; i++) {
+            if (i > 0) strbuf_append_char(buf, ' ');
+            strbuf_append_source_obj(buf, o->set.entries[i].item);
+        }
+        strbuf_append_char(buf, '}');
+        break;
     }
 }
 
@@ -320,7 +350,6 @@ tf_ret tf_words(tf_ctx *ctx) {
     return TF_OK;
 }
 
-// WARN: to maintain the equality between ' and [] see should accept a list with a word inside
 tf_ret tf_see(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_SYMBOL)) return TF_ERR;
     tf_obj *name = tf_stack_pop_type(ctx, TF_OBJ_TYPE_SYMBOL);

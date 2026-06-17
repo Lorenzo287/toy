@@ -14,12 +14,14 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 
 ## What It Supports
 
-- Integers, floats, booleans, strings, symbols, and lists.
+- Integers, floats, booleans, strings, symbols, lists, maps, and sets.
 - First-class quotations for deferred execution and higher-order code.
 - Stack combinators such as `dip`, `keep`, `bi`, `map`, `filter`, `fold`,
   `linrec`, `binrec`, and `genrec`.
 - Shared sequence words for lists and strings when the result type is clear.
   String items are one-byte strings.
+- Dedicated collection syntax: `[ ... ]` for ordered lists/quotations,
+  `{ key value ... }` for maps, and `#{ ... }` for sets.
 - Representation predicates such as `list?` and `symbol?`, plus capability
   predicates such as `sequence?` and `callable?`.
 - Local captures with `| name |` and `$name` when stack-only code gets too hard
@@ -56,6 +58,10 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 5 'succ 'square bi   \ leaves 6 25
 ```
 
+Callable equivalence applies where a word consumes deferred code. Dictionary
+introspection words such as `see`, `body`, `word?`, `var?`, and `name` consume
+symbols as names, so use `'name` rather than `[ name ]` for those positions.
+
 ```toy
 \ Conditions can be callables that inspect the stack.
 5 [ 0 > ] [ "Positive" print ] if
@@ -84,6 +90,11 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 "ab" "c" append      \ leaves "abc"
 "ab" "cd" concat     \ leaves "abcd"
 "  alpha,beta,gamma  " trim "," split [ upper ] map "-" join print
+
+{ 'name "Ada" 'age 36 } 'name get print
+[ [ 'name "Ada" ] [ 'age 36 ] ] >map pairs print
+#{ "red" "green" "blue" } "green" has? print
+[ 1 2 2 3 ] >set items print
 
 "notes.txt" "hello from Toy" writef
 "notes.txt" readf print
@@ -126,7 +137,8 @@ changing the data stack.
 | Control       | `if`, `ifelse`, `while`, `try`, `error`, `exec`, `i`, `app2`, `infra`, `cond`, `cleave`, `construct`, `replicate`, `times`, `dip`, `keep`, `bi`, `linrec`, `binrec`, `genrec`, `treerec`                                                                           |
 | Combinators   | `each`, `map`, `fold`, `filter`, `some`, `all`, `split`, `merge`                                                                                                                                                                                                   |
 | List/String   | `geth`, `seth`, `slice`, `take`, `dropn`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `reverse`, `join`, `trim`, `upper`, `lower`, `splitmid`, `range`, `empty?`, `char?`, `letter?`, `digit?`, `alnum?`, `space?`, `upper?`, `lower?`, `punct?` |
-| Introspection | `typeof`, `bool?`, `int?`, `float?`, `str?`, `symbol?`, `list?`, `number?`, `sequence?`, `callable?`, `nan?`, `inf?`, `word?`, `var?`, `inf`, `nan`, `body`, `intern`, `name`, `words`, `see`                                                                      |
+| Map/Set       | `>map`, `>set`, `has?`, `get`, `assoc`, `dissoc`, `keys`, `values`, `pairs`, `items`, `adjoin`, `remove`                                                                                                                                                           |
+| Introspection | `typeof`, `bool?`, `int?`, `float?`, `str?`, `symbol?`, `list?`, `map?`, `set?`, `number?`, `sequence?`, `callable?`, `nan?`, `inf?`, `word?`, `var?`, `inf`, `nan`, `body`, `intern`, `name`, `words`, `see`                                                        |
 | I/O           | `print`, `printf`, `.`, `.s`, `.S`, `cr`, `key`, `input`, `load`, `readf`, `writef`, `delf`, `readl`, `exists?`, `clear`, `page`                                                                                                                                   |
 | System        | `rand`, `sleep`, `argc`, `argv`, `env?`, `getenv`, `setenv`, `pwd`, `shell`, `time`, `clock`, `bye`, `exit`                                                                                                                                                        |
 | Definition    | `def`, `:`                                                                                                                                                                                                                                                         |

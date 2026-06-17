@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 typedef enum {
     TF_OBJ_TYPE_BOOL,
@@ -11,6 +12,8 @@ typedef enum {
     TF_OBJ_TYPE_STR,
     TF_OBJ_TYPE_SYMBOL,
     TF_OBJ_TYPE_LIST,
+    TF_OBJ_TYPE_MAP,
+    TF_OBJ_TYPE_SET,
     TF_OBJ_TYPE_VARLIST,
     TF_OBJ_TYPE_VARFETCH
 } tf_type;
@@ -31,7 +34,20 @@ typedef struct {
  * string storage as strings, plus a quoted flag that preserves source/eval
  * mode for parsed programs and source printing.
  */
-typedef struct tf_obj {
+typedef struct tf_obj tf_obj;
+
+typedef struct {
+    tf_obj *key;
+    tf_obj *value;
+    uint64_t hash;
+} tf_map_entry;
+
+typedef struct {
+    tf_obj *item;
+    uint64_t hash;
+} tf_set_entry;
+
+struct tf_obj {
     int refcount;
     tf_type type;
     tf_source_span span;
@@ -49,12 +65,28 @@ typedef struct tf_obj {
             size_t len;
             size_t cap;
         } list;
+        struct {
+            tf_map_entry *entries;
+            size_t len;
+            size_t cap;
+            size_t *buckets;
+            size_t bucket_cap;
+        } map;
+        struct {
+            tf_set_entry *entries;
+            size_t len;
+            size_t cap;
+            size_t *buckets;
+            size_t bucket_cap;
+        } set;
     };
-} tf_obj;
+};
 
 /* Object constructors. Returned objects start with refcount 1. */
 tf_obj *tf_obj_new(int type);
 tf_obj *tf_obj_new_list(void);
+tf_obj *tf_obj_new_map(void);
+tf_obj *tf_obj_new_set(void);
 tf_obj *tf_obj_new_int(int i);
 tf_obj *tf_obj_new_bool(bool b);
 tf_obj *tf_obj_new_float(float f);
@@ -68,6 +100,16 @@ int tf_obj_compare_string(tf_obj *a, tf_obj *b);
 void tf_list_push(tf_obj *l, tf_obj *elem);
 tf_obj *tf_list_pop_type(tf_obj *l, tf_type type);
 tf_obj *tf_list_pop(tf_obj *l);
+
+/* Equality, hashing, and collection storage helpers. */
+bool tf_obj_equal(tf_obj *a, tf_obj *b);
+bool tf_obj_hashable(tf_obj *o);
+uint64_t tf_obj_hash(tf_obj *o);
+bool tf_map_has(tf_obj *map, tf_obj *key);
+bool tf_map_get(tf_obj *map, tf_obj *key, tf_obj **out);
+bool tf_map_set(tf_obj *map, tf_obj *key, tf_obj *value);
+bool tf_set_has(tf_obj *set, tf_obj *item);
+bool tf_set_add(tf_obj *set, tf_obj *item);
 
 /* Reference-count ownership. */
 void tf_obj_retain(tf_obj *o);

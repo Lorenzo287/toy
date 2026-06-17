@@ -75,6 +75,8 @@ static tf_obj *lexer_tokenize_number(tf_lexer *lexer);
 static tf_obj *lexer_tokenize_single_char_symbol(tf_lexer *lexer);
 static tf_obj *lexer_tokenize_symbol(tf_lexer *lexer);
 static tf_obj *lexer_tokenize_string(tf_lexer *lexer);
+static tf_obj *lexer_list_to_map(tf_lexer *lexer, tf_obj *items);
+static tf_obj *lexer_list_to_set(tf_lexer *lexer, tf_obj *items);
 static int lexer_skip_paren_comment(tf_lexer *lexer);
 static int lexer_starts_signed_number(tf_lexer *lexer);
 static int lexer_at_token_boundary(tf_lexer *lexer);
@@ -121,7 +123,7 @@ static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
         }
 
         tf_obj *o = NULL;
-        if (!terminator && lexer->pos[0] == ']') {
+        if (!terminator && (lexer->pos[0] == ']' || lexer->pos[0] == '}')) {
             lexer_errorf(lexer, "unexpected '%c'\n", lexer->pos[0]);
         } else if (isdigit((unsigned char)lexer->pos[0]) ||
                    lexer_starts_signed_number(lexer)) {
@@ -133,6 +135,35 @@ static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
             if (o) {
                 lexer_finish_span(lexer, &span);
                 tf_obj_set_span(o, span);
+            }
+        } else if (lexer->pos[0] == '{') {
+            tf_source_span span = lexer_mark(lexer);
+            lexer_advance(lexer);
+            tf_obj *items = lexer_tokenize_until(lexer, '}');
+            if (items) {
+                o = lexer_list_to_map(lexer, items);
+                tf_obj_release(items);
+                if (o) {
+                    lexer_finish_span(lexer, &span);
+                    tf_obj_set_span(o, span);
+                }
+            }
+        } else if (lexer->pos[0] == '#') {
+            tf_source_span span = lexer_mark(lexer);
+            lexer_advance(lexer);
+            if (lexer->pos[0] != '{') {
+                lexer_errorf(lexer, "expected '{' after '#'\n");
+            } else {
+                lexer_advance(lexer);
+                tf_obj *items = lexer_tokenize_until(lexer, '}');
+                if (items) {
+                    o = lexer_list_to_set(lexer, items);
+                    tf_obj_release(items);
+                    if (o) {
+                        lexer_finish_span(lexer, &span);
+                        tf_obj_set_span(o, span);
+                    }
+                }
             }
         } else if (lexer->pos[0] == '|') {
             tf_source_span span = lexer_mark(lexer);
@@ -280,6 +311,50 @@ static tf_obj *lexer_tokenize_symbol(tf_lexer *lexer) {
     return o;
 }
 
+static tf_obj *lexer_list_to_map(tf_lexer *lexer, tf_obj *items) {
+    if (items->list.len % 2 != 0) {
+        lexer_errorf(lexer, "map literal expected key/value pairs\n");
+        return NULL;
+    }
+
+    tf_obj *map = tf_obj_new_map();
+    for (size_t i = 0; i < items->list.len; i += 2) {
+        tf_obj *key = items->list.elem[i];
+        tf_obj *value = items->list.elem[i + 1];
+        if (!tf_obj_hashable(key)) {
+            lexer_errorf(lexer, "map literal key is not hashable\n");
+            tf_obj_release(map);
+            return NULL;
+        }
+        if (tf_map_has(map, key)) {
+            lexer_errorf(lexer, "map literal contains a duplicate key\n");
+            tf_obj_release(map);
+            return NULL;
+        }
+        tf_map_set(map, key, value);
+    }
+    return map;
+}
+
+static tf_obj *lexer_list_to_set(tf_lexer *lexer, tf_obj *items) {
+    tf_obj *set = tf_obj_new_set();
+    for (size_t i = 0; i < items->list.len; i++) {
+        tf_obj *item = items->list.elem[i];
+        if (!tf_obj_hashable(item)) {
+            lexer_errorf(lexer, "set literal item is not hashable\n");
+            tf_obj_release(set);
+            return NULL;
+        }
+        if (tf_set_has(set, item)) {
+            lexer_errorf(lexer, "set literal contains a duplicate item\n");
+            tf_obj_release(set);
+            return NULL;
+        }
+        tf_set_add(set, item);
+    }
+    return set;
+}
+
 static tf_obj *lexer_tokenize_string(tf_lexer *lexer) {
     tf_source_span span = lexer_mark(lexer);
     char *string_start = lexer->pos;
@@ -392,5 +467,6 @@ static int lexer_at_token_boundary(tf_lexer *lexer) {
 }
 
 static int lexer_is_structural_char(int c) {
-    return c == '[' || c == ']' || c == '|' || c == ':' || c == ';';
+    return c == '[' || c == ']' || c == '{' || c == '}' || c == '|' ||
+           c == ':' || c == ';';
 }

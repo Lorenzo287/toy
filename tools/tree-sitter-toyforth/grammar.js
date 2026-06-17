@@ -23,6 +23,8 @@ export default grammar({
       $.quoted_symbol,
       $.var_fetch,
       $.block,
+      $.map_literal,
+      $.set_literal,
       $.var_list,
       $.colon_definition,
       $.control_word,
@@ -63,7 +65,9 @@ export default grammar({
       'print', 'printf', '.', '.s', '.S', 'cr',
       'key', 'input', 'load', 'readf', 'writef', 'delf', 'readl', 'exists?', 'clear', 'page',
       'typeof', 'bool?', 'int?', 'float?', 'str?', 'symbol?', 'list?', 'number?', 'sequence?', 'callable?', 'nan?', 'inf?',
+      'map?', 'set?',
       'word?', 'var?', 'inf', 'nan', 'body', 'intern', 'name', 'words', 'see',
+      '>map', '>set', 'has?', 'get', 'assoc', 'dissoc', 'keys', 'values', 'pairs', 'items', 'adjoin', 'remove',
       'geth', 'seth', 'slice', 'take', 'dropn', 'len', 'first', 'rest', 'uncons', 'cons',
       'append', 'concat', 'reverse', 'join', 'trim', 'upper', 'lower', 'splitmid', 'range', 'empty?',
       'char?', 'letter?', 'digit?', 'alnum?', 'space?', 'upper?', 'lower?', 'punct?',
@@ -101,6 +105,16 @@ export default grammar({
       '[',
       repeat(choice($._expression, $.line_comment, $.block_comment)),
       ']',
+    ),
+    map_literal: $ => seq(
+      '{',
+      repeat(choice($._expression, $.line_comment, $.block_comment)),
+      '}',
+    ),
+    set_literal: $ => seq(
+      '#{',
+      repeat(choice($._expression, $.line_comment, $.block_comment)),
+      '}',
     ),
     // Captures bind names from the data stack inside the current frame.
     var_list: $ => seq(

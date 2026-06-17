@@ -50,9 +50,10 @@ changes observable behavior.
 
 ## Source Syntax
 
-Keep syntax minimal while the model is still being designed.
+Toy has dedicated syntax for the core collection types whose semantics are
+expected to be common and stable.
 
-The default collection literal remains:
+The ordered collection and quotation literal is:
 
 ```toy
 [ 1 2 3 ]
@@ -63,7 +64,20 @@ This value is both:
 - an ordered sequence value
 - a quotation when a word consumes a callable
 
-Specialized structures should start with explicit constructors:
+Map and set literals are dedicated semantic forms:
+
+```toy
+{ 'name "Alice" 'age 30 }
+#{ 1 2 3 }
+```
+
+Maps are associative key/value collections. Sets are membership collections
+with unique items. Both preserve deterministic insertion-order projections for
+printing, tests, and interop, but they are not ordered sequences.
+
+Explicit constructors remain part of the permanent model. They are used for
+runtime conversion from compatible data and for secondary structures that do
+not need literal syntax:
 
 ```toy
 [ 1 2 3 2 ] >set
@@ -72,18 +86,19 @@ Specialized structures should start with explicit constructors:
 [ "a" "b" "c" ] >queue
 ```
 
-Braces are intentionally left free for a later data-literal decision. Captures
-use `| name ... |`.
+Captures use `| name ... |`.
 
-Future syntax can be added only after the semantics prove stable:
+Secondary literal syntax can be added only when the structure has become common
+enough to justify permanent surface area. Constructors are not a temporary
+fallback; they make conversion, invariants, and policy visible.
 
 ```toy
-set[ 1 2 3 ]
-map[ [ 'name "Alice" ] [ 'age 30 ] ]
+priority[ [ 10 "low" ] [ 1 "urgent" ] ]
 ```
 
-Do not add this sugar first. Constructors make conversion, invariants, and
-lossiness visible while the data model is still being explored.
+Do not use one collection literal whose backend changes invisibly by context.
+If a value becomes a map, set, queue, or heap, that should be visible either in
+the literal syntax or in an explicit constructor/conversion word.
 
 ## Default Collection
 
@@ -100,8 +115,9 @@ The default `[ ... ]` value should remain array-backed because it is good for:
 - serving as interchange input for constructors
 
 Long term, "list" may be too vague. The implementation is closer to a vector or
-array-backed quotation. Rename public words only if it makes the language
-clearer; avoid churn for its own sake.
+array-backed quotation. The stable language rule is that `[ ... ]` is the
+ordered indexed collection and quotation form. Rename public words only if it
+makes the language clearer; avoid churn for its own sake.
 
 ## Explicit vs Transparent Conversion
 
@@ -171,7 +187,8 @@ s items
 ```
 
 Maps should not silently become a list, because there are several valid list
-views. Require `keys`, `values`, or `pairs`.
+views. Require `keys`, `values`, or `pairs`. Sets expose an explicit `items`
+projection.
 
 ### Invariant-Building
 
@@ -287,16 +304,15 @@ Words:
 ```toy
 has?
 get
-seth
-delh
+assoc
+dissoc
 keys
 values
 pairs
 ```
 
-Decide whether `geth` should be overloaded for maps or whether maps should use
-plain `get`. `geth` currently reads as "get here/index"; associative lookup may
-deserve a clearer name.
+Do not overload `geth` for maps. It remains the indexed lookup word for
+ordered/indexed values. Associative lookup uses plain `get`.
 
 ### Membership
 
@@ -378,7 +394,8 @@ Toy should keep update-style data words:
 
 ```toy
 coll key value seth
-coll key delh
+map key value assoc
+map key dissoc
 ```
 
 These words return updated values rather than mutating shared objects as a
@@ -504,8 +521,8 @@ Rules:
 - map iteration order is insertion order unless a stronger reason appears
 - `get` on missing key is an error
 - `has?` checks expected absence
-- `seth` returns an updated map
-- `delh` returns an updated map
+- `assoc` returns an updated map
+- `dissoc` returns an updated map
 - `keys`, `values`, and `pairs` return lists
 
 Insertion order costs memory but makes examples, printing, tests, and JSON
@@ -548,9 +565,11 @@ Record performance work as experiments with benchmarks, not as assumptions.
 1. Write this data-model plan and link it from the roadmap.
 2. Extract shared equality into a public internal helper.
 3. Add hashability and hashing for conservative scalar keys.
-4. Add a `TF_OBJ_TYPE_MAP` object with insertion-ordered hash table storage.
-5. Add `>map`, `map?`, `has?`, `get`, `seth`, `delh`, `keys`, `values`,
-   and `pairs`.
+4. Add `TF_OBJ_TYPE_MAP` and `TF_OBJ_TYPE_SET` objects with insertion-ordered
+   hash table storage.
+5. Add map/set literals and the core words `>map`, `>set`, `map?`, `set?`,
+   `has?`, `get`, `assoc`, `dissoc`, `keys`, `values`, `pairs`, `items`,
+   `adjoin`, and `remove`.
 6. Add focused tests for ownership, missing keys, duplicate keys, source
    printing, equality, and stack effects.
 7. Add tooling metadata for the new native words.
@@ -559,10 +578,6 @@ Record performance work as experiments with benchmarks, not as assumptions.
 
 ## Open Questions
 
-- Should ordinary maps preserve insertion order?
-- Should map lookup use `get` or overload `geth`?
-- Should `seth` remain the generic update word for indexed and associative
-  structures?
 - Are lists eventually renamed to vectors in public docs?
 - Are quotations a distinct public type or still list values with callable
   capability?

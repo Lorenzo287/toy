@@ -12,6 +12,7 @@
 
 typedef struct {
     int block_depth;
+    int brace_depth;
     int var_depth;
     int colon_depth;
     bool in_string;
@@ -354,6 +355,8 @@ static const hint_entry native_hints[] = {
     {"str?", " ( x -- bool )"},
     {"symbol?", " ( x -- bool )"},
     {"list?", " ( x -- bool )"},
+    {"map?", " ( x -- bool )"},
+    {"set?", " ( x -- bool )"},
     {"number?", " ( x -- bool )"},
     {"sequence?", " ( x -- bool )"},
     {"callable?", " ( x -- bool )"},
@@ -371,10 +374,22 @@ static const hint_entry native_hints[] = {
 
     {"geth", " ( list idx -- value )"},
     {"seth", " ( list idx value -- list ) | ( str idx char -- str )"},
+    {">map", " ( pairs -- map )"},
+    {">set", " ( list|string -- set )"},
+    {"has?", " ( map key -- bool ) | ( set item -- bool )"},
+    {"get", " ( map key -- value )"},
+    {"assoc", " ( map key value -- map )"},
+    {"dissoc", " ( map key -- map )"},
+    {"keys", " ( map -- list )"},
+    {"values", " ( map -- list )"},
+    {"pairs", " ( map -- list )"},
+    {"items", " ( set -- list )"},
+    {"adjoin", " ( set item -- set )"},
+    {"remove", " ( set item -- set )"},
     {"slice", " ( coll start end -- coll )"},
     {"take", " ( coll n -- coll )"},
     {"dropn", " ( coll n -- coll )"},
-    {"len", " ( list|string -- n )"},
+    {"len", " ( collection -- n )"},
     {"first", " ( list|string -- x|char )"},
     {"rest", " ( list|string -- rest )"},
     {"uncons", " ( list|string -- head tail )"},
@@ -388,7 +403,7 @@ static const hint_entry native_hints[] = {
     {"lower", " ( str -- str )"},
     {"splitmid", " ( list|string -- left right )"},
     {"range", " ( start end -- list )"},
-    {"empty?", " ( list|string -- bool )"},
+    {"empty?", " ( collection -- bool )"},
     {"char?", " ( x -- bool )"},
     {"letter?", " ( x -- bool )"},
     {"digit?", " ( x -- bool )"},
@@ -537,6 +552,16 @@ static void feed_state(repl_state *state, const char *text) {
             if (state->block_depth > 0) state->block_depth--;
             continue;
         }
+        if (c == '{') {
+            finish_token(state);
+            state->brace_depth++;
+            continue;
+        }
+        if (c == '}') {
+            finish_token(state);
+            if (state->brace_depth > 0) state->brace_depth--;
+            continue;
+        }
         if (c == '|') {
             finish_token(state);
             if (state->var_depth > 0) {
@@ -576,7 +601,8 @@ static void feed_state(repl_state *state, const char *text) {
 static bool input_complete(const repl_state *state) {
     return !state->in_string && !state->escape && !state->line_comment &&
            state->paren_comment_depth == 0 && state->block_depth == 0 &&
-           state->var_depth == 0 && state->colon_depth == 0;
+           state->brace_depth == 0 && state->var_depth == 0 &&
+           state->colon_depth == 0;
 }
 
 static void init_repl_ui(tf_ctx *ctx) {

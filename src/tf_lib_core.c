@@ -565,43 +565,6 @@ tf_ret tf_empty(tf_ctx *ctx) {
     return TF_OK;
 }
 
-/* Comparison operations */
-#define TF_EQUAL_MAX_DEPTH 1024
-
-static bool obj_equal_inner(tf_obj *a, tf_obj *b, size_t depth) {
-    if (a == b) return true;
-    if (depth > TF_EQUAL_MAX_DEPTH) return false;
-    if (a->type != b->type) return false;
-
-    switch (a->type) {
-    case TF_OBJ_TYPE_BOOL:
-        return a->b == b->b;
-    case TF_OBJ_TYPE_INT:
-        return a->i == b->i;
-    case TF_OBJ_TYPE_FLOAT:
-        return a->f == b->f;
-    case TF_OBJ_TYPE_STR:
-    case TF_OBJ_TYPE_SYMBOL:
-    case TF_OBJ_TYPE_VARFETCH:
-        return tf_obj_compare_string(a, b) == 0;
-    case TF_OBJ_TYPE_LIST:
-    case TF_OBJ_TYPE_VARLIST:
-        if (a->list.len != b->list.len) return false;
-        for (size_t i = 0; i < a->list.len; i++) {
-            if (!obj_equal_inner(a->list.elem[i], b->list.elem[i], depth + 1)) {
-                return false;
-            }
-        }
-        return true;
-    default:
-        return a == b;
-    }
-}
-
-static bool obj_equal(tf_obj *a, tf_obj *b) {
-    return obj_equal_inner(a, b, 0);
-}
-
 static tf_ret compare_op(tf_ctx *ctx, const char *op) {
     if (!tf_ctx_require_stack(ctx, 2)) return TF_ERR;
 
@@ -643,9 +606,9 @@ static tf_ret compare_op(tf_ctx *ctx, const char *op) {
             result = cmp >= 0;
     } else if (a->type == b->type) {
         if (!strcmp(op, "==")) {
-            result = obj_equal(a, b);
+            result = tf_obj_equal(a, b);
         } else if (!strcmp(op, "!=")) {
-            result = !obj_equal(a, b);
+            result = !tf_obj_equal(a, b);
         } else {
             tf_stack_push(ctx, a);
             tf_stack_push(ctx, b);
