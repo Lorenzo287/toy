@@ -43,6 +43,24 @@ tf_obj *tf_obj_new_set(void) {
     return o;
 }
 
+tf_obj *tf_obj_new_deque(void) {
+    tf_obj *o = tf_obj_new(TF_OBJ_TYPE_DEQUE);
+    o->deque.len = 0;
+    o->deque.cap = 32;
+    o->deque.head = 0;
+    o->deque.elem = tf_xmalloc(sizeof(tf_obj *) * o->deque.cap);
+    return o;
+}
+
+tf_obj *tf_obj_new_pqueue(void) {
+    tf_obj *o = tf_obj_new(TF_OBJ_TYPE_PQUEUE);
+    o->pqueue.len = 0;
+    o->pqueue.cap = 16;
+    o->pqueue.next_order = 0;
+    o->pqueue.entries = tf_xmalloc(sizeof(tf_pqueue_entry) * o->pqueue.cap);
+    return o;
+}
+
 tf_obj *tf_obj_new_int(int i) {
     tf_obj *o = tf_obj_new(TF_OBJ_TYPE_INT);
     o->i = i;
@@ -318,6 +336,194 @@ bool tf_set_add(tf_obj *set, tf_obj *item) {
     return true;
 }
 
+static size_t deque_slot(tf_obj *deque, size_t idx) {
+    return (deque->deque.head + idx) % deque->deque.cap;
+}
+
+static void deque_ensure_capacity(tf_obj *deque, size_t needed) {
+    if (needed <= deque->deque.cap) return;
+
+    size_t new_cap = deque->deque.cap;
+    while (new_cap < needed) new_cap *= 2;
+
+    tf_obj **new_elem = tf_xmalloc(sizeof(tf_obj *) * new_cap);
+    for (size_t i = 0; i < deque->deque.len; i++) {
+        new_elem[i] = deque->deque.elem[deque_slot(deque, i)];
+    }
+    free(deque->deque.elem);
+    deque->deque.elem = new_elem;
+    deque->deque.cap = new_cap;
+    deque->deque.head = 0;
+}
+
+tf_obj *tf_deque_clone(tf_obj *src) {
+    tf_obj *result = tf_obj_new_deque();
+    deque_ensure_capacity(result, src->deque.len);
+    for (size_t i = 0; i < src->deque.len; i++) {
+        tf_deque_push_back(result, tf_deque_get(src, i));
+    }
+    return result;
+}
+
+tf_obj *tf_deque_get(tf_obj *deque, size_t idx) {
+    if (!deque || deque->type != TF_OBJ_TYPE_DEQUE || idx >= deque->deque.len) {
+        return NULL;
+    }
+    return deque->deque.elem[deque_slot(deque, idx)];
+}
+
+void tf_deque_push_front(tf_obj *deque, tf_obj *value) {
+    deque_ensure_capacity(deque, deque->deque.len + 1);
+    deque->deque.head =
+        (deque->deque.head + deque->deque.cap - 1) % deque->deque.cap;
+    deque->deque.elem[deque->deque.head] = value;
+    deque->deque.len++;
+    tf_obj_retain(value);
+}
+
+void tf_deque_push_back(tf_obj *deque, tf_obj *value) {
+    deque_ensure_capacity(deque, deque->deque.len + 1);
+    deque->deque.elem[deque_slot(deque, deque->deque.len)] = value;
+    deque->deque.len++;
+    tf_obj_retain(value);
+}
+
+tf_obj *tf_deque_pop_front(tf_obj *deque) {
+    if (!deque || deque->type != TF_OBJ_TYPE_DEQUE || deque->deque.len == 0) {
+        return NULL;
+    }
+
+    tf_obj *value = deque->deque.elem[deque->deque.head];
+    deque->deque.head = (deque->deque.head + 1) % deque->deque.cap;
+    deque->deque.len--;
+    if (deque->deque.len == 0) deque->deque.head = 0;
+    return value;
+}
+
+tf_obj *tf_deque_pop_back(tf_obj *deque) {
+    if (!deque || deque->type != TF_OBJ_TYPE_DEQUE || deque->deque.len == 0) {
+        return NULL;
+    }
+
+    size_t idx = deque_slot(deque, deque->deque.len - 1);
+    tf_obj *value = deque->deque.elem[idx];
+    deque->deque.len--;
+    if (deque->deque.len == 0) deque->deque.head = 0;
+    return value;
+}
+
+static bool pqueue_entry_less(tf_pqueue_entry a, tf_pqueue_entry b) {
+    if (a.priority < b.priority) return true;
+    if (a.priority > b.priority) return false;
+    return a.order < b.order;
+}
+
+static void pqueue_swap(tf_pqueue_entry *a, tf_pqueue_entry *b) {
+    tf_pqueue_entry tmp = *a;
+    *a = *b;
+    *b = tmp;
+}
+
+static void pqueue_sift_up(tf_obj *pqueue, size_t idx) {
+    while (idx > 0) {
+        size_t parent = (idx - 1) / 2;
+        if (!pqueue_entry_less(pqueue->pqueue.entries[idx],
+                               pqueue->pqueue.entries[parent])) {
+            break;
+        }
+        pqueue_swap(&pqueue->pqueue.entries[idx],
+                    &pqueue->pqueue.entries[parent]);
+        idx = parent;
+    }
+}
+
+static void pqueue_sift_down(tf_obj *pqueue, size_t idx) {
+    while (true) {
+        size_t left = idx * 2 + 1;
+        size_t right = left + 1;
+        size_t smallest = idx;
+
+        if (left < pqueue->pqueue.len &&
+            pqueue_entry_less(pqueue->pqueue.entries[left],
+                              pqueue->pqueue.entries[smallest])) {
+            smallest = left;
+        }
+        if (right < pqueue->pqueue.len &&
+            pqueue_entry_less(pqueue->pqueue.entries[right],
+                              pqueue->pqueue.entries[smallest])) {
+            smallest = right;
+        }
+        if (smallest == idx) break;
+
+        pqueue_swap(&pqueue->pqueue.entries[idx],
+                    &pqueue->pqueue.entries[smallest]);
+        idx = smallest;
+    }
+}
+
+static void pqueue_ensure_capacity(tf_obj *pqueue, size_t needed) {
+    if (needed <= pqueue->pqueue.cap) return;
+
+    while (pqueue->pqueue.cap < needed) pqueue->pqueue.cap *= 2;
+    pqueue->pqueue.entries =
+        tf_xrealloc(pqueue->pqueue.entries,
+                    sizeof(tf_pqueue_entry) * pqueue->pqueue.cap);
+}
+
+tf_obj *tf_pqueue_clone(tf_obj *src) {
+    tf_obj *result = tf_obj_new_pqueue();
+    pqueue_ensure_capacity(result, src->pqueue.len);
+    result->pqueue.len = src->pqueue.len;
+    result->pqueue.next_order = src->pqueue.next_order;
+    for (size_t i = 0; i < src->pqueue.len; i++) {
+        result->pqueue.entries[i] = src->pqueue.entries[i];
+        tf_obj_retain(result->pqueue.entries[i].value);
+    }
+    return result;
+}
+
+void tf_pqueue_push(tf_obj *pqueue, double priority, tf_obj *value) {
+    pqueue_ensure_capacity(pqueue, pqueue->pqueue.len + 1);
+    size_t idx = pqueue->pqueue.len++;
+    pqueue->pqueue.entries[idx] =
+        (tf_pqueue_entry){priority, pqueue->pqueue.next_order++, value};
+    tf_obj_retain(value);
+    pqueue_sift_up(pqueue, idx);
+}
+
+bool tf_pqueue_peek(tf_obj *pqueue, double *priority, tf_obj **value) {
+    if (!pqueue || pqueue->type != TF_OBJ_TYPE_PQUEUE ||
+        pqueue->pqueue.len == 0) {
+        return false;
+    }
+
+    if (priority) *priority = pqueue->pqueue.entries[0].priority;
+    if (value) *value = pqueue->pqueue.entries[0].value;
+    return true;
+}
+
+bool tf_pqueue_pop(tf_obj *pqueue, double *priority, tf_obj **value) {
+    if (!pqueue || pqueue->type != TF_OBJ_TYPE_PQUEUE ||
+        pqueue->pqueue.len == 0) {
+        return false;
+    }
+
+    tf_pqueue_entry root = pqueue->pqueue.entries[0];
+    pqueue->pqueue.len--;
+    if (pqueue->pqueue.len > 0) {
+        pqueue->pqueue.entries[0] = pqueue->pqueue.entries[pqueue->pqueue.len];
+        pqueue_sift_down(pqueue, 0);
+    }
+
+    if (priority) *priority = root.priority;
+    if (value) {
+        *value = root.value;
+    } else {
+        tf_obj_release(root.value);
+    }
+    return true;
+}
+
 #define TF_EQUAL_MAX_DEPTH 1024
 
 static bool obj_equal_inner(tf_obj *a, tf_obj *b, size_t depth) {
@@ -361,6 +567,42 @@ static bool obj_equal_inner(tf_obj *a, tf_obj *b, size_t depth) {
             if (!tf_set_has(b, a->set.entries[i].item)) return false;
         }
         return true;
+    case TF_OBJ_TYPE_DEQUE:
+        if (a->deque.len != b->deque.len) return false;
+        for (size_t i = 0; i < a->deque.len; i++) {
+            if (!obj_equal_inner(tf_deque_get(a, i), tf_deque_get(b, i),
+                                 depth + 1)) {
+                return false;
+            }
+        }
+        return true;
+    case TF_OBJ_TYPE_PQUEUE: {
+        if (a->pqueue.len != b->pqueue.len) return false;
+
+        tf_obj *left = tf_pqueue_clone(a);
+        tf_obj *right = tf_pqueue_clone(b);
+        while (left->pqueue.len > 0) {
+            double left_priority = 0;
+            double right_priority = 0;
+            tf_obj *left_value = NULL;
+            tf_obj *right_value = NULL;
+            bool left_ok = tf_pqueue_pop(left, &left_priority, &left_value);
+            bool right_ok = tf_pqueue_pop(right, &right_priority, &right_value);
+            bool same = left_ok && right_ok &&
+                        left_priority == right_priority &&
+                        obj_equal_inner(left_value, right_value, depth + 1);
+            if (left_value) tf_obj_release(left_value);
+            if (right_value) tf_obj_release(right_value);
+            if (!same) {
+                tf_obj_release(left);
+                tf_obj_release(right);
+                return false;
+            }
+        }
+        tf_obj_release(left);
+        tf_obj_release(right);
+        return true;
+    }
     default:
         return a == b;
     }
@@ -402,6 +644,18 @@ void tf_obj_free(tf_obj *o) {
         }
         free(o->set.entries);
         free(o->set.buckets);
+        break;
+    case TF_OBJ_TYPE_DEQUE:
+        for (size_t i = 0; i < o->deque.len; i++) {
+            tf_obj_release(tf_deque_get(o, i));
+        }
+        free(o->deque.elem);
+        break;
+    case TF_OBJ_TYPE_PQUEUE:
+        for (size_t i = 0; i < o->pqueue.len; i++) {
+            tf_obj_release(o->pqueue.entries[i].value);
+        }
+        free(o->pqueue.entries);
         break;
     case TF_OBJ_TYPE_VARFETCH:
     case TF_OBJ_TYPE_SYMBOL:
@@ -506,6 +760,35 @@ void tf_obj_print(tf_obj *o, size_t *count) {
         }
         printf("}");
         break;
+    case TF_OBJ_TYPE_DEQUE:
+        (*count)--;
+        printf("deque[");
+        for (size_t i = 0; i < o->deque.len; i++) {
+            if (i > 0) printf(" ");
+            tf_obj_print(tf_deque_get(o, i), count);
+        }
+        printf("]");
+        break;
+    case TF_OBJ_TYPE_PQUEUE: {
+        (*count)--;
+        printf("pqueue[");
+        tf_obj *tmp = tf_pqueue_clone(o);
+        for (size_t i = 0; tmp->pqueue.len > 0; i++) {
+            double priority = 0;
+            tf_obj *value = NULL;
+            tf_pqueue_pop(tmp, &priority, &value);
+            if (i > 0) printf(" ");
+            printf("[");
+            printf("%g", priority);
+            printf(" ");
+            tf_obj_print(value, count);
+            printf("]");
+            tf_obj_release(value);
+        }
+        tf_obj_release(tmp);
+        printf("]");
+        break;
+    }
     default:
         printf("?");
     }
@@ -566,6 +849,33 @@ void tf_obj_print_value(tf_obj *o) {
         }
         printf("}");
         break;
+    case TF_OBJ_TYPE_DEQUE:
+        printf("[");
+        for (size_t i = 0; i < o->deque.len; i++) {
+            if (i > 0) printf(" ");
+            tf_obj_print_value(tf_deque_get(o, i));
+        }
+        printf("] >deque");
+        break;
+    case TF_OBJ_TYPE_PQUEUE: {
+        printf("[");
+        tf_obj *tmp = tf_pqueue_clone(o);
+        for (size_t i = 0; tmp->pqueue.len > 0; i++) {
+            double priority = 0;
+            tf_obj *value = NULL;
+            tf_pqueue_pop(tmp, &priority, &value);
+            if (i > 0) printf(" ");
+            printf("[");
+            printf("%g", priority);
+            printf(" ");
+            tf_obj_print_value(value);
+            printf("]");
+            tf_obj_release(value);
+        }
+        tf_obj_release(tmp);
+        printf("] >pqueue");
+        break;
+    }
     default:
         printf("?");
     }
@@ -630,6 +940,33 @@ void tf_obj_print_source(tf_obj *o) {
         }
         printf("}");
         break;
+    case TF_OBJ_TYPE_DEQUE:
+        printf("[");
+        for (size_t i = 0; i < o->deque.len; i++) {
+            if (i > 0) printf(" ");
+            tf_obj_print_source(tf_deque_get(o, i));
+        }
+        printf("] >deque");
+        break;
+    case TF_OBJ_TYPE_PQUEUE: {
+        printf("[");
+        tf_obj *tmp = tf_pqueue_clone(o);
+        for (size_t i = 0; tmp->pqueue.len > 0; i++) {
+            double priority = 0;
+            tf_obj *value = NULL;
+            tf_pqueue_pop(tmp, &priority, &value);
+            if (i > 0) printf(" ");
+            printf("[");
+            printf("%g", priority);
+            printf(" ");
+            tf_obj_print_source(value);
+            printf("]");
+            tf_obj_release(value);
+        }
+        tf_obj_release(tmp);
+        printf("] >pqueue");
+        break;
+    }
     default:
         printf("?");
         break;

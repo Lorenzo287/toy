@@ -53,7 +53,7 @@ effects, predicate-inspection behavior, and error-boundary semantics.
 Rethink collections around boxed `tf_obj` values, capabilities, and explicit
 conversion between data structures. Keep `[ ... ]` as the ordered
 quotation/sequence form, use `{ ... }` for maps and `#{ ... }` for sets, and
-use explicit constructor words such as `>map`, `>set`, and future `>queue`
+use explicit constructor words such as `>map`, `>set`, `>deque`, and `>pqueue`
 when converting runtime data or building secondary structures. See
 [Data Model Plan](./data-model.md).
 

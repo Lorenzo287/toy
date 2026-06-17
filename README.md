@@ -14,7 +14,8 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 
 ## What It Supports
 
-- Integers, floats, booleans, strings, symbols, lists, maps, and sets.
+- Integers, floats, booleans, strings, symbols, lists, maps, sets, deques, and
+  priority queues.
 - First-class quotations for deferred execution and higher-order code.
 - Stack combinators such as `dip`, `keep`, `bi`, `map`, `filter`, `fold`,
   `linrec`, `binrec`, and `genrec`.
@@ -22,6 +23,8 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
   String items are one-byte strings.
 - Dedicated collection syntax: `[ ... ]` for ordered lists/quotations,
   `{ key value ... }` for maps, and `#{ ... }` for sets.
+- Explicit constructors for secondary structures such as `>deque` and
+  `>pqueue`.
 - Representation predicates such as `list?` and `symbol?`, plus capability
   predicates such as `sequence?` and `callable?`.
 - Local captures with `| name |` and `$name` when stack-only code gets too hard
@@ -95,6 +98,8 @@ symbols as names, so use `'name` rather than `[ name ]` for those positions.
 [ [ 'name "Ada" ] [ 'age 36 ] ] >map pairs print
 #{ "red" "green" "blue" } "green" has? print
 [ 1 2 2 3 ] >set items print
+[ 1 2 3 ] >deque 0 push-front items print
+[ [ 10 "low" ] [ 1 "urgent" ] ] >pqueue pqueue-drain print
 
 "notes.txt" "hello from Toy" writef
 "notes.txt" readf print
@@ -138,7 +143,8 @@ changing the data stack.
 | Combinators   | `each`, `map`, `fold`, `filter`, `some`, `all`, `split`, `merge`                                                                                                                                                                                                   |
 | List/String   | `geth`, `seth`, `slice`, `take`, `dropn`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `reverse`, `join`, `trim`, `upper`, `lower`, `splitmid`, `range`, `empty?`, `char?`, `letter?`, `digit?`, `alnum?`, `space?`, `upper?`, `lower?`, `punct?` |
 | Map/Set       | `>map`, `>set`, `has?`, `get`, `assoc`, `dissoc`, `keys`, `values`, `pairs`, `items`, `adjoin`, `remove`                                                                                                                                                           |
-| Introspection | `typeof`, `bool?`, `int?`, `float?`, `str?`, `symbol?`, `list?`, `map?`, `set?`, `number?`, `sequence?`, `callable?`, `nan?`, `inf?`, `word?`, `var?`, `inf`, `nan`, `body`, `intern`, `name`, `words`, `see`                                                        |
+| Deque/PQueue  | `>deque`, `push-front`, `push-back`, `pop-front`, `pop-back`, `front`, `back`, `>pqueue`, `pqueue-push`, `pqueue-peek`, `pqueue-pop`, `pqueue-drain`                                                                                                               |
+| Introspection | `typeof`, `bool?`, `int?`, `float?`, `str?`, `symbol?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `number?`, `sequence?`, `callable?`, `nan?`, `inf?`, `word?`, `var?`, `inf`, `nan`, `body`, `intern`, `name`, `words`, `see`                                 |
 | I/O           | `print`, `printf`, `.`, `.s`, `.S`, `cr`, `key`, `input`, `load`, `readf`, `writef`, `delf`, `readl`, `exists?`, `clear`, `page`                                                                                                                                   |
 | System        | `rand`, `sleep`, `argc`, `argv`, `env?`, `getenv`, `setenv`, `pwd`, `shell`, `time`, `clock`, `bye`, `exit`                                                                                                                                                        |
 | Definition    | `def`, `:`                                                                                                                                                                                                                                                         |

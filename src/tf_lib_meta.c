@@ -151,6 +151,12 @@ tf_ret tf_map_q(tf_ctx *ctx) {
 tf_ret tf_set_q(tf_ctx *ctx) {
     return type_check(ctx, TF_OBJ_TYPE_SET);
 }
+tf_ret tf_deque_q(tf_ctx *ctx) {
+    return type_check(ctx, TF_OBJ_TYPE_DEQUE);
+}
+tf_ret tf_pqueue_q(tf_ctx *ctx) {
+    return type_check(ctx, TF_OBJ_TYPE_PQUEUE);
+}
 
 tf_ret tf_typeof(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
@@ -180,6 +186,12 @@ tf_ret tf_typeof(tf_ctx *ctx) {
         break;
     case TF_OBJ_TYPE_SET:
         type_str = "set";
+        break;
+    case TF_OBJ_TYPE_DEQUE:
+        type_str = "deque";
+        break;
+    case TF_OBJ_TYPE_PQUEUE:
+        type_str = "pqueue";
         break;
     case TF_OBJ_TYPE_VARLIST:
         type_str = "varlist";
@@ -322,6 +334,34 @@ static void strbuf_append_source_obj(strbuf *buf, tf_obj *o) {
         }
         strbuf_append_char(buf, '}');
         break;
+    case TF_OBJ_TYPE_DEQUE:
+        strbuf_append_char(buf, '[');
+        for (size_t i = 0; i < o->deque.len; i++) {
+            if (i > 0) strbuf_append_char(buf, ' ');
+            strbuf_append_source_obj(buf, tf_deque_get(o, i));
+        }
+        strbuf_append_cstr(buf, "] >deque");
+        break;
+    case TF_OBJ_TYPE_PQUEUE: {
+        strbuf_append_char(buf, '[');
+        tf_obj *tmp = tf_pqueue_clone(o);
+        for (size_t i = 0; tmp->pqueue.len > 0; i++) {
+            double priority = 0;
+            tf_obj *value = NULL;
+            tf_pqueue_pop(tmp, &priority, &value);
+            if (i > 0) strbuf_append_char(buf, ' ');
+            snprintf(num_buf, sizeof num_buf, "%g", priority);
+            strbuf_append_cstr(buf, "[");
+            strbuf_append_cstr(buf, num_buf);
+            strbuf_append_char(buf, ' ');
+            strbuf_append_source_obj(buf, value);
+            strbuf_append_char(buf, ']');
+            tf_obj_release(value);
+        }
+        tf_obj_release(tmp);
+        strbuf_append_cstr(buf, "] >pqueue");
+        break;
+    }
     }
 }
 

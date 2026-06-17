@@ -14,7 +14,8 @@ rules for ownership, equality, conversion, and word contracts.
 Runtime values are represented by `tf_obj`:
 
 - scalars: bool, int, float, string, symbol
-- lists: ordered arrays of `tf_obj *`
+- core collections: list/vector quotations, maps, and sets
+- secondary collections: deques and priority queues
 - capture forms: internal variable binding and fetch objects
 
 Today `TF_OBJ_TYPE_LIST` has several roles:
@@ -38,11 +39,11 @@ references to list slots such as `&list->elem[i]`.
 
 Keep these concepts separate:
 
-| Layer | Meaning | Examples |
-| --- | --- | --- |
-| Representation type | What kind of value this object is | int, string, symbol, vector, map, set |
-| Capability | What operations a word may require | callable, sequence, indexed, associative |
-| Physical layout | How the runtime stores and searches it | array, hash table, tree, heap, deque |
+| Layer               | Meaning                                | Examples                                 |
+| ------------------- | -------------------------------------- | ---------------------------------------- |
+| Representation type | What kind of value this object is      | int, string, symbol, vector, map, set    |
+| Capability          | What operations a word may require     | callable, sequence, indexed, associative |
+| Physical layout     | How the runtime stores and searches it | array, hash table, tree, heap, deque     |
 
 Public words should generally be documented in terms of capabilities, not
 physical layouts. Physical layout is an implementation strategy unless it
@@ -82,8 +83,8 @@ not need literal syntax:
 ```toy
 [ 1 2 3 2 ] >set
 [ [ 'name "Alice" ] [ 'age 30 ] ] >map
-[ 5 1 9 2 ] >heap
-[ "a" "b" "c" ] >queue
+[ "a" "b" "c" ] >deque
+[ [ 10 "low" ] [ 1 "urgent" ] ] >pqueue
 ```
 
 Captures use `| name ... |`.
@@ -92,13 +93,9 @@ Secondary literal syntax can be added only when the structure has become common
 enough to justify permanent surface area. Constructors are not a temporary
 fallback; they make conversion, invariants, and policy visible.
 
-```toy
-priority[ [ 10 "low" ] [ 1 "urgent" ] ]
-```
-
 Do not use one collection literal whose backend changes invisibly by context.
-If a value becomes a map, set, queue, or heap, that should be visible either in
-the literal syntax or in an explicit constructor/conversion word.
+If a value becomes a map, set, deque, or priority queue, that should be visible
+either in the literal syntax or in an explicit constructor/conversion word.
 
 ## Default Collection
 
@@ -140,7 +137,7 @@ m keys                 \ choose key projection
 m values               \ choose value projection
 m pairs                \ choose pair projection
 pairs >map             \ build associative structure
-heap drain             \ choose priority order output
+pq pqueue-drain        \ choose priority order output
 ```
 
 Internal layout optimizations may be transparent when the value's observable
@@ -172,8 +169,10 @@ seq >deque
 seq >linked
 ```
 
-These are mostly physical-layout choices. They should not be public until there
-is a clear reason to expose the layout.
+Most shape-preserving conversions are physical-layout choices and should not be
+public until there is a clear reason to expose the layout. `>deque` is public
+because front/back discipline and O(1) operations at both ends are useful enough
+to name directly.
 
 ### Projection
 
@@ -197,8 +196,8 @@ Invariant-building conversions construct a structure with new constraints:
 ```toy
 seq >set       \ uniqueness by equality/hash
 pairs >map     \ unique keys
-seq >heap      \ priority invariant
-seq >queue     \ front/back discipline
+pairs >pqueue  \ priority invariant
+seq >deque     \ front/back discipline
 ```
 
 These conversions may validate input, reorder internal storage, collapse
@@ -252,8 +251,11 @@ Current values:
 
 Possible future values:
 
-- deque
 - lazy sequence, only if evaluation rules are settled
+
+Deques are ordered, but they currently expose explicit front/back operations and
+an `items` projection rather than participating in every generic list/string
+sequence word. Widen those words only when the result-family rules are settled.
 
 Words:
 
@@ -295,7 +297,7 @@ or generator may be a sequence without cheap random access.
 
 Lookup by key.
 
-Future values:
+Current values:
 
 - map
 
@@ -318,7 +320,7 @@ ordered/indexed values. Associative lookup uses plain `get`.
 
 Containment by equality/hash.
 
-Future values:
+Current values:
 
 - set
 - map keys
@@ -341,24 +343,23 @@ myset items [ square ] map >set
 
 ### Priority
 
-Access by minimum or maximum priority.
+Access by minimum priority.
 
-Future values:
+Current values:
 
-- heap
 - priority queue
 
 Words:
 
 ```toy
-push
-peek
-pop
-drain
+pqueue-push
+pqueue-peek
+pqueue-pop
+pqueue-drain
 ```
 
-Heap-to-list needs an explicit order word. Raw heap storage order is not a
-semantic sequence order.
+Priority-queue-to-list needs an explicit order word. Raw heap storage order is
+not a semantic sequence order and should not be exposed as a public type.
 
 ## Equality and Hashing
 
@@ -381,7 +382,7 @@ Initial key policy should be conservative:
 
 ```text
 hashable: bool, int, string, symbol
-defer: float, list, map, set
+defer: float, list, map, set, deque, pqueue
 ```
 
 Floats can be added after deciding `nan` and signed-zero behavior.
@@ -467,12 +468,14 @@ semantic representation types and capabilities:
 list?
 map?
 set?
+deque?
+pqueue?
 sequence?
 indexed?
 assoc?
 ```
 
-Only add `vector?`, `deque?`, or `hash-map?` if the language exposes layout as
+Only add names like `vector?` or `hash-map?` if the language exposes layout as
 an observable performance choice.
 
 ## Word Contract Rules
@@ -488,22 +491,23 @@ Existing and future native words should answer:
 
 Examples:
 
-| Word | Capability | Result Rule |
-| --- | --- | --- |
-| `len` | finite collection | integer length |
-| `map` | ordered sequence + callable | same sequence family when unambiguous |
-| `filter` | ordered sequence + predicate | same sequence family when unambiguous |
-| `fold` | sequence + callable | accumulator |
-| `keys` | associative | ordered list if map has defined iteration order |
-| `pairs` | associative | list of two-item lists |
-| `has?` | associative or membership | boolean |
-| `get` | associative | value or runtime error |
-| `items` | membership | list of elements |
+| Word           | Capability                     | Result Rule                                     |
+| -------------- | ------------------------------ | ----------------------------------------------- |
+| `len`          | finite collection              | integer length                                  |
+| `map`          | ordered sequence + callable    | same sequence family when unambiguous           |
+| `filter`       | ordered sequence + predicate   | same sequence family when unambiguous           |
+| `fold`         | sequence + callable            | accumulator                                     |
+| `keys`         | associative                    | ordered list if map has defined iteration order |
+| `pairs`        | associative                    | list of two-item lists                          |
+| `has?`         | associative or membership      | boolean                                         |
+| `get`          | associative                    | value or runtime error                          |
+| `items`        | membership or deque projection | list of elements                                |
+| `pqueue-drain` | priority                       | values in priority order                        |
 
 Do not overload a word merely because implementation can do it. Overload only
 when the language concept is the same.
 
-## Map Semantics, First Pass
+## Map Semantics
 
 Maps are the first serious test of this model.
 
@@ -529,7 +533,7 @@ Insertion order costs memory but makes examples, printing, tests, and JSON
 interop much clearer. If performance later demands unordered maps, expose that
 as a separate decision rather than making ordinary maps nondeterministic.
 
-## Set Semantics, Later
+## Set Semantics
 
 Sets can reuse map hashing and equality.
 
@@ -545,6 +549,51 @@ Rules:
 - `items` returns a deterministic list, probably insertion order
 - `has?` checks membership
 - mapping a set is explicit through `items`
+
+## Deque Semantics
+
+Deques are secondary ordered collections for efficient operations at both ends.
+They do not have dedicated literal syntax; build them from lists or strings:
+
+```toy
+[ 1 2 3 ] >deque
+"abc" >deque
+```
+
+Rules:
+
+- conversion preserves front-to-back order
+- `push-front` and `push-back` return updated deques
+- `pop-front` and `pop-back` return `item deque`
+- `front` and `back` inspect one end of a non-empty deque
+- `items` projects a deque to a list in front-to-back order
+- `len` and `empty?` treat deques as finite collections
+
+Generic indexed words such as `geth`, `seth`, and `slice` remain list/string
+words. A deque can be projected with `items` when list behavior is desired.
+
+## Priority Queue Semantics
+
+Priority queues are secondary collections backed by a heap internally. The heap
+layout is not a public data structure and has no literal syntax.
+
+```toy
+[ [ 10 "low" ] [ 1 "urgent" ] ] >pqueue
+```
+
+Rules:
+
+- input items are two-item `[ priority value ]` lists
+- priorities must be finite numbers
+- lower priorities are returned first
+- equal priorities are returned in insertion order
+- `pqueue-push` returns an updated priority queue
+- `pqueue-peek` and `pqueue-pop` return values, not raw heap entries
+- `pqueue-drain` projects values to a list in priority order
+- `len` and `empty?` treat priority queues as finite collections
+
+If code needs to preserve priority as part of the popped value, store it in the
+value explicitly.
 
 ## Performance Lab Hooks
 
@@ -573,7 +622,8 @@ Record performance work as experiments with benchmarks, not as assumptions.
 6. Add focused tests for ownership, missing keys, duplicate keys, source
    printing, equality, and stack effects.
 7. Add tooling metadata for the new native words.
-8. Revisit sets after map hashing is stable.
+8. Add secondary structures whose semantics justify public constructors:
+   `>deque` and `>pqueue`.
 9. Revisit syntax only after constructors have enough real usage.
 
 ## Open Questions

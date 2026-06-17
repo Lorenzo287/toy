@@ -196,6 +196,10 @@ const char *tf_type_name(tf_type type) {
         return "map";
     case TF_OBJ_TYPE_SET:
         return "set";
+    case TF_OBJ_TYPE_DEQUE:
+        return "deque";
+    case TF_OBJ_TYPE_PQUEUE:
+        return "pqueue";
     case TF_OBJ_TYPE_VARLIST:
         return "capture list";
     case TF_OBJ_TYPE_VARFETCH:
@@ -402,11 +406,21 @@ static const builtin_word native_collection_combinator_words[] = {
 static const builtin_word native_data_words[] = {
     {"geth", tf_geth},       {"seth", tf_seth},
     {">map", tf_to_map},     {">set", tf_to_set},
+    {">deque", tf_to_deque}, {">pqueue", tf_to_pqueue},
     {"has?", tf_has_q},      {"get", tf_get},
     {"assoc", tf_assoc},     {"dissoc", tf_dissoc},
     {"keys", tf_keys},       {"values", tf_values},
     {"pairs", tf_pairs},     {"items", tf_items},
     {"adjoin", tf_adjoin},   {"remove", tf_remove},
+    {"push-front", tf_push_front},
+    {"push-back", tf_push_back},
+    {"pop-front", tf_pop_front},
+    {"pop-back", tf_pop_back},
+    {"front", tf_front},     {"back", tf_back},
+    {"pqueue-push", tf_pqueue_push_word},
+    {"pqueue-peek", tf_pqueue_peek_word},
+    {"pqueue-pop", tf_pqueue_pop_word},
+    {"pqueue-drain", tf_pqueue_drain},
     {"slice", tf_slice},     {"take", tf_take},
     {"dropn", tf_dropn},     {"len", tf_len},
     {"first", tf_first},     {"rest", tf_rest},
@@ -429,7 +443,9 @@ static const builtin_word native_introspection_words[] = {
     {"int?", tf_int_q},      {"float?", tf_float_q},
     {"str?", tf_str_q},      {"symbol?", tf_symbol_q},
     {"list?", tf_list_q},    {"map?", tf_map_q},
-    {"set?", tf_set_q},      {"number?", tf_number_q},
+    {"set?", tf_set_q},      {"deque?", tf_deque_q},
+    {"pqueue?", tf_pqueue_q},
+    {"number?", tf_number_q},
     {"sequence?", tf_sequence_q},
     {"callable?", tf_callable_q},
     {"nan?", tf_nan_q},         {"inf?", tf_inf_q},

@@ -14,6 +14,8 @@ typedef enum {
     TF_OBJ_TYPE_LIST,
     TF_OBJ_TYPE_MAP,
     TF_OBJ_TYPE_SET,
+    TF_OBJ_TYPE_DEQUE,
+    TF_OBJ_TYPE_PQUEUE,
     TF_OBJ_TYPE_VARLIST,
     TF_OBJ_TYPE_VARFETCH
 } tf_type;
@@ -47,6 +49,12 @@ typedef struct {
     uint64_t hash;
 } tf_set_entry;
 
+typedef struct {
+    double priority;
+    size_t order;
+    tf_obj *value;
+} tf_pqueue_entry;
+
 struct tf_obj {
     int refcount;
     tf_type type;
@@ -79,6 +87,18 @@ struct tf_obj {
             size_t *buckets;
             size_t bucket_cap;
         } set;
+        struct {
+            struct tf_obj **elem;
+            size_t len;
+            size_t cap;
+            size_t head;
+        } deque;
+        struct {
+            tf_pqueue_entry *entries;
+            size_t len;
+            size_t cap;
+            size_t next_order;
+        } pqueue;
     };
 };
 
@@ -87,6 +107,8 @@ tf_obj *tf_obj_new(int type);
 tf_obj *tf_obj_new_list(void);
 tf_obj *tf_obj_new_map(void);
 tf_obj *tf_obj_new_set(void);
+tf_obj *tf_obj_new_deque(void);
+tf_obj *tf_obj_new_pqueue(void);
 tf_obj *tf_obj_new_int(int i);
 tf_obj *tf_obj_new_bool(bool b);
 tf_obj *tf_obj_new_float(float f);
@@ -110,6 +132,16 @@ bool tf_map_get(tf_obj *map, tf_obj *key, tf_obj **out);
 bool tf_map_set(tf_obj *map, tf_obj *key, tf_obj *value);
 bool tf_set_has(tf_obj *set, tf_obj *item);
 bool tf_set_add(tf_obj *set, tf_obj *item);
+tf_obj *tf_deque_clone(tf_obj *src);
+tf_obj *tf_deque_get(tf_obj *deque, size_t idx);
+void tf_deque_push_front(tf_obj *deque, tf_obj *value);
+void tf_deque_push_back(tf_obj *deque, tf_obj *value);
+tf_obj *tf_deque_pop_front(tf_obj *deque);
+tf_obj *tf_deque_pop_back(tf_obj *deque);
+tf_obj *tf_pqueue_clone(tf_obj *src);
+void tf_pqueue_push(tf_obj *pqueue, double priority, tf_obj *value);
+bool tf_pqueue_peek(tf_obj *pqueue, double *priority, tf_obj **value);
+bool tf_pqueue_pop(tf_obj *pqueue, double *priority, tf_obj **value);
 
 /* Reference-count ownership. */
 void tf_obj_retain(tf_obj *o);
