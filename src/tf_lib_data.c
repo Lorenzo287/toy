@@ -12,9 +12,95 @@ static bool is_char_obj(tf_obj *o) {
 }
 
 static bool is_countable(tf_obj *o) {
-    return o->type == TF_OBJ_TYPE_LIST || o->type == TF_OBJ_TYPE_STR ||
-           o->type == TF_OBJ_TYPE_MAP || o->type == TF_OBJ_TYPE_SET ||
-           o->type == TF_OBJ_TYPE_DEQUE || o->type == TF_OBJ_TYPE_PQUEUE;
+    return o->type == TF_OBJ_TYPE_VECTOR || o->type == TF_OBJ_TYPE_LIST ||
+           o->type == TF_OBJ_TYPE_STR || o->type == TF_OBJ_TYPE_MAP ||
+           o->type == TF_OBJ_TYPE_SET || o->type == TF_OBJ_TYPE_DEQUE ||
+           o->type == TF_OBJ_TYPE_PQUEUE;
+}
+
+static bool is_indexed_obj(tf_obj *o) {
+    return o->type == TF_OBJ_TYPE_VECTOR || o->type == TF_OBJ_TYPE_STR;
+}
+
+static bool require_indexed(tf_ctx *ctx, size_t depth) {
+    if (!tf_ctx_require_stack(ctx, depth + 1)) return false;
+    tf_obj *o = tf_stack_peek(ctx, depth);
+    if (is_indexed_obj(o)) return true;
+
+    tf_ctx_runtime_errorf(ctx,
+                          "'%s' expected indexed collection at stack depth %zu, found %s\n",
+                          ctx->current_word, depth, tf_obj_type_name(o));
+    return false;
+}
+
+static size_t sequence_len(tf_obj *seq) {
+    if (seq->type == TF_OBJ_TYPE_VECTOR) return seq->vector.len;
+    if (seq->type == TF_OBJ_TYPE_LIST) return seq->list.len;
+    return seq->str.len;
+}
+
+static tf_obj *sequence_item_owned(tf_obj *seq, size_t idx) {
+    if (seq->type == TF_OBJ_TYPE_VECTOR) {
+        tf_obj *item = seq->vector.elem[idx];
+        tf_obj_retain(item);
+        return item;
+    }
+    if (seq->type == TF_OBJ_TYPE_LIST) {
+        tf_obj *item = tf_list_get(seq, idx);
+        tf_obj_retain(item);
+        return item;
+    }
+    return tf_obj_new_string(seq->str.ptr + idx, 1);
+}
+
+static void push_sequence_items_to_vector(tf_obj *dest, tf_obj *seq,
+                                          size_t start, size_t end) {
+    if (seq->type == TF_OBJ_TYPE_VECTOR) {
+        for (size_t i = start; i < end; i++) {
+            tf_obj *item = seq->vector.elem[i];
+            tf_obj_retain(item);
+            tf_vector_push(dest, item);
+        }
+        return;
+    }
+
+    tf_list_node *node = seq->list.head;
+    for (size_t i = 0; i < start && node; i++) node = node->next;
+    for (size_t i = start; i < end && node; i++, node = node->next) {
+        tf_obj_retain(node->value);
+        tf_vector_push(dest, node->value);
+    }
+}
+
+static tf_obj *vector_to_sequence_family(tf_obj *items, tf_obj *like) {
+    if (like->type == TF_OBJ_TYPE_LIST) return tf_list_from_vector(items);
+    return items;
+}
+
+static tf_obj *list_drop_obj(tf_obj *list, size_t n) {
+    tf_obj *result = tf_obj_new_list();
+    if (n >= list->list.len) return result;
+
+    tf_list_node *node = list->list.head;
+    for (size_t i = 0; i < n; i++) node = node->next;
+    result->list.head = node;
+    result->list.len = list->list.len - n;
+    if (node) node->refcount++;
+    return result;
+}
+
+static bool pair_items(tf_obj *pair, tf_obj **first, tf_obj **second) {
+    if (pair->type == TF_OBJ_TYPE_VECTOR && pair->vector.len == 2) {
+        *first = pair->vector.elem[0];
+        *second = pair->vector.elem[1];
+        return true;
+    }
+    if (pair->type == TF_OBJ_TYPE_LIST && pair->list.len == 2) {
+        *first = pair->list.head->value;
+        *second = pair->list.head->next->value;
+        return true;
+    }
+    return false;
 }
 
 static bool require_countable(tf_ctx *ctx, size_t depth) {
@@ -151,7 +237,7 @@ static bool priority_from_obj(tf_ctx *ctx, tf_obj *priority, double *out) {
 }
 
 tf_ret tf_geth(tf_ctx *ctx) {
-    if (!tf_ctx_require_sequence(ctx, 1) ||
+    if (!require_indexed(ctx, 1) ||
         !tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_INT)) {
         return TF_ERR;
     }
@@ -159,11 +245,11 @@ tf_ret tf_geth(tf_ctx *ctx) {
     tf_obj *coll_obj = tf_stack_peek(ctx, 1);
 
     int idx = idx_obj->i;
-    if (coll_obj->type == TF_OBJ_TYPE_LIST) {
-        if (!index_in_bounds(ctx, idx, (int)coll_obj->list.len)) return TF_ERR;
+    if (coll_obj->type == TF_OBJ_TYPE_VECTOR) {
+        if (!index_in_bounds(ctx, idx, (int)coll_obj->vector.len)) return TF_ERR;
         idx_obj = tf_stack_pop(ctx);
         coll_obj = tf_stack_pop(ctx);
-        tf_obj *result = coll_obj->list.elem[idx];
+        tf_obj *result = coll_obj->vector.elem[idx];
         tf_obj_retain(result);
         tf_stack_push(ctx, result);
         tf_obj_release(idx_obj);
@@ -182,7 +268,7 @@ tf_ret tf_geth(tf_ctx *ctx) {
 }
 
 tf_ret tf_seth(tf_ctx *ctx) {
-    if (!tf_ctx_require_sequence(ctx, 2) ||
+    if (!require_indexed(ctx, 2) ||
         !tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_INT)) {
         return TF_ERR;
     }
@@ -192,19 +278,19 @@ tf_ret tf_seth(tf_ctx *ctx) {
 
     int idx = idx_obj->i;
 
-    if (coll_obj->type == TF_OBJ_TYPE_LIST) {
-        if (!index_in_bounds(ctx, idx, (int)coll_obj->list.len)) return TF_ERR;
+    if (coll_obj->type == TF_OBJ_TYPE_VECTOR) {
+        if (!index_in_bounds(ctx, idx, (int)coll_obj->vector.len)) return TF_ERR;
         val = tf_stack_pop(ctx);
         idx_obj = tf_stack_pop(ctx);
         coll_obj = tf_stack_pop(ctx);
 
-        tf_obj *new_list = tf_obj_new_list();
-        for (size_t i = 0; i < coll_obj->list.len; i++) {
-            tf_obj *elem = (i == (size_t)idx) ? val : coll_obj->list.elem[i];
+        tf_obj *new_vector = tf_obj_new_vector();
+        for (size_t i = 0; i < coll_obj->vector.len; i++) {
+            tf_obj *elem = (i == (size_t)idx) ? val : coll_obj->vector.elem[i];
             tf_obj_retain(elem);
-            tf_list_push(new_list, elem);
+            tf_vector_push(new_vector, elem);
         }
-        tf_stack_push(ctx, new_list);
+        tf_stack_push(ctx, new_vector);
 
         tf_obj_release(val);
         tf_obj_release(idx_obj);
@@ -229,7 +315,7 @@ tf_ret tf_seth(tf_ctx *ctx) {
 }
 
 tf_ret tf_slice(tf_ctx *ctx) {
-    if (!tf_ctx_require_sequence(ctx, 2) ||
+    if (!require_indexed(ctx, 2) ||
         !tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_INT) ||
         !tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_INT)) {
         return TF_ERR;
@@ -244,18 +330,18 @@ tf_ret tf_slice(tf_ctx *ctx) {
 
     int start = start_obj->i;
     int end = end_obj->i;
-    int len = (coll->type == TF_OBJ_TYPE_LIST) ? (int)coll->list.len : (int)coll->str.len;
+    int len = (coll->type == TF_OBJ_TYPE_VECTOR) ? (int)coll->vector.len : (int)coll->str.len;
 
     if (start < 0) start = 0;
     if (end < 0) end = 0;
     if (end > len) end = len;
     if (start > end) start = end;
 
-    if (coll->type == TF_OBJ_TYPE_LIST) {
-        tf_obj *res = tf_obj_new_list();
+    if (coll->type == TF_OBJ_TYPE_VECTOR) {
+        tf_obj *res = tf_obj_new_vector();
         for (int i = start; i < end; i++) {
-            tf_obj_retain(coll->list.elem[i]);
-            tf_list_push(res, coll->list.elem[i]);
+            tf_obj_retain(coll->vector.elem[i]);
+            tf_vector_push(res, coll->vector.elem[i]);
         }
         tf_stack_push(ctx, res);
     } else {
@@ -272,7 +358,9 @@ tf_ret tf_len(tf_ctx *ctx) {
     if (!require_countable(ctx, 0)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
     int len = 0;
-    if (o->type == TF_OBJ_TYPE_LIST) {
+    if (o->type == TF_OBJ_TYPE_VECTOR) {
+        len = (int)o->vector.len;
+    } else if (o->type == TF_OBJ_TYPE_LIST) {
         len = (int)o->list.len;
     } else if (o->type == TF_OBJ_TYPE_STR) {
         len = (int)o->str.len;
@@ -293,9 +381,16 @@ tf_ret tf_len(tf_ctx *ctx) {
 tf_ret tf_first(tf_ctx *ctx) {
     if (!tf_ctx_require_sequence(ctx, 0)) return TF_ERR;
     tf_obj *seq = tf_stack_peek(ctx, 0);
-    if (seq->type == TF_OBJ_TYPE_LIST && seq->list.len > 0) {
+    if (seq->type == TF_OBJ_TYPE_VECTOR && seq->vector.len > 0) {
         seq = tf_stack_pop(ctx);
-        tf_obj *result = seq->list.elem[0];
+        tf_obj *result = seq->vector.elem[0];
+        tf_obj_retain(result);
+        tf_stack_push(ctx, result);
+        tf_obj_release(seq);
+        return TF_OK;
+    } else if (seq->type == TF_OBJ_TYPE_LIST && seq->list.len > 0) {
+        seq = tf_stack_pop(ctx);
+        tf_obj *result = seq->list.head->value;
         tf_obj_retain(result);
         tf_stack_push(ctx, result);
         tf_obj_release(seq);
@@ -315,15 +410,21 @@ tf_ret tf_first(tf_ctx *ctx) {
 tf_ret tf_rest(tf_ctx *ctx) {
     if (!tf_ctx_require_sequence(ctx, 0)) return TF_ERR;
     tf_obj *seq = tf_stack_peek(ctx, 0);
-    if (seq->type == TF_OBJ_TYPE_LIST) {
+    if (seq->type == TF_OBJ_TYPE_VECTOR) {
         seq = tf_stack_pop(ctx);
-        tf_obj *rest = tf_obj_new_list();
-        for (size_t i = 1; i < seq->list.len; i++) {
-            tf_obj *elem = seq->list.elem[i];
+        tf_obj *rest = tf_obj_new_vector();
+        for (size_t i = 1; i < seq->vector.len; i++) {
+            tf_obj *elem = seq->vector.elem[i];
             tf_obj_retain(elem);
-            tf_list_push(rest, elem);
+            tf_vector_push(rest, elem);
         }
         tf_stack_push(ctx, rest);
+        tf_obj_release(seq);
+        return TF_OK;
+    }
+    if (seq->type == TF_OBJ_TYPE_LIST) {
+        seq = tf_stack_pop(ctx);
+        tf_stack_push(ctx, tf_list_rest_obj(seq));
         tf_obj_release(seq);
         return TF_OK;
     }
@@ -339,20 +440,28 @@ tf_ret tf_rest(tf_ctx *ctx) {
 tf_ret tf_uncons(tf_ctx *ctx) {
     if (!tf_ctx_require_sequence(ctx, 0)) return TF_ERR;
     tf_obj *seq = tf_stack_peek(ctx, 0);
-    if (seq->type == TF_OBJ_TYPE_LIST && seq->list.len > 0) {
+    if (seq->type == TF_OBJ_TYPE_VECTOR && seq->vector.len > 0) {
         seq = tf_stack_pop(ctx);
-        tf_obj *head = seq->list.elem[0];
+        tf_obj *head = seq->vector.elem[0];
         tf_obj_retain(head);
 
-        tf_obj *rest = tf_obj_new_list();
-        for (size_t i = 1; i < seq->list.len; i++) {
-            tf_obj *elem = seq->list.elem[i];
+        tf_obj *rest = tf_obj_new_vector();
+        for (size_t i = 1; i < seq->vector.len; i++) {
+            tf_obj *elem = seq->vector.elem[i];
             tf_obj_retain(elem);
-            tf_list_push(rest, elem);
+            tf_vector_push(rest, elem);
         }
 
         tf_stack_push(ctx, head);
         tf_stack_push(ctx, rest);
+        tf_obj_release(seq);
+        return TF_OK;
+    } else if (seq->type == TF_OBJ_TYPE_LIST && seq->list.len > 0) {
+        seq = tf_stack_pop(ctx);
+        tf_obj *head = seq->list.head->value;
+        tf_obj_retain(head);
+        tf_stack_push(ctx, head);
+        tf_stack_push(ctx, tf_list_rest_obj(seq));
         tf_obj_release(seq);
         return TF_OK;
     } else if (seq->type == TF_OBJ_TYPE_STR && seq->str.len > 0) {
@@ -382,14 +491,20 @@ tf_ret tf_take(tf_ctx *ctx) {
     tf_obj_release(n_obj);
     if (n < 0) n = 0;
 
-    if (coll->type == TF_OBJ_TYPE_LIST) {
-        if (n > (int)coll->list.len) n = (int)coll->list.len;
-        tf_obj *res = tf_obj_new_list();
+    if (coll->type == TF_OBJ_TYPE_VECTOR) {
+        if (n > (int)coll->vector.len) n = (int)coll->vector.len;
+        tf_obj *res = tf_obj_new_vector();
         for (int i = 0; i < n; i++) {
-            tf_obj_retain(coll->list.elem[i]);
-            tf_list_push(res, coll->list.elem[i]);
+            tf_obj_retain(coll->vector.elem[i]);
+            tf_vector_push(res, coll->vector.elem[i]);
         }
         tf_stack_push(ctx, res);
+    } else if (coll->type == TF_OBJ_TYPE_LIST) {
+        if (n > (int)coll->list.len) n = (int)coll->list.len;
+        tf_obj *items = tf_obj_new_vector();
+        push_sequence_items_to_vector(items, coll, 0, (size_t)n);
+        tf_stack_push(ctx, tf_list_from_vector(items));
+        tf_obj_release(items);
     } else {
         if (n > (int)coll->str.len) n = (int)coll->str.len;
         tf_stack_push(ctx, tf_obj_new_string(coll->str.ptr, n));
@@ -412,14 +527,17 @@ tf_ret tf_dropn(tf_ctx *ctx) {
     tf_obj_release(n_obj);
     if (n < 0) n = 0;
 
-    if (coll->type == TF_OBJ_TYPE_LIST) {
-        if (n > (int)coll->list.len) n = (int)coll->list.len;
-        tf_obj *res = tf_obj_new_list();
-        for (size_t i = n; i < coll->list.len; i++) {
-            tf_obj_retain(coll->list.elem[i]);
-            tf_list_push(res, coll->list.elem[i]);
+    if (coll->type == TF_OBJ_TYPE_VECTOR) {
+        if (n > (int)coll->vector.len) n = (int)coll->vector.len;
+        tf_obj *res = tf_obj_new_vector();
+        for (size_t i = n; i < coll->vector.len; i++) {
+            tf_obj_retain(coll->vector.elem[i]);
+            tf_vector_push(res, coll->vector.elem[i]);
         }
         tf_stack_push(ctx, res);
+    } else if (coll->type == TF_OBJ_TYPE_LIST) {
+        if (n > (int)coll->list.len) n = (int)coll->list.len;
+        tf_stack_push(ctx, list_drop_obj(coll, (size_t)n));
     } else {
         if (n > (int)coll->str.len) n = (int)coll->str.len;
         tf_stack_push(ctx, tf_obj_new_string(coll->str.ptr + n, coll->str.len - n));
@@ -432,19 +550,26 @@ tf_ret tf_cons(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 2)) return TF_ERR;
     tf_obj *seq = tf_stack_peek(ctx, 0);
 
-    if (seq->type == TF_OBJ_TYPE_LIST) {
+    if (seq->type == TF_OBJ_TYPE_VECTOR) {
         seq = tf_stack_pop(ctx);
         tf_obj *head = tf_stack_pop(ctx);
-        tf_obj *result = tf_obj_new_list();
-        tf_list_push(result, head);
+        tf_obj *result = tf_obj_new_vector();
+        tf_vector_push(result, head);
 
-        for (size_t i = 0; i < seq->list.len; i++) {
-            tf_obj *elem = seq->list.elem[i];
+        for (size_t i = 0; i < seq->vector.len; i++) {
+            tf_obj *elem = seq->vector.elem[i];
             tf_obj_retain(elem);
-            tf_list_push(result, elem);
+            tf_vector_push(result, elem);
         }
 
         tf_stack_push(ctx, result);
+        tf_obj_release(seq);
+        return TF_OK;
+    } else if (seq->type == TF_OBJ_TYPE_LIST) {
+        seq = tf_stack_pop(ctx);
+        tf_obj *head = tf_stack_pop(ctx);
+        tf_stack_push(ctx, tf_list_cons_obj(head, seq));
+        tf_obj_release(head);
         tf_obj_release(seq);
         return TF_OK;
     } else if (seq->type == TF_OBJ_TYPE_STR) {
@@ -473,19 +598,29 @@ tf_ret tf_append(tf_ctx *ctx) {
     tf_obj *seq = tf_stack_peek(ctx, 1);
     tf_obj *elem = tf_stack_peek(ctx, 0);
 
-    if (seq->type == TF_OBJ_TYPE_LIST) {
+    if (seq->type == TF_OBJ_TYPE_VECTOR) {
         elem = tf_stack_pop(ctx);
         seq = tf_stack_pop(ctx);
-        tf_obj *result = tf_obj_new_list();
+        tf_obj *result = tf_obj_new_vector();
 
-        for (size_t i = 0; i < seq->list.len; i++) {
-            tf_obj *item = seq->list.elem[i];
+        for (size_t i = 0; i < seq->vector.len; i++) {
+            tf_obj *item = seq->vector.elem[i];
             tf_obj_retain(item);
-            tf_list_push(result, item);
+            tf_vector_push(result, item);
         }
-        tf_list_push(result, elem);
+        tf_vector_push(result, elem);
 
         tf_stack_push(ctx, result);
+        tf_obj_release(seq);
+        return TF_OK;
+    } else if (seq->type == TF_OBJ_TYPE_LIST) {
+        elem = tf_stack_pop(ctx);
+        seq = tf_stack_pop(ctx);
+        tf_obj *items = tf_obj_new_vector();
+        push_sequence_items_to_vector(items, seq, 0, seq->list.len);
+        tf_vector_push(items, elem);
+        tf_stack_push(ctx, tf_list_from_vector(items));
+        tf_obj_release(items);
         tf_obj_release(seq);
         return TF_OK;
     } else if (seq->type == TF_OBJ_TYPE_STR) {
@@ -529,28 +664,22 @@ tf_ret tf_concat(tf_ctx *ctx) {
         return TF_OK;
     }
 
-    if (left->type != TF_OBJ_TYPE_LIST || right->type != TF_OBJ_TYPE_LIST) {
+    if ((left->type != TF_OBJ_TYPE_VECTOR && left->type != TF_OBJ_TYPE_LIST) ||
+        left->type != right->type) {
         tf_ctx_runtime_errorf(
-            ctx, "'%s' expected both values to be strings or both values to be lists\n",
+            ctx, "'%s' expected matching vector, list, or string values\n",
             ctx->current_word);
         return TF_ERR;
     }
 
     right = tf_stack_pop(ctx);
     left = tf_stack_pop(ctx);
-    tf_obj *result = tf_obj_new_list();
-    for (size_t i = 0; i < left->list.len; i++) {
-        tf_obj *elem = left->list.elem[i];
-        tf_obj_retain(elem);
-        tf_list_push(result, elem);
-    }
-    for (size_t i = 0; i < right->list.len; i++) {
-        tf_obj *elem = right->list.elem[i];
-        tf_obj_retain(elem);
-        tf_list_push(result, elem);
-    }
-
-    tf_stack_push(ctx, result);
+    tf_obj *result = tf_obj_new_vector();
+    push_sequence_items_to_vector(result, left, 0, sequence_len(left));
+    push_sequence_items_to_vector(result, right, 0, sequence_len(right));
+    tf_obj *out = vector_to_sequence_family(result, left);
+    tf_stack_push(ctx, out);
+    if (out != result) tf_obj_release(result);
     tf_obj_release(left);
     tf_obj_release(right);
     return TF_OK;
@@ -560,12 +689,23 @@ tf_ret tf_reverse(tf_ctx *ctx) {
     if (!tf_ctx_require_sequence(ctx, 0)) return TF_ERR;
     tf_obj *seq = tf_stack_pop(ctx);
 
+    if (seq->type == TF_OBJ_TYPE_VECTOR) {
+        tf_obj *result = tf_obj_new_vector();
+        for (size_t i = seq->vector.len; i > 0; i--) {
+            tf_obj *elem = seq->vector.elem[i - 1];
+            tf_obj_retain(elem);
+            tf_vector_push(result, elem);
+        }
+        tf_stack_push(ctx, result);
+        tf_obj_release(seq);
+        return TF_OK;
+    }
     if (seq->type == TF_OBJ_TYPE_LIST) {
         tf_obj *result = tf_obj_new_list();
-        for (size_t i = seq->list.len; i > 0; i--) {
-            tf_obj *elem = seq->list.elem[i - 1];
-            tf_obj_retain(elem);
-            tf_list_push(result, elem);
+        for (tf_list_node *node = seq->list.head; node; node = node->next) {
+            tf_obj *next = tf_list_cons_obj(node->value, result);
+            tf_obj_release(result);
+            result = next;
         }
         tf_stack_push(ctx, result);
         tf_obj_release(seq);
@@ -591,7 +731,7 @@ tf_ret tf_split_string(tf_ctx *ctx) {
     tf_obj *arg2 = tf_stack_pop(ctx);
     tf_obj *arg1 = tf_stack_pop(ctx);
 
-    tf_obj *result = tf_obj_new_list();
+    tf_obj *result = tf_obj_new_vector();
     char *start = arg1->str.ptr;
     char *sep = arg2->str.ptr;
     size_t sep_len = arg2->str.len;
@@ -599,17 +739,17 @@ tf_ret tf_split_string(tf_ctx *ctx) {
 
     if (sep_len == 0) {
         for (size_t i = 0; i < arg1->str.len; i++) {
-            tf_list_push(result, tf_obj_new_string(arg1->str.ptr + i, 1));
+            tf_vector_push(result, tf_obj_new_string(arg1->str.ptr + i, 1));
         }
     } else {
         char *p;
         while ((p = find_mem(start, remaining, sep, sep_len)) != NULL) {
-            tf_list_push(result, tf_obj_new_string(start, p - start));
+            tf_vector_push(result, tf_obj_new_string(start, p - start));
             size_t consumed = (size_t)(p - start) + sep_len;
             start = p + sep_len;
             remaining -= consumed;
         }
-        tf_list_push(result, tf_obj_new_string(start, remaining));
+        tf_vector_push(result, tf_obj_new_string(start, remaining));
     }
 
     tf_stack_push(ctx, result);
@@ -619,23 +759,32 @@ tf_ret tf_split_string(tf_ctx *ctx) {
 }
 
 tf_ret tf_to_map(tf_ctx *ctx) {
-    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_LIST)) return TF_ERR;
-    tf_obj *pairs = tf_stack_pop_type(ctx, TF_OBJ_TYPE_LIST);
+    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
+    tf_obj *pairs = tf_stack_peek(ctx, 0);
+    if (pairs->type != TF_OBJ_TYPE_VECTOR && pairs->type != TF_OBJ_TYPE_LIST) {
+        tf_ctx_runtime_errorf(ctx, "'%s' expected vector or list of pairs, found %s\n",
+                              ctx->current_word, tf_obj_type_name(pairs));
+        return TF_ERR;
+    }
+    pairs = tf_stack_pop(ctx);
     tf_obj *map = tf_obj_new_map();
 
-    for (size_t i = 0; i < pairs->list.len; i++) {
-        tf_obj *pair = pairs->list.elem[i];
-        if (pair->type != TF_OBJ_TYPE_LIST || pair->list.len != 2) {
+    size_t len = sequence_len(pairs);
+    for (size_t i = 0; i < len; i++) {
+        tf_obj *pair = pairs->type == TF_OBJ_TYPE_VECTOR
+                           ? pairs->vector.elem[i]
+                           : tf_list_get(pairs, i);
+        tf_obj *key = NULL;
+        tf_obj *value = NULL;
+        if (!pair_items(pair, &key, &value)) {
             tf_ctx_runtime_errorf(
-                ctx, "'%s' expected item %zu to be a two-item list\n",
+                ctx, "'%s' expected item %zu to be a two-item vector or list\n",
                 ctx->current_word, i);
             tf_obj_release(map);
             tf_obj_release(pairs);
             return TF_ERR;
         }
 
-        tf_obj *key = pair->list.elem[0];
-        tf_obj *value = pair->list.elem[1];
         if (!tf_obj_hashable(key)) {
             tf_ctx_runtime_errorf(ctx, "'%s' expected hashable key at item %zu\n",
                                   ctx->current_word, i);
@@ -663,13 +812,27 @@ tf_ret tf_to_set(tf_ctx *ctx) {
     tf_obj *seq = tf_stack_pop(ctx);
     tf_obj *set = tf_obj_new_set();
 
-    if (seq->type == TF_OBJ_TYPE_LIST) {
-        for (size_t i = 0; i < seq->list.len; i++) {
-            tf_obj *item = seq->list.elem[i];
+    if (seq->type == TF_OBJ_TYPE_VECTOR) {
+        for (size_t i = 0; i < seq->vector.len; i++) {
+            tf_obj *item = seq->vector.elem[i];
             if (!tf_obj_hashable(item)) {
                 tf_ctx_runtime_errorf(
                     ctx, "'%s' expected hashable set item at index %zu\n",
                     ctx->current_word, i);
+                tf_obj_release(set);
+                tf_obj_release(seq);
+                return TF_ERR;
+            }
+            tf_set_add(set, item);
+        }
+    } else if (seq->type == TF_OBJ_TYPE_LIST) {
+        size_t idx = 0;
+        for (tf_list_node *node = seq->list.head; node; node = node->next, idx++) {
+            tf_obj *item = node->value;
+            if (!tf_obj_hashable(item)) {
+                tf_ctx_runtime_errorf(
+                    ctx, "'%s' expected hashable set item at index %zu\n",
+                    ctx->current_word, idx);
                 tf_obj_release(set);
                 tf_obj_release(seq);
                 return TF_ERR;
@@ -694,9 +857,13 @@ tf_ret tf_to_deque(tf_ctx *ctx) {
     tf_obj *seq = tf_stack_pop(ctx);
     tf_obj *deque = tf_obj_new_deque();
 
-    if (seq->type == TF_OBJ_TYPE_LIST) {
-        for (size_t i = 0; i < seq->list.len; i++) {
-            tf_deque_push_back(deque, seq->list.elem[i]);
+    if (seq->type == TF_OBJ_TYPE_VECTOR) {
+        for (size_t i = 0; i < seq->vector.len; i++) {
+            tf_deque_push_back(deque, seq->vector.elem[i]);
+        }
+    } else if (seq->type == TF_OBJ_TYPE_LIST) {
+        for (tf_list_node *node = seq->list.head; node; node = node->next) {
+            tf_deque_push_back(deque, node->value);
         }
     } else {
         for (size_t i = 0; i < seq->str.len; i++) {
@@ -712,15 +879,26 @@ tf_ret tf_to_deque(tf_ctx *ctx) {
 }
 
 tf_ret tf_to_pqueue(tf_ctx *ctx) {
-    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_LIST)) return TF_ERR;
-    tf_obj *pairs = tf_stack_pop_type(ctx, TF_OBJ_TYPE_LIST);
+    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
+    tf_obj *pairs = tf_stack_peek(ctx, 0);
+    if (pairs->type != TF_OBJ_TYPE_VECTOR && pairs->type != TF_OBJ_TYPE_LIST) {
+        tf_ctx_runtime_errorf(ctx, "'%s' expected vector or list of pairs, found %s\n",
+                              ctx->current_word, tf_obj_type_name(pairs));
+        return TF_ERR;
+    }
+    pairs = tf_stack_pop(ctx);
     tf_obj *pqueue = tf_obj_new_pqueue();
 
-    for (size_t i = 0; i < pairs->list.len; i++) {
-        tf_obj *pair = pairs->list.elem[i];
-        if (pair->type != TF_OBJ_TYPE_LIST || pair->list.len != 2) {
+    size_t len = sequence_len(pairs);
+    for (size_t i = 0; i < len; i++) {
+        tf_obj *pair = pairs->type == TF_OBJ_TYPE_VECTOR
+                           ? pairs->vector.elem[i]
+                           : tf_list_get(pairs, i);
+        tf_obj *priority_obj = NULL;
+        tf_obj *value = NULL;
+        if (!pair_items(pair, &priority_obj, &value)) {
             tf_ctx_runtime_errorf(
-                ctx, "'%s' expected item %zu to be a two-item list\n",
+                ctx, "'%s' expected item %zu to be a two-item vector or list\n",
                 ctx->current_word, i);
             tf_obj_release(pqueue);
             tf_obj_release(pairs);
@@ -728,12 +906,12 @@ tf_ret tf_to_pqueue(tf_ctx *ctx) {
         }
 
         double priority = 0;
-        if (!priority_from_obj(ctx, pair->list.elem[0], &priority)) {
+        if (!priority_from_obj(ctx, priority_obj, &priority)) {
             tf_obj_release(pqueue);
             tf_obj_release(pairs);
             return TF_ERR;
         }
-        tf_pqueue_push(pqueue, priority, pair->list.elem[1]);
+        tf_pqueue_push(pqueue, priority, value);
     }
 
     tf_stack_push(ctx, pqueue);
@@ -847,11 +1025,11 @@ tf_ret tf_dissoc(tf_ctx *ctx) {
 tf_ret tf_keys(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_MAP)) return TF_ERR;
     tf_obj *map = tf_stack_pop_type(ctx, TF_OBJ_TYPE_MAP);
-    tf_obj *keys = tf_obj_new_list();
+    tf_obj *keys = tf_obj_new_vector();
     for (size_t i = 0; i < map->map.len; i++) {
         tf_obj *key = map->map.entries[i].key;
         tf_obj_retain(key);
-        tf_list_push(keys, key);
+        tf_vector_push(keys, key);
     }
     tf_stack_push(ctx, keys);
     tf_obj_release(map);
@@ -861,11 +1039,11 @@ tf_ret tf_keys(tf_ctx *ctx) {
 tf_ret tf_values(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_MAP)) return TF_ERR;
     tf_obj *map = tf_stack_pop_type(ctx, TF_OBJ_TYPE_MAP);
-    tf_obj *values = tf_obj_new_list();
+    tf_obj *values = tf_obj_new_vector();
     for (size_t i = 0; i < map->map.len; i++) {
         tf_obj *value = map->map.entries[i].value;
         tf_obj_retain(value);
-        tf_list_push(values, value);
+        tf_vector_push(values, value);
     }
     tf_stack_push(ctx, values);
     tf_obj_release(map);
@@ -875,16 +1053,16 @@ tf_ret tf_values(tf_ctx *ctx) {
 tf_ret tf_pairs(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_MAP)) return TF_ERR;
     tf_obj *map = tf_stack_pop_type(ctx, TF_OBJ_TYPE_MAP);
-    tf_obj *pairs = tf_obj_new_list();
+    tf_obj *pairs = tf_obj_new_vector();
     for (size_t i = 0; i < map->map.len; i++) {
-        tf_obj *pair = tf_obj_new_list();
+        tf_obj *pair = tf_obj_new_vector();
         tf_obj *key = map->map.entries[i].key;
         tf_obj *value = map->map.entries[i].value;
         tf_obj_retain(key);
         tf_obj_retain(value);
-        tf_list_push(pair, key);
-        tf_list_push(pair, value);
-        tf_list_push(pairs, pair);
+        tf_vector_push(pair, key);
+        tf_vector_push(pair, value);
+        tf_vector_push(pairs, pair);
     }
     tf_stack_push(ctx, pairs);
     tf_obj_release(map);
@@ -902,18 +1080,18 @@ tf_ret tf_items(tf_ctx *ctx) {
     }
 
     coll = tf_stack_pop(ctx);
-    tf_obj *items = tf_obj_new_list();
+    tf_obj *items = tf_obj_new_vector();
     if (coll->type == TF_OBJ_TYPE_SET) {
         for (size_t i = 0; i < coll->set.len; i++) {
             tf_obj *item = coll->set.entries[i].item;
             tf_obj_retain(item);
-            tf_list_push(items, item);
+            tf_vector_push(items, item);
         }
     } else {
         for (size_t i = 0; i < coll->deque.len; i++) {
             tf_obj *item = tf_deque_get(coll, i);
             tf_obj_retain(item);
-            tf_list_push(items, item);
+            tf_vector_push(items, item);
         }
     }
     tf_stack_push(ctx, items);
@@ -1130,12 +1308,12 @@ tf_ret tf_pqueue_drain(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_PQUEUE)) return TF_ERR;
     tf_obj *pqueue = tf_stack_pop_type(ctx, TF_OBJ_TYPE_PQUEUE);
     tf_obj *tmp = tf_pqueue_clone(pqueue);
-    tf_obj *items = tf_obj_new_list();
+    tf_obj *items = tf_obj_new_vector();
 
     while (tmp->pqueue.len > 0) {
         tf_obj *value = NULL;
         tf_pqueue_pop(tmp, NULL, &value);
-        tf_list_push(items, value);
+        tf_vector_push(items, value);
     }
 
     tf_stack_push(ctx, items);
@@ -1145,47 +1323,54 @@ tf_ret tf_pqueue_drain(tf_ctx *ctx) {
 }
 
 tf_ret tf_join(tf_ctx *ctx) {
-    if (!tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_LIST) ||
+    if (!tf_ctx_require_stack(ctx, 2) ||
         !tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_STR)) {
         return TF_ERR;
     }
     tf_obj *sep = tf_stack_peek(ctx, 0);
-    tf_obj *list = tf_stack_peek(ctx, 1);
+    tf_obj *seq = tf_stack_peek(ctx, 1);
+    if (seq->type != TF_OBJ_TYPE_VECTOR && seq->type != TF_OBJ_TYPE_LIST) {
+        tf_ctx_runtime_errorf(ctx, "'%s' expected vector or list at stack depth 1, found %s\n",
+                              ctx->current_word, tf_obj_type_name(seq));
+        return TF_ERR;
+    }
 
     size_t total_len = 0;
-    for (size_t i = 0; i < list->list.len; i++) {
-        tf_obj *elem = list->list.elem[i];
+    size_t len = sequence_len(seq);
+    for (size_t i = 0; i < len; i++) {
+        tf_obj *elem = sequence_item_owned(seq, i);
         if (elem->type != TF_OBJ_TYPE_STR) {
             tf_ctx_runtime_errorf(
-                ctx, "'%s' expected list item %zu to be string, found %s\n",
+                ctx, "'%s' expected item %zu to be string, found %s\n",
                 ctx->current_word, i, tf_obj_type_name(elem));
+            tf_obj_release(elem);
             return TF_ERR;
         }
         total_len += elem->str.len;
+        tf_obj_release(elem);
     }
-    if (list->list.len > 1) { total_len += sep->str.len * (list->list.len - 1); }
+    if (len > 1) { total_len += sep->str.len * (len - 1); }
 
     sep = tf_stack_pop(ctx);
-    list = tf_stack_pop(ctx);
+    seq = tf_stack_pop(ctx);
 
     char *result = tf_xmalloc(total_len + 1);
     char *p = result;
-    for (size_t i = 0; i < list->list.len; i++) {
-        tf_obj *elem = list->list.elem[i];
-        if (elem->type == TF_OBJ_TYPE_STR) {
-            memcpy(p, elem->str.ptr, elem->str.len);
-            p += elem->str.len;
-            if (i + 1 < list->list.len) {
-                memcpy(p, sep->str.ptr, sep->str.len);
-                p += sep->str.len;
-            }
+    for (size_t i = 0; i < len; i++) {
+        tf_obj *elem = sequence_item_owned(seq, i);
+        memcpy(p, elem->str.ptr, elem->str.len);
+        p += elem->str.len;
+        if (i + 1 < len) {
+            memcpy(p, sep->str.ptr, sep->str.len);
+            p += sep->str.len;
         }
+        tf_obj_release(elem);
     }
     *p = '\0';
 
     tf_stack_push(ctx, tf_obj_new_string(result, total_len));
     free(result);
-    tf_obj_release(list);
+    tf_obj_release(seq);
     tf_obj_release(sep);
     return TF_OK;
 }
@@ -1249,29 +1434,24 @@ tf_ret tf_splitmid(tf_ctx *ctx) {
 
     tf_obj *seq = tf_stack_pop(ctx);
 
-    size_t len = seq->type == TF_OBJ_TYPE_LIST ? seq->list.len : seq->str.len;
+    size_t len = sequence_len(seq);
     size_t mid = len / 2;
 
-    if (seq->type == TF_OBJ_TYPE_LIST) {
-        tf_obj *left = tf_obj_new_list();
-        tf_obj *right = tf_obj_new_list();
-
-        for (size_t i = 0; i < mid; i++) {
-            tf_obj *elem = seq->list.elem[i];
-            tf_obj_retain(elem);
-            tf_list_push(left, elem);
-        }
-        for (size_t i = mid; i < len; i++) {
-            tf_obj *elem = seq->list.elem[i];
-            tf_obj_retain(elem);
-            tf_list_push(right, elem);
-        }
-
-        tf_stack_push(ctx, left);
-        tf_stack_push(ctx, right);
-    } else {
+    if (seq->type == TF_OBJ_TYPE_STR) {
         tf_stack_push(ctx, tf_obj_new_string(seq->str.ptr, mid));
         tf_stack_push(ctx, tf_obj_new_string(seq->str.ptr + mid, len - mid));
+    } else {
+        tf_obj *left_items = tf_obj_new_vector();
+        tf_obj *right_items = tf_obj_new_vector();
+        push_sequence_items_to_vector(left_items, seq, 0, mid);
+        push_sequence_items_to_vector(right_items, seq, mid, len);
+
+        tf_obj *left = vector_to_sequence_family(left_items, seq);
+        tf_obj *right = vector_to_sequence_family(right_items, seq);
+        tf_stack_push(ctx, left);
+        tf_stack_push(ctx, right);
+        if (left != left_items) tf_obj_release(left_items);
+        if (right != right_items) tf_obj_release(right_items);
     }
 
     tf_obj_release(seq);
@@ -1297,8 +1477,8 @@ tf_ret tf_range(tf_ctx *ctx) {
     end_obj = tf_stack_pop(ctx);
     start_obj = tf_stack_pop(ctx);
 
-    tf_obj *result = tf_obj_new_list();
-    for (int i = start; i < end; i++) { tf_list_push(result, tf_obj_new_int(i)); }
+    tf_obj *result = tf_obj_new_vector();
+    for (int i = start; i < end; i++) { tf_vector_push(result, tf_obj_new_int(i)); }
 
     tf_stack_push(ctx, result);
     tf_obj_release(end_obj);
@@ -1310,7 +1490,9 @@ tf_ret tf_empty_q(tf_ctx *ctx) {
     if (!require_countable(ctx, 0)) return TF_ERR;
     tf_obj *coll = tf_stack_pop(ctx);
     bool is_empty = false;
-    if (coll->type == TF_OBJ_TYPE_LIST) {
+    if (coll->type == TF_OBJ_TYPE_VECTOR) {
+        is_empty = coll->vector.len == 0;
+    } else if (coll->type == TF_OBJ_TYPE_LIST) {
         is_empty = coll->list.len == 0;
     } else if (coll->type == TF_OBJ_TYPE_STR) {
         is_empty = coll->str.len == 0;

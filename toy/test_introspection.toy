@@ -5,15 +5,17 @@
 'twice [ dup + ] def
 'twice body [ dup + ] == [ "twice body ok\n" printf ] if
 'twice see "'twice [ dup + ] def" == [ "see ok\n" printf ] if
-words list? [ "words returns symbol list\n" printf ] if
+words vector? [ "words returns symbol vector\n" printf ] if
 words [ symbol? ] all true == check
 "X" intern dup print name print
 
 [ 1 2 3 ] sequence? true == check
+( 1 2 3 ) sequence? true == check
 "abc" sequence? true == check
 'twice sequence? false == check
 
 [ 1 2 + ] callable? true == check
+( 1 2 + ) callable? false == check
 'twice callable? true == check
 'missing-word callable? false == check
 "twice" callable? false == check

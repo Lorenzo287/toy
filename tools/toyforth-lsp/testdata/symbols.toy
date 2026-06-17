@@ -1,5 +1,5 @@
 \ top-level definitions
-: sqr ( n -- n*n ) | n | $n $n * ;
+: sqr | n | $n $n * ;
 
 \ definition comment
 'pow3 [ | n | $n $n $n * * ] def

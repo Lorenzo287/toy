@@ -40,7 +40,7 @@ values.
 ```
 
 Use `cleave` for several independent projections of one value, and `construct`
-when those projections should be collected into a list.
+when those projections should be collected into a vector.
 
 ```toy
 5 [ [ 1 + ] [ square ] [ 2 * ] ] cleave
@@ -52,23 +52,24 @@ when those projections should be collected into a list.
 
 ## Temporary Stacks
 
-`infra` runs a callable with a list as a temporary stack, then returns the
-temporary stack as a list. This is useful when a list is better handled as a
+`infra` runs a callable with a vector as a temporary stack, then returns the
+temporary stack as a vector. This is useful when a vector is better handled as a
 small stack program.
 
 ```toy
 [ 2 3 4 ] [ + * ] infra    \ leaves [14]
 ```
 
-The surrounding stack is restored before the result list is pushed.
+The surrounding stack is restored before the result vector is pushed.
 
 ## Sequence Combinators
 
-Lists and strings share sequence words where the result type is clear. Strings
-are byte sequences, so a string item is a one-byte string.
+Vectors, lists, and strings share sequence words where the result type is clear.
+Strings are byte sequences, so a string item is a one-byte string.
 
 ```toy
 [ 1 2 3 4 ] 'square map           \ leaves [1 4 9 16]
+( 1 2 3 4 ) 'square map           \ leaves (1 4 9 16)
 "toy" 'upper map                  \ leaves "TOY"
 
 [ 1 2 3 4 5 ] [ 2 % 0 == ] filter \ leaves [2 4]
@@ -78,9 +79,9 @@ are byte sequences, so a string item is a one-byte string.
 "" "abc" [ concat ] each          \ leaves "abc"
 ```
 
-`split` has two related forms. With a predicate callable it partitions a list
-or string into matching and non-matching sequences. With two strings it splits a
-string by a separator.
+`split` has two related forms. With a predicate callable it partitions a vector,
+list, or string into matching and non-matching sequences. With two strings it
+splits a string by a separator.
 
 ```toy
 3 [ 1 2 3 4 ] [ > ] split         \ leaves 3 [1 2] [3 4]
@@ -169,8 +170,8 @@ quicksort.
 `genrec` is the general form: test, base case, before recursion, after
 recursion. Reach for it when `linrec` or `binrec` no longer match the shape.
 
-`treerec` maps a tree-shaped list recursively. The leaf callable receives each
-non-list leaf; the node callable receives each transformed child list.
+`treerec` maps a tree-shaped vector recursively. The leaf callable receives
+each non-vector leaf; the node callable receives each transformed child vector.
 
 ```toy
 [ 1 [ 2 3 ] 4 ] [ ] [ 0 swap [ + ] fold ] treerec

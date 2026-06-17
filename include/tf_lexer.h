@@ -12,7 +12,7 @@ typedef struct {
     int error;
 } tf_lexer;
 
-/* Parse Toy source into a top-level program list. */
+/* Parse Toy source into a top-level program vector. */
 tf_obj *tf_lexer_parse(const char *filename, char *prg);
 
 /* Shared by the lexer and REPL input scanner. */

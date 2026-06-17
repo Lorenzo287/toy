@@ -1,5 +1,11 @@
 # Callable Refactor Plan
 
+> Historical note: this document predates the public vector/list split. In the
+> current language model, `[ ... ]` creates a vector and callable quotation,
+> while `( ... )` creates a non-callable linked list. Treat this file as
+> background for the callable refactor; use `docs/data-model.md` and
+> `docs/language-roadmap.md` for current collection terminology.
+
 Toy currently has two executable-looking value forms:
 
 ```toy

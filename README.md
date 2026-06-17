@@ -9,24 +9,25 @@ are callable values that can be stored, passed, composed, and executed.
 
 Based on the original [toyforth](https://github.com/antirez/toyforth) project by
 **Salvatore Sanfilippo (antirez)**. Toy adds a persistent REPL using **antirez**'s
-`linenoise` library for history and tab completion, file/string/list
+`linenoise` library for history and tab completion, file/string/collection
 words, Tree-sitter grammar, Go LSP, and VS Code extension.
 
 ## What It Supports
 
-- Integers, floats, booleans, strings, symbols, lists, maps, sets, deques, and
-  priority queues.
+- Integers, floats, booleans, strings, symbols, vectors, lists, maps, sets,
+  deques, and priority queues.
 - First-class quotations for deferred execution and higher-order code.
 - Stack combinators such as `dip`, `keep`, `bi`, `map`, `filter`, `fold`,
   `linrec`, `binrec`, and `genrec`.
-- Shared sequence words for lists and strings when the result type is clear.
-  String items are one-byte strings.
-- Dedicated collection syntax: `[ ... ]` for ordered lists/quotations,
-  `{ key value ... }` for maps, and `#{ ... }` for sets.
+- Shared sequence words for vectors, lists, and strings when the result type is
+  clear. String items are one-byte strings.
+- Dedicated collection syntax: `[ ... ]` for ordered vectors/quotations,
+  `( ... )` for linked lists, `{ key value ... }` for maps, and `#{ ... }` for
+  sets.
 - Explicit constructors for secondary structures such as `>deque` and
   `>pqueue`.
-- Representation predicates such as `list?` and `symbol?`, plus capability
-  predicates such as `sequence?` and `callable?`.
+- Representation predicates such as `vector?`, `list?`, and `symbol?`, plus
+  capability predicates such as `sequence?` and `callable?`.
 - Local captures with `| name |` and `$name` when stack-only code gets too hard
   to read.
 - File I/O, string manipulation, dictionary introspection, process helpers, and
@@ -64,6 +65,8 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 Callable equivalence applies where a word consumes deferred code. Dictionary
 introspection words such as `see`, `body`, `word?`, `var?`, and `name` consume
 symbols as names, so use `'name` rather than `[ name ]` for those positions.
+Vectors are the compound quotation type; linked lists created with `( ... )`
+are data sequences, not callables.
 
 ```toy
 \ Conditions can be callables that inspect the stack.
@@ -86,9 +89,11 @@ symbols as names, so use `'name` rather than `[ name ]` for those positions.
 ```
 
 ```toy
-\ Lists, strings, and files are available for small scripts.
+\ Vectors, lists, strings, and files are available for small scripts.
 [ 1 2 3 ] uncons     \ leaves 1 [2 3]
 0 [ 1 2 3 ] cons     \ leaves [0 1 2 3]
+( 1 2 3 ) uncons     \ leaves 1 (2 3)
+0 ( 1 2 3 ) cons     \ leaves (0 1 2 3)
 "abc" first          \ leaves "a"
 "ab" "c" append      \ leaves "abc"
 "ab" "cd" concat     \ leaves "abcd"
@@ -141,10 +146,10 @@ changing the data stack.
 | Comparison    | `==`, `!=`, `<`, `>`, `<=`, `>=`                                                                                                                                                                                                                                   |
 | Control       | `if`, `ifelse`, `while`, `try`, `error`, `exec`, `i`, `app2`, `infra`, `cond`, `cleave`, `construct`, `replicate`, `times`, `dip`, `keep`, `bi`, `linrec`, `binrec`, `genrec`, `treerec`                                                                           |
 | Combinators   | `each`, `map`, `fold`, `filter`, `some`, `all`, `split`, `merge`                                                                                                                                                                                                   |
-| List/String   | `geth`, `seth`, `slice`, `take`, `dropn`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `reverse`, `join`, `trim`, `upper`, `lower`, `splitmid`, `range`, `empty?`, `char?`, `letter?`, `digit?`, `alnum?`, `space?`, `upper?`, `lower?`, `punct?` |
+| Sequence/Data | `geth`, `seth`, `slice`, `take`, `dropn`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `reverse`, `join`, `trim`, `upper`, `lower`, `splitmid`, `range`, `empty?`, `char?`, `letter?`, `digit?`, `alnum?`, `space?`, `upper?`, `lower?`, `punct?` |
 | Map/Set       | `>map`, `>set`, `has?`, `get`, `assoc`, `dissoc`, `keys`, `values`, `pairs`, `items`, `adjoin`, `remove`                                                                                                                                                           |
 | Deque/PQueue  | `>deque`, `push-front`, `push-back`, `pop-front`, `pop-back`, `front`, `back`, `>pqueue`, `pqueue-push`, `pqueue-peek`, `pqueue-pop`, `pqueue-drain`                                                                                                               |
-| Introspection | `typeof`, `bool?`, `int?`, `float?`, `str?`, `symbol?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `number?`, `sequence?`, `callable?`, `nan?`, `inf?`, `word?`, `var?`, `inf`, `nan`, `body`, `intern`, `name`, `words`, `see`                                 |
+| Introspection | `typeof`, `bool?`, `int?`, `float?`, `str?`, `symbol?`, `vector?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `number?`, `sequence?`, `callable?`, `nan?`, `inf?`, `word?`, `var?`, `inf`, `nan`, `body`, `intern`, `name`, `words`, `see`                      |
 | I/O           | `print`, `printf`, `.`, `.s`, `.S`, `cr`, `key`, `input`, `load`, `readf`, `writef`, `delf`, `readl`, `exists?`, `clear`, `page`                                                                                                                                   |
 | System        | `rand`, `sleep`, `argc`, `argv`, `env?`, `getenv`, `setenv`, `pwd`, `shell`, `time`, `clock`, `bye`, `exit`                                                                                                                                                        |
 | Definition    | `def`, `:`                                                                                                                                                                                                                                                         |

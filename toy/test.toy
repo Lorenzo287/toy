@@ -1,6 +1,6 @@
-: module ( function comment ) mod ;
+: module mod ;
 10 10 12 5 module .s
 [1 2 + print] exec
-[ 1 2 3 ] |list|
-$list 0 rand 100 % seth |list| \ Replace index 0 with a random number
-$list print
+[ 1 2 3 ] |vec|
+$vec 0 rand 100 % seth |vec| \ Replace index 0 with a random number
+$vec print

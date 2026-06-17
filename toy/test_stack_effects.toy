@@ -21,7 +21,23 @@
 [ 1 2 ] 3 append [ 1 2 3 ] == check
 [ 1 2 ] [ 3 4 ] concat [ 1 2 3 4 ] == check
 [] empty? true == check
+[ 1 2 3 ] vector? true == check
+[ 1 2 3 ] list? false == check
+[ 1 2 3 ] typeof "vector" == check
+( 1 2 3 ) vector? false == check
+( 1 2 3 ) list? true == check
+( 1 2 3 ) typeof "list" == check
+( 1 2 3 ) first 1 == check
+( 1 2 3 ) rest ( 2 3 ) == check
+( 1 2 ) 3 append ( 1 2 3 ) == check
+0 ( 1 2 3 ) cons ( 0 1 2 3 ) == check
+( 1 2 ) ( 3 4 ) concat ( 1 2 3 4 ) == check
+( 1 2 3 ) [ 1 + ] map ( 2 3 4 ) == check
+( 1 2 3 4 ) [ 2 % 0 == ] filter ( 2 4 ) == check
+( 1 2 3 ) uncons ( 2 3 ) == check
+1 == check
 "" empty? true == check
+( ) empty? true == check
 [ 1 2 3 ] 1 99 seth [ 1 99 3 ] == check
 [ 1 2 3 ] dup 1 99 seth [ 1 99 3 ] == check
 [ 1 2 3 ] == check
@@ -62,7 +78,15 @@
 [ 1 2 ] == check
 3 == check
 
+3 ( 1 2 3 4 ) [ > ] split
+( 3 4 ) == check
+( 1 2 ) == check
+3 == check
+
 99 [ 1 3 ] [ 2 4 ] [ < ] merge [ 1 2 3 4 ] == check
+99 == check
+
+99 ( 1 3 ) ( 2 4 ) [ < ] merge ( 1 2 3 4 ) == check
 99 == check
 
 "abc" [ "b" == ] split

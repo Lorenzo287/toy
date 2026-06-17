@@ -1,8 +1,8 @@
-[ 10 20 30 ] |list| 
+[ 10 20 30 ] |vec|
 
 \ EACH
 
-$list len $list
+$vec len $vec
 
 "\n{" printf 
 [ 
@@ -18,11 +18,11 @@ drop
 
 "{" printf 
 0
-$list len
+$vec len
 [
-	$list over geth printf
+	$vec over geth printf
 	1 +
-	[ $list len != ] [ "-"printf ] if
+	[ $vec len != ] [ "-"printf ] if
 ] times
 "}\n" print
 
@@ -32,11 +32,11 @@ drop
 
 "{" printf 
 0 
-[ $list len != ]
+[ $vec len != ]
 [
-	$list over geth printf
+	$vec over geth printf
 	1 +
-	[ $list len != ] [ "-"printf ] if
+	[ $vec len != ] [ "-"printf ] if
 ] while
 "}\n" print
 

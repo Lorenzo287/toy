@@ -19,7 +19,8 @@ tf_ret tf_number_q(tf_ctx *ctx) {
 tf_ret tf_sequence_q(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
-    tf_stack_push(ctx, tf_obj_new_bool(o->type == TF_OBJ_TYPE_LIST ||
+    tf_stack_push(ctx, tf_obj_new_bool(o->type == TF_OBJ_TYPE_VECTOR ||
+                                       o->type == TF_OBJ_TYPE_LIST ||
                                        o->type == TF_OBJ_TYPE_STR));
     tf_obj_release(o);
     return TF_OK;
@@ -29,7 +30,7 @@ tf_ret tf_callable_q(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
     bool result =
-        o->type == TF_OBJ_TYPE_LIST ||
+        o->type == TF_OBJ_TYPE_VECTOR ||
         (o->type == TF_OBJ_TYPE_SYMBOL && tf_dict_lookup(ctx, o) != NULL);
     tf_stack_push(ctx, tf_obj_new_bool(result));
     tf_obj_release(o);
@@ -142,6 +143,9 @@ tf_ret tf_str_q(tf_ctx *ctx) {
 tf_ret tf_symbol_q(tf_ctx *ctx) {
     return type_check(ctx, TF_OBJ_TYPE_SYMBOL);
 }
+tf_ret tf_vector_q(tf_ctx *ctx) {
+    return type_check(ctx, TF_OBJ_TYPE_VECTOR);
+}
 tf_ret tf_list_q(tf_ctx *ctx) {
     return type_check(ctx, TF_OBJ_TYPE_LIST);
 }
@@ -177,6 +181,9 @@ tf_ret tf_typeof(tf_ctx *ctx) {
         break;
     case TF_OBJ_TYPE_SYMBOL:
         type_str = "symbol";
+        break;
+    case TF_OBJ_TYPE_VECTOR:
+        type_str = "vector";
         break;
     case TF_OBJ_TYPE_LIST:
         type_str = "list";
@@ -302,20 +309,31 @@ static void strbuf_append_source_obj(strbuf *buf, tf_obj *o) {
         break;
     case TF_OBJ_TYPE_VARLIST:
         strbuf_append_char(buf, '|');
-        for (size_t i = 0; i < o->list.len; i++) {
+        for (size_t i = 0; i < o->vector.len; i++) {
             if (i > 0) strbuf_append_char(buf, ' ');
-            strbuf_append_source_obj(buf, o->list.elem[i]);
+            strbuf_append_source_obj(buf, o->vector.elem[i]);
         }
         strbuf_append_char(buf, '|');
         break;
-    case TF_OBJ_TYPE_LIST:
+    case TF_OBJ_TYPE_VECTOR:
         strbuf_append_char(buf, '[');
-        for (size_t i = 0; i < o->list.len; i++) {
+        for (size_t i = 0; i < o->vector.len; i++) {
             if (i > 0) strbuf_append_char(buf, ' ');
-            strbuf_append_source_obj(buf, o->list.elem[i]);
+            strbuf_append_source_obj(buf, o->vector.elem[i]);
         }
         strbuf_append_char(buf, ']');
         break;
+    case TF_OBJ_TYPE_LIST: {
+        strbuf_append_char(buf, '(');
+        tf_list_node *node = o->list.head;
+        while (node) {
+            strbuf_append_source_obj(buf, node->value);
+            node = node->next;
+            if (node) strbuf_append_char(buf, ' ');
+        }
+        strbuf_append_char(buf, ')');
+        break;
+    }
     case TF_OBJ_TYPE_MAP:
         strbuf_append_char(buf, '{');
         for (size_t i = 0; i < o->map.len; i++) {
@@ -367,7 +385,7 @@ static void strbuf_append_source_obj(strbuf *buf, tf_obj *o) {
 
 tf_ret tf_words(tf_ctx *ctx) {
     size_t count = ctx->words.count;
-    tf_obj *result = tf_obj_new_list();
+    tf_obj *result = tf_obj_new_vector();
     if (count == 0) {
         tf_stack_push(ctx, result);
         return TF_OK;
@@ -382,7 +400,7 @@ tf_ret tf_words(tf_ctx *ctx) {
 
     qsort(words, j, sizeof(tf_word *), word_name_cmp);
     for (size_t i = 0; i < j; i++) {
-        tf_list_push(result, tf_obj_new_quoted_symbol(words[i]->name->str.ptr,
+        tf_vector_push(result, tf_obj_new_quoted_symbol(words[i]->name->str.ptr,
                                                       words[i]->name->str.len));
     }
     free(words);
@@ -411,9 +429,9 @@ tf_ret tf_see(tf_ctx *ctx) {
         strbuf_append_char(&buf, '\'');
         strbuf_append_mem(&buf, word->name->str.ptr, word->name->str.len);
         strbuf_append_cstr(&buf, " [");
-        for (size_t i = 0; i < word->user_impl->list.len; i++) {
+        for (size_t i = 0; i < word->user_impl->vector.len; i++) {
             strbuf_append_char(&buf, ' ');
-            strbuf_append_source_obj(&buf, word->user_impl->list.elem[i]);
+            strbuf_append_source_obj(&buf, word->user_impl->vector.elem[i]);
         }
         strbuf_append_cstr(&buf, " ] def");
     }
@@ -431,28 +449,28 @@ tf_ret tf_colon(tf_ctx *ctx) {
     }
     tf_frame *f = &ctx->call_stack[ctx->call_stack_len - 1];
 
-    if (f->pc >= f->program->list.len) {
+    if (f->pc >= f->program->vector.len) {
         tf_ctx_runtime_errorf(ctx, "':' expected a word name\n");
         return TF_ERR;
     }
-    tf_obj *word_name = f->program->list.elem[f->pc];
+    tf_obj *word_name = f->program->vector.elem[f->pc];
     if (word_name->type != TF_OBJ_TYPE_SYMBOL) {
         tf_ctx_runtime_errorf(ctx, "':' expected symbol word name, found %s\n",
                               tf_obj_type_name(word_name));
         return TF_ERR;
     }
 
-    tf_obj *body = tf_obj_new_list();
+    tf_obj *body = tf_obj_new_vector();
     f->pc++;
-    while (f->pc < f->program->list.len) {
-        tf_obj *o = f->program->list.elem[f->pc];
+    while (f->pc < f->program->vector.len) {
+        tf_obj *o = f->program->vector.elem[f->pc];
         if (o->type == TF_OBJ_TYPE_SYMBOL && strcmp(o->str.ptr, ";") == 0) break;
-        tf_list_push(body, o);
+        tf_vector_push(body, o);
         tf_obj_retain(o);
         f->pc++;
     }
 
-    if (f->pc >= f->program->list.len) {
+    if (f->pc >= f->program->vector.len) {
         tf_obj_release(body);
         tf_ctx_runtime_errorf(ctx, "':' expected ';' to close definition\n");
         return TF_ERR;
@@ -473,8 +491,8 @@ tf_ret tf_def(tf_ctx *ctx) {
                               tf_obj_type_name(word_name));
         return TF_ERR;
     }
-    if (body->type != TF_OBJ_TYPE_LIST) {
-        tf_ctx_runtime_errorf(ctx, "'def' expected list at stack depth 0, found %s\n",
+    if (body->type != TF_OBJ_TYPE_VECTOR) {
+        tf_ctx_runtime_errorf(ctx, "'def' expected vector at stack depth 0, found %s\n",
                               tf_obj_type_name(body));
         return TF_ERR;
     }

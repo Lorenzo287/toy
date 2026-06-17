@@ -18,7 +18,7 @@ typedef struct {
     bool in_string;
     bool escape;
     bool line_comment;
-    int paren_comment_depth;
+    int list_depth;
     bool token_active;
     char token_first;
     size_t token_len;
@@ -313,11 +313,11 @@ static const hint_entry native_hints[] = {
     {"while", " ( callable callable -- )"},
     {"try", " ( callable callable -- )"},
     {"error", " ( msg -- )"},
-    {"infra", " ( list callable -- list )"},
+    {"infra", " ( vector callable -- vector )"},
     {"cond", " ( clauses -- )"},
-    {"cleave", " ( x callable-list -- ... )"},
-    {"construct", " ( x callable-list -- list )"},
-    {"replicate", " ( n callable -- list )"},
+    {"cleave", " ( x callable-vector -- ... )"},
+    {"construct", " ( x callable-vector -- vector )"},
+    {"replicate", " ( n callable -- vector )"},
     {"times", " ( n callable -- )"},
     {"exec", " ( callable -- ... )"},
     {"i", " ( callable -- ... )"},
@@ -330,13 +330,13 @@ static const hint_entry native_hints[] = {
     {"genrec", " ( callable callable callable callable -- ... )"},
     {"treerec", " ( tree callable callable -- result )"},
 
-    {"each", " ( list|string callable -- )"},
-    {"map", " ( list|string callable -- list|string )"},
-    {"fold", " ( init list|string callable -- acc )"},
-    {"filter", " ( list|string callable -- list|string )"},
-    {"some", " ( list|string callable -- bool )"},
-    {"all", " ( list|string callable -- bool )"},
-    {"split", " ( list|string callable -- true false ) | ( str sep -- list )"},
+    {"each", " ( vector|list|string callable -- )"},
+    {"map", " ( vector|list|string callable -- vector|list|string )"},
+    {"fold", " ( init vector|list|string callable -- acc )"},
+    {"filter", " ( vector|list|string callable -- vector|list|string )"},
+    {"some", " ( vector|list|string callable -- bool )"},
+    {"all", " ( vector|list|string callable -- bool )"},
+    {"split", " ( vector|list|string callable -- true false ) | ( str sep -- vector )"},
     {"merge", " ( seq seq callable -- seq )"},
 
     {"print", " ( x -- )"},
@@ -353,7 +353,7 @@ static const hint_entry native_hints[] = {
     {"readf", " ( path -- str )"},
     {"writef", " ( path content -- )"},
     {"delf", " ( path -- )"},
-    {"readl", " ( path -- list )"},
+    {"readl", " ( path -- vector )"},
     {"exists?", " ( path -- bool )"},
 
     {"typeof", " ( x -- str )"},
@@ -362,6 +362,7 @@ static const hint_entry native_hints[] = {
     {"float?", " ( x -- bool )"},
     {"str?", " ( x -- bool )"},
     {"symbol?", " ( x -- bool )"},
+    {"vector?", " ( x -- bool )"},
     {"list?", " ( x -- bool )"},
     {"map?", " ( x -- bool )"},
     {"set?", " ( x -- bool )"},
@@ -379,23 +380,23 @@ static const hint_entry native_hints[] = {
     {"body", " ( 'name -- quot )"},
     {"intern", " ( str -- symbol )"},
     {"name", " ( symbol -- str )"},
-    {"words", " ( -- symbols )"},
+    {"words", " ( -- vector )"},
     {"see", " ( 'name -- str )"},
 
-    {"geth", " ( list idx -- value )"},
-    {"seth", " ( list idx value -- list ) | ( str idx char -- str )"},
+    {"geth", " ( vector idx -- value )"},
+    {"seth", " ( vector idx value -- vector ) | ( str idx char -- str )"},
     {">map", " ( pairs -- map )"},
-    {">set", " ( list|string -- set )"},
-    {">deque", " ( list|string -- deque )"},
+    {">set", " ( vector|list|string -- set )"},
+    {">deque", " ( vector|list|string -- deque )"},
     {">pqueue", " ( pairs -- pqueue )"},
     {"has?", " ( map key -- bool ) | ( set item -- bool )"},
     {"get", " ( map key -- value )"},
     {"assoc", " ( map key value -- map )"},
     {"dissoc", " ( map key -- map )"},
-    {"keys", " ( map -- list )"},
-    {"values", " ( map -- list )"},
-    {"pairs", " ( map -- list )"},
-    {"items", " ( set|deque -- list )"},
+    {"keys", " ( map -- vector )"},
+    {"values", " ( map -- vector )"},
+    {"pairs", " ( map -- vector )"},
+    {"items", " ( set|deque -- vector )"},
     {"adjoin", " ( set item -- set )"},
     {"remove", " ( set item -- set )"},
     {"push-front", " ( deque item -- deque )"},
@@ -407,24 +408,24 @@ static const hint_entry native_hints[] = {
     {"pqueue-push", " ( pqueue priority value -- pqueue )"},
     {"pqueue-peek", " ( pqueue -- value )"},
     {"pqueue-pop", " ( pqueue -- value pqueue )"},
-    {"pqueue-drain", " ( pqueue -- list )"},
+    {"pqueue-drain", " ( pqueue -- vector )"},
     {"slice", " ( coll start end -- coll )"},
     {"take", " ( coll n -- coll )"},
     {"dropn", " ( coll n -- coll )"},
     {"len", " ( collection -- n )"},
-    {"first", " ( list|string -- x|char )"},
-    {"rest", " ( list|string -- rest )"},
-    {"uncons", " ( list|string -- head tail )"},
-    {"cons", " ( x list -- list ) | ( char str -- str )"},
-    {"append", " ( list x -- list ) | ( str char -- str )"},
-    {"concat", " ( list list -- list ) | ( str str -- str )"},
-    {"reverse", " ( list|string -- list|string )"},
-    {"join", " ( list sep -- str )"},
+    {"first", " ( vector|list|string -- x|char )"},
+    {"rest", " ( vector|list|string -- rest )"},
+    {"uncons", " ( vector|list|string -- head tail )"},
+    {"cons", " ( x vector|list -- vector|list ) | ( char str -- str )"},
+    {"append", " ( vector|list x -- vector|list ) | ( str char -- str )"},
+    {"concat", " ( vector vector -- vector ) | ( list list -- list ) | ( str str -- str )"},
+    {"reverse", " ( vector|list|string -- vector|list|string )"},
+    {"join", " ( vector|list sep -- str )"},
     {"trim", " ( str -- str )"},
     {"upper", " ( str -- str )"},
     {"lower", " ( str -- str )"},
-    {"splitmid", " ( list|string -- left right )"},
-    {"range", " ( start end -- list )"},
+    {"splitmid", " ( vector|list|string -- left right )"},
+    {"range", " ( start end -- vector )"},
     {"empty?", " ( collection -- bool )"},
     {"char?", " ( x -- bool )"},
     {"letter?", " ( x -- bool )"},
@@ -438,7 +439,7 @@ static const hint_entry native_hints[] = {
     {"rand", " ( -- n )"},
     {"sleep", " ( ms -- )"},
     {"argc", " ( -- n )"},
-    {"argv", " ( -- list )"},
+    {"argv", " ( -- vector )"},
     {"env?", " ( key -- bool )"},
     {"getenv", " ( key -- value )"},
     {"setenv", " ( key value -- bool )"},
@@ -528,15 +529,6 @@ static void feed_state(repl_state *state, const char *text) {
             continue;
         }
 
-        if (state->paren_comment_depth > 0) {
-            if (c == '(') {
-                state->paren_comment_depth++;
-            } else if (c == ')') {
-                state->paren_comment_depth--;
-            }
-            continue;
-        }
-
         if (state->in_string) {
             if (state->escape) {
                 state->escape = false;
@@ -557,7 +549,12 @@ static void feed_state(repl_state *state, const char *text) {
         }
         if (c == '(') {
             finish_token(state);
-            state->paren_comment_depth = 1;
+            state->list_depth++;
+            continue;
+        }
+        if (c == ')') {
+            finish_token(state);
+            if (state->list_depth > 0) state->list_depth--;
             continue;
         }
         if (c == '"') {
@@ -623,7 +620,7 @@ static void feed_state(repl_state *state, const char *text) {
 
 static bool input_complete(const repl_state *state) {
     return !state->in_string && !state->escape && !state->line_comment &&
-           state->paren_comment_depth == 0 && state->block_depth == 0 &&
+           state->list_depth == 0 && state->block_depth == 0 &&
            state->brace_depth == 0 && state->var_depth == 0 &&
            state->colon_depth == 0;
 }

@@ -14,7 +14,6 @@
 ; @punctuation.special: Usually Red/Orange.
 
 (line_comment) @comment
-(block_comment) @comment
 
 (number) @number
 (boolean) @boolean
@@ -34,6 +33,7 @@
 
 ;; Brackets
 (block "[" @punctuation.bracket "]" @punctuation.bracket)
+(list_literal "(" @punctuation.bracket ")" @punctuation.bracket)
 (map_literal "{" @punctuation.bracket "}" @punctuation.bracket)
 (set_literal "#{" @punctuation.bracket "}" @punctuation.bracket)
 

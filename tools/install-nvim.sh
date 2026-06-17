@@ -42,7 +42,7 @@ fi
 
 pushd "${TS_SRC_DIR}" > /dev/null
     echo "Running npm install..."
-    npm install --silent
+    npm install --silent --ignore-scripts
     
     echo "Generating parser.c..."
     if command -v tree-sitter &> /dev/null; then

@@ -1,4 +1,4 @@
-\ Test map list-producing semantics.
+\ Test map vector-producing semantics.
 
 [ 1 2 3 ] [ 1 + ] map .s empty
 10 [ 1 2 3 ] [ over + ] map .s empty

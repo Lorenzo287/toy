@@ -56,7 +56,7 @@ typedef enum { TF_FRAME_PROGRAM, TF_FRAME_NATIVE } tf_frame_kind;
 /*
  * Execution frame.
  *
- * Program frames evaluate Toy lists with a program counter and dynamic capture
+ * Program frames evaluate Toy vectors with a program counter and dynamic capture
  * bindings. Native frames are continuations used by C words that need to resume
  * after scheduled Toy code finishes.
  */

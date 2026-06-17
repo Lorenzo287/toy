@@ -8,7 +8,8 @@ concatenative language inspired by Joy. Quotations (`[ ... ]`) and symbols
 
 - Preferred definition style: `'name [ ... ] def`; `: name ... ;` remains
   supported for existing Forth-style code.
-- Quotations/lists are first-class values; `exec`/`i` apply them.
+- Vector quotations are first-class values; `exec`/`i` apply vectors or quoted
+  symbols. Linked lists are data sequences and are not callable.
 - User-defined words and native callable runners use the explicit frame stack.
 - Native continuations represent words that need to resume after user code,
   including predicate sandboxes and error boundaries.
@@ -23,8 +24,8 @@ semantics, improves tests/examples, and keeps the interpreter educational.
 
 Introduce an explicit callable abstraction so higher-order words accept both
 atomic quoted symbols (`'word`) and compound quotations (`[ ... ]`) where they
-consume deferred code. Keep symbols and lists distinct as data types, and keep
-sequence dispatch for lists/strings separate from callable dispatch unless a
+consume deferred code. Keep symbols, vectors, and lists distinct as data types,
+and keep sequence dispatch for vectors/lists/strings separate from callable dispatch unless a
 cleaner language model replaces those distinctions. Backwards compatibility is
 secondary to semantic clarity while the language is still being designed. See
 [Callable Refactor Plan](./callables-refactor.md).
@@ -52,9 +53,10 @@ effects, predicate-inspection behavior, and error-boundary semantics.
 
 Rethink collections around boxed `tf_obj` values, capabilities, and explicit
 conversion between data structures. Keep `[ ... ]` as the ordered
-quotation/sequence form, use `{ ... }` for maps and `#{ ... }` for sets, and
-use explicit constructor words such as `>map`, `>set`, `>deque`, and `>pqueue`
-when converting runtime data or building secondary structures. See
+vector/quotation form, use `( ... )` for linked lists, `{ ... }` for maps,
+`#{ ... }` for sets, and explicit constructor words such as `>map`, `>set`,
+`>deque`, and `>pqueue` when converting runtime data or building secondary
+structures. See
 [Data Model Plan](./data-model.md).
 
 ### Debugger
@@ -72,7 +74,7 @@ with fixtures before editor integration.
 ### Performance Lab
 
 Profile first, change one technique at a time, and record results. Topics:
-dispatch, dictionary lookup, allocation, stack/list growth, hot-path
+dispatch, dictionary lookup, allocation, stack/vector/list growth, hot-path
 specialization, bytecode, threaded code, cache behavior.
 
 ### Compiler / LLVM
@@ -84,17 +86,18 @@ then bytecode for the existing VM, then LLVM for a constrained subset.
 
 - Semantics before syntax.
 - Prefer reusable combinators over special forms.
-- Captures use `| name ... |`; maps use `{ ... }`, and sets use `#{ ... }`.
+- Captures use `| name ... |`; vectors use `[ ... ]`, lists use `( ... )`, maps
+  use `{ ... }`, and sets use `#{ ... }`.
 - Keep stack effects explicit and testable.
 - Overload existing words when the language concept is the same across types
-  (`split` for list partitioning and string splitting); avoid aliases that only
-  encode implementation categories.
+  (`split` for sequence partitioning and string splitting); avoid aliases that
+  only encode implementation categories.
 - Treat strings as byte sequences for shared sequence words. A string item is a
   one-byte string; `append` adds one item, while `concat` combines two
   sequences.
 - Introspection words should push data rather than print directly. Word names
-  are symbols: `words` pushes a list of symbols, while `see` pushes source text
-  as a string.
+  are symbols: `words` pushes a vector of symbols, while `see` pushes source
+  text as a string.
 - Callable equivalence applies only where a word consumes deferred code.
   Name/introspection words consume symbols as names, not single-symbol
   quotations.

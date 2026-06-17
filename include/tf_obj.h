@@ -11,6 +11,7 @@ typedef enum {
     TF_OBJ_TYPE_FLOAT,
     TF_OBJ_TYPE_STR,
     TF_OBJ_TYPE_SYMBOL,
+    TF_OBJ_TYPE_VECTOR,
     TF_OBJ_TYPE_LIST,
     TF_OBJ_TYPE_MAP,
     TF_OBJ_TYPE_SET,
@@ -32,9 +33,10 @@ typedef struct {
 /*
  * Refcounted runtime value.
  *
- * Lists back both data lists and executable quotations. Symbols use the same
- * string storage as strings, plus a quoted flag that preserves source/eval
- * mode for parsed programs and source printing.
+ * Vectors back indexed data and executable quotations. Lists are persistent
+ * cons-style sequences. Symbols use the same string storage as strings, plus a
+ * quoted flag that preserves source/eval mode for parsed programs and source
+ * printing.
  */
 typedef struct tf_obj tf_obj;
 
@@ -55,6 +57,12 @@ typedef struct {
     tf_obj *value;
 } tf_pqueue_entry;
 
+typedef struct tf_list_node {
+    int refcount;
+    tf_obj *value;
+    struct tf_list_node *next;
+} tf_list_node;
+
 struct tf_obj {
     int refcount;
     tf_type type;
@@ -72,6 +80,10 @@ struct tf_obj {
             struct tf_obj **elem;
             size_t len;
             size_t cap;
+        } vector;
+        struct {
+            tf_list_node *head;
+            size_t len;
         } list;
         struct {
             tf_map_entry *entries;
@@ -104,6 +116,7 @@ struct tf_obj {
 
 /* Object constructors. Returned objects start with refcount 1. */
 tf_obj *tf_obj_new(int type);
+tf_obj *tf_obj_new_vector(void);
 tf_obj *tf_obj_new_list(void);
 tf_obj *tf_obj_new_map(void);
 tf_obj *tf_obj_new_set(void);
@@ -117,11 +130,11 @@ tf_obj *tf_obj_new_quoted_symbol(const char *s, size_t len);
 tf_obj *tf_obj_new_string(const char *s, size_t len);
 void tf_obj_set_span(tf_obj *o, tf_source_span span);
 
-/* String/symbol comparison and list storage helpers. */
+/* String/symbol comparison and vector storage helpers. */
 int tf_obj_compare_string(tf_obj *a, tf_obj *b);
-void tf_list_push(tf_obj *l, tf_obj *elem);
-tf_obj *tf_list_pop_type(tf_obj *l, tf_type type);
-tf_obj *tf_list_pop(tf_obj *l);
+void tf_vector_push(tf_obj *v, tf_obj *elem);
+tf_obj *tf_vector_pop_type(tf_obj *v, tf_type type);
+tf_obj *tf_vector_pop(tf_obj *v);
 
 /* Equality, hashing, and collection storage helpers. */
 bool tf_obj_equal(tf_obj *a, tf_obj *b);
@@ -132,6 +145,10 @@ bool tf_map_get(tf_obj *map, tf_obj *key, tf_obj **out);
 bool tf_map_set(tf_obj *map, tf_obj *key, tf_obj *value);
 bool tf_set_has(tf_obj *set, tf_obj *item);
 bool tf_set_add(tf_obj *set, tf_obj *item);
+tf_obj *tf_list_from_vector(tf_obj *vector);
+tf_obj *tf_list_cons_obj(tf_obj *head, tf_obj *tail);
+tf_obj *tf_list_rest_obj(tf_obj *list);
+tf_obj *tf_list_get(tf_obj *list, size_t idx);
 tf_obj *tf_deque_clone(tf_obj *src);
 tf_obj *tf_deque_get(tf_obj *deque, size_t idx);
 void tf_deque_push_front(tf_obj *deque, tf_obj *value);

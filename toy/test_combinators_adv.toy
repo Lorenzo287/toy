@@ -2,7 +2,7 @@
 
 \ Testing infra
 [ 1 2 3 ] [ 1 + ] infra .              \ Increments the last element (3 -> 4)
-[ 1 2 3 ] [ 4 ] infra .                \ Pushes 4 to the list
+[ 1 2 3 ] [ 4 ] infra .                \ Pushes 4 to the vector
 
 10 20 [ 100 ] [ 200 ] infra print
 print print                            \ prints 20 10

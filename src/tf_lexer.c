@@ -75,14 +75,13 @@ static tf_obj *lexer_tokenize_number(tf_lexer *lexer);
 static tf_obj *lexer_tokenize_single_char_symbol(tf_lexer *lexer);
 static tf_obj *lexer_tokenize_symbol(tf_lexer *lexer);
 static tf_obj *lexer_tokenize_string(tf_lexer *lexer);
-static tf_obj *lexer_list_to_map(tf_lexer *lexer, tf_obj *items);
-static tf_obj *lexer_list_to_set(tf_lexer *lexer, tf_obj *items);
-static int lexer_skip_paren_comment(tf_lexer *lexer);
+static tf_obj *lexer_vector_to_map(tf_lexer *lexer, tf_obj *items);
+static tf_obj *lexer_vector_to_set(tf_lexer *lexer, tf_obj *items);
 static int lexer_starts_signed_number(tf_lexer *lexer);
 static int lexer_at_token_boundary(tf_lexer *lexer);
 static int lexer_is_structural_char(int c);
 
-/* Parse source text into a list of runtime objects. */
+/* Parse source text into a vector of runtime objects. */
 tf_obj *tf_lexer_parse(const char *filename, char *prg_text) {
     tf_lexer lexer_state = {.filename = filename ? filename : "<unknown>",
                             .start = prg_text,
@@ -94,8 +93,8 @@ tf_obj *tf_lexer_parse(const char *filename, char *prg_text) {
 }
 
 static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
-    tf_source_span list_span = lexer_mark(lexer);
-    tf_obj *prg = tf_obj_new_list();
+    tf_source_span vector_span = lexer_mark(lexer);
+    tf_obj *prg = tf_obj_new_vector();
 
     while (lexer->pos && lexer->pos[0] != 0) {
         skip_spaces(lexer);
@@ -107,23 +106,16 @@ static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
             }
             continue;
         }
-        if (lexer->pos[0] == '(') {
-            if (!lexer_skip_paren_comment(lexer)) {
-                tf_obj_release(prg);
-                return NULL;
-            }
-            continue;
-        }
-
         if (terminator && *lexer->pos == terminator) {
             lexer_advance(lexer);
-            lexer_finish_span(lexer, &list_span);
-            tf_obj_set_span(prg, list_span);
+            lexer_finish_span(lexer, &vector_span);
+            tf_obj_set_span(prg, vector_span);
             return prg;
         }
 
         tf_obj *o = NULL;
-        if (!terminator && (lexer->pos[0] == ']' || lexer->pos[0] == '}')) {
+        if (!terminator && (lexer->pos[0] == ']' || lexer->pos[0] == '}' ||
+                            lexer->pos[0] == ')')) {
             lexer_errorf(lexer, "unexpected '%c'\n", lexer->pos[0]);
         } else if (isdigit((unsigned char)lexer->pos[0]) ||
                    lexer_starts_signed_number(lexer)) {
@@ -136,12 +128,24 @@ static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
                 lexer_finish_span(lexer, &span);
                 tf_obj_set_span(o, span);
             }
+        } else if (lexer->pos[0] == '(') {
+            tf_source_span span = lexer_mark(lexer);
+            lexer_advance(lexer);
+            tf_obj *items = lexer_tokenize_until(lexer, ')');
+            if (items) {
+                o = tf_list_from_vector(items);
+                tf_obj_release(items);
+                if (o) {
+                    lexer_finish_span(lexer, &span);
+                    tf_obj_set_span(o, span);
+                }
+            }
         } else if (lexer->pos[0] == '{') {
             tf_source_span span = lexer_mark(lexer);
             lexer_advance(lexer);
             tf_obj *items = lexer_tokenize_until(lexer, '}');
             if (items) {
-                o = lexer_list_to_map(lexer, items);
+                o = lexer_vector_to_map(lexer, items);
                 tf_obj_release(items);
                 if (o) {
                     lexer_finish_span(lexer, &span);
@@ -157,7 +161,7 @@ static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
                 lexer_advance(lexer);
                 tf_obj *items = lexer_tokenize_until(lexer, '}');
                 if (items) {
-                    o = lexer_list_to_set(lexer, items);
+                    o = lexer_vector_to_set(lexer, items);
                     tf_obj_release(items);
                     if (o) {
                         lexer_finish_span(lexer, &span);
@@ -224,7 +228,7 @@ static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
             }
             return NULL;
         }
-        tf_list_push(prg, o);
+        tf_vector_push(prg, o);
     }
 
     if (terminator != 0) {
@@ -233,8 +237,8 @@ static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
         return NULL;
     }
 
-    lexer_finish_span(lexer, &list_span);
-    tf_obj_set_span(prg, list_span);
+    lexer_finish_span(lexer, &vector_span);
+    tf_obj_set_span(prg, vector_span);
     return prg;
 }
 
@@ -311,16 +315,16 @@ static tf_obj *lexer_tokenize_symbol(tf_lexer *lexer) {
     return o;
 }
 
-static tf_obj *lexer_list_to_map(tf_lexer *lexer, tf_obj *items) {
-    if (items->list.len % 2 != 0) {
+static tf_obj *lexer_vector_to_map(tf_lexer *lexer, tf_obj *items) {
+    if (items->vector.len % 2 != 0) {
         lexer_errorf(lexer, "map literal expected key/value pairs\n");
         return NULL;
     }
 
     tf_obj *map = tf_obj_new_map();
-    for (size_t i = 0; i < items->list.len; i += 2) {
-        tf_obj *key = items->list.elem[i];
-        tf_obj *value = items->list.elem[i + 1];
+    for (size_t i = 0; i < items->vector.len; i += 2) {
+        tf_obj *key = items->vector.elem[i];
+        tf_obj *value = items->vector.elem[i + 1];
         if (!tf_obj_hashable(key)) {
             lexer_errorf(lexer, "map literal key is not hashable\n");
             tf_obj_release(map);
@@ -336,10 +340,10 @@ static tf_obj *lexer_list_to_map(tf_lexer *lexer, tf_obj *items) {
     return map;
 }
 
-static tf_obj *lexer_list_to_set(tf_lexer *lexer, tf_obj *items) {
+static tf_obj *lexer_vector_to_set(tf_lexer *lexer, tf_obj *items) {
     tf_obj *set = tf_obj_new_set();
-    for (size_t i = 0; i < items->list.len; i++) {
-        tf_obj *item = items->list.elem[i];
+    for (size_t i = 0; i < items->vector.len; i++) {
+        tf_obj *item = items->vector.elem[i];
         if (!tf_obj_hashable(item)) {
             lexer_errorf(lexer, "set literal item is not hashable\n");
             tf_obj_release(set);
@@ -425,30 +429,6 @@ static tf_obj *lexer_tokenize_string(tf_lexer *lexer) {
     return o;
 }
 
-static int lexer_skip_paren_comment(tf_lexer *lexer) {
-    int depth = 0;
-    tf_source_span span = lexer_mark(lexer);
-    lexer_advance(lexer);
-    depth++;
-
-    while (lexer->pos[0] != 0 && depth > 0) {
-        if (lexer->pos[0] == '(') {
-            depth++;
-        } else if (lexer->pos[0] == ')') {
-            depth--;
-        }
-        lexer_advance(lexer);
-    }
-
-    if (depth != 0) {
-        lexer->line = span.line;
-        lexer->col = span.col;
-        lexer_errorf(lexer, "unterminated parenthesis comment\n");
-        return 0;
-    }
-    return 1;
-}
-
 static int lexer_starts_signed_number(tf_lexer *lexer) {
     if ((lexer->pos[0] != '-' && lexer->pos[0] != '+') ||
         !lexer_at_token_boundary(lexer)) {
@@ -468,5 +448,5 @@ static int lexer_at_token_boundary(tf_lexer *lexer) {
 
 static int lexer_is_structural_char(int c) {
     return c == '[' || c == ']' || c == '{' || c == '}' || c == '|' ||
-           c == ':' || c == ';';
+           c == '(' || c == ')' || c == ':' || c == ';';
 }

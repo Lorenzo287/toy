@@ -23,18 +23,18 @@ tf_ret tf_app2(tf_ctx *ctx) {
     tf_obj *b = tf_stack_pop(ctx);
     tf_obj *a = tf_stack_pop(ctx);
 
-    tf_obj *synthetic = tf_obj_new_list();
+    tf_obj *synthetic = tf_obj_new_vector();
     tf_obj *exec_sym = tf_obj_new_symbol("exec", 4);
 
-    tf_list_push(synthetic, a);
-    tf_list_push(synthetic, callable);
+    tf_vector_push(synthetic, a);
+    tf_vector_push(synthetic, callable);
     tf_obj_retain(callable);
-    tf_list_push(synthetic, exec_sym);
+    tf_vector_push(synthetic, exec_sym);
     tf_obj_retain(exec_sym);
 
-    tf_list_push(synthetic, b);
-    tf_list_push(synthetic, callable);
-    tf_list_push(synthetic, exec_sym);
+    tf_vector_push(synthetic, b);
+    tf_vector_push(synthetic, callable);
+    tf_vector_push(synthetic, exec_sym);
 
     tf_frame_push_program(ctx, synthetic);
     tf_obj_release(synthetic);
@@ -63,15 +63,17 @@ static void restore_stack_copy(tf_ctx *ctx, tf_obj **saved_stack,
     }
 }
 
-static void push_retained(tf_obj *list, tf_obj *elem) {
+static void push_retained(tf_obj *vector, tf_obj *elem) {
     tf_obj_retain(elem);
-    tf_list_push(list, elem);
+    tf_vector_push(vector, elem);
 }
 
 // Sequence combinators treat strings as byte sequences. A string item is a
-// one-byte string so the same callable protocol works for lists and strings.
+// one-byte string so the same callable protocol works for vectors, lists, and
+// strings.
 static bool is_sequence(tf_obj *o) {
-    return o->type == TF_OBJ_TYPE_LIST || o->type == TF_OBJ_TYPE_STR;
+    return o->type == TF_OBJ_TYPE_VECTOR || o->type == TF_OBJ_TYPE_LIST ||
+           o->type == TF_OBJ_TYPE_STR;
 }
 
 static bool require_condition(tf_ctx *ctx, size_t depth) {
@@ -85,17 +87,17 @@ static bool require_condition(tf_ctx *ctx, size_t depth) {
     return false;
 }
 
-static bool require_callable_list(tf_ctx *ctx, tf_obj *list, const char *word) {
-    if (list->type != TF_OBJ_TYPE_LIST) {
-        tf_ctx_runtime_errorf(ctx, "'%s' expected list, found %s\n", word,
-                              tf_obj_type_name(list));
+static bool require_callable_vector(tf_ctx *ctx, tf_obj *vector, const char *word) {
+    if (vector->type != TF_OBJ_TYPE_VECTOR) {
+        tf_ctx_runtime_errorf(ctx, "'%s' expected vector, found %s\n", word,
+                              tf_obj_type_name(vector));
         return false;
     }
-    for (size_t i = 0; i < list->list.len; i++) {
-        if (!tf_obj_is_callable(list->list.elem[i])) {
+    for (size_t i = 0; i < vector->vector.len; i++) {
+        if (!tf_obj_is_callable(vector->vector.elem[i])) {
             tf_ctx_runtime_errorf(
-                ctx, "'%s' expected list item %zu to be callable, found %s\n",
-                word, i, tf_obj_type_name(list->list.elem[i]));
+                ctx, "'%s' expected vector item %zu to be callable, found %s\n",
+                word, i, tf_obj_type_name(vector->vector.elem[i]));
             return false;
         }
     }
@@ -103,16 +105,33 @@ static bool require_callable_list(tf_ctx *ctx, tf_obj *list, const char *word) {
 }
 
 static size_t sequence_len(tf_obj *seq) {
-    return seq->type == TF_OBJ_TYPE_LIST ? seq->list.len : seq->str.len;
+    if (seq->type == TF_OBJ_TYPE_VECTOR) return seq->vector.len;
+    if (seq->type == TF_OBJ_TYPE_LIST) return seq->list.len;
+    return seq->str.len;
 }
 
 static tf_obj *sequence_item_owned(tf_obj *seq, size_t idx) {
+    if (seq->type == TF_OBJ_TYPE_VECTOR) {
+        tf_obj *elem = seq->vector.elem[idx];
+        tf_obj_retain(elem);
+        return elem;
+    }
     if (seq->type == TF_OBJ_TYPE_LIST) {
-        tf_obj *elem = seq->list.elem[idx];
+        tf_obj *elem = tf_list_get(seq, idx);
         tf_obj_retain(elem);
         return elem;
     }
     return tf_obj_new_string(seq->str.ptr + idx, 1);
+}
+
+static tf_obj *finish_vector_family(tf_obj **vector_result, bool list_result) {
+    tf_obj *items = *vector_result;
+    *vector_result = NULL;
+    if (!list_result) return items;
+
+    tf_obj *result = tf_list_from_vector(items);
+    tf_obj_release(items);
+    return result;
 }
 
 static bool is_char_string(tf_obj *o) {
@@ -173,7 +192,7 @@ static tf_ret collect_outputs(tf_ctx *ctx, size_t base_len,
     size_t len = tf_stack_len(ctx);
     if (len < base_len) return TF_ERR;
     for (size_t i = base_len; i < len; i++) {
-        push_retained(outputs, ctx->data_stack->list.elem[i]);
+        push_retained(outputs, ctx->data_stack->vector.elem[i]);
     }
     return TF_OK;
 }
@@ -364,7 +383,8 @@ typedef struct {
     size_t index;
     bool awaiting_body;
     bool string_result;
-    tf_obj *list_result;
+    bool list_result;
+    tf_obj *vector_result;
     bytebuf str_result;
 } map_state;
 
@@ -383,7 +403,7 @@ static tf_ret map_step(tf_ctx *ctx, void *state, bool *done) {
             bytebuf_append(&s->str_result, mapped->str.ptr[0]);
             tf_obj_release(mapped);
         } else {
-            tf_list_push(s->list_result, mapped);
+            tf_vector_push(s->vector_result, mapped);
         }
         restore_stack_copy(ctx, s->saved_stack, s->saved_len);
         s->awaiting_body = false;
@@ -396,8 +416,9 @@ static tf_ret map_step(tf_ctx *ctx, void *state, bool *done) {
             free(s->str_result.ptr);
             s->str_result.ptr = NULL;
         } else {
-            tf_stack_push(ctx, s->list_result);
-            s->list_result = NULL;
+            tf_stack_push(ctx,
+                          finish_vector_family(&s->vector_result,
+                                               s->list_result));
         }
         *done = true;
         return TF_OK;
@@ -419,8 +440,8 @@ static void map_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     tf_obj_release(s->data);
     if (s->string_result) {
         free(s->str_result.ptr);
-    } else if (s->list_result) {
-        tf_obj_release(s->list_result);
+    } else if (s->vector_result) {
+        tf_obj_release(s->vector_result);
     }
     free(s);
 }
@@ -440,7 +461,7 @@ static tf_ret replicate_step(tf_ctx *ctx, void *state, bool *done) {
     if (s->awaiting_body) {
         if (tf_stack_len(ctx) != s->saved_len + 1) return TF_ERR;
         tf_obj *item = tf_stack_pop(ctx);
-        tf_list_push(s->result, item);
+        tf_vector_push(s->result, item);
         restore_stack_copy(ctx, s->saved_stack, s->saved_len);
         s->awaiting_body = false;
     }
@@ -486,7 +507,7 @@ static tf_ret infra_step(tf_ctx *ctx, void *state, bool *done) {
         return tf_vm_call_callable(ctx, s->body);
     }
 
-    s->result = tf_obj_new_list();
+    s->result = tf_obj_new_vector();
     tf_ret res = collect_outputs(ctx, 0, s->result);
     if (res != TF_OK) return res;
 
@@ -530,22 +551,22 @@ static tf_ret cleave_step(tf_ctx *ctx, void *state, bool *done) {
         s->index++;
     }
 
-    if (s->index >= s->branches->list.len) {
+    if (s->index >= s->branches->vector.len) {
         restore_stack_copy(ctx, s->saved_stack, s->saved_len);
         if (s->construct_result) {
             tf_stack_push(ctx, s->outputs);
             s->outputs = NULL;
         } else {
-            for (size_t i = 0; i < s->outputs->list.len; i++) {
-                tf_stack_push(ctx, s->outputs->list.elem[i]);
-                tf_obj_retain(s->outputs->list.elem[i]);
+            for (size_t i = 0; i < s->outputs->vector.len; i++) {
+                tf_stack_push(ctx, s->outputs->vector.elem[i]);
+                tf_obj_retain(s->outputs->vector.elem[i]);
             }
         }
         *done = true;
         return TF_OK;
     }
 
-    tf_obj *branch = s->branches->list.elem[s->index];
+    tf_obj *branch = s->branches->vector.elem[s->index];
     if (!tf_obj_is_callable(branch)) return TF_ERR;
 
     restore_stack_copy(ctx, s->saved_stack, s->saved_len);
@@ -905,14 +926,14 @@ static tf_ret cond_step(tf_ctx *ctx, void *state, bool *done) {
         return TF_OK;
     }
 
-    while (s->index < s->clauses->list.len) {
-        tf_obj *clause = s->clauses->list.elem[s->index];
-        if (clause->type != TF_OBJ_TYPE_LIST || clause->list.len != 2) {
+    while (s->index < s->clauses->vector.len) {
+        tf_obj *clause = s->clauses->vector.elem[s->index];
+        if (clause->type != TF_OBJ_TYPE_VECTOR || clause->vector.len != 2) {
             return TF_ERR;
         }
 
-        tf_obj *pred = clause->list.elem[0];
-        tf_obj *body = clause->list.elem[1];
+        tf_obj *pred = clause->vector.elem[0];
+        tf_obj *body = clause->vector.elem[1];
         if (!tf_obj_is_callable(body)) return TF_ERR;
 
         bool ready = false;
@@ -951,7 +972,8 @@ typedef struct {
     size_t index;
     tf_obj *current;
     bool string_result;
-    tf_obj *list_result;
+    bool list_result;
+    tf_obj *vector_result;
     bytebuf str_result;
     predicate_eval pred_eval;
 } filter_state;
@@ -980,7 +1002,7 @@ static tf_ret filter_step(tf_ctx *ctx, void *state, bool *done) {
                 bytebuf_append(&s->str_result, s->current->str.ptr[0]);
                 tf_obj_release(s->current);
             } else {
-                tf_list_push(s->list_result, s->current);
+                tf_vector_push(s->vector_result, s->current);
             }
         } else {
             tf_obj_release(s->current);
@@ -993,8 +1015,9 @@ static tf_ret filter_step(tf_ctx *ctx, void *state, bool *done) {
         free(s->str_result.ptr);
         s->str_result.ptr = NULL;
     } else {
-        tf_stack_push(ctx, s->list_result);
-        s->list_result = NULL;
+        tf_stack_push(ctx,
+                      finish_vector_family(&s->vector_result,
+                                           s->list_result));
     }
     *done = true;
     return TF_OK;
@@ -1009,8 +1032,8 @@ static void filter_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     if (s->current) tf_obj_release(s->current);
     if (s->string_result) {
         free(s->str_result.ptr);
-    } else if (s->list_result) {
-        tf_obj_release(s->list_result);
+    } else if (s->vector_result) {
+        tf_obj_release(s->vector_result);
     }
     free(s);
 }
@@ -1082,6 +1105,7 @@ typedef struct {
     size_t index;
     tf_obj *current;
     bool string_result;
+    bool list_result;
     tf_obj *true_list;
     tf_obj *false_list;
     bytebuf true_str;
@@ -1114,7 +1138,7 @@ static tf_ret split_step(tf_ctx *ctx, void *state, bool *done) {
                               s->current->str.ptr[0]);
             tf_obj_release(s->current);
         } else {
-            tf_list_push(pred_val ? s->true_list : s->false_list, s->current);
+            tf_vector_push(pred_val ? s->true_list : s->false_list, s->current);
         }
         s->current = NULL;
     }
@@ -1127,10 +1151,10 @@ static tf_ret split_step(tf_ctx *ctx, void *state, bool *done) {
         s->true_str.ptr = NULL;
         s->false_str.ptr = NULL;
     } else {
-        tf_stack_push(ctx, s->true_list);
-        tf_stack_push(ctx, s->false_list);
-        s->true_list = NULL;
-        s->false_list = NULL;
+        tf_stack_push(ctx,
+                      finish_vector_family(&s->true_list, s->list_result));
+        tf_stack_push(ctx,
+                      finish_vector_family(&s->false_list, s->list_result));
     }
     *done = true;
     return TF_OK;
@@ -1162,7 +1186,8 @@ typedef struct {
     tf_obj *o1;
     tf_obj *o2;
     bool string_result;
-    tf_obj *list_result;
+    bool list_result;
+    tf_obj *vector_result;
     bytebuf str_result;
     predicate_eval pred_eval;
 } merge_state;
@@ -1172,7 +1197,7 @@ static void merge_take_left(merge_state *s) {
         bytebuf_append(&s->str_result, s->o1->str.ptr[0]);
         tf_obj_release(s->o1);
     } else {
-        tf_list_push(s->list_result, s->o1);
+        tf_vector_push(s->vector_result, s->o1);
     }
     tf_obj_release(s->o2);
     s->o1 = NULL;
@@ -1185,7 +1210,7 @@ static void merge_take_right(merge_state *s) {
         bytebuf_append(&s->str_result, s->o2->str.ptr[0]);
         tf_obj_release(s->o2);
     } else {
-        tf_list_push(s->list_result, s->o2);
+        tf_vector_push(s->vector_result, s->o2);
     }
     tf_obj_release(s->o1);
     s->o1 = NULL;
@@ -1226,7 +1251,8 @@ static tf_ret merge_step(tf_ctx *ctx, void *state, bool *done) {
         if (s->string_result) {
             bytebuf_append(&s->str_result, s->l1->str.ptr[s->i1]);
         } else {
-            push_retained(s->list_result, s->l1->list.elem[s->i1]);
+            tf_vector_push(s->vector_result,
+                           sequence_item_owned(s->l1, s->i1));
         }
         s->i1++;
     }
@@ -1234,7 +1260,8 @@ static tf_ret merge_step(tf_ctx *ctx, void *state, bool *done) {
         if (s->string_result) {
             bytebuf_append(&s->str_result, s->l2->str.ptr[s->i2]);
         } else {
-            push_retained(s->list_result, s->l2->list.elem[s->i2]);
+            tf_vector_push(s->vector_result,
+                           sequence_item_owned(s->l2, s->i2));
         }
         s->i2++;
     }
@@ -1244,8 +1271,9 @@ static tf_ret merge_step(tf_ctx *ctx, void *state, bool *done) {
         free(s->str_result.ptr);
         s->str_result.ptr = NULL;
     } else {
-        tf_stack_push(ctx, s->list_result);
-        s->list_result = NULL;
+        tf_stack_push(ctx,
+                      finish_vector_family(&s->vector_result,
+                                           s->list_result));
     }
     *done = true;
     return TF_OK;
@@ -1262,8 +1290,8 @@ static void merge_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     if (s->o2) tf_obj_release(s->o2);
     if (s->string_result) {
         free(s->str_result.ptr);
-    } else if (s->list_result) {
-        tf_obj_release(s->list_result);
+    } else if (s->vector_result) {
+        tf_obj_release(s->vector_result);
     }
     free(s);
 }
@@ -1306,7 +1334,7 @@ static tf_ret linrec_step(tf_ctx *ctx, void *state, bool *done) {
         return TF_OK;
     }
 
-    tf_obj *cont = tf_obj_new_list();
+    tf_obj *cont = tf_obj_new_vector();
     tf_obj *linrec_sym = tf_obj_new_symbol("linrec", 6);
     tf_obj *exec_sym = tf_obj_new_symbol("exec", 4);
 
@@ -1314,9 +1342,9 @@ static tf_ret linrec_step(tf_ctx *ctx, void *state, bool *done) {
     push_retained(cont, s->then_b);
     push_retained(cont, s->rec1);
     push_retained(cont, s->rec2);
-    tf_list_push(cont, linrec_sym);
+    tf_vector_push(cont, linrec_sym);
     push_retained(cont, s->rec2);
-    tf_list_push(cont, exec_sym);
+    tf_vector_push(cont, exec_sym);
 
     tf_frame_push_program(ctx, cont);
     tf_obj_release(cont);
@@ -1374,25 +1402,25 @@ static tf_ret binrec_step(tf_ctx *ctx, void *state, bool *done) {
         return TF_OK;
     }
 
-    tf_obj *rec_call = tf_obj_new_list();
+    tf_obj *rec_call = tf_obj_new_vector();
     tf_obj *binrec_sym = tf_obj_new_symbol("binrec", 6);
     push_retained(rec_call, s->pred);
     push_retained(rec_call, s->then_b);
     push_retained(rec_call, s->rec1);
     push_retained(rec_call, s->rec2);
-    tf_list_push(rec_call, binrec_sym);
+    tf_vector_push(rec_call, binrec_sym);
 
-    tf_obj *cont = tf_obj_new_list();
+    tf_obj *cont = tf_obj_new_vector();
     tf_obj *dip_sym = tf_obj_new_symbol("dip", 3);
     tf_obj *exec_rec_sym = tf_obj_new_symbol("exec", 4);
     tf_obj *exec_combine_sym = tf_obj_new_symbol("exec", 4);
 
     push_retained(cont, rec_call);
-    tf_list_push(cont, dip_sym);
+    tf_vector_push(cont, dip_sym);
     push_retained(cont, rec_call);
-    tf_list_push(cont, exec_rec_sym);
+    tf_vector_push(cont, exec_rec_sym);
     push_retained(cont, s->rec2);
-    tf_list_push(cont, exec_combine_sym);
+    tf_vector_push(cont, exec_combine_sym);
 
     tf_frame_push_program(ctx, cont);
     tf_obj_release(cont);
@@ -1451,7 +1479,7 @@ static tf_ret genrec_step(tf_ctx *ctx, void *state, bool *done) {
         return TF_OK;
     }
 
-    tf_obj *cont = tf_obj_new_list();
+    tf_obj *cont = tf_obj_new_vector();
     tf_obj *genrec_sym = tf_obj_new_symbol("genrec", 6);
     tf_obj *exec_sym = tf_obj_new_symbol("exec", 4);
 
@@ -1459,9 +1487,9 @@ static tf_ret genrec_step(tf_ctx *ctx, void *state, bool *done) {
     push_retained(cont, s->then_b);
     push_retained(cont, s->before);
     push_retained(cont, s->after);
-    tf_list_push(cont, genrec_sym);
+    tf_vector_push(cont, genrec_sym);
     push_retained(cont, s->after);
-    tf_list_push(cont, exec_sym);
+    tf_vector_push(cont, exec_sym);
 
     tf_frame_push_program(ctx, cont);
     tf_obj_release(cont);
@@ -1517,7 +1545,7 @@ static tf_ret treerec_step(tf_ctx *ctx, void *state, bool *done) {
     treerec_state *s = state;
 
     if (s->stage == TF_TREEREC_START) {
-        if (s->tree->type != TF_OBJ_TYPE_LIST) {
+        if (s->tree->type != TF_OBJ_TYPE_VECTOR) {
             tf_stack_push(ctx, s->tree);
             tf_obj_retain(s->tree);
             s->stage = TF_TREEREC_LEAF_BODY;
@@ -1525,7 +1553,7 @@ static tf_ret treerec_step(tf_ctx *ctx, void *state, bool *done) {
             return tf_vm_call_callable(ctx, s->leaf);
         }
 
-        s->mapped = tf_obj_new_list();
+        s->mapped = tf_obj_new_vector();
         s->index = 0;
         s->stage = TF_TREEREC_CHILD_LOOP;
     }
@@ -1537,7 +1565,7 @@ static tf_ret treerec_step(tf_ctx *ctx, void *state, bool *done) {
     if (s->stage == TF_TREEREC_CHILD_DONE) {
         if (tf_stack_len(ctx) != s->saved_len + 1) return TF_ERR;
         tf_obj *child_result = tf_stack_pop(ctx);
-        tf_list_push(s->mapped, child_result);
+        tf_vector_push(s->mapped, child_result);
         restore_stack_copy(ctx, s->saved_stack, s->saved_len);
         s->index++;
         s->stage = TF_TREEREC_CHILD_LOOP;
@@ -1546,8 +1574,8 @@ static tf_ret treerec_step(tf_ctx *ctx, void *state, bool *done) {
     }
 
     if (s->stage == TF_TREEREC_CHILD_LOOP) {
-        if (s->index < s->tree->list.len) {
-            tf_obj *child = s->tree->list.elem[s->index];
+        if (s->index < s->tree->vector.len) {
+            tf_obj *child = s->tree->vector.elem[s->index];
             tf_obj_retain(child);
             tf_obj_retain(s->leaf);
             tf_obj_retain(s->node);
@@ -1663,7 +1691,7 @@ tf_ret tf_if(tf_ctx *ctx) {
 }
 
 tf_ret tf_infra(tf_ctx *ctx) {
-    if (!tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_LIST) ||
+    if (!tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_VECTOR) ||
         !tf_ctx_require_callable(ctx, 0)) {
         return TF_ERR;
     }
@@ -1683,9 +1711,9 @@ tf_ret tf_infra(tf_ctx *ctx) {
     save_stack_copy(ctx, &state->saved_stack, &state->saved_len);
 
     clear_stack(ctx);
-    for (size_t i = 0; i < data->list.len; i++) {
-        tf_stack_push(ctx, data->list.elem[i]);
-        tf_obj_retain(data->list.elem[i]);
+    for (size_t i = 0; i < data->vector.len; i++) {
+        tf_stack_push(ctx, data->vector.elem[i]);
+        tf_obj_retain(data->vector.elem[i]);
     }
 
     tf_frame_push_native(ctx, infra_step, infra_cleanup, state);
@@ -1693,8 +1721,8 @@ tf_ret tf_infra(tf_ctx *ctx) {
 }
 
 tf_ret tf_cond(tf_ctx *ctx) {
-    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_LIST)) return TF_ERR;
-    tf_obj *clauses = tf_stack_pop_type(ctx, TF_OBJ_TYPE_LIST);
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_VECTOR)) return TF_ERR;
+    tf_obj *clauses = tf_stack_pop_type(ctx, TF_OBJ_TYPE_VECTOR);
 
     cond_state *state = tf_xmalloc(sizeof(*state));
     state->clauses = clauses;
@@ -1708,12 +1736,12 @@ tf_ret tf_cond(tf_ctx *ctx) {
 
 static tf_ret cleave_or_construct(tf_ctx *ctx, bool construct_result) {
     if (!tf_ctx_require_stack(ctx, 2) ||
-        !tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_LIST)) {
+        !tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_VECTOR)) {
         return TF_ERR;
     }
     tf_obj *branches = tf_stack_peek(ctx, 0);
-    if (!require_callable_list(ctx, branches,
-                               construct_result ? "construct" : "cleave")) {
+    if (!require_callable_vector(ctx, branches,
+                                 construct_result ? "construct" : "cleave")) {
         return TF_ERR;
     }
 
@@ -1725,7 +1753,7 @@ static tf_ret cleave_or_construct(tf_ctx *ctx, bool construct_result) {
     state->value = value;
     state->saved_stack = NULL;
     state->saved_len = 0;
-    state->outputs = tf_obj_new_list();
+    state->outputs = tf_obj_new_vector();
     state->index = 0;
     state->awaiting_branch = false;
     state->construct_result = construct_result;
@@ -1926,26 +1954,26 @@ static tf_ret pop_rec_parts(tf_ctx *ctx, tf_obj **pred, tf_obj **then_b,
 
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *parts = tf_stack_peek(ctx, 0);
-    if (parts->type != TF_OBJ_TYPE_LIST || parts->list.len != 4) {
+    if (parts->type != TF_OBJ_TYPE_VECTOR || parts->vector.len != 4) {
         tf_ctx_runtime_errorf(ctx,
-                              "'%s' expected four callables or a list of four callables\n",
+                              "'%s' expected four callables or a vector of four callables\n",
                               ctx->current_word);
         return TF_ERR;
     }
     for (size_t i = 0; i < 4; i++) {
-        if (!tf_obj_is_callable(parts->list.elem[i])) {
+        if (!tf_obj_is_callable(parts->vector.elem[i])) {
             tf_ctx_runtime_errorf(
                 ctx, "'%s' expected recursion part %zu to be callable, found %s\n",
-                ctx->current_word, i, tf_obj_type_name(parts->list.elem[i]));
+                ctx->current_word, i, tf_obj_type_name(parts->vector.elem[i]));
             return TF_ERR;
         }
     }
 
     parts = tf_stack_pop(ctx);
-    *pred = parts->list.elem[0];
-    *then_b = parts->list.elem[1];
-    *before = parts->list.elem[2];
-    *after = parts->list.elem[3];
+    *pred = parts->vector.elem[0];
+    *then_b = parts->vector.elem[1];
+    *before = parts->vector.elem[2];
+    *after = parts->vector.elem[3];
     tf_obj_retain(*pred);
     tf_obj_retain(*then_b);
     tf_obj_retain(*before);
@@ -2016,7 +2044,7 @@ tf_ret tf_replicate(tf_ctx *ctx) {
     state->saved_len = 0;
     state->remaining = n;
     state->awaiting_body = false;
-    state->result = tf_obj_new_list();
+    state->result = tf_obj_new_vector();
     save_stack_copy(ctx, &state->saved_stack, &state->saved_len);
 
     tf_frame_push_native(ctx, replicate_step, replicate_cleanup, state);
@@ -2092,7 +2120,8 @@ tf_ret tf_map(tf_ctx *ctx) {
     state->index = 0;
     state->awaiting_body = false;
     state->string_result = data->type == TF_OBJ_TYPE_STR;
-    state->list_result = state->string_result ? NULL : tf_obj_new_list();
+    state->list_result = data->type == TF_OBJ_TYPE_LIST;
+    state->vector_result = state->string_result ? NULL : tf_obj_new_vector();
     state->str_result.ptr = NULL;
     state->str_result.len = 0;
     state->str_result.cap = 0;
@@ -2158,8 +2187,9 @@ tf_ret tf_split(tf_ctx *ctx) {
     state->index = 0;
     state->current = NULL;
     state->string_result = seq->type == TF_OBJ_TYPE_STR;
-    state->true_list = state->string_result ? NULL : tf_obj_new_list();
-    state->false_list = state->string_result ? NULL : tf_obj_new_list();
+    state->list_result = seq->type == TF_OBJ_TYPE_LIST;
+    state->true_list = state->string_result ? NULL : tf_obj_new_vector();
+    state->false_list = state->string_result ? NULL : tf_obj_new_vector();
     state->true_str.ptr = NULL;
     state->true_str.len = 0;
     state->true_str.cap = 0;
@@ -2208,7 +2238,8 @@ tf_ret tf_merge(tf_ctx *ctx) {
     state->o1 = NULL;
     state->o2 = NULL;
     state->string_result = l1->type == TF_OBJ_TYPE_STR;
-    state->list_result = state->string_result ? NULL : tf_obj_new_list();
+    state->list_result = l1->type == TF_OBJ_TYPE_LIST;
+    state->vector_result = state->string_result ? NULL : tf_obj_new_vector();
     state->str_result.ptr = NULL;
     state->str_result.len = 0;
     state->str_result.cap = 0;
@@ -2237,7 +2268,8 @@ tf_ret tf_filter(tf_ctx *ctx) {
     state->index = 0;
     state->current = NULL;
     state->string_result = seq->type == TF_OBJ_TYPE_STR;
-    state->list_result = state->string_result ? NULL : tf_obj_new_list();
+    state->list_result = seq->type == TF_OBJ_TYPE_LIST;
+    state->vector_result = state->string_result ? NULL : tf_obj_new_vector();
     state->str_result.ptr = NULL;
     state->str_result.len = 0;
     state->str_result.cap = 0;

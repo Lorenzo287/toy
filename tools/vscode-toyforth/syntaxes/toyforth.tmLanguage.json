@@ -16,11 +16,6 @@
                 {
                     "name": "comment.line.backslash.toyforth",
                     "match": "\\\\.*$"
-                },
-                {
-                    "name": "comment.block.parenthesis.toyforth",
-                    "begin": "\\(",
-                    "end": "\\)"
                 }
             ]
         },
@@ -45,7 +40,7 @@
                 },
                 {
                     "name": "entity.name.function.toyforth",
-                    "match": "(?<=\\s|^)(dup|drop|swap|over|rot|swapd|nip|tuck|pick|roll|empty|pi|e|tau|print|printf|cr|key|input|load|readf|writef|delf|readl|exists\\?|clear|page|typeof|bool\\?|int\\?|float\\?|str\\?|symbol\\?|list\\?|map\\?|set\\?|deque\\?|pqueue\\?|number\\?|sequence\\?|callable\\?|nan\\?|inf\\?|word\\?|var\\?|inf|nan|body|intern|name|words|see|geth|seth|>map|>set|>deque|>pqueue|has\\?|get|assoc|dissoc|keys|values|pairs|items|adjoin|remove|push-front|push-back|pop-front|pop-back|front|back|pqueue-push|pqueue-peek|pqueue-pop|pqueue-drain|slice|take|dropn|len|first|rest|uncons|cons|append|concat|reverse|join|trim|upper|lower|splitmid|range|char\\?|letter\\?|digit\\?|alnum\\?|space\\?|upper\\?|lower\\?|punct\\?|rand|sleep|argc|argv|env\\?|getenv|setenv|pwd|shell|time|clock|def|bye|exit|\\.|\\.s|\\.S|empty\\?)(?=\\s|$)"
+                    "match": "(?<=\\s|^)(dup|drop|swap|over|rot|swapd|nip|tuck|pick|roll|empty|pi|e|tau|print|printf|cr|key|input|load|readf|writef|delf|readl|exists\\?|clear|page|typeof|bool\\?|int\\?|float\\?|str\\?|symbol\\?|vector\\?|list\\?|map\\?|set\\?|deque\\?|pqueue\\?|number\\?|sequence\\?|callable\\?|nan\\?|inf\\?|word\\?|var\\?|inf|nan|body|intern|name|words|see|geth|seth|>map|>set|>deque|>pqueue|has\\?|get|assoc|dissoc|keys|values|pairs|items|adjoin|remove|push-front|push-back|pop-front|pop-back|front|back|pqueue-push|pqueue-peek|pqueue-pop|pqueue-drain|slice|take|dropn|len|first|rest|uncons|cons|append|concat|reverse|join|trim|upper|lower|splitmid|range|char\\?|letter\\?|digit\\?|alnum\\?|space\\?|upper\\?|lower\\?|punct\\?|rand|sleep|argc|argv|env\\?|getenv|setenv|pwd|shell|time|clock|def|bye|exit|\\.|\\.s|\\.S|empty\\?)(?=\\s|$)"
                 }
             ]
         },

@@ -15,11 +15,18 @@ tf_obj *tf_obj_new(int type) {
     return o;
 }
 
+tf_obj *tf_obj_new_vector(void) {
+    tf_obj *o = tf_obj_new(TF_OBJ_TYPE_VECTOR);
+    o->vector.len = 0;
+    o->vector.cap = 32;
+    o->vector.elem = tf_xmalloc(sizeof(tf_obj *) * o->vector.cap);
+    return o;
+}
+
 tf_obj *tf_obj_new_list(void) {
     tf_obj *o = tf_obj_new(TF_OBJ_TYPE_LIST);
+    o->list.head = NULL;
     o->list.len = 0;
-    o->list.cap = 32;
-    o->list.elem = tf_xmalloc(sizeof(tf_obj *) * o->list.cap);
     return o;
 }
 
@@ -126,32 +133,98 @@ int tf_obj_compare_string(tf_obj *a, tf_obj *b) {
     }
 }
 
-void tf_list_push(tf_obj *l, tf_obj *elem) {
-    if (l->list.len >= l->list.cap) {
-        l->list.cap *= 2;
-        l->list.elem = tf_xrealloc(l->list.elem, sizeof(tf_obj *) * l->list.cap);
+void tf_vector_push(tf_obj *v, tf_obj *elem) {
+    if (v->vector.len >= v->vector.cap) {
+        v->vector.cap *= 2;
+        v->vector.elem =
+            tf_xrealloc(v->vector.elem, sizeof(tf_obj *) * v->vector.cap);
     }
-    l->list.elem[l->list.len++] = elem;
+    v->vector.elem[v->vector.len++] = elem;
 }
 
 // pop object only if the type is correct
-tf_obj *tf_list_pop_type(tf_obj *l, tf_type type) {
-    if (l->list.len == 0) return NULL;
-    tf_obj *o = l->list.elem[l->list.len - 1];
+tf_obj *tf_vector_pop_type(tf_obj *v, tf_type type) {
+    if (v->vector.len == 0) return NULL;
+    tf_obj *o = v->vector.elem[v->vector.len - 1];
     if (o->type != type) return NULL;
-    return tf_list_pop(l);
+    return tf_vector_pop(v);
 }
 
-tf_obj *tf_list_pop(tf_obj *l) {
-    if (l->list.len == 0) return NULL;
-    tf_obj *o = l->list.elem[l->list.len - 1];
+tf_obj *tf_vector_pop(tf_obj *v) {
+    if (v->vector.len == 0) return NULL;
+    tf_obj *o = v->vector.elem[v->vector.len - 1];
 
-    l->list.len--;
-    if (l->list.len < l->list.cap / 4 && l->list.cap > 32) {
-        l->list.cap /= 2;
-        l->list.elem = tf_xrealloc(l->list.elem, sizeof(tf_obj *) * l->list.cap);
+    v->vector.len--;
+    if (v->vector.len < v->vector.cap / 4 && v->vector.cap > 32) {
+        v->vector.cap /= 2;
+        v->vector.elem =
+            tf_xrealloc(v->vector.elem, sizeof(tf_obj *) * v->vector.cap);
     }
     return o;
+}
+
+static void list_node_retain(tf_list_node *node) {
+    if (node) node->refcount++;
+}
+
+static void list_node_release(tf_list_node *node) {
+    while (node) {
+        assert(node->refcount > 0);
+        node->refcount--;
+        if (node->refcount != 0) return;
+
+        tf_list_node *next = node->next;
+        tf_obj_release(node->value);
+        free(node);
+        node = next;
+    }
+}
+
+static tf_list_node *list_node_new(tf_obj *value, tf_list_node *next) {
+    tf_list_node *node = tf_xmalloc(sizeof(tf_list_node));
+    node->refcount = 1;
+    node->value = value;
+    node->next = next;
+    tf_obj_retain(value);
+    list_node_retain(next);
+    return node;
+}
+
+tf_obj *tf_list_from_vector(tf_obj *vector) {
+    tf_obj *result = tf_obj_new_list();
+    for (size_t i = vector->vector.len; i > 0; i--) {
+        tf_list_node *old_head = result->list.head;
+        result->list.head = list_node_new(vector->vector.elem[i - 1], old_head);
+        result->list.len++;
+        list_node_release(old_head);
+    }
+    return result;
+}
+
+tf_obj *tf_list_cons_obj(tf_obj *head, tf_obj *tail) {
+    tf_obj *result = tf_obj_new_list();
+    result->list.head = list_node_new(head, tail->list.head);
+    result->list.len = tail->list.len + 1;
+    return result;
+}
+
+tf_obj *tf_list_rest_obj(tf_obj *list) {
+    tf_obj *result = tf_obj_new_list();
+    if (list->list.head) {
+        result->list.head = list->list.head->next;
+        result->list.len = list->list.len - 1;
+        list_node_retain(result->list.head);
+    }
+    return result;
+}
+
+tf_obj *tf_list_get(tf_obj *list, size_t idx) {
+    if (!list || list->type != TF_OBJ_TYPE_LIST || idx >= list->list.len) {
+        return NULL;
+    }
+    tf_list_node *node = list->list.head;
+    for (size_t i = 0; i < idx; i++) node = node->next;
+    return node->value;
 }
 
 static uint64_t fnv1a_bytes(const void *data, size_t len, uint64_t seed) {
@@ -542,15 +615,28 @@ static bool obj_equal_inner(tf_obj *a, tf_obj *b, size_t depth) {
     case TF_OBJ_TYPE_SYMBOL:
     case TF_OBJ_TYPE_VARFETCH:
         return tf_obj_compare_string(a, b) == 0;
-    case TF_OBJ_TYPE_LIST:
+    case TF_OBJ_TYPE_VECTOR:
     case TF_OBJ_TYPE_VARLIST:
-        if (a->list.len != b->list.len) return false;
-        for (size_t i = 0; i < a->list.len; i++) {
-            if (!obj_equal_inner(a->list.elem[i], b->list.elem[i], depth + 1)) {
+        if (a->vector.len != b->vector.len) return false;
+        for (size_t i = 0; i < a->vector.len; i++) {
+            if (!obj_equal_inner(a->vector.elem[i], b->vector.elem[i], depth + 1)) {
                 return false;
             }
         }
         return true;
+    case TF_OBJ_TYPE_LIST: {
+        if (a->list.len != b->list.len) return false;
+        tf_list_node *left = a->list.head;
+        tf_list_node *right = b->list.head;
+        while (left && right) {
+            if (!obj_equal_inner(left->value, right->value, depth + 1)) {
+                return false;
+            }
+            left = left->next;
+            right = right->next;
+        }
+        return left == NULL && right == NULL;
+    }
     case TF_OBJ_TYPE_MAP:
         if (a->map.len != b->map.len) return false;
         for (size_t i = 0; i < a->map.len; i++) {
@@ -626,9 +712,12 @@ void tf_obj_free(tf_obj *o) {
     if (o->span.valid && o->span.filename) { free((char *)o->span.filename); }
     switch (o->type) {
     case TF_OBJ_TYPE_VARLIST:
+    case TF_OBJ_TYPE_VECTOR:
+        for (size_t i = 0; i < o->vector.len; i++) tf_obj_release(o->vector.elem[i]);
+        free(o->vector.elem);
+        break;
     case TF_OBJ_TYPE_LIST:
-        for (size_t i = 0; i < o->list.len; i++) tf_obj_release(o->list.elem[i]);
-        free(o->list.elem);
+        list_node_release(o->list.head);
         break;
     case TF_OBJ_TYPE_MAP:
         for (size_t i = 0; i < o->map.len; i++) {
@@ -720,18 +809,18 @@ void tf_obj_print(tf_obj *o, size_t *count) {
     case TF_OBJ_TYPE_VARLIST:
         (*count)--;
         printf("|");
-        for (size_t i = 0; i < o->list.len; i++) {
-            tf_obj_print(o->list.elem[i], count);
-            if (i != o->list.len - 1) printf(" ");
+        for (size_t i = 0; i < o->vector.len; i++) {
+            tf_obj_print(o->vector.elem[i], count);
+            if (i != o->vector.len - 1) printf(" ");
         }
         printf("|");
         break;
-    case TF_OBJ_TYPE_LIST:
+    case TF_OBJ_TYPE_VECTOR:
         (*count)--;
         printf("[");
-        for (size_t i = 0; i < o->list.len; i++) {
-            tf_obj_print(o->list.elem[i], count);
-            if (i != o->list.len - 1) {
+        for (size_t i = 0; i < o->vector.len; i++) {
+            tf_obj_print(o->vector.elem[i], count);
+            if (i != o->vector.len - 1) {
                 if (*count % 6 == 0)
                     printf("\n");
                 else
@@ -740,6 +829,18 @@ void tf_obj_print(tf_obj *o, size_t *count) {
         }
         printf("]");
         break;
+    case TF_OBJ_TYPE_LIST: {
+        (*count)--;
+        printf("(");
+        tf_list_node *node = o->list.head;
+        while (node) {
+            tf_obj_print(node->value, count);
+            node = node->next;
+            if (node) printf(" ");
+        }
+        printf(")");
+        break;
+    }
     case TF_OBJ_TYPE_MAP:
         (*count)--;
         printf("{");
@@ -817,20 +918,31 @@ void tf_obj_print_value(tf_obj *o) {
         break;
     case TF_OBJ_TYPE_VARLIST:
         printf("|");
-        for (size_t i = 0; i < o->list.len; i++) {
-            tf_obj_print_value(o->list.elem[i]);
-            if (i != o->list.len - 1) printf(" ");
+        for (size_t i = 0; i < o->vector.len; i++) {
+            tf_obj_print_value(o->vector.elem[i]);
+            if (i != o->vector.len - 1) printf(" ");
         }
         printf("|");
         break;
-    case TF_OBJ_TYPE_LIST:
+    case TF_OBJ_TYPE_VECTOR:
         printf("[");
-        for (size_t i = 0; i < o->list.len; i++) {
-            tf_obj_print_value(o->list.elem[i]);
-            if (i != o->list.len - 1) printf(" ");
+        for (size_t i = 0; i < o->vector.len; i++) {
+            tf_obj_print_value(o->vector.elem[i]);
+            if (i != o->vector.len - 1) printf(" ");
         }
         printf("]");
         break;
+    case TF_OBJ_TYPE_LIST: {
+        printf("(");
+        tf_list_node *node = o->list.head;
+        while (node) {
+            tf_obj_print_value(node->value);
+            node = node->next;
+            if (node) printf(" ");
+        }
+        printf(")");
+        break;
+    }
     case TF_OBJ_TYPE_MAP:
         printf("{");
         for (size_t i = 0; i < o->map.len; i++) {
@@ -908,20 +1020,31 @@ void tf_obj_print_source(tf_obj *o) {
         break;
     case TF_OBJ_TYPE_VARLIST:
         printf("|");
-        for (size_t i = 0; i < o->list.len; i++) {
-            tf_obj_print_source(o->list.elem[i]);
-            if (i + 1 < o->list.len) printf(" ");
+        for (size_t i = 0; i < o->vector.len; i++) {
+            tf_obj_print_source(o->vector.elem[i]);
+            if (i + 1 < o->vector.len) printf(" ");
         }
         printf("|");
         break;
-    case TF_OBJ_TYPE_LIST:
+    case TF_OBJ_TYPE_VECTOR:
         printf("[");
-        for (size_t i = 0; i < o->list.len; i++) {
-            tf_obj_print_source(o->list.elem[i]);
-            if (i + 1 < o->list.len) printf(" ");
+        for (size_t i = 0; i < o->vector.len; i++) {
+            tf_obj_print_source(o->vector.elem[i]);
+            if (i + 1 < o->vector.len) printf(" ");
         }
         printf("]");
         break;
+    case TF_OBJ_TYPE_LIST: {
+        printf("(");
+        tf_list_node *node = o->list.head;
+        while (node) {
+            tf_obj_print_source(node->value);
+            node = node->next;
+            if (node) printf(" ");
+        }
+        printf(")");
+        break;
+    }
     case TF_OBJ_TYPE_MAP:
         printf("{");
         for (size_t i = 0; i < o->map.len; i++) {

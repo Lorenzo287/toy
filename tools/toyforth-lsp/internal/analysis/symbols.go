@@ -312,9 +312,6 @@ func indexColonDefinition(node *tree_sitter.Node, doc string, src []byte) (Symbo
 
 	for i := uint(0); i < node.NamedChildCount(); i++ {
 		child := node.NamedChild(i)
-		if child != nil && child.Kind() == "block_comment" && stackEffect == "" {
-			stackEffect = trimParenComment(child.Utf8Text(src))
-		}
 		if child != nil && child.Kind() == "definition_name" {
 			nameNode = child
 		}

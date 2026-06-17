@@ -24,7 +24,7 @@ func TestDocumentSymbols(t *testing.T) {
 	if symbols[0].Doc != "top-level definitions" {
 		t.Fatalf("unexpected sqr doc: %+v", symbols[0])
 	}
-	if symbols[0].StackEffect != "n -- n*n" {
+	if symbols[0].StackEffect != "" {
 		t.Fatalf("unexpected sqr stack effect: %+v", symbols[0])
 	}
 	if symbols[0].SelectionRange.Start.Character != 2 {
@@ -80,7 +80,7 @@ func TestLookupDefinition(t *testing.T) {
 			name: "local fetch resolves to local binding",
 			pos: Position{
 				Line:      1,
-				Character: 28,
+				Character: 13,
 			},
 			want: "n",
 		},
@@ -114,7 +114,7 @@ func TestLookupDefinition(t *testing.T) {
 			if sym.SelectionRange.Start.Character >= sym.Range.Start.Character && sym.Name == "sqr" && sym.SelectionRange.Start.Character != 2 {
 				t.Fatalf("unexpected sqr target range: %+v", sym)
 			}
-			if tc.name == "local fetch resolves to local binding" && sym.SelectionRange.Start.Character != 21 {
+			if tc.name == "local fetch resolves to local binding" && sym.SelectionRange.Start.Character != 8 {
 				t.Fatalf("unexpected local binding target: %+v", sym)
 			}
 			if tc.name == "nested local fetch resolves to inner binding" && sym.SelectionRange.Start.Character != 35 {
@@ -148,7 +148,7 @@ func TestLookupHover(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected hover for colon definition call")
 	}
-	if stackEffectHover.Contents != "```toy\nsqr ( n -- n*n )\n```\ntop-level definitions\n\nStack effect: `n -- n*n`" {
+	if stackEffectHover.Contents != "```toy\nsqr\n```\ntop-level definitions" {
 		t.Fatalf("unexpected stack effect hover: %q", stackEffectHover.Contents)
 	}
 

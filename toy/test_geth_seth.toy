@@ -1,14 +1,14 @@
 \ Test geth and seth
-[ 10 20 30 ] |myList|
+[ 10 20 30 ] |myVector|
 
 \ Test geth
-$myList 0 geth print  \ Should print 10
-$myList 1 geth print  \ Should print 20
-$myList 2 geth print  \ Should print 30
+$myVector 0 geth print  \ Should print 10
+$myVector 1 geth print  \ Should print 20
+$myVector 2 geth print  \ Should print 30
 
 \ Test seth
-$myList 1 99 seth |myList|
-$myList 1 geth print  \ Should print 99
+$myVector 1 99 seth |myVector|
+$myVector 1 geth print  \ Should print 99
 
-\ Verify full list
-$myList print
+\ Verify full vector
+$myVector print

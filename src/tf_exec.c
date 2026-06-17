@@ -12,19 +12,19 @@
 /* === Data Stack === */
 
 size_t tf_stack_len(tf_ctx *ctx) {
-    return ctx->data_stack->list.len;
+    return ctx->data_stack->vector.len;
 }
 
 void tf_stack_push(tf_ctx *ctx, tf_obj *o) {
-    tf_list_push(ctx->data_stack, o);
+    tf_vector_push(ctx->data_stack, o);
 }
 
 tf_obj *tf_stack_pop(tf_ctx *ctx) {
-    return tf_list_pop(ctx->data_stack);
+    return tf_vector_pop(ctx->data_stack);
 }
 
 tf_obj *tf_stack_pop_type(tf_ctx *ctx, tf_type type) {
-    return tf_list_pop_type(ctx->data_stack, type);
+    return tf_vector_pop_type(ctx->data_stack, type);
 }
 
 tf_obj *tf_stack_pop_callable(tf_ctx *ctx) {
@@ -37,7 +37,7 @@ tf_obj *tf_stack_pop_callable(tf_ctx *ctx) {
 tf_obj *tf_stack_peek(tf_ctx *ctx, size_t depth) {
     size_t len = tf_stack_len(ctx);
     if (depth >= len) return NULL;
-    return ctx->data_stack->list.elem[len - 1 - depth];
+    return ctx->data_stack->vector.elem[len - 1 - depth];
 }
 
 /* === Execution Frames === */
@@ -190,6 +190,8 @@ const char *tf_type_name(tf_type type) {
         return "string";
     case TF_OBJ_TYPE_SYMBOL:
         return "symbol";
+    case TF_OBJ_TYPE_VECTOR:
+        return "vector";
     case TF_OBJ_TYPE_LIST:
         return "list";
     case TF_OBJ_TYPE_MAP:
@@ -249,7 +251,8 @@ bool tf_ctx_require_sequence(tf_ctx *ctx, size_t depth) {
     if (!tf_ctx_require_stack(ctx, depth + 1)) return false;
 
     tf_obj *o = tf_stack_peek(ctx, depth);
-    if (o->type == TF_OBJ_TYPE_LIST || o->type == TF_OBJ_TYPE_STR) return true;
+    if (o->type == TF_OBJ_TYPE_VECTOR || o->type == TF_OBJ_TYPE_LIST ||
+        o->type == TF_OBJ_TYPE_STR) return true;
 
     tf_ctx_runtime_errorf(ctx, "'%s' expected sequence at stack depth %zu, found %s\n",
                           current_word_name(ctx), depth, tf_obj_type_name(o));
@@ -400,9 +403,9 @@ static const builtin_word native_collection_combinator_words[] = {
     {NULL, NULL},
 };
 
-/* Sequence data words are shared by lists and strings when the operation has
- * the same shape. String items are one-byte strings: append adds one item,
- * while concat combines two sequences. */
+/* Sequence data words are shared by vectors, lists, and strings when the
+ * operation has the same shape. String items are one-byte strings: append adds
+ * one item, while concat combines two sequences. */
 static const builtin_word native_data_words[] = {
     {"geth", tf_geth},       {"seth", tf_seth},
     {">map", tf_to_map},     {">set", tf_to_set},
@@ -442,7 +445,8 @@ static const builtin_word native_introspection_words[] = {
     {"typeof", tf_typeof},   {"bool?", tf_bool_q},
     {"int?", tf_int_q},      {"float?", tf_float_q},
     {"str?", tf_str_q},      {"symbol?", tf_symbol_q},
-    {"list?", tf_list_q},    {"map?", tf_map_q},
+    {"vector?", tf_vector_q}, {"list?", tf_list_q},
+    {"map?", tf_map_q},
     {"set?", tf_set_q},      {"deque?", tf_deque_q},
     {"pqueue?", tf_pqueue_q},
     {"number?", tf_number_q},
@@ -471,7 +475,7 @@ static const builtin_word native_system_words[] = {
 tf_ctx *tf_ctx_new(int argc, char **argv) {
     srand(time(NULL));
     tf_ctx *ctx = tf_xmalloc(sizeof(tf_ctx));
-    ctx->data_stack = tf_obj_new_list();
+    ctx->data_stack = tf_obj_new_vector();
     ctx->words.capacity = 128;
     ctx->words.count = 0;
     ctx->words.buckets = tf_xcalloc(ctx->words.capacity, sizeof(tf_word *));
@@ -646,9 +650,9 @@ static tf_ret dict_call_resolved(tf_ctx *ctx, tf_word *word) {
  */
 tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
     ctx->current_span = program ? program->span : (tf_source_span){0};
-    if (program->type != TF_OBJ_TYPE_LIST) {
+    if (program->type != TF_OBJ_TYPE_VECTOR) {
         if (ctx->error_suppression_depth == 0) {
-            tf_ctx_runtime_errorf(ctx, "attempted to execute non-block object\n");
+            tf_ctx_runtime_errorf(ctx, "attempted to execute non-vector object\n");
         }
         return TF_ERR;
     }
@@ -682,12 +686,12 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
             continue;
         }
 
-        if (f->pc >= f->program->list.len) {
+        if (f->pc >= f->program->vector.len) {
             tf_frame_pop(ctx, TF_OK);
             continue;
         }
 
-        tf_obj *o = f->program->list.elem[f->pc++];
+        tf_obj *o = f->program->vector.elem[f->pc++];
         ctx->current_span = o->span;
         switch (o->type) {
         case TF_OBJ_TYPE_SYMBOL:
@@ -727,7 +731,7 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
             }
             break;
         case TF_OBJ_TYPE_VARLIST:
-            for (int i = (int)o->list.len - 1; i >= 0; i--) {
+            for (int i = (int)o->vector.len - 1; i >= 0; i--) {
                 tf_obj *val = tf_stack_pop(ctx);
                 if (!val) {
                     if (ctx->error_suppression_depth == 0) {
@@ -739,7 +743,7 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
                     }
                     return TF_ERR;
                 }
-                scope_bind_var(ctx, o->list.elem[i], val);
+                scope_bind_var(ctx, o->vector.elem[i], val);
                 tf_obj_release(val);
             }
             break;
@@ -769,11 +773,11 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
 }
 
 bool tf_obj_is_callable(tf_obj *o) {
-    return o && (o->type == TF_OBJ_TYPE_LIST || o->type == TF_OBJ_TYPE_SYMBOL);
+    return o && (o->type == TF_OBJ_TYPE_VECTOR || o->type == TF_OBJ_TYPE_SYMBOL);
 }
 
 tf_ret tf_vm_call_callable(tf_ctx *ctx, tf_obj *callable) {
-    if (callable->type == TF_OBJ_TYPE_LIST) {
+    if (callable->type == TF_OBJ_TYPE_VECTOR) {
         tf_frame_push_program(ctx, callable);
         return TF_OK;
     }

@@ -15,7 +15,7 @@ Minimal standalone Language Server Protocol implementation for Toy, written in G
 
 - **Top-level definitions**: `: name ... ;` and `'name [ ... ] def`.
 - **Locals**: Bindings from `| a b |`, fetches like `$a`, and nested block shadowing.
-- **Documentation**: Leading `\ comment` lines and `( in -- out )` stack effect comments are extracted for hovers.
+- **Documentation**: Leading `\ comment` lines are extracted for hovers.
 
 ## Getting Started
 

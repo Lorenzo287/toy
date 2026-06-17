@@ -1,4 +1,4 @@
-\ Test list projection and constructor primitives
+\ Test vector projection and constructor primitives
 
 [ 1 2 3 ] first print  \ Should print 1
 [ 1 2 3 ] rest print   \ Should print [2 3]

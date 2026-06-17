@@ -81,12 +81,12 @@ tf_ret tf_argc(tf_ctx *ctx) {
 }
 
 tf_ret tf_argv(tf_ctx *ctx) {
-    tf_obj *list = tf_obj_new_list();
+    tf_obj *argv = tf_obj_new_vector();
     for (int i = 0; i < ctx->argc; i++) {
         tf_obj *str = tf_obj_new_string(ctx->argv[i], strlen(ctx->argv[i]));
-        tf_list_push(list, str);
+        tf_vector_push(argv, str);
     }
-    tf_stack_push(ctx, list);
+    tf_stack_push(ctx, argv);
     return TF_OK;
 }
 

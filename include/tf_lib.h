@@ -90,6 +90,7 @@ tf_ret tf_int_q(tf_ctx *ctx);
 tf_ret tf_float_q(tf_ctx *ctx);
 tf_ret tf_str_q(tf_ctx *ctx);
 tf_ret tf_symbol_q(tf_ctx *ctx);
+tf_ret tf_vector_q(tf_ctx *ctx);
 tf_ret tf_list_q(tf_ctx *ctx);
 tf_ret tf_map_q(tf_ctx *ctx);
 tf_ret tf_set_q(tf_ctx *ctx);
@@ -143,7 +144,7 @@ tf_ret tf_linrec(tf_ctx *ctx);
 tf_ret tf_binrec(tf_ctx *ctx);
 
 // Data, collection, and string operations
-// Shared sequence words accept lists and strings when the result type is clear.
+// Shared sequence words accept vectors, lists, and strings when the result type is clear.
 // String items are represented as one-byte strings.
 tf_ret tf_geth(tf_ctx *ctx);
 tf_ret tf_seth(tf_ctx *ctx);

@@ -327,11 +327,11 @@ tf_ret tf_readl(tf_ctx *ctx) {
         return TF_ERR;
     }
 
-    tf_obj *lines = tf_obj_new_list();
+    tf_obj *lines = tf_obj_new_vector();
     char buf[MAX_BUF_LEN + 1];
     while (fgets(buf, sizeof buf, fp)) {
         buf[strcspn(buf, "\r\n")] = '\0';
-        tf_list_push(lines, tf_obj_new_string(buf, strlen(buf)));
+        tf_vector_push(lines, tf_obj_new_string(buf, strlen(buf)));
     }
     fclose(fp);
 

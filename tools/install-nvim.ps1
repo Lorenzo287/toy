@@ -42,7 +42,7 @@ try {
     }
     
     Write-Host "Running npm install..."
-    npm install --silent
+    npm install --silent --ignore-scripts
     
     Write-Host "Generating parser.c..."
     if (Get-Command tree-sitter -ErrorAction SilentlyContinue) {

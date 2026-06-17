@@ -1,19 +1,19 @@
 "--- Testing Collection Utilities ---\n" printf
 
 \ Testing geth (replaces at)
-[ 10 20 30 ] 1 geth "list geth 1 = {}\n" printf
+[ 10 20 30 ] 1 geth "vector geth 1 = {}\n" printf
 "hello" 1 geth "string geth 1 = {}\n" printf
 
 \ Testing seth
-[ 10 20 30 ] 1 99 seth "list seth 1 99 = {}\n" printf
+[ 10 20 30 ] 1 99 seth "vector seth 1 99 = {}\n" printf
 "Toy" 0 "J" seth "string seth 0 'J' = {}\n" printf
 
 \ Testing slice and dropn
-[ 1 2 3 4 5 ] 1 4 slice "list 1 4 slice = {}\n" printf
+[ 1 2 3 4 5 ] 1 4 slice "vector 1 4 slice = {}\n" printf
 "ToyLanguage" 0 3 slice "string 0 3 slice = {}\n" printf
-[ 1 2 3 4 5 ] 2 dropn "list dropn 2 = {}\n" printf
+[ 1 2 3 4 5 ] 2 dropn "vector dropn 2 = {}\n" printf
 "ToyLanguage" 3 dropn "string dropn 3 = {}\n" printf
-[ 1 2 3 4 5 ] 2 take "list take 2 = {}\n" printf
+[ 1 2 3 4 5 ] 2 take "vector take 2 = {}\n" printf
 "ToyLanguage" 3 take "string take 3 = {}\n" printf
 
 \ Testing filter

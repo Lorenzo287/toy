@@ -13,7 +13,6 @@ export default grammar({
     source_file: $ => repeat(choice(
       $._expression,
       $.line_comment,
-      $.block_comment,
     )),
 
     _expression: $ => choice(
@@ -23,6 +22,7 @@ export default grammar({
       $.quoted_symbol,
       $.var_fetch,
       $.block,
+      $.list_literal,
       $.map_literal,
       $.set_literal,
       $.var_list,
@@ -34,11 +34,6 @@ export default grammar({
     ),
 
     line_comment: $ => token(seq('\\', /.*/)),
-    block_comment: $ => seq(
-      '(',
-      repeat(choice(/[^()]+/, $.block_comment)),
-      ')',
-    ),
     boolean: $ => choice('true', 'false'),
     number: $ => token(choice(
       /[+-]?\d+\.\d*/,  // float first
@@ -64,7 +59,7 @@ export default grammar({
       'pi', 'e', 'tau',
       'print', 'printf', '.', '.s', '.S', 'cr',
       'key', 'input', 'load', 'readf', 'writef', 'delf', 'readl', 'exists?', 'clear', 'page',
-      'typeof', 'bool?', 'int?', 'float?', 'str?', 'symbol?', 'list?', 'number?', 'sequence?', 'callable?', 'nan?', 'inf?',
+      'typeof', 'bool?', 'int?', 'float?', 'str?', 'symbol?', 'vector?', 'list?', 'number?', 'sequence?', 'callable?', 'nan?', 'inf?',
       'map?', 'set?', 'deque?', 'pqueue?',
       'word?', 'var?', 'inf', 'nan', 'body', 'intern', 'name', 'words', 'see',
       '>map', '>set', '>deque', '>pqueue', 'has?', 'get', 'assoc', 'dissoc', 'keys', 'values', 'pairs', 'items', 'adjoin', 'remove',
@@ -105,17 +100,22 @@ export default grammar({
     ),
     block: $ => seq(
       '[',
-      repeat(choice($._expression, $.line_comment, $.block_comment)),
+      repeat(choice($._expression, $.line_comment)),
       ']',
+    ),
+    list_literal: $ => seq(
+      '(',
+      repeat(choice($._expression, $.line_comment)),
+      ')',
     ),
     map_literal: $ => seq(
       '{',
-      repeat(choice($._expression, $.line_comment, $.block_comment)),
+      repeat(choice($._expression, $.line_comment)),
       '}',
     ),
     set_literal: $ => seq(
       '#{',
-      repeat(choice($._expression, $.line_comment, $.block_comment)),
+      repeat(choice($._expression, $.line_comment)),
       '}',
     ),
     // Captures bind names from the data stack inside the current frame.
@@ -128,7 +128,7 @@ export default grammar({
     colon_definition: $ => seq(
       ':',
       alias($._def_name, $.definition_name),
-      repeat(choice($._expression, $.line_comment, $.block_comment)),
+      repeat(choice($._expression, $.line_comment)),
       ';',
     ),
     _def_name: $ => token(/[a-zA-Z_+\-*/%<>=!.?][a-zA-Z0-9_+\-*/%<>=!.?]*/),

@@ -58,8 +58,10 @@ The REPL keeps reading until the current input is structurally complete.
 
 This applies to:
 
-- blocks: `[ ... ]`
-- variable lists: `{ ... }`
+- vectors/quotations: `[ ... ]`
+- lists: `( ... )`
+- maps/sets: `{ ... }` / `#{ ... }`
+- capture lists: `| ... |`
 - strings: `" ... "`
 - colon definitions: `: ... ;`
 
