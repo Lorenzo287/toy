@@ -18,6 +18,7 @@ typedef struct {
     bool in_string;
     bool escape;
     bool line_comment;
+    bool block_comment;
     int list_depth;
     bool token_active;
     char token_first;
@@ -39,6 +40,7 @@ static void save_history_atexit(void);
 static tf_ctx *completion_ctx = NULL;
 static char *history_path = NULL;
 static bool hints_enabled = true;
+static bool trace_enabled = true;
 static int hints_color = 90;  // Bright black / Gray
 static int history_atexit_registered = 0;
 
@@ -80,6 +82,14 @@ static tf_ret hints_toggle(tf_ctx *ctx) {
     return TF_OK;
 }
 
+static tf_ret trace_toggle(tf_ctx *ctx) {
+    (void)ctx;
+    trace_enabled = !trace_enabled;
+    printf("%strace: %s%s\n", tf_console_clr(TF_CLR_INFO),
+           tf_console_clr(TF_CLR_RESET), trace_enabled ? "on" : "off");
+    return TF_OK;
+}
+
 tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
     char *source = NULL;
     size_t len = 0;
@@ -91,7 +101,8 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
     init_repl_ui(ctx);
     printf("%s=== Toy REPL ===%s\n", tf_console_clr(TF_CLR_PROMPT),
            tf_console_clr(TF_CLR_RESET));
-    printf("%sType 'hints' to toggle hints.%s\n", tf_console_clr(TF_CLR_INFO),
+    printf("%sType 'hints' to toggle hints, 'trace' to toggle stack display.%s\n",
+           tf_console_clr(TF_CLR_INFO),
            tf_console_clr(TF_CLR_RESET));
 #ifdef _WIN32
     printf("%sPress Ctrl-Z to exit.%s\n", tf_console_clr(TF_CLR_INFO),
@@ -154,8 +165,20 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
         } else if (result == TF_INTERRUPTED) {
             fflush(stdout);
         } else {
-            printf("%sok%s\n", tf_console_clr(TF_CLR_OK),
-                   tf_console_clr(TF_CLR_RESET));
+            if (trace_enabled) {
+                size_t stack_len = tf_stack_len(ctx);
+                printf("%s<%zu>%s", tf_console_clr(TF_CLR_OK), stack_len,
+                       tf_console_clr(TF_CLR_RESET));
+                if (stack_len > 0) printf(" ");
+                for (size_t i = 0; i < stack_len; i++) {
+                    tf_obj_print_source(tf_stack_peek(ctx, stack_len - 1 - i));
+                    if (i < stack_len - 1) printf(" ");
+                }
+                printf("\n");
+            } else {
+                printf("%sok%s\n", tf_console_clr(TF_CLR_OK),
+                       tf_console_clr(TF_CLR_RESET));
+            }
         }
         fflush(stdout);
 
@@ -253,211 +276,213 @@ typedef struct {
 } hint_entry;
 
 static const hint_entry native_hints[] = {
-    {"dup", " ( x -- x x )"},
-    {"drop", " ( x -- )"},
-    {"swap", " ( a b -- b a )"},
-    {"over", " ( a b -- a b a )"},
-    {"rot", " ( a b c -- b c a )"},
-    {"swapd", " ( a b c -- b a c )"},
-    {"nip", " ( a b -- b )"},
-    {"tuck", " ( a b -- b a b )"},
-    {"pick", " ( ... n -- ... x )"},
-    {"roll", " ( ... n -- ... )"},
-    {"empty", " ( -- )"},
+    {"dup", "  x -- x x"},
+    {"drop", "  x --"},
+    {"swap", "  a b -- b a"},
+    {"over", "  a b -- a b a"},
+    {"rot", "  a b c -- b c a"},
+    {"swapd", "  a b c -- b a c"},
+    {"nip", "  a b -- b"},
+    {"tuck", "  a b -- b a b"},
+    {"pick", "  ... n -- ... x"},
+    {"roll", "  ... n -- ..."},
+    {"empty", "  --"},
 
-    {"+", " ( a b -- a+b )"},
-    {"-", " ( a b -- a-b )"},
-    {"*", " ( a b -- a*b )"},
-    {"/", " ( a b -- a/b )"},
-    {"%", " ( a b -- a%b )"},
-    {"mod", " ( a b -- a%b )"},
-    {"abs", " ( x -- |x| )"},
-    {"neg", " ( x -- -x )"},
-    {"max", " ( a b -- max )"},
-    {"min", " ( a b -- min )"},
-    {"sqrt", " ( n -- f )"},
-    {"pow", " ( base exp -- f )"},
-    {"exp", " ( n -- f )"},
-    {"log", " ( n -- f )"},
-    {"log10", " ( n -- f )"},
-    {"sin", " ( n -- f )"},
-    {"cos", " ( n -- f )"},
-    {"tan", " ( n -- f )"},
-    {"floor", " ( n -- i )"},
-    {"ceil", " ( n -- i )"},
-    {"round", " ( n -- i )"},
-    {"pred", " ( i -- i-1 )"},
-    {"succ", " ( i -- i+1 )"},
-    {"square", " ( n -- n*n )"},
-    {"cube", " ( n -- n*n*n )"},
-    {"pi", " ( -- f )"},
-    {"e", " ( -- f )"},
-    {"tau", " ( -- f )"},
+    {"+", "  a b -- a+b"},
+    {"-", "  a b -- a-b"},
+    {"*", "  a b -- a*b"},
+    {"/", "  a b -- a/b"},
+    {"%", "  a b -- a%b"},
+    {"mod", "  a b -- a%b"},
+    {"abs", "  x -- |x|"},
+    {"neg", "  x -- -x"},
+    {"max", "  a b -- max"},
+    {"min", "  a b -- min"},
+    {"sqrt", "  n -- f"},
+    {"pow", "  base exp -- f"},
+    {"exp", "  n -- f"},
+    {"log", "  n -- f"},
+    {"log10", "  n -- f"},
+    {"sin", "  n -- f"},
+    {"cos", "  n -- f"},
+    {"tan", "  n -- f"},
+    {"floor", "  n -- i"},
+    {"ceil", "  n -- i"},
+    {"round", "  n -- i"},
+    {"pred", "  i -- i-1"},
+    {"succ", "  i -- i+1"},
+    {"square", "  n -- n*n"},
+    {"cube", "  n -- n*n*n"},
+    {"pi", "  -- f"},
+    {"e", "  -- f"},
+    {"tau", "  -- f"},
 
-    {"and", " ( a b -- res )"},
-    {"or", " ( a b -- res )"},
-    {"xor", " ( a b -- res )"},
-    {"not", " ( a -- res )"},
-    {"shl", " ( n bits -- res )"},
-    {"shr", " ( n bits -- res )"},
+    {"and", "  a b -- res"},
+    {"or", "  a b -- res"},
+    {"xor", "  a b -- res"},
+    {"not", "  a -- res"},
+    {"shl", "  n bits -- res"},
+    {"shr", "  n bits -- res"},
 
-    {"==", " ( a b -- bool )"},
-    {"!=", " ( a b -- bool )"},
-    {"<", " ( a b -- bool )"},
-    {">", " ( a b -- bool )"},
-    {"<=", " ( a b -- bool )"},
-    {">=", " ( a b -- bool )"},
+    {"==", "  a b -- bool"},
+    {"!=", "  a b -- bool"},
+    {"<", "  a b -- bool"},
+    {">", "  a b -- bool"},
+    {"<=", "  a b -- bool"},
+    {">=", "  a b -- bool"},
 
-    {"if", " ( bool|callable callable -- )"},
-    {"ifelse", " ( bool|callable callable callable -- )"},
-    {"while", " ( callable callable -- )"},
-    {"try", " ( callable callable -- )"},
-    {"error", " ( msg -- )"},
-    {"infra", " ( vector callable -- vector )"},
-    {"cond", " ( clauses -- )"},
-    {"cleave", " ( x callable-vector -- ... )"},
-    {"construct", " ( x callable-vector -- vector )"},
-    {"replicate", " ( n callable -- vector )"},
-    {"times", " ( ... n callable -- ... )"},
-    {"exec", " ( callable -- ... )"},
-    {"i", " ( callable -- ... )"},
-    {"app2", " ( x y callable -- x' y' )"},
-    {"dip", " ( x callable -- x )"},
-    {"keep", " ( x callable -- x ... )"},
-    {"bi", " ( x callable callable -- ... ... )"},
-    {"linrec", " ( callable callable callable callable -- ... )"},
-    {"binrec", " ( callable callable callable callable -- ... )"},
-    {"genrec", " ( callable callable callable callable -- ... )"},
-    {"treerec", " ( tree callable callable -- result )"},
+    {"if", "  bool|callable callable --"},
+    {"ifelse", "  bool|callable callable callable --"},
+    {"while", "  callable callable --"},
+    {"try", "  callable callable --"},
+    {"error", "  msg --"},
+    {"infra", "  vector callable -- vector"},
+    {"cond", "  clauses --"},
+    {"cleave", "  x callable-vector -- ..."},
+    {"construct", "  x callable-vector -- vector"},
+    {"replicate", "  n callable -- vector"},
+    {"times", "  ... n callable -- ..."},
+    {"exec", "  callable -- ..."},
+    {"i", "  callable -- ..."},
+    {"app2", "  x y callable -- x' y'"},
+    {"dip", "  x callable -- x"},
+    {"keep", "  x callable -- x ..."},
+    {"bi", "  x callable callable -- ... ..."},
+    {"linrec", "  callable callable callable callable -- ..."},
+    {"binrec", "  callable callable callable callable -- ..."},
+    {"genrec", "  callable callable callable callable -- ..."},
+    {"treerec", "  tree callable callable -- result"},
 
-    {"each", " ( ... vector|list|string callable -- ... )"},
-    {"map", " ( vector|list|string callable -- vector|list|string )"},
-    {"fold", " ( init vector|list|string callable -- acc )"},
-    {"filter", " ( vector|list|string callable -- vector|list|string )"},
-    {"some", " ( vector|list|string callable -- bool )"},
-    {"all", " ( vector|list|string callable -- bool )"},
-    {"split", " ( vector|list|string callable -- true false ) | ( string sep -- vector )"},
-    {"merge", " ( seq seq callable -- seq )"},
+    {"each", "  ... vector|list|string callable -- ..."},
+    {"map", "  vector|list|string callable -- vector|list|string"},
+    {"fold", "  init vector|list|string callable -- acc"},
+    {"filter", "  vector|list|string callable -- vector|list|string"},
+    {"some", "  vector|list|string callable -- bool"},
+    {"all", "  vector|list|string callable -- bool"},
+    {"split", "  vector|list|string callable -- true false | string sep -- vector"},
+    {"merge", "  seq seq callable -- seq"},
 
-    {"print", " ( x -- )"},
-    {"printf", " ( x -- )"},
-    {".", " ( x -- x )"},
-    {".s", " ( -- )"},
-    {".S", " ( -- )"},
-    {"cr", " ( -- )"},
-    {"key", " ( -- x )"},
-    {"input", " ( -- x )"},
-    {"clear", " ( -- )"},
-    {"page", " ( -- )"},
-    {"load", " ( path -- )"},
-    {"readf", " ( path -- string )"},
-    {"writef", " ( path content -- )"},
-    {"delf", " ( path -- )"},
-    {"readl", " ( path -- vector )"},
-    {"exists?", " ( path -- bool )"},
+    {"print", "  x --"},
+    {"printf", "  x --"},
+    {".", "  x -- x"},
+    {".s", "  --"},
+    {".S", "  --"},
+    {"cr", "  --"},
+    {"key", "  -- x"},
+    {"input", "  -- x"},
+    {"clear", "  --"},
+    {"page", "  --"},
+    {"load", "  path --"},
+    {"readf", "  path -- string"},
+    {"writef", "  path content --"},
+    {"delf", "  path --"},
+    {"readl", "  path -- vector"},
+    {"exists?", "  path -- bool"},
 
-    {"typeof", " ( x -- string )"},
-    {"bool?", " ( x -- bool )"},
-    {"int?", " ( x -- bool )"},
-    {"float?", " ( x -- bool )"},
-    {"string?", " ( x -- bool )"},
-    {"symbol?", " ( x -- bool )"},
-    {"vector?", " ( x -- bool )"},
-    {"list?", " ( x -- bool )"},
-    {"map?", " ( x -- bool )"},
-    {"set?", " ( x -- bool )"},
-    {"deque?", " ( x -- bool )"},
-    {"pqueue?", " ( x -- bool )"},
-    {"number?", " ( x -- bool )"},
-    {"sequence?", " ( x -- bool )"},
-    {"callable?", " ( x -- bool )"},
-    {"nan?", " ( x -- bool )"},
-    {"inf?", " ( x -- bool )"},
-    {"word?", " ( symbol -- bool )"},
-    {"var?", " ( symbol -- bool )"},
-    {"inf", " ( -- f )"},
-    {"nan", " ( -- f )"},
-    {"body", " ( 'name -- quot )"},
-    {"intern", " ( string -- symbol )"},
-    {"name", " ( symbol -- string )"},
-    {"words", " ( -- vector )"},
-    {"see", " ( 'name -- string )"},
+    {"typeof", "  x -- string"},
+    {"bool?", "  x -- bool"},
+    {"int?", "  x -- bool"},
+    {"float?", "  x -- bool"},
+    {"string?", "  x -- bool"},
+    {"symbol?", "  x -- bool"},
+    {"vector?", "  x -- bool"},
+    {"list?", "  x -- bool"},
+    {"map?", "  x -- bool"},
+    {"set?", "  x -- bool"},
+    {"deque?", "  x -- bool"},
+    {"pqueue?", "  x -- bool"},
+    {"number?", "  x -- bool"},
+    {"sequence?", "  x -- bool"},
+    {"callable?", "  x -- bool"},
+    {"nan?", "  x -- bool"},
+    {"inf?", "  x -- bool"},
+    {"word?", "  symbol -- bool"},
+    {"var?", "  symbol -- bool"},
+    {"inf", "  -- f"},
+    {"nan", "  -- f"},
+    {"body", "  'name -- quot"},
+    {"intern", "  string -- symbol"},
+    {"name", "  symbol -- string"},
+    {"words", "  -- vector"},
+    {"see", "  'name -- string"},
 
-    {"at", " ( vector|string idx -- value|char )"},
-    {"set-at", " ( vector idx value -- vector ) | ( string idx char -- string )"},
-    {">vector", " ( vector|list|string -- vector )"},
-    {">list", " ( vector|list|string -- list )"},
-    {">map", " ( pairs -- map )"},
-    {">set", " ( vector|list|string -- set )"},
-    {">deque", " ( vector|list|string -- deque )"},
-    {">pqueue", " ( pairs -- pqueue )"},
-    {"contains?", " ( vector|list|string item -- bool )"},
-    {"indexof", " ( vector|list|string item -- idx|-1 )"},
-    {"unique", " ( vector|list|string -- vector|list|string )"},
-    {"sort", " ( vector|list|string -- vector|list|string )"},
-    {"has?", " ( map key -- bool ) | ( set item -- bool )"},
-    {"get", " ( map key -- value )"},
-    {"assoc", " ( map key value -- map )"},
-    {"dissoc", " ( map key -- map )"},
-    {"keys", " ( map -- vector )"},
-    {"values", " ( map -- vector )"},
-    {"pairs", " ( map -- vector )"},
-    {"items", " ( set|deque -- vector )"},
-    {"adjoin", " ( set item -- set )"},
-    {"remove", " ( set item -- set )"},
-    {"push-front", " ( deque item -- deque )"},
-    {"push-back", " ( deque item -- deque )"},
-    {"pop-front", " ( deque -- item deque )"},
-    {"pop-back", " ( deque -- item deque )"},
-    {"front", " ( deque -- item )"},
-    {"back", " ( deque -- item )"},
-    {"pqueue-push", " ( pqueue priority value -- pqueue )"},
-    {"pqueue-peek", " ( pqueue -- value )"},
-    {"pqueue-pop", " ( pqueue -- value pqueue )"},
-    {"pqueue-drain", " ( pqueue -- vector )"},
-    {"slice", " ( vector|string start end -- vector|string )"},
-    {"take", " ( vector|list|string n -- vector|list|string )"},
-    {"dropn", " ( vector|list|string n -- vector|list|string )"},
-    {"len", " ( collection -- n )"},
-    {"first", " ( vector|list|string -- x|char )"},
-    {"rest", " ( vector|list|string -- rest )"},
-    {"uncons", " ( vector|list|string -- head tail )"},
-    {"cons", " ( x vector|list -- vector|list ) | ( char string -- string )"},
-    {"append", " ( vector|list x -- vector|list ) | ( string char -- string )"},
-    {"concat", " ( vector vector -- vector ) | ( list list -- list ) | ( string string -- string )"},
-    {"reverse", " ( vector|list|string -- vector|list|string )"},
-    {"join", " ( vector|list sep -- string )"},
-    {"trim", " ( string -- string )"},
-    {"upper", " ( string -- string )"},
-    {"lower", " ( string -- string )"},
-    {"splitmid", " ( vector|list|string -- left right )"},
-    {"range", " ( start end -- vector )"},
-    {"empty?", " ( collection -- bool )"},
-    {"char?", " ( x -- bool )"},
-    {"letter?", " ( x -- bool )"},
-    {"digit?", " ( x -- bool )"},
-    {"alnum?", " ( x -- bool )"},
-    {"space?", " ( x -- bool )"},
-    {"upper?", " ( x -- bool )"},
-    {"lower?", " ( x -- bool )"},
-    {"punct?", " ( x -- bool )"},
+    {"at", "  vector|string idx -- value|char"},
+    {"set-at", "  vector idx value -- vector | string idx char -- string"},
+    {">vector", "  vector|list|string -- vector"},
+    {">list", "  vector|list|string -- list"},
+    {">map", "  pairs -- map"},
+    {">set", "  vector|list|string -- set"},
+    {">deque", "  vector|list|string -- deque"},
+    {">pqueue", "  pairs -- pqueue"},
+    {"contains?", "  vector|list|string item -- bool"},
+    {"indexof", "  vector|list|string item -- idx|-1"},
+    {"unique", "  vector|list|string -- vector|list|string"},
+    {"sort", "  vector|list|string -- vector|list|string"},
+    {"has?", "  map key -- bool | set item -- bool"},
+    {"get", "  map key -- value"},
+    {"assoc", "  map key value -- map"},
+    {"dissoc", "  map key -- map"},
+    {"keys", "  map -- vector"},
+    {"values", "  map -- vector"},
+    {"pairs", "  map -- vector"},
+    {"items", "  set|deque -- vector"},
+    {"adjoin", "  set item -- set"},
+    {"remove", "  set item -- set"},
+    {"push-front", "  deque item -- deque"},
+    {"push-back", "  deque item -- deque"},
+    {"pop-front", "  deque -- item deque"},
+    {"pop-back", "  deque -- item deque"},
+    {"front", "  deque -- item"},
+    {"back", "  deque -- item"},
+    {"pqueue-push", "  pqueue priority value -- pqueue"},
+    {"pqueue-peek", "  pqueue -- value"},
+    {"pqueue-pop", "  pqueue -- value pqueue"},
+    {"pqueue-drain", "  pqueue -- vector"},
+    {"slice", "  vector|string start end -- vector|string"},
+    {"take", "  vector|list|string n -- vector|list|string"},
+    {"dropn", "  vector|list|string n -- vector|list|string"},
+    {"len", "  collection -- n"},
+    {"first", "  vector|list|string -- x|char"},
+    {"rest", "  vector|list|string -- rest"},
+    {"uncons", "  vector|list|string -- head tail"},
+    {"cons", "  x vector|list -- vector|list | char string -- string"},
+    {"append", "  vector|list x -- vector|list | string char -- string"},
+    {"concat", "  vector vector -- vector | list list -- list | string string -- string"},
+    {"reverse", "  vector|list|string -- vector|list|string"},
+    {"join", "  vector|list sep -- string"},
+    {"trim", "  string -- string"},
+    {"upper", "  string -- string"},
+    {"lower", "  string -- string"},
+    {"splitmid", "  vector|list|string -- left right"},
+    {"range", "  start end -- vector"},
+    {"empty?", "  collection -- bool"},
+    {"char?", "  x -- bool"},
+    {"letter?", "  x -- bool"},
+    {"digit?", "  x -- bool"},
+    {"alnum?", "  x -- bool"},
+    {"space?", "  x -- bool"},
+    {"upper?", "  x -- bool"},
+    {"lower?", "  x -- bool"},
+    {"punct?", "  x -- bool"},
 
-    {"rand", " ( -- n )"},
-    {"sleep", " ( ms -- )"},
-    {"argc", " ( -- n )"},
-    {"argv", " ( -- vector )"},
-    {"env?", " ( key -- bool )"},
-    {"getenv", " ( key -- value )"},
-    {"setenv", " ( key value -- bool )"},
-    {"pwd", " ( -- string )"},
-    {"shell", " ( cmd -- output )"},
-    {"time", " ( -- epoch )"},
-    {"clock", " ( -- ticks )"},
-    {"exit", " ( -- )"},
-    {"bye", " ( -- )"},
+    {"rand", "  -- n"},
+    {"sleep", "  ms --"},
+    {"argc", "  -- n"},
+    {"argv", "  -- vector"},
+    {"env?", "  key -- bool"},
+    {"getenv", "  key -- value"},
+    {"setenv", "  key value -- bool"},
+    {"pwd", "  -- string"},
+    {"shell", "  cmd -- output"},
+    {"time", "  -- epoch"},
+    {"clock", "  -- ticks"},
+    {"exit", "  --"},
+    {"bye", "  --"},
+    {"hints", "  -- toggles REPL hints"},
+    {"trace", "  -- toggles REPL stack display"},
 
-    {"def", " ( 'name block -- )"},
-    {":", " ( : name ... ; -- )"},
+    {"def", "  'name block --"},
+    {":", "  : name ... ;"},
     {NULL, NULL}};
 
 static char *repl_hints(const char *buf, int *color, int *bold) {
@@ -490,7 +515,7 @@ static char *repl_hints(const char *buf, int *color, int *bold) {
     if (f) {
         *color = hints_color;
         *bold = 0;
-        return tf_xstrdup(" ( user word )");
+        return tf_xstrdup("  user word");
     }
 
     return NULL;
@@ -502,8 +527,8 @@ static void repl_free_hints(void *ptr) {
 
 static char *read_repl_line(bool complete) {
     errno = 0;
-    return linenoise(complete ? TF_CLR_PROMPT "tf> " TF_CLR_RESET
-                              : TF_CLR_PROMPT "..> " TF_CLR_RESET);
+    return linenoise(complete ? TF_CLR_PROMPT "tf:: " TF_CLR_RESET
+                              : TF_CLR_PROMPT "..:: " TF_CLR_RESET);
 }
 
 static bool append_text(char **buf, size_t *len, size_t *cap, const char *text) {
@@ -535,6 +560,14 @@ static void feed_state(repl_state *state, const char *text) {
             continue;
         }
 
+        if (state->block_comment) {
+            if (c == '*' && text[i + 1] == '/') {
+                state->block_comment = false;
+                i++;
+            }
+            continue;
+        }
+
         if (state->in_string) {
             if (state->escape) {
                 state->escape = false;
@@ -551,6 +584,12 @@ static void feed_state(repl_state *state, const char *text) {
         if (c == '\\') {
             finish_token(state);
             state->line_comment = true;
+            continue;
+        }
+        if (c == '/' && text[i + 1] == '*') {
+            finish_token(state);
+            state->block_comment = true;
+            i++;
             continue;
         }
         if (c == '(') {
@@ -626,9 +665,9 @@ static void feed_state(repl_state *state, const char *text) {
 
 static bool input_complete(const repl_state *state) {
     return !state->in_string && !state->escape && !state->line_comment &&
-           state->list_depth == 0 && state->block_depth == 0 &&
-           state->brace_depth == 0 && state->var_depth == 0 &&
-           state->colon_depth == 0;
+           !state->block_comment && state->list_depth == 0 &&
+           state->block_depth == 0 && state->brace_depth == 0 &&
+           state->var_depth == 0 && state->colon_depth == 0;
 }
 
 static void init_repl_ui(tf_ctx *ctx) {
@@ -641,6 +680,7 @@ static void init_repl_ui(tf_ctx *ctx) {
     }
 
     tf_dict_set_native(ctx, "hints", hints_toggle);
+    tf_dict_set_native(ctx, "trace", trace_toggle);
 
     linenoiseSetMultiLine(1);
     linenoiseHistorySetMaxLen(256);

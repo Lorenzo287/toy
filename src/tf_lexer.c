@@ -80,6 +80,7 @@ static tf_obj *lexer_vector_to_set(tf_lexer *lexer, tf_obj *items);
 static int lexer_starts_signed_number(tf_lexer *lexer);
 static int lexer_at_token_boundary(tf_lexer *lexer);
 static int lexer_is_structural_char(int c);
+static int lexer_skip_block_comment(tf_lexer *lexer);
 
 /* Parse source text into a vector of runtime objects. */
 tf_obj *tf_lexer_parse(const char *filename, char *prg_text) {
@@ -103,6 +104,13 @@ static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
         if (lexer->pos[0] == '\\') {
             while (lexer->pos[0] != '\n' && lexer->pos[0] != 0) {
                 lexer_advance(lexer);
+            }
+            continue;
+        }
+        if (lexer->pos[0] == '/' && lexer->pos[1] == '*') {
+            if (!lexer_skip_block_comment(lexer)) {
+                tf_obj_release(prg);
+                return NULL;
             }
             continue;
         }
@@ -300,7 +308,10 @@ static tf_obj *lexer_tokenize_single_char_symbol(tf_lexer *lexer) {
 static tf_obj *lexer_tokenize_symbol(tf_lexer *lexer) {
     tf_source_span span = lexer_mark(lexer);
     char *start = lexer->pos;
-    while (tf_lexer_is_symbol_char(lexer->pos[0])) lexer_advance(lexer);
+    while (tf_lexer_is_symbol_char(lexer->pos[0])) {
+        if (lexer->pos[0] == '/' && lexer->pos[1] == '*') break;
+        lexer_advance(lexer);
+    }
     int sym_len = lexer->pos - start;
     if (sym_len == 0) return NULL;
     tf_obj *o = NULL;
@@ -442,6 +453,10 @@ static int lexer_at_token_boundary(tf_lexer *lexer) {
     if (lexer->pos == lexer->start) return 1;
 
     unsigned char prev = (unsigned char)lexer->pos[-1];
+    if (prev == '/' && lexer->pos - lexer->start >= 2 &&
+        lexer->pos[-2] == '*') {
+        return 1;
+    }
     return isspace(prev) || lexer_is_structural_char(prev) || prev == '(' ||
            prev == ')' || prev == '\\';
 }
@@ -449,4 +464,25 @@ static int lexer_at_token_boundary(tf_lexer *lexer) {
 static int lexer_is_structural_char(int c) {
     return c == '[' || c == ']' || c == '{' || c == '}' || c == '|' ||
            c == '(' || c == ')' || c == ':' || c == ';';
+}
+
+static int lexer_skip_block_comment(tf_lexer *lexer) {
+    tf_source_span span = lexer_mark(lexer);
+
+    lexer_advance(lexer);
+    lexer_advance(lexer);
+    while (lexer->pos[0] != '\0') {
+        if (lexer->pos[0] == '*' && lexer->pos[1] == '/') {
+            lexer_advance(lexer);
+            lexer_advance(lexer);
+            return 1;
+        }
+        lexer_advance(lexer);
+    }
+
+    lexer->pos = lexer->start + span.offset;
+    lexer->line = span.line;
+    lexer->col = span.col;
+    lexer_errorf(lexer, "unterminated block comment\n");
+    return 0;
 }

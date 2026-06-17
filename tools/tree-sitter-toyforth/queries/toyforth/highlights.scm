@@ -14,6 +14,7 @@
 ; @punctuation.special: Usually Red/Orange.
 
 (line_comment) @comment
+(block_comment) @comment
 
 (number) @number
 (boolean) @boolean

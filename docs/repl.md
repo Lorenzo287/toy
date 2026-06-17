@@ -64,6 +64,7 @@ This applies to:
 - capture lists: `| ... |`
 - strings: `" ... "`
 - colon definitions: `: ... ;`
+- block comments: `/* ... */`
 
 Example:
 
@@ -82,13 +83,15 @@ The REPL uses vendored `linenoise`:
 - command history
 - tab completion for known words
 - syntax-aware hints (type `hints` to toggle)
+- automatic stack display after successful input (type `trace` to toggle)
 
 ## Colors and Status
 
 The REPL uses colored output to distinguish the main categories:
 
 - prompt: light blue
-- success: green `ok`
+- success with stack display on: green `<n>` followed by source-style stack values
+- success with stack display off: green `ok`
 - parsing/runtime errors: red labels
 - interrupt: yellow `interrupt: ...`
 - contextual/fallback messages: dimmer status text

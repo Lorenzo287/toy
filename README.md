@@ -24,6 +24,7 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 - Dedicated collection syntax: `[ ... ]` for ordered vectors/quotations,
   `( ... )` for linked lists, `{ key value ... }` for maps, and `#{ ... }` for
   sets.
+- Comments use `\` to the end of a line or `/* ... */` for block comments.
 - Explicit constructors for secondary structures such as `>deque` and
   `>pqueue`.
 - Representation predicates such as `vector?`, `list?`, and `symbol?`, plus

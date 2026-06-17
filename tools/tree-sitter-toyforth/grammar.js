@@ -12,7 +12,7 @@ export default grammar({
   rules: {
     source_file: $ => repeat(choice(
       $._expression,
-      $.line_comment,
+      $._comment,
     )),
 
     _expression: $ => choice(
@@ -33,7 +33,9 @@ export default grammar({
       $.word,
     ),
 
+    _comment: $ => choice($.line_comment, $.block_comment),
     line_comment: $ => token(seq('\\', /.*/)),
+    block_comment: $ => token(seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/')),
     boolean: $ => choice('true', 'false'),
     number: $ => token(choice(
       /[+-]?\d+\.\d*/,  // float first
@@ -93,30 +95,30 @@ export default grammar({
     )),
     quoted_symbol: $ => seq(
       "'",
-      alias(/[a-zA-Z0-9_+\-*/%<>=!.?]+/, $.symbol_name)
+      alias(choice('/', /[a-zA-Z0-9_+\-*%<>=!.?]+/), $.symbol_name)
     ),
     var_fetch: $ => seq(
       '$',
-      alias(/[a-zA-Z0-9_+\-*/%<>=!.?]+/, $.variable_name)
+      alias(/[a-zA-Z0-9_+\-*%<>=!.?]+/, $.variable_name)
     ),
     block: $ => seq(
       '[',
-      repeat(choice($._expression, $.line_comment)),
+      repeat(choice($._expression, $._comment)),
       ']',
     ),
     list_literal: $ => seq(
       '(',
-      repeat(choice($._expression, $.line_comment)),
+      repeat(choice($._expression, $._comment)),
       ')',
     ),
     map_literal: $ => seq(
       '{',
-      repeat(choice($._expression, $.line_comment)),
+      repeat(choice($._expression, $._comment)),
       '}',
     ),
     set_literal: $ => seq(
       '#{',
-      repeat(choice($._expression, $.line_comment)),
+      repeat(choice($._expression, $._comment)),
       '}',
     ),
     // Captures bind names from the data stack inside the current frame.
@@ -129,11 +131,11 @@ export default grammar({
     colon_definition: $ => seq(
       ':',
       alias($._def_name, $.definition_name),
-      repeat(choice($._expression, $.line_comment)),
+      repeat(choice($._expression, $._comment)),
       ';',
     ),
-    _def_name: $ => token(/[a-zA-Z_+\-*/%<>=!.?][a-zA-Z0-9_+\-*/%<>=!.?]*/),
+    _def_name: $ => token(/[a-zA-Z_+\-*%<>=!.?][a-zA-Z0-9_+\-*%<>=!.?]*/),
 
-    word: $ => /[a-zA-Z_+\-*/%<>=!.?][a-zA-Z0-9_+\-*/%<>=!.?]*/,
+    word: $ => /[a-zA-Z_+\-*%<>=!.?][a-zA-Z0-9_+\-*%<>=!.?]*/,
   }
 });

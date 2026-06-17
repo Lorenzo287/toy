@@ -16,4 +16,13 @@
 ( outer ( inner ) still outer )
 true check
 
+/* Block comments ignore [ ( { | : ; and
+   continue until the closing delimiter. */
+true check
+
+1/* tight block comment */2 + 3 == check
+1/* sign boundary */-2 + -1 == check
+7 dup/* word boundary comment */+ 14 == check
+[ 1 /* comment inside vector */ 2 ] [ 1 2 ] == check
+
 "lexer solid ok" print
