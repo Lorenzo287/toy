@@ -85,6 +85,7 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
     size_t len = 0;
     size_t cap = 0;
     repl_state state;
+    bool ctrl_c_exit_armed = false;
 
     reset_state(&state);
     init_repl_ui(ctx);
@@ -105,9 +106,13 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
         if (!line) {
             if (errno == EAGAIN) {
                 printf("^C\n");
+                if (ctrl_c_exit_armed) { break; }
+
                 len = 0;
                 if (source) source[0] = '\0';
                 reset_state(&state);
+                tf_console_interruptf("press Ctrl-C again to exit REPL\n");
+                ctrl_c_exit_armed = true;
                 continue;
             }
             if (len > 0) {
@@ -118,6 +123,8 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
             }
             break;
         }
+
+        ctrl_c_exit_armed = false;
 
         if (len == 0 && line[0] == '\0') {
             linenoiseFree(line);
@@ -152,6 +159,7 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
         }
         fflush(stdout);
 
+        ctrl_c_exit_armed = false;
         len = 0;
         if (source) source[0] = '\0';
         reset_state(&state);
@@ -472,6 +480,7 @@ static void repl_free_hints(void *ptr) {
 }
 
 static char *read_repl_line(bool complete) {
+    errno = 0;
     return linenoise(complete ? TF_CLR_PROMPT "tf> " TF_CLR_RESET
                               : TF_CLR_PROMPT "..> " TF_CLR_RESET);
 }

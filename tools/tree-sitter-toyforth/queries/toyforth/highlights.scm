@@ -34,6 +34,8 @@
 
 ;; Brackets
 (block "[" @punctuation.bracket "]" @punctuation.bracket)
+(map_literal "{" @punctuation.bracket "}" @punctuation.bracket)
+(set_literal "#{" @punctuation.bracket "}" @punctuation.bracket)
 
 (colon_definition
   ":" @punctuation.delimiter

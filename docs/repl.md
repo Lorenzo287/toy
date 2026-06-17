@@ -95,6 +95,7 @@ The REPL uses colored output to distinguish the main categories:
 
 - Unix-like systems / WSL: `Ctrl-D`
 - Windows console: `Ctrl-Z`
+- At the prompt: press `Ctrl-C` twice in a row
 - Portable explicit exit: `bye`/`exit`
 
 ## Interrupting Execution
@@ -104,3 +105,6 @@ Use `Ctrl-C` to interrupt a running program, for example an infinite loop.
 Interrupts are reported as a dedicated outcome, not as a generic runtime
 failure. In the REPL this should produce a single interrupt message rather than
 secondary errors from words such as `while`.
+
+When no program is running, the first `Ctrl-C` clears the current REPL input and
+prints a reminder that pressing `Ctrl-C` again exits the REPL.
