@@ -38,11 +38,6 @@
 (map_literal "{" @punctuation.bracket "}" @punctuation.bracket)
 (set_literal "#{" @punctuation.bracket "}" @punctuation.bracket)
 
-(colon_definition
-  ":" @punctuation.delimiter
-  (definition_name) @function
-  ";" @punctuation.delimiter)
-
 (control_word) @keyword.control
 (operator) @operator
 (builtin_word) @function.builtin

@@ -1,9 +1,11 @@
 #include "tf_lib.h"
+#include <ctype.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "tf_alloc.h"
+#include "tf_docs.h"
 #include "tf_exec.h"
 #include "tf_obj.h"
 
@@ -383,6 +385,64 @@ static void strbuf_append_source_obj(strbuf *buf, tf_obj *o) {
     }
 }
 
+static void strbuf_append_word_source(strbuf *buf, tf_word *word) {
+    if (word->type == TF_WORD_NATIVE) {
+        strbuf_append_mem(buf, word->name->str.ptr, word->name->str.len);
+        strbuf_append_cstr(buf, " is a native word");
+        return;
+    }
+
+    strbuf_append_char(buf, '\'');
+    strbuf_append_mem(buf, word->name->str.ptr, word->name->str.len);
+    strbuf_append_cstr(buf, " [");
+    for (size_t i = 0; i < word->user_impl->vector.len; i++) {
+        strbuf_append_char(buf, ' ');
+        strbuf_append_source_obj(buf, word->user_impl->vector.elem[i]);
+    }
+    strbuf_append_cstr(buf, " ] def");
+}
+
+static int ascii_lower(int c) {
+    return tolower((unsigned char)c);
+}
+
+static bool contains_ascii_casefold(const char *haystack, size_t haystack_len,
+                                    const char *needle, size_t needle_len) {
+    if (needle_len == 0) return true;
+    if (haystack_len < needle_len) return false;
+
+    for (size_t i = 0; i <= haystack_len - needle_len; i++) {
+        bool match = true;
+        for (size_t j = 0; j < needle_len; j++) {
+            if (ascii_lower(haystack[i + j]) != ascii_lower(needle[j])) {
+                match = false;
+                break;
+            }
+        }
+        if (match) return true;
+    }
+    return false;
+}
+
+static bool word_matches_query(tf_word *word, const char *query,
+                               size_t query_len) {
+    if (contains_ascii_casefold(word->name->str.ptr, word->name->str.len,
+                                query, query_len)) {
+        return true;
+    }
+
+    if (word->type != TF_WORD_NATIVE) return false;
+
+    const tf_doc_entry *doc = tf_doc_lookup(word->name->str.ptr);
+    return doc &&
+           (contains_ascii_casefold(doc->stack_effect, strlen(doc->stack_effect),
+                                    query, query_len) ||
+            contains_ascii_casefold(doc->syntax, strlen(doc->syntax),
+                                    query, query_len) ||
+            contains_ascii_casefold(doc->description, strlen(doc->description),
+                                    query, query_len));
+}
+
 tf_ret tf_words(tf_ctx *ctx) {
     size_t count = ctx->words.count;
     tf_obj *result = tf_obj_new_vector();
@@ -422,18 +482,44 @@ tf_ret tf_see(tf_ctx *ctx) {
 
     strbuf buf;
     strbuf_init(&buf);
-    if (word->type == TF_WORD_NATIVE) {
-        strbuf_append_mem(&buf, word->name->str.ptr, word->name->str.len);
-        strbuf_append_cstr(&buf, " is a native word");
-    } else {
-        strbuf_append_char(&buf, '\'');
-        strbuf_append_mem(&buf, word->name->str.ptr, word->name->str.len);
-        strbuf_append_cstr(&buf, " [");
-        for (size_t i = 0; i < word->user_impl->vector.len; i++) {
-            strbuf_append_char(&buf, ' ');
-            strbuf_append_source_obj(&buf, word->user_impl->vector.elem[i]);
+    strbuf_append_word_source(&buf, word);
+
+    tf_stack_push(ctx, tf_obj_new_string(buf.ptr, buf.len));
+    free(buf.ptr);
+    tf_obj_release(name);
+    return TF_OK;
+}
+
+tf_ret tf_doc(tf_ctx *ctx) {
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_SYMBOL)) return TF_ERR;
+    tf_obj *name = tf_stack_pop_type(ctx, TF_OBJ_TYPE_SYMBOL);
+
+    tf_word *word = tf_dict_lookup(ctx, name);
+    if (!word) {
+        tf_ctx_runtime_errorf(ctx, "'%s' expected a defined word, found '%s'\n",
+                              ctx->current_word, name->str.ptr);
+        tf_obj_release(name);
+        return TF_ERR;
+    }
+
+    strbuf buf;
+    strbuf_init(&buf);
+    const tf_doc_entry *entry =
+        word->type == TF_WORD_NATIVE ? tf_doc_lookup(word->name->str.ptr) : NULL;
+    if (entry) {
+        strbuf_append_cstr(&buf, entry->name);
+        if (entry->stack_effect[0] != '\0') {
+            strbuf_append_cstr(&buf, "\nstack: ");
+            strbuf_append_cstr(&buf, entry->stack_effect);
         }
-        strbuf_append_cstr(&buf, " ] def");
+        if (entry->syntax[0] != '\0') {
+            strbuf_append_cstr(&buf, "\nsyntax: ");
+            strbuf_append_cstr(&buf, entry->syntax);
+        }
+        if (entry->description[0] != '\0') strbuf_append_char(&buf, '\n');
+        strbuf_append_cstr(&buf, entry->description);
+    } else {
+        strbuf_append_word_source(&buf, word);
     }
 
     tf_stack_push(ctx, tf_obj_new_string(buf.ptr, buf.len));
@@ -442,43 +528,41 @@ tf_ret tf_see(tf_ctx *ctx) {
     return TF_OK;
 }
 
-tf_ret tf_colon(tf_ctx *ctx) {
-    if (ctx->call_stack_len == 0) {
-        tf_ctx_runtime_errorf(ctx, "':' requires an active program frame\n");
+tf_ret tf_apropos(tf_ctx *ctx) {
+    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
+    tf_obj *query = tf_stack_peek(ctx, 0);
+    if (query->type != TF_OBJ_TYPE_STR && query->type != TF_OBJ_TYPE_SYMBOL) {
+        tf_ctx_runtime_errorf(
+            ctx, "'%s' expected string or symbol at stack depth 0, found %s\n",
+            ctx->current_word, tf_obj_type_name(query));
         return TF_ERR;
     }
-    tf_frame *f = &ctx->call_stack[ctx->call_stack_len - 1];
+    query = tf_stack_pop(ctx);
 
-    if (f->pc >= f->program->vector.len) {
-        tf_ctx_runtime_errorf(ctx, "':' expected a word name\n");
-        return TF_ERR;
-    }
-    tf_obj *word_name = f->program->vector.elem[f->pc];
-    if (word_name->type != TF_OBJ_TYPE_SYMBOL) {
-        tf_ctx_runtime_errorf(ctx, "':' expected symbol word name, found %s\n",
-                              tf_obj_type_name(word_name));
-        return TF_ERR;
-    }
-
-    tf_obj *body = tf_obj_new_vector();
-    f->pc++;
-    while (f->pc < f->program->vector.len) {
-        tf_obj *o = f->program->vector.elem[f->pc];
-        if (o->type == TF_OBJ_TYPE_SYMBOL && strcmp(o->str.ptr, ";") == 0) break;
-        tf_vector_push(body, o);
-        tf_obj_retain(o);
-        f->pc++;
+    tf_word **matches = NULL;
+    size_t match_count = 0;
+    if (ctx->words.count > 0) {
+        matches = tf_xmalloc(sizeof(tf_word *) * ctx->words.count);
+        for (size_t i = 0; i < ctx->words.capacity; i++) {
+            tf_word *word = ctx->words.buckets[i];
+            if (!word) continue;
+            if (word_matches_query(word, query->str.ptr, query->str.len)) {
+                matches[match_count++] = word;
+            }
+        }
+        qsort(matches, match_count, sizeof(tf_word *), word_name_cmp);
     }
 
-    if (f->pc >= f->program->vector.len) {
-        tf_obj_release(body);
-        tf_ctx_runtime_errorf(ctx, "':' expected ';' to close definition\n");
-        return TF_ERR;
+    tf_obj *result = tf_obj_new_vector();
+    for (size_t i = 0; i < match_count; i++) {
+        tf_vector_push(
+            result, tf_obj_new_quoted_symbol(matches[i]->name->str.ptr,
+                                             matches[i]->name->str.len));
     }
 
-    tf_dict_set_user(ctx, word_name, body);
-    tf_obj_release(body);
-    f->pc++;
+    free(matches);
+    tf_obj_release(query);
+    tf_stack_push(ctx, result);
     return TF_OK;
 }
 

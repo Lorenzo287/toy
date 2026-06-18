@@ -377,7 +377,7 @@ static const builtin_word native_comparison_words[] = {
 };
 
 static const builtin_word native_definition_words[] = {
-    {":", tf_colon}, {"def", tf_def}, {NULL, NULL},
+    {"def", tf_def}, {NULL, NULL},
 };
 
 static const builtin_word native_control_words[] = {
@@ -460,7 +460,8 @@ static const builtin_word native_introspection_words[] = {
     {"inf", tf_inf},         {"nan", tf_nan},
     {"body", tf_body},       {"intern", tf_intern},
     {"name", tf_name},       {"words", tf_words},
-    {"see", tf_see},
+    {"see", tf_see},         {"doc", tf_doc},
+    {"apropos", tf_apropos},
     {NULL, NULL},
 };
 

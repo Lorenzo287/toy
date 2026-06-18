@@ -48,8 +48,8 @@ drop
 "Control: while (countdown 3 to 1)" print
 3 [ 0 > ] [ dup print 1 - ] while drop
 
-"Define: colon (square 4 = 16)" print
-: square dup * ;
+"Define: def (square 4 = 16)" print
+'square [ dup * ] def
 4 square .
 drop
 

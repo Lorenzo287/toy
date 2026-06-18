@@ -234,7 +234,7 @@ func collectTokensAndLocals(node *tree_sitter.Node, src []byte, index *DocumentI
 	switch node.Kind() {
 	case "source_file":
 		currentScopes = []Range{nodeRange(node)}
-	case "colon_definition", "block":
+	case "block":
 		currentScopes = append(append([]Range(nil), scopes...), nodeRange(node))
 	case "var_fetch":
 		if child := node.NamedChild(0); child != nil && child.Kind() == "variable_name" {
@@ -248,7 +248,7 @@ func collectTokensAndLocals(node *tree_sitter.Node, src []byte, index *DocumentI
 	case "var_list":
 		collectLocalBindings(node, src, index, currentScopes)
 		return
-	case "word", "definition_name", "symbol_name", "builtin_word", "control_word", "operator":
+	case "word", "symbol_name", "builtin_word", "control_word", "operator":
 		index.WordTokens = append(index.WordTokens, Token{
 			Text:  node.Utf8Text(src),
 			Range: nodeRange(node),
@@ -292,11 +292,6 @@ func collectTopLevelDefinitions(root *tree_sitter.Node, src []byte, index *Docum
 		}
 
 		switch child.Kind() {
-		case "colon_definition":
-			if sym, ok := indexColonDefinition(child, leadingLineDoc(root, i, src), src); ok {
-				index.Symbols = append(index.Symbols, sym)
-				index.Definitions[sym.Name] = sym
-			}
 		case "quoted_symbol":
 			if sym, ok := indexDefDefinition(root, i, leadingLineDoc(root, i, src), src); ok {
 				index.Symbols = append(index.Symbols, sym)
@@ -304,32 +299,6 @@ func collectTopLevelDefinitions(root *tree_sitter.Node, src []byte, index *Docum
 			}
 		}
 	}
-}
-
-func indexColonDefinition(node *tree_sitter.Node, doc string, src []byte) (Symbol, bool) {
-	var stackEffect string
-	var nameNode *tree_sitter.Node
-
-	for i := uint(0); i < node.NamedChildCount(); i++ {
-		child := node.NamedChild(i)
-		if child != nil && child.Kind() == "definition_name" {
-			nameNode = child
-		}
-	}
-
-	if nameNode == nil {
-		return Symbol{}, false
-	}
-
-	return Symbol{
-		Name:           nameNode.Utf8Text(src),
-		Kind:           symbolKindFunction,
-		Detail:         "colon definition",
-		Range:          nodeRange(node),
-		SelectionRange: nodeRange(nameNode),
-		Doc:            doc,
-		StackEffect:    stackEffect,
-	}, true
 }
 
 func indexDefDefinition(root *tree_sitter.Node, i uint, doc string, src []byte) (Symbol, bool) {

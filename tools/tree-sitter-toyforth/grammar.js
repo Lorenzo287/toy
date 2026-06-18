@@ -26,7 +26,6 @@ export default grammar({
       $.map_literal,
       $.set_literal,
       $.var_list,
-      $.colon_definition,
       $.control_word,
       $.operator,
       $.builtin_word,
@@ -64,6 +63,7 @@ export default grammar({
       'typeof', 'bool?', 'int?', 'float?', 'string?', 'symbol?', 'vector?', 'list?', 'number?', 'sequence?', 'callable?', 'nan?', 'inf?',
       'map?', 'set?', 'deque?', 'pqueue?',
       'word?', 'var?', 'inf', 'nan', 'body', 'intern', 'name', 'words', 'see',
+      'doc', 'apropos',
       '>vector', '>list', '>map', '>set', '>deque', '>pqueue', 'contains?', 'indexof', 'unique', 'sort',
       'has?', 'get', 'assoc', 'dissoc', 'keys', 'values', 'pairs', 'items', 'adjoin', 'remove',
       'push-front', 'push-back', 'pop-front', 'pop-back', 'front', 'back',
@@ -127,15 +127,6 @@ export default grammar({
       repeat1($.word),
       '|',
     ),
-    // fix 2: use dedicated _def_name rule instead of aliasing $.word
-    colon_definition: $ => seq(
-      ':',
-      alias($._def_name, $.definition_name),
-      repeat(choice($._expression, $._comment)),
-      ';',
-    ),
-    _def_name: $ => token(/[a-zA-Z_+\-*%<>=!.?][a-zA-Z0-9_+\-*%<>=!.?]*/),
-
     word: $ => /[a-zA-Z_+\-*%<>=!.?][a-zA-Z0-9_+\-*%<>=!.?]*/,
   }
 });

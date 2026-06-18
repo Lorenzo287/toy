@@ -64,8 +64,9 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 ```
 
 Callable equivalence applies where a word consumes deferred code. Dictionary
-introspection words such as `see`, `body`, `word?`, `var?`, and `name` consume
-symbols as names, so use `'name` rather than `[ name ]` for those positions.
+introspection words such as `see`, `doc`, `body`, `word?`, `var?`, and `name`
+consume symbols as names, so use `'name` rather than `[ name ]` for those
+positions.
 Vectors are the compound quotation type; linked lists created with `( ... )`
 are data sequences, not callables.
 
@@ -150,10 +151,10 @@ changing the data stack.
 | Sequence/Data | `at`, `set-at`, `>vector`, `>list`, `contains?`, `indexof`, `unique`, `sort`, `slice`, `take`, `dropn`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `reverse`, `join`, `trim`, `upper`, `lower`, `splitmid`, `range`, `empty?`, `char?`, `letter?`, `digit?`, `alnum?`, `space?`, `upper?`, `lower?`, `punct?` |
 | Map/Set       | `>map`, `>set`, `has?`, `get`, `assoc`, `dissoc`, `keys`, `values`, `pairs`, `items`, `adjoin`, `remove`                                                                                                                                                           |
 | Deque/PQueue  | `>deque`, `push-front`, `push-back`, `pop-front`, `pop-back`, `front`, `back`, `>pqueue`, `pqueue-push`, `pqueue-peek`, `pqueue-pop`, `pqueue-drain`                                                                                                               |
-| Introspection | `typeof`, `bool?`, `int?`, `float?`, `string?`, `symbol?`, `vector?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `number?`, `sequence?`, `callable?`, `nan?`, `inf?`, `word?`, `var?`, `inf`, `nan`, `body`, `intern`, `name`, `words`, `see`                      |
+| Introspection | `typeof`, `bool?`, `int?`, `float?`, `string?`, `symbol?`, `vector?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `number?`, `sequence?`, `callable?`, `nan?`, `inf?`, `word?`, `var?`, `inf`, `nan`, `body`, `intern`, `name`, `words`, `see`, `doc`, `apropos`                      |
 | I/O           | `print`, `printf`, `.`, `.s`, `.S`, `cr`, `key`, `input`, `load`, `readf`, `writef`, `delf`, `readl`, `exists?`, `clear`, `page`                                                                                                                                   |
 | System        | `rand`, `sleep`, `argc`, `argv`, `env?`, `getenv`, `setenv`, `pwd`, `shell`, `time`, `clock`, `bye`, `exit`                                                                                                                                                        |
-| Definition    | `def`, `:`                                                                                                                                                                                                                                                         |
+| Definition    | `def`                                                                                                                                                                                                                                                              |
 
 ## Tooling
 

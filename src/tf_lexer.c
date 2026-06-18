@@ -214,10 +214,6 @@ static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
             if (!o && !lexer->error) {
                 lexer_errorf(lexer, "expected symbol name after '\''\n");
             }
-        } else if (lexer->pos[0] == ':') {
-            o = lexer_tokenize_single_char_symbol(lexer);
-        } else if (lexer->pos[0] == ';') {
-            o = lexer_tokenize_single_char_symbol(lexer);
         } else if ((lexer->pos[0] == '-' || lexer->pos[0] == '+') &&
                    (isdigit((unsigned char)lexer->pos[1]) ||
                     (lexer->pos[1] == '.' &&
@@ -463,7 +459,7 @@ static int lexer_at_token_boundary(tf_lexer *lexer) {
 
 static int lexer_is_structural_char(int c) {
     return c == '[' || c == ']' || c == '{' || c == '}' || c == '|' ||
-           c == '(' || c == ')' || c == ':' || c == ';';
+           c == '(' || c == ')';
 }
 
 static int lexer_skip_block_comment(tf_lexer *lexer) {

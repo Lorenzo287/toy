@@ -18,7 +18,7 @@ func TestDocumentSymbols(t *testing.T) {
 		t.Fatalf("expected 3 symbols, got %d", len(symbols))
 	}
 
-	if symbols[0].Name != "sqr" || symbols[0].Detail != "colon definition" {
+	if symbols[0].Name != "sqr" || symbols[0].Detail != "quoted symbol def" {
 		t.Fatalf("unexpected first symbol: %+v", symbols[0])
 	}
 	if symbols[0].Doc != "top-level definitions" {
@@ -27,7 +27,7 @@ func TestDocumentSymbols(t *testing.T) {
 	if symbols[0].StackEffect != "" {
 		t.Fatalf("unexpected sqr stack effect: %+v", symbols[0])
 	}
-	if symbols[0].SelectionRange.Start.Character != 2 {
+	if symbols[0].SelectionRange.Start.Character != 1 {
 		t.Fatalf("unexpected sqr selection range: %+v", symbols[0].SelectionRange)
 	}
 
@@ -41,7 +41,7 @@ func TestDocumentSymbols(t *testing.T) {
 		t.Fatalf("unexpected pow3 selection range: %+v", symbols[1].SelectionRange)
 	}
 
-	if symbols[2].Name != "shadow-demo" || symbols[2].Detail != "colon definition" {
+	if symbols[2].Name != "shadow-demo" || symbols[2].Detail != "quoted symbol def" {
 		t.Fatalf("unexpected third symbol: %+v", symbols[2])
 	}
 }
@@ -80,7 +80,7 @@ func TestLookupDefinition(t *testing.T) {
 			name: "local fetch resolves to local binding",
 			pos: Position{
 				Line:      1,
-				Character: 13,
+				Character: 14,
 			},
 			want: "n",
 		},
@@ -88,7 +88,7 @@ func TestLookupDefinition(t *testing.T) {
 			name: "nested local fetch resolves to inner binding",
 			pos: Position{
 				Line:      9,
-				Character: 43,
+				Character: 45,
 			},
 			want: "outer",
 		},
@@ -96,7 +96,7 @@ func TestLookupDefinition(t *testing.T) {
 			name: "post-block local fetch resolves to outer binding",
 			pos: Position{
 				Line:      9,
-				Character: 57,
+				Character: 59,
 			},
 			want: "outer",
 		},
@@ -111,16 +111,16 @@ func TestLookupDefinition(t *testing.T) {
 			if sym.Name != tc.want {
 				t.Fatalf("expected %q, got %+v", tc.want, sym)
 			}
-			if sym.SelectionRange.Start.Character >= sym.Range.Start.Character && sym.Name == "sqr" && sym.SelectionRange.Start.Character != 2 {
+			if sym.SelectionRange.Start.Character >= sym.Range.Start.Character && sym.Name == "sqr" && sym.SelectionRange.Start.Character != 1 {
 				t.Fatalf("unexpected sqr target range: %+v", sym)
 			}
-			if tc.name == "local fetch resolves to local binding" && sym.SelectionRange.Start.Character != 8 {
+			if tc.name == "local fetch resolves to local binding" && sym.SelectionRange.Start.Character != 9 {
 				t.Fatalf("unexpected local binding target: %+v", sym)
 			}
-			if tc.name == "nested local fetch resolves to inner binding" && sym.SelectionRange.Start.Character != 35 {
+			if tc.name == "nested local fetch resolves to inner binding" && sym.SelectionRange.Start.Character != 36 {
 				t.Fatalf("unexpected inner local target: %+v", sym)
 			}
-			if tc.name == "post-block local fetch resolves to outer binding" && sym.SelectionRange.Start.Character != 16 {
+			if tc.name == "post-block local fetch resolves to outer binding" && sym.SelectionRange.Start.Character != 17 {
 				t.Fatalf("unexpected outer local target: %+v", sym)
 			}
 		})
@@ -146,13 +146,13 @@ func TestLookupHover(t *testing.T) {
 
 	stackEffectHover, ok := LookupHover(index, Position{Line: 6, Character: 2})
 	if !ok {
-		t.Fatalf("expected hover for colon definition call")
+		t.Fatalf("expected hover for user definition call")
 	}
 	if stackEffectHover.Contents != "```toy\nsqr\n```\ntop-level definitions" {
 		t.Fatalf("unexpected stack effect hover: %q", stackEffectHover.Contents)
 	}
 
-	localHover, ok := LookupHover(index, Position{Line: 9, Character: 43})
+	localHover, ok := LookupHover(index, Position{Line: 9, Character: 45})
 	if !ok {
 		t.Fatalf("expected hover for local binding")
 	}
@@ -167,8 +167,8 @@ func TestLookupHover(t *testing.T) {
 	if builtinHover.Range.Start.Character != 7 {
 		t.Fatalf("unexpected builtin hover range: %+v", builtinHover.Range)
 	}
-	if builtinHover.Contents == "" {
-		t.Fatalf("expected builtin hover contents")
+	if builtinHover.Contents != "```toy\nprint\n```\nstack: `x --`\n\nPrint a value." {
+		t.Fatalf("unexpected builtin hover contents: %q", builtinHover.Contents)
 	}
 }
 
@@ -185,43 +185,43 @@ func TestLookupReferences(t *testing.T) {
 	if len(wordRefs) != 2 {
 		t.Fatalf("expected 2 references for sqr including declaration, got %d", len(wordRefs))
 	}
-	if wordRefs[0].Start.Line != 1 || wordRefs[0].Start.Character != 2 {
+	if wordRefs[0].Start.Line != 1 || wordRefs[0].Start.Character != 1 {
 		t.Fatalf("unexpected sqr declaration ref: %+v", wordRefs[0])
 	}
 	if wordRefs[1].Start.Line != 6 || wordRefs[1].Start.Character != 2 {
 		t.Fatalf("unexpected sqr call ref: %+v", wordRefs[1])
 	}
 
-	localRefs := LookupReferences(index, Position{Line: 9, Character: 43}, true)
+	localRefs := LookupReferences(index, Position{Line: 9, Character: 45}, true)
 	if len(localRefs) != 2 {
 		t.Fatalf("expected 2 references for inner outer including declaration, got %d", len(localRefs))
 	}
-	if localRefs[0].Start.Line != 9 || localRefs[0].Start.Character != 35 {
+	if localRefs[0].Start.Line != 9 || localRefs[0].Start.Character != 36 {
 		t.Fatalf("unexpected inner local declaration ref: %+v", localRefs[0])
 	}
-	if localRefs[1].Start.Line != 9 || localRefs[1].Start.Character != 43 {
+	if localRefs[1].Start.Line != 9 || localRefs[1].Start.Character != 44 {
 		t.Fatalf("unexpected inner local use ref: %+v", localRefs[1])
 	}
 
-	localDeclRefs := LookupReferences(index, Position{Line: 9, Character: 35}, true)
+	localDeclRefs := LookupReferences(index, Position{Line: 9, Character: 36}, true)
 	if len(localDeclRefs) != 2 {
 		t.Fatalf("expected 2 references when invoked on inner local declaration, got %d", len(localDeclRefs))
 	}
-	if localDeclRefs[0].Start.Line != 9 || localDeclRefs[0].Start.Character != 35 {
+	if localDeclRefs[0].Start.Line != 9 || localDeclRefs[0].Start.Character != 36 {
 		t.Fatalf("unexpected inner local declaration self-ref: %+v", localDeclRefs[0])
 	}
-	if localDeclRefs[1].Start.Line != 9 || localDeclRefs[1].Start.Character != 43 {
+	if localDeclRefs[1].Start.Line != 9 || localDeclRefs[1].Start.Character != 44 {
 		t.Fatalf("unexpected inner local declaration use ref: %+v", localDeclRefs[1])
 	}
 
-	outerRefs := LookupReferences(index, Position{Line: 9, Character: 57}, false)
+	outerRefs := LookupReferences(index, Position{Line: 9, Character: 59}, false)
 	if len(outerRefs) != 2 {
 		t.Fatalf("expected 2 outer local references without declaration, got %d", len(outerRefs))
 	}
-	if outerRefs[0].Start.Line != 9 || outerRefs[0].Start.Character != 24 {
+	if outerRefs[0].Start.Line != 9 || outerRefs[0].Start.Character != 25 {
 		t.Fatalf("unexpected first outer local use ref: %+v", outerRefs[0])
 	}
-	if outerRefs[1].Start.Line != 9 || outerRefs[1].Start.Character != 57 {
+	if outerRefs[1].Start.Line != 9 || outerRefs[1].Start.Character != 58 {
 		t.Fatalf("unexpected second outer local use ref: %+v", outerRefs[1])
 	}
 }
@@ -239,35 +239,35 @@ func TestLookupRenameEdits(t *testing.T) {
 	if len(wordEdits) != 2 {
 		t.Fatalf("expected 2 rename edits for sqr, got %d", len(wordEdits))
 	}
-	if wordEdits[0].Start.Line != 1 || wordEdits[0].Start.Character != 2 {
+	if wordEdits[0].Start.Line != 1 || wordEdits[0].Start.Character != 1 {
 		t.Fatalf("unexpected sqr declaration rename edit: %+v", wordEdits[0])
 	}
 	if wordEdits[1].Start.Line != 6 || wordEdits[1].Start.Character != 2 {
 		t.Fatalf("unexpected sqr use rename edit: %+v", wordEdits[1])
 	}
 
-	localDeclEdits := LookupRenameEdits(index, Position{Line: 9, Character: 35})
+	localDeclEdits := LookupRenameEdits(index, Position{Line: 9, Character: 36})
 	if len(localDeclEdits) != 2 {
 		t.Fatalf("expected 2 rename edits for inner local declaration, got %d", len(localDeclEdits))
 	}
-	if localDeclEdits[0].Start.Line != 9 || localDeclEdits[0].Start.Character != 35 {
+	if localDeclEdits[0].Start.Line != 9 || localDeclEdits[0].Start.Character != 36 {
 		t.Fatalf("unexpected inner local declaration rename edit: %+v", localDeclEdits[0])
 	}
-	if localDeclEdits[1].Start.Line != 9 || localDeclEdits[1].Start.Character != 43 {
+	if localDeclEdits[1].Start.Line != 9 || localDeclEdits[1].Start.Character != 44 {
 		t.Fatalf("unexpected inner local use rename edit: %+v", localDeclEdits[1])
 	}
 
-	localUseEdits := LookupRenameEdits(index, Position{Line: 9, Character: 57})
+	localUseEdits := LookupRenameEdits(index, Position{Line: 9, Character: 59})
 	if len(localUseEdits) != 3 {
 		t.Fatalf("expected 3 rename edits for outer local, got %d", len(localUseEdits))
 	}
-	if localUseEdits[0].Start.Line != 9 || localUseEdits[0].Start.Character != 16 {
+	if localUseEdits[0].Start.Line != 9 || localUseEdits[0].Start.Character != 17 {
 		t.Fatalf("unexpected outer local declaration rename edit: %+v", localUseEdits[0])
 	}
-	if localUseEdits[1].Start.Line != 9 || localUseEdits[1].Start.Character != 24 {
+	if localUseEdits[1].Start.Line != 9 || localUseEdits[1].Start.Character != 25 {
 		t.Fatalf("unexpected first outer local use rename edit: %+v", localUseEdits[1])
 	}
-	if localUseEdits[2].Start.Line != 9 || localUseEdits[2].Start.Character != 57 {
+	if localUseEdits[2].Start.Line != 9 || localUseEdits[2].Start.Character != 58 {
 		t.Fatalf("unexpected second outer local use rename edit: %+v", localUseEdits[2])
 	}
 }

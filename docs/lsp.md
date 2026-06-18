@@ -1,6 +1,7 @@
 # Toy LSP
 
-Minimal standalone Language Server Protocol implementation for Toy, written in Go. It uses the Tree-sitter parser for indexing and providing IDE features.
+Minimal standalone Language Server Protocol implementation for Toy, written in Go. 
+It uses the Tree-sitter parser for indexing and providing IDE features.
 
 ## Features
 
@@ -13,14 +14,16 @@ Minimal standalone Language Server Protocol implementation for Toy, written in G
 
 ### Analysis Scope
 
-- **Top-level definitions**: `: name ... ;` and `'name [ ... ] def`.
+- **Top-level definitions**: `'name [ ... ] def`.
 - **Locals**: Bindings from `| a b |`, fetches like `$a`, and nested block shadowing.
 - **Documentation**: Leading `\ comment` lines are extracted for hovers.
 
 ## Getting Started
 
 > [!IMPORTANT]
-> The LSP relies on the Tree-sitter parser for code analysis. You **must** generate the parser in `tools/tree-sitter-toyforth` by running `tree-sitter generate` before running or building the LSP. Without the generated `parser.c`, the Go Tree-sitter bindings will fail to compile or function.
+> The LSP relies on the Tree-sitter parser for code analysis. You **must** generate the parser in 
+> `tools/tree-sitter-toyforth` by running `tree-sitter generate` before running or building the LSP. 
+> Without the generated `parser.c`, the Go Tree-sitter bindings will fail to compile or function.
 
 ### Run from Source
 
@@ -43,7 +46,8 @@ go build -o toyforth-lsp.exe ./cmd/toyforth-lsp
 
 ### Neovim
 
-You can use the automated installation script to build the LSP and generate the Tree-sitter parser, installing them to a central location:
+You can use the automated installation script to build the LSP and generate the Tree-sitter parser, 
+installing them to a central location:
 
 - **Windows**: `.\tools\install-nvim.ps1`
 - **Linux/macOS**: `bash tools/install-nvim.sh`

@@ -24,6 +24,6 @@ cr
 words
 
 "Additions: see prints user definitions" print
-: square dup * ;
+'square [ dup * ] def
 'square see
 'dup see

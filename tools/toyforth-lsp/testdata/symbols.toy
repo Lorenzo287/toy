@@ -1,5 +1,5 @@
 \ top-level definitions
-: sqr | n | $n $n * ;
+'sqr [ | n | $n $n * ] def
 
 \ definition comment
 'pow3 [ | n | $n $n $n * * ] def
@@ -7,10 +7,10 @@
 5 sqr .
 3 pow3 .
 
-: shadow-demo | outer | $outer [ | outer | $outer ] exec $outer ;
+'shadow-demo [ | outer | $outer [ | outer | $outer ] exec $outer ] def
 
 \ nested forms should not create top-level symbols
-[ : hidden 1 ; ]
+[ 'hidden [ 1 ] def ]
 | shadow |
 
 5 pow3 print

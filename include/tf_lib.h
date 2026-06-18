@@ -110,7 +110,8 @@ tf_ret tf_intern(tf_ctx *ctx);
 tf_ret tf_name(tf_ctx *ctx);
 tf_ret tf_words(tf_ctx *ctx);
 tf_ret tf_see(tf_ctx *ctx);
-tf_ret tf_colon(tf_ctx *ctx);
+tf_ret tf_doc(tf_ctx *ctx);
+tf_ret tf_apropos(tf_ctx *ctx);
 tf_ret tf_def(tf_ctx *ctx);
 
 // Quotation execution, control flow, and recursion

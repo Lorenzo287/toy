@@ -27,7 +27,7 @@ The REPL keeps one interpreter context alive across entries. This means:
 Example:
 
 ```toy
-: sq |n| $n $n * ;
+'sq [ |n| $n $n * ] def
 5 sq print
 ```
 
@@ -63,16 +63,15 @@ This applies to:
 - maps/sets: `{ ... }` / `#{ ... }`
 - capture lists: `| ... |`
 - strings: `" ... "`
-- colon definitions: `: ... ;`
 - block comments: `/* ... */`
 
 Example:
 
 ```toy
-: sq
+'sq [
 |n|
 $n $n *
-;
+] def
 ```
 
 ## Editing, History, and Completion

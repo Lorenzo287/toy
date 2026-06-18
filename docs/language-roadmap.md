@@ -6,8 +6,7 @@ concatenative language inspired by Joy. Quotations (`[ ... ]`) and symbols
 
 ## Baseline
 
-- Preferred definition style: `'name [ ... ] def`; `: name ... ;` remains
-  supported for existing Forth-style code.
+- Definitions bind quoted symbols to quotations with `'name [ ... ] def`.
 - Vector quotations are first-class values; `exec`/`i` apply vectors or quoted
   symbols. Linked lists are data sequences and are not callable.
 - User-defined words and native callable runners use the explicit frame stack.
@@ -68,7 +67,7 @@ later.
 ### Formatter
 
 Build on Tree-sitter. Define deterministic, idempotent formatting for
-quotations, captures, colon definitions, comments, and long pipelines. Start
+quotations, captures, comments, and long pipelines. Start
 with fixtures before editor integration.
 
 ### Performance Lab
@@ -96,8 +95,8 @@ then bytecode for the existing VM, then LLVM for a constrained subset.
   one-byte string; `append` adds one item, while `concat` combines two
   sequences.
 - Introspection words should push data rather than print directly. Word names
-  are symbols: `words` pushes a vector of symbols, while `see` pushes source
-  text as a string.
+  are symbols: `words` and `apropos` push vectors of symbols, while `see` and
+  `doc` push strings.
 - Callable equivalence applies only where a word consumes deferred code.
   Name/introspection words consume symbols as names, not single-symbol
   quotations.

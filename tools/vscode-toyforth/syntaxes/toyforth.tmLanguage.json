@@ -41,11 +41,7 @@
                 },
                 {
                     "name": "entity.name.function.toyforth",
-                    "match": "(?<=:\\s+)([a-zA-Z0-9_+\\-*/%<>=!.?]+)"
-                },
-                {
-                    "name": "entity.name.function.toyforth",
-                    "match": "(?<=\\s|^)(dup|drop|swap|over|rot|swapd|nip|tuck|pick|roll|empty|pi|e|tau|print|printf|cr|key|input|load|readf|writef|delf|readl|exists\\?|clear|page|typeof|bool\\?|int\\?|float\\?|string\\?|symbol\\?|vector\\?|list\\?|map\\?|set\\?|deque\\?|pqueue\\?|number\\?|sequence\\?|callable\\?|nan\\?|inf\\?|word\\?|var\\?|inf|nan|body|intern|name|words|see|at|set-at|>vector|>list|>map|>set|>deque|>pqueue|contains\\?|indexof|unique|sort|has\\?|get|assoc|dissoc|keys|values|pairs|items|adjoin|remove|push-front|push-back|pop-front|pop-back|front|back|pqueue-push|pqueue-peek|pqueue-pop|pqueue-drain|slice|take|dropn|len|first|rest|uncons|cons|append|concat|reverse|join|trim|upper|lower|splitmid|range|char\\?|letter\\?|digit\\?|alnum\\?|space\\?|upper\\?|lower\\?|punct\\?|rand|sleep|argc|argv|env\\?|getenv|setenv|pwd|shell|time|clock|def|bye|exit|\\.|\\.s|\\.S|empty\\?)(?=\\s|$)"
+                    "match": "(?<=\\s|^)(dup|drop|swap|over|rot|swapd|nip|tuck|pick|roll|empty|pi|e|tau|print|printf|cr|key|input|load|readf|writef|delf|readl|exists\\?|clear|page|typeof|bool\\?|int\\?|float\\?|string\\?|symbol\\?|vector\\?|list\\?|map\\?|set\\?|deque\\?|pqueue\\?|number\\?|sequence\\?|callable\\?|nan\\?|inf\\?|word\\?|var\\?|inf|nan|body|intern|name|words|see|doc|apropos|at|set-at|>vector|>list|>map|>set|>deque|>pqueue|contains\\?|indexof|unique|sort|has\\?|get|assoc|dissoc|keys|values|pairs|items|adjoin|remove|push-front|push-back|pop-front|pop-back|front|back|pqueue-push|pqueue-peek|pqueue-pop|pqueue-drain|slice|take|dropn|len|first|rest|uncons|cons|append|concat|reverse|join|trim|upper|lower|splitmid|range|char\\?|letter\\?|digit\\?|alnum\\?|space\\?|upper\\?|lower\\?|punct\\?|rand|sleep|argc|argv|env\\?|getenv|setenv|pwd|shell|time|clock|def|bye|exit|\\.|\\.s|\\.S|empty\\?)(?=\\s|$)"
                 }
             ]
         },
@@ -57,7 +53,7 @@
                 },
                 {
                     "name": "storage.type.toyforth",
-                    "match": "(?<=\\s|^)(:|def|\\|)(?=\\s|$)"
+                    "match": "(?<=\\s|^)(def|\\|)(?=\\s|$)"
                 },
                 {
                     "name": "keyword.operator.toyforth",
