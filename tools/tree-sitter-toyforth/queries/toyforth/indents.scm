@@ -2,6 +2,10 @@
   "[" @indent.begin
   "]" @indent.end)
 
+(list_literal
+  "(" @indent.begin
+  ")" @indent.end)
+
 (map_literal
   "{" @indent.begin
   "}" @indent.end)

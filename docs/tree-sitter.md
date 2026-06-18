@@ -17,27 +17,16 @@ The easiest way to set up Tree-sitter and the LSP in Neovim is to use the automa
 - **Windows**: `.\tools\install-nvim.ps1`
 - **Linux/macOS**: `bash tools/install-nvim.sh`
 
-Follow the printed instructions to update your `init.lua`.
+The script builds the LSP, generates the Tree-sitter parser with ABI 15, installs the local grammar files, removes stale generated Neovim parser/query artifacts, and prints the Neovim configuration snippet to add to your config.
 
 Alternatively, you can register the parser manually:
 
 ```lua
-local toy_path = "~/path/to/toy/tools/tree-sitter-toyforth"
+local toy_path = "C:/toy/tree-sitter-toyforth"
+-- Linux/macOS example:
+-- local toy_path = vim.fn.expand("~/.local/share/toy/tree-sitter-toyforth")
 
--- 1. Register the parser
-require("nvim-treesitter.parsers").get_parser_configs().toyforth = {
-    install_info = {
-        url = toy_path,
-        files = { "src/parser.c" },
-        branch = "main",
-    },
-    filetype = "toy",
-}
-
--- 2. Add queries to runtimepath (so highlighting works)
-vim.opt.rtp:append(toy_path)
-
--- 3. Register filetypes
+-- Register filetypes
 vim.filetype.add({
     extension = {
         fth = "toy",
@@ -45,30 +34,45 @@ vim.filetype.add({
         toy = "toy",
     },
 })
+
+-- Register the local parser for nvim-treesitter main
+local function add_toyforth_parser()
+    require("nvim-treesitter.parsers").toyforth = {
+        install_info = {
+            path = toy_path,
+            queries = "queries/toyforth",
+        },
+    }
+end
+
+add_toyforth_parser()
+vim.api.nvim_create_autocmd("User", {
+    pattern = "TSUpdate",
+    callback = add_toyforth_parser,
+})
+
+vim.treesitter.language.register("toyforth", "toy")
 ```
 
-After adding the configuration, run `:TSInstall toyforth` inside Neovim.
+After adding the configuration, restart Neovim and run `:TSInstall! toyforth`.
 
 > [!NOTE]
-> The configuration above uses a local path and requires that you have already generated the parser code. Run `tree-sitter generate` inside the `tools/tree-sitter-toyforth` directory before installing.
+> The configuration above uses a local path and requires generated parser code. Run `tree-sitter generate --abi 15` inside `tools/tree-sitter-toyforth` before installing manually.
 >
-> Alternatively, you can configure `nvim-treesitter` to fetch and build the parser automatically from a remote GitHub repository. For details on advanced setup without local cloning, refer to the [nvim-treesitter documentation](https://github.com/nvim-treesitter/nvim-treesitter).
+> `queries = "queries/toyforth"` lets `nvim-treesitter` install the Toy query files into its site query directory. You do not need to append the grammar folder to `runtimepath`.
 
 > [!IMPORTANT]
 > On Windows, `TSInstall` and `TSUpdate` can fail with `Access is denied` if
-> Neovim has already loaded `toyforth.so` from the `nvim-treesitter` parser
-> directory.
+> Neovim has already loaded `toyforth.so`.
 >
-> The automated installation script (`tools/install-nvim.ps1`) handles this by 
-> attempting to delete the old binary for you. If you are installing manually:
+> The automated installation script (`tools/install-nvim.ps1`) handles this by attempting to delete stale parser/query artifacts. If you are installing manually:
 >
 > - close all Neovim instances
-> - delete `toyforth.so` from
->   `~/AppData/Local/nvim-data/lazy/nvim-treesitter/parser/`
-> - restart Neovim and let `auto_install` or `:TSInstall toyforth` rebuild it
+> - delete stale Toy parsers from `%LOCALAPPDATA%\nvim-data\site\parser\` and `%LOCALAPPDATA%\nvim-data\lazy\nvim-treesitter\parser\`
+> - delete `%LOCALAPPDATA%\nvim-data\site\queries\toyforth` if it exists
+> - restart Neovim and run `:TSInstall! toyforth`
 >
-> This is a file-locking issue in the current workflow, not a Toy grammar
-> issue.
+> This is a Windows file-locking issue, not a Toy grammar issue.
 
 ## Development
 
@@ -80,7 +84,7 @@ From `tools/tree-sitter-toyforth`:
 
 ```powershell
 # Generate the parser from grammar.js
-tree-sitter generate
+tree-sitter generate --abi 15
 
 # Run the test suite
 tree-sitter test

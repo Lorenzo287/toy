@@ -20,7 +20,7 @@ if (-not (Test-Path $InstallDir)) {
 }
 
 # 2. Build the LSP
-Write-Host "`n[1/3] Building Toy LSP..." -ForegroundColor Yellow
+Write-Host "`n[1/4] Building Toy LSP..." -ForegroundColor Yellow
 Push-Location $LspSrcDir
 try {
     if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
@@ -34,52 +34,90 @@ try {
 }
 
 # 3. Generate and Copy Tree-sitter files
-Write-Host "`n[2/3] Generating Tree-sitter Parser..." -ForegroundColor Yellow
+Write-Host "`n[2/4] Generating Tree-sitter Parser..." -ForegroundColor Yellow
 Push-Location $TsSrcDir
 try {
     if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
         Write-Error "npm is not installed. Please install Node.js/npm."
     }
     
-    Write-Host "Running npm install..."
-    npm install --silent --ignore-scripts
+    if (Test-Path -LiteralPath "package-lock.json") {
+        Write-Host "Running npm ci..."
+        npm ci --silent --ignore-scripts
+    } else {
+        Write-Host "Running npm install..."
+        npm install --silent --ignore-scripts
+    }
     
     Write-Host "Generating parser.c..."
     if (Get-Command tree-sitter -ErrorAction SilentlyContinue) {
-        tree-sitter generate
+        tree-sitter generate --abi 15
     } else {
-        npx tree-sitter generate
+        npx tree-sitter generate --abi 15
     }
 
     # Copy the TS folder to the install directory
     # We copy the whole folder because Neovim needs 'src/parser.c' and the 'queries/' directory.
     $TsDest = Join-Path $InstallDir "tree-sitter-toyforth"
-    if (Test-Path $TsDest) { Remove-Item $TsDest -Recurse -Force }
+    if (Test-Path -LiteralPath $TsDest) {
+        $InstallRoot = [System.IO.Path]::GetFullPath($InstallDir.TrimEnd('\') + '\')
+        $TsDestFull = [System.IO.Path]::GetFullPath($TsDest)
+        if (-not $TsDestFull.StartsWith($InstallRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            Write-Error "Refusing to remove unexpected path: $TsDestFull"
+        }
+        Remove-Item -LiteralPath $TsDestFull -Recurse -Force
+    }
     
     # We only need specific subfolders for Neovim to function
     New-Item -ItemType Directory -Path $TsDest -Force | Out-Null
-    Copy-Item "src" -Destination $TsDest -Recurse
-    Copy-Item "queries" -Destination $TsDest -Recurse
-    Copy-Item "grammar.js" -Destination $TsDest
-    Copy-Item "tree-sitter.json" -Destination $TsDest
+    Copy-Item -LiteralPath "src" -Destination $TsDest -Recurse
+    Copy-Item -LiteralPath "queries" -Destination $TsDest -Recurse
+    Copy-Item -LiteralPath "grammar.js" -Destination $TsDest
+    Copy-Item -LiteralPath "tree-sitter.json" -Destination $TsDest
     
     Write-Host "Tree-sitter files installed to: $TsDest" -ForegroundColor Green
 } finally {
     Pop-Location
 }
 
-# 4. Cleanup old binary
-Write-Host "`n[3/4] Cleaning up old parser binary..." -ForegroundColor Yellow
+# 4. Cleanup old generated Tree-sitter artifacts
+Write-Host "`n[3/4] Cleaning up old Tree-sitter artifacts..." -ForegroundColor Yellow
+$NvimDataDir = Join-Path $Env:LOCALAPPDATA "nvim-data"
 $TsParserPaths = @(
-    Join-Path $Env:LOCALAPPDATA "nvim-data\lazy\nvim-treesitter\parser\toyforth.so"
-    Join-Path $Env:LOCALAPPDATA "nvim-data\site\pack\packer\start\nvim-treesitter\parser\toyforth.so"
+    Join-Path $NvimDataDir "site\parser\toyforth.so"
+    Join-Path $NvimDataDir "site\parser\toy.so"
+    Join-Path $NvimDataDir "lazy\nvim-treesitter\parser\toyforth.so"
+    Join-Path $NvimDataDir "lazy\nvim-treesitter\parser\toy.so"
+    Join-Path $NvimDataDir "site\pack\packer\start\nvim-treesitter\parser\toyforth.so"
+    Join-Path $NvimDataDir "site\pack\packer\start\nvim-treesitter\parser\toy.so"
 )
 
 foreach ($Path in $TsParserPaths) {
-    if (Test-Path $Path) {
+    if (Test-Path -LiteralPath $Path) {
         try {
-            Remove-Item $Path -Force
+            Remove-Item -LiteralPath $Path -Force
             Write-Host "Removed old parser: $Path" -ForegroundColor Green
+        } catch {
+            Write-Host "Warning: Could not remove $Path. Ensure Neovim is closed." -ForegroundColor Red
+        }
+    }
+}
+
+$TsQueryRoot = Join-Path $NvimDataDir "site\queries"
+$TsQueryPaths = @(
+    Join-Path $TsQueryRoot "toyforth"
+)
+$TsQueryRootFull = [System.IO.Path]::GetFullPath($TsQueryRoot.TrimEnd('\') + '\')
+
+foreach ($Path in $TsQueryPaths) {
+    if (Test-Path -LiteralPath $Path) {
+        try {
+            $FullPath = [System.IO.Path]::GetFullPath($Path)
+            if (-not $FullPath.StartsWith($TsQueryRootFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+                Write-Error "Refusing to remove unexpected query path: $FullPath"
+            }
+            Remove-Item -LiteralPath $FullPath -Recurse -Force
+            Write-Host "Removed old queries: $FullPath" -ForegroundColor Green
         } catch {
             Write-Host "Warning: Could not remove $Path. Ensure Neovim is closed." -ForegroundColor Red
         }
@@ -102,19 +140,6 @@ vim.lsp.config("toyls", {
 })
 vim.lsp.enable("toyls")
 
--- Toy Tree-sitter Configuration
-require("nvim-treesitter.parsers").get_parser_configs().toyforth = {
-    install_info = {
-        url = "$TsPathEscaped",
-        files = { "src/parser.c" },
-        branch = "main",
-    },
-    filetype = "toy",
-}
-
--- Add queries and parser info to runtime path
-vim.opt.rtp:append("$TsPathEscaped")
-
 -- Register filetypes
 vim.filetype.add({
     extension = {
@@ -123,9 +148,27 @@ vim.filetype.add({
         toy = "toy",
     },
 })
+
+-- Toy Tree-sitter Configuration
+local function add_toyforth_parser()
+    require("nvim-treesitter.parsers").toyforth = {
+        install_info = {
+            path = "$TsPathEscaped",
+            queries = "queries/toyforth",
+        },
+    }
+end
+
+add_toyforth_parser()
+vim.api.nvim_create_autocmd("User", {
+    pattern = "TSUpdate",
+    callback = add_toyforth_parser,
+})
+
+vim.treesitter.language.register("toyforth", "toy")
 "@
 
 Write-Host "`n$ConfigSnippet" -ForegroundColor White
-Write-Host "`nAfter updating your config, restart Neovim and run :TSInstall toyforth" -ForegroundColor Yellow
+Write-Host "`nAfter updating your config, restart Neovim and run :TSInstall! toyforth" -ForegroundColor Yellow
 Write-Host "Note: This script attempted to remove any old parser binaries to avoid 'Access is denied' errors." -ForegroundColor Gray
 Write-Host "If the error persists, ensure ALL Neovim instances are closed and try again." -ForegroundColor Gray

@@ -11,7 +11,7 @@ Visual Studio Code extension for Toy, providing syntax highlighting and integrat
 ## Setup & Installation
 
 > [!IMPORTANT]
-> Although the VS Code extension uses TextMate for highlighting, the underlying **LSP depends on Tree-sitter** for code analysis. You must ensure `tools/tree-sitter-toyforth/src/parser.c` is generated (via `tree-sitter generate`) before building the LSP binary, or the compilation will fail.
+> Although the VS Code extension uses TextMate for highlighting, the underlying **LSP depends on Tree-sitter** for code analysis. You must ensure `tools/tree-sitter-toyforth/src/parser.c` is generated (via `tree-sitter generate --abi 15`) before building the LSP binary, or the compilation will fail.
 
 The extension expects the LSP executable to be located in a `bin/` subdirectory within the extension folder (`tools/vscode-toyforth/bin/`).
 
@@ -19,7 +19,7 @@ The extension expects the LSP executable to be located in a `bin/` subdirectory 
 First, ensure the Tree-sitter parser is generated in `tools/tree-sitter-toyforth`:
 ```powershell
 cd tools/tree-sitter-toyforth
-tree-sitter generate
+tree-sitter generate --abi 15
 cd ../..
 ```
 

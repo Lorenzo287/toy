@@ -22,7 +22,7 @@ It uses the Tree-sitter parser for indexing and providing IDE features.
 
 > [!IMPORTANT]
 > The LSP relies on the Tree-sitter parser for code analysis. You **must** generate the parser in 
-> `tools/tree-sitter-toyforth` by running `tree-sitter generate` before running or building the LSP. 
+> `tools/tree-sitter-toyforth` by running `tree-sitter generate --abi 15` before running or building the LSP.
 > Without the generated `parser.c`, the Go Tree-sitter bindings will fail to compile or function.
 
 ### Run from Source
@@ -46,13 +46,12 @@ go build -o toyforth-lsp.exe ./cmd/toyforth-lsp
 
 ### Neovim
 
-You can use the automated installation script to build the LSP and generate the Tree-sitter parser, 
-installing them to a central location:
+You can use the automated installation script to build the LSP, generate the Tree-sitter parser, install both to a central location, and remove stale generated Neovim parser/query artifacts:
 
 - **Windows**: `.\tools\install-nvim.ps1`
 - **Linux/macOS**: `bash tools/install-nvim.sh`
 
-Follow the instructions printed by the script to update your `init.lua`.
+Follow the instructions printed by the script to update your Neovim config. After adding the printed Tree-sitter snippet, restart Neovim and run `:TSInstall! toyforth`. See [Toy Tree-sitter](tree-sitter.md) for the manual parser setup.
 
 Alternatively, register the LSP manually:
 
