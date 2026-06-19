@@ -1621,6 +1621,7 @@ tf_ret tf_error(tf_ctx *ctx) {
                 ctx->error_reported = true;
             }
             tf_obj_release(msg);
+            ctx->program_error = true;
             return TF_ERR;
         }
     }

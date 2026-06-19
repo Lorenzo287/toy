@@ -157,8 +157,13 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
 
         tf_ret result = run_source(ctx, "<repl>", source, debug);
         if (result == TF_ERR && !trace_enabled) {
-            printf("%snot ok%s\n", tf_console_clr(TF_CLR_ERR),
-                   tf_console_clr(TF_CLR_RESET));
+            if (ctx->program_error) {
+                printf("%snot ok%s\n", tf_console_clr(TF_CLR_PROGRAM_ERR),
+                       tf_console_clr(TF_CLR_RESET));
+            } else {
+                printf("%snot ok%s\n", tf_console_clr(TF_CLR_ERR),
+                       tf_console_clr(TF_CLR_RESET));
+            }
         } else if (result == TF_INTERRUPTED || result == TF_REPL_TOGGLE) {
             fflush(stdout);
         } else {
