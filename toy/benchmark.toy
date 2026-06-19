@@ -4,8 +4,9 @@
 	| block count name |
 	$name printf ": " printf
 	clock
-	0 $count [ $block exec ] times
-	drop
+	0 \ dummy value
+	$count [ $block exec ] times
+	drop \ cleanup result of block
 	clock swap - printf " ticks\n" printf
 ] def
 

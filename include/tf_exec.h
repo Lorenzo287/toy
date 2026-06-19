@@ -3,7 +3,7 @@
 
 #include "tf_obj.h"
 
-typedef enum { TF_OK, TF_ERR, TF_INTERRUPTED, TF_REPL_TOGGLE } tf_ret;
+typedef enum { TF_OK, TF_ERR, TF_INTERRUPTED, TF_REPL_COMMAND } tf_ret;
 
 typedef struct tf_ctx tf_ctx;
 typedef tf_ret (*tf_native_fn)(tf_ctx *ctx);
@@ -11,6 +11,17 @@ typedef tf_ret (*tf_frame_step_fn)(tf_ctx *ctx, void *state, bool *done);
 typedef void (*tf_frame_cleanup_fn)(tf_ctx *ctx, void *state, tf_ret status);
 typedef tf_ret (*tf_frame_error_fn)(tf_ctx *ctx, void *state, tf_ret status,
                                     bool *handled);
+
+/* Native registration metadata shared with interactive tooling. */
+typedef struct {
+    const char *name;
+    tf_native_fn cb;
+} tf_builtin_word;
+
+typedef struct {
+    const char *title;
+    const tf_builtin_word *words;
+} tf_builtin_group;
 
 typedef enum { TF_WORD_NATIVE, TF_WORD_USER } tf_word_kind;
 /*
@@ -126,6 +137,9 @@ void tf_frame_pop(tf_ctx *ctx, tf_ret status);
 /* Context lifecycle. */
 tf_ctx *tf_ctx_new(int argc, char **argv);
 void tf_ctx_free(tf_ctx *ctx);
+
+/* Read-only native catalog, in presentation order. */
+const tf_builtin_group *tf_builtin_groups(size_t *count);
 
 /* Global word dictionary. */
 void tf_dict_set_native(tf_ctx *ctx, const char *name, tf_native_fn cb);

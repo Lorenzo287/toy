@@ -2,6 +2,11 @@
 
 Toy includes an interactive REPL when started without a filename.
 
+Type `help` to display the current native words grouped by category. REPL-only
+commands appear in their own section, and definitions created during the
+session appear under `User words`. The catalog is formatted to the current
+terminal width.
+
 ## Starting It
 
 ```powershell
@@ -83,6 +88,7 @@ The REPL uses vendored `linenoise`:
 - tab completion for known words
 - syntax-aware hints (type `hints` to toggle)
 - automatic stack display after successful input (type `trace` to toggle)
+- categorized word catalog (type `help`)
 
 ## Colors and Status
 

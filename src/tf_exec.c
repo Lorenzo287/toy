@@ -325,18 +325,13 @@ static void dict_resize(tf_ctx *ctx) {
 
 /* === Context Initialization === */
 
-typedef struct {
-    const char *name;
-    tf_native_fn cb;
-} builtin_word;
-
-static void register_builtin_group(tf_ctx *ctx, const builtin_word *words) {
-    for (size_t i = 0; words[i].name; i++) {
-        tf_dict_set_native(ctx, words[i].name, words[i].cb);
+static void register_builtin_group(tf_ctx *ctx, const tf_builtin_group *group) {
+    for (size_t i = 0; group->words[i].name; i++) {
+        tf_dict_set_native(ctx, group->words[i].name, group->words[i].cb);
     }
 }
 
-static const builtin_word native_math_words[] = {
+static const tf_builtin_word native_math_words[] = {
     {"+", tf_add},       {"-", tf_sub},     {"*", tf_mul},
     {"/", tf_div},       {"%", tf_mod},     {"mod", tf_mod},
     {"neg", tf_neg},     {"abs", tf_abs},   {"max", tf_max},
@@ -346,16 +341,18 @@ static const builtin_word native_math_words[] = {
     {"floor", tf_floor}, {"ceil", tf_ceil}, {"round", tf_round},
     {"pred", tf_pred},   {"succ", tf_succ}, {"square", tf_square},
     {"cube", tf_cube},   {"pi", tf_pi},     {"e", tf_e},
-    {"tau", tf_tau},     {NULL, NULL},
+    {"tau", tf_tau},     {"inf", tf_inf},   {"nan", tf_nan},
+    {"inf?", tf_inf_q},  {"nan?", tf_nan_q}, {"rand", tf_rand},
+    {NULL, NULL},
 };
 
-static const builtin_word native_logic_words[] = {
+static const tf_builtin_word native_logic_words[] = {
     {"and", tf_and}, {"or", tf_or},   {"xor", tf_xor},
     {"not", tf_not}, {"shl", tf_shl}, {"shr", tf_shr},
     {NULL, NULL},
 };
 
-static const builtin_word native_stack_words[] = {
+static const tf_builtin_word native_stack_words[] = {
     {"dup", tf_dup},     {"drop", tf_drop}, {"swap", tf_swap},
     {"over", tf_over},   {"rot", tf_rot},   {"swapd", tf_swapd},
     {"nip", tf_nip},     {"tuck", tf_tuck}, {"pick", tf_pick},
@@ -363,42 +360,47 @@ static const builtin_word native_stack_words[] = {
     {NULL, NULL},
 };
 
-static const builtin_word native_io_words[] = {
+static const tf_builtin_word native_console_words[] = {
     {"printf", tf_printf}, {"print", tf_print}, {"cr", tf_cr},
     {".", tf_dot},         {".s", tf_stack},    {".S", tf_stack_source},
-    {"key", tf_key},
-    {"input", tf_input},   {"load", tf_load}, {"readf", tf_readf},
-    {"writef", tf_writef}, {"delf", tf_delf},   {"readl", tf_readl},
-    {"exists?", tf_exists_q}, {"clear", tf_clear}, {"page", tf_clear},
+    {"key", tf_key},       {"input", tf_input},
+    {"clear", tf_clear},   {"page", tf_clear},
     {NULL, NULL},
 };
 
-static const builtin_word native_comparison_words[] = {
+static const tf_builtin_word native_file_words[] = {
+    {"load", tf_load},       {"readf", tf_readf},
+    {"writef", tf_writef},   {"delf", tf_delf},
+    {"readl", tf_readl},     {"exists?", tf_exists_q},
+    {NULL, NULL},
+};
+
+static const tf_builtin_word native_comparison_words[] = {
     {"==", tf_eq}, {"!=", tf_ne}, {"<", tf_lt},
     {">", tf_gt}, {"<=", tf_le}, {">=", tf_ge},
     {NULL, NULL},
 };
 
-static const builtin_word native_definition_words[] = {
-    {"def", tf_def}, {NULL, NULL},
+static const tf_builtin_word native_control_words[] = {
+    {"exec", tf_exec},     {"i", tf_exec},
+    {"if", tf_if},         {"ifelse", tf_ifelse},
+    {"while", tf_while},   {"cond", tf_cond},
+    {"try", tf_try},       {"error", tf_error},
+    {NULL, NULL},
 };
 
-static const builtin_word native_control_words[] = {
-    {"exec", tf_exec},       {"i", tf_exec},
-    {"app2", tf_app2},       {"if", tf_if},
-    {"ifelse", tf_ifelse}, {"while", tf_while},
-    {"try", tf_try},       {"error", tf_error},
-    {"infra", tf_infra},   {"cond", tf_cond},
-    {"cleave", tf_cleave}, {"construct", tf_construct},
+static const tf_builtin_word native_combinator_words[] = {
+    {"app2", tf_app2},       {"infra", tf_infra},
+    {"cleave", tf_cleave},   {"construct", tf_construct},
     {"replicate", tf_replicate}, {"times", tf_times},
-    {"dip", tf_dip},       {"keep", tf_keep},
-    {"bi", tf_bi},         {"linrec", tf_linrec},
-    {"binrec", tf_binrec}, {"genrec", tf_genrec},
+    {"dip", tf_dip},         {"keep", tf_keep},
+    {"bi", tf_bi},           {"linrec", tf_linrec},
+    {"binrec", tf_binrec},   {"genrec", tf_genrec},
     {"treerec", tf_treerec},
     {NULL, NULL},
 };
 
-static const builtin_word native_collection_combinator_words[] = {
+static const tf_builtin_word native_sequence_combinator_words[] = {
     {"each", tf_each},     {"map", tf_map},
     {"fold", tf_fold},     {"filter", tf_filter},
     {"some", tf_some},     {"all", tf_all},
@@ -409,18 +411,43 @@ static const builtin_word native_collection_combinator_words[] = {
 /* Sequence data words are shared by vectors, lists, and strings when the
  * operation has the same shape. String items are one-byte strings: append adds
  * one item, while concat combines two sequences. */
-static const builtin_word native_data_words[] = {
+static const tf_builtin_word native_sequence_words[] = {
     {"at", tf_at},           {"set-at", tf_set_at},
     {">vector", tf_to_vector}, {">list", tf_to_list},
-    {">map", tf_to_map},     {">set", tf_to_set},
-    {">deque", tf_to_deque}, {">pqueue", tf_to_pqueue},
     {"contains?", tf_contains_q}, {"indexof", tf_indexof},
     {"unique", tf_unique},   {"sort", tf_sort},
+    {"slice", tf_slice},     {"take", tf_take},
+    {"dropn", tf_dropn},     {"len", tf_len},
+    {"first", tf_first},     {"rest", tf_rest},
+    {"uncons", tf_uncons},   {"cons", tf_cons},
+    {"append", tf_append},   {"concat", tf_concat},
+    {"reverse", tf_reverse}, {"splitmid", tf_splitmid},
+    {"range", tf_range},     {"empty?", tf_empty_q},
+    {NULL, NULL},
+};
+
+static const tf_builtin_word native_string_words[] = {
+    {"join", tf_join},       {"trim", tf_trim},
+    {"upper", tf_upper},     {"lower", tf_lower},
+    {"char?", tf_char_q},    {"letter?", tf_letter_q},
+    {"digit?", tf_digit_q},  {"alnum?", tf_alnum_q},
+    {"space?", tf_space_q},  {"upper?", tf_upper_q},
+    {"lower?", tf_lower_q},  {"punct?", tf_punct_q},
+    {NULL, NULL},
+};
+
+static const tf_builtin_word native_map_set_words[] = {
+    {">map", tf_to_map},     {">set", tf_to_set},
     {"has?", tf_has_q},      {"get", tf_get},
     {"assoc", tf_assoc},     {"dissoc", tf_dissoc},
     {"keys", tf_keys},       {"values", tf_values},
     {"pairs", tf_pairs},     {"items", tf_items},
     {"adjoin", tf_adjoin},   {"remove", tf_remove},
+    {NULL, NULL},
+};
+
+static const tf_builtin_word native_deque_pqueue_words[] = {
+    {">deque", tf_to_deque}, {">pqueue", tf_to_pqueue},
     {"push-front", tf_push_front},
     {"push-back", tf_push_back},
     {"pop-front", tf_pop_front},
@@ -430,54 +457,65 @@ static const builtin_word native_data_words[] = {
     {"pqueue-peek", tf_pqueue_peek_word},
     {"pqueue-pop", tf_pqueue_pop_word},
     {"pqueue-drain", tf_pqueue_drain},
-    {"slice", tf_slice},     {"take", tf_take},
-    {"dropn", tf_dropn},     {"len", tf_len},
-    {"first", tf_first},     {"rest", tf_rest},
-    {"uncons", tf_uncons},   {"cons", tf_cons},
-    {"append", tf_append},   {"concat", tf_concat},
-    {"reverse", tf_reverse},
-    {"join", tf_join},       {"trim", tf_trim},
-    {"upper", tf_upper},     {"lower", tf_lower},
-    {"splitmid", tf_splitmid},
-    {"range", tf_range},     {"empty?", tf_empty_q},
-    {"char?", tf_char_q},    {"letter?", tf_letter_q},
-    {"digit?", tf_digit_q},  {"alnum?", tf_alnum_q},
-    {"space?", tf_space_q},  {"upper?", tf_upper_q},
-    {"lower?", tf_lower_q},  {"punct?", tf_punct_q},
     {NULL, NULL},
 };
 
-static const builtin_word native_introspection_words[] = {
+static const tf_builtin_word native_type_words[] = {
     {"typeof", tf_typeof},   {"bool?", tf_bool_q},
     {"int?", tf_int_q},      {"float?", tf_float_q},
     {"string?", tf_string_q}, {"symbol?", tf_symbol_q},
     {"vector?", tf_vector_q}, {"list?", tf_list_q},
-    {"map?", tf_map_q},
-    {"set?", tf_set_q},      {"deque?", tf_deque_q},
-    {"pqueue?", tf_pqueue_q},
-    {"number?", tf_number_q},
-    {"sequence?", tf_sequence_q},
+    {"map?", tf_map_q},      {"set?", tf_set_q},
+    {"deque?", tf_deque_q},  {"pqueue?", tf_pqueue_q},
+    {"number?", tf_number_q}, {"sequence?", tf_sequence_q},
     {"callable?", tf_callable_q},
-    {"nan?", tf_nan_q},         {"inf?", tf_inf_q},
-    {"word?", tf_word_q},    {"var?", tf_var_q},
-    {"inf", tf_inf},         {"nan", tf_nan},
-    {"body", tf_body},       {"intern", tf_intern},
-    {"name", tf_name},       {"words", tf_words},
-    {"see", tf_see},         {"doc", tf_doc},
-    {"apropos", tf_apropos},
     {NULL, NULL},
 };
 
-static const builtin_word native_system_words[] = {
-    {"rand", tf_rand},       {"sleep", tf_sleep},
-    {"argc", tf_argc},       {"argv", tf_argv},
-    {"env?", tf_env_q},      {"getenv", tf_getenv},
-    {"setenv", tf_setenv},
+static const tf_builtin_word native_dictionary_words[] = {
+    {"def", tf_def},       {"word?", tf_word_q},
+    {"var?", tf_var_q},   {"body", tf_body},
+    {"intern", tf_intern}, {"name", tf_name},
+    {"words", tf_words},   {"see", tf_see},
+    {"doc", tf_doc},       {"apropos", tf_apropos},
+    {NULL, NULL},
+};
+
+static const tf_builtin_word native_system_words[] = {
+    {"sleep", tf_sleep},     {"argc", tf_argc},
+    {"argv", tf_argv},       {"env?", tf_env_q},
+    {"getenv", tf_getenv},   {"setenv", tf_setenv},
     {"pwd", tf_pwd},         {"shell", tf_shell},
     {"time", tf_time},       {"clock", tf_clock},
     {"bye", tf_exit},        {"exit", tf_exit},
     {NULL, NULL},
 };
+
+static const tf_builtin_group native_builtin_groups[] = {
+    {"Stack", native_stack_words},
+    {"Math", native_math_words},
+    {"Logic / Bitwise", native_logic_words},
+    {"Comparison", native_comparison_words},
+    {"Control", native_control_words},
+    {"Combinators", native_combinator_words},
+    {"Sequence Combinators", native_sequence_combinator_words},
+    {"Sequence", native_sequence_words},
+    {"String", native_string_words},
+    {"Map / Set", native_map_set_words},
+    {"Deque / Priority Queue", native_deque_pqueue_words},
+    {"Types", native_type_words},
+    {"Dictionary / Symbols", native_dictionary_words},
+    {"Console", native_console_words},
+    {"Files", native_file_words},
+    {"System", native_system_words},
+};
+
+const tf_builtin_group *tf_builtin_groups(size_t *count) {
+    if (count) {
+        *count = sizeof(native_builtin_groups) / sizeof(native_builtin_groups[0]);
+    }
+    return native_builtin_groups;
+}
 
 tf_ctx *tf_ctx_new(int argc, char **argv) {
     srand(time(NULL));
@@ -497,17 +535,11 @@ tf_ctx *tf_ctx_new(int argc, char **argv) {
     ctx->current_span = (tf_source_span){0};
     ctx->current_word = NULL;
 
-    register_builtin_group(ctx, native_math_words);
-    register_builtin_group(ctx, native_logic_words);
-    register_builtin_group(ctx, native_stack_words);
-    register_builtin_group(ctx, native_io_words);
-    register_builtin_group(ctx, native_comparison_words);
-    register_builtin_group(ctx, native_definition_words);
-    register_builtin_group(ctx, native_control_words);
-    register_builtin_group(ctx, native_collection_combinator_words);
-    register_builtin_group(ctx, native_data_words);
-    register_builtin_group(ctx, native_introspection_words);
-    register_builtin_group(ctx, native_system_words);
+    size_t group_count = 0;
+    const tf_builtin_group *groups = tf_builtin_groups(&group_count);
+    for (size_t i = 0; i < group_count; i++) {
+        register_builtin_group(ctx, &groups[i]);
+    }
 
     return ctx;
 }
@@ -729,9 +761,9 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
                     frame_unwind_to(ctx, entry_depth, TF_INTERRUPTED);
                     return TF_INTERRUPTED;
                 }
-                if (call_res == TF_REPL_TOGGLE) {
-                    frame_unwind_to(ctx, entry_depth, TF_REPL_TOGGLE);
-                    return TF_REPL_TOGGLE;
+                if (call_res == TF_REPL_COMMAND) {
+                    frame_unwind_to(ctx, entry_depth, TF_REPL_COMMAND);
+                    return TF_REPL_COMMAND;
                 }
                 if (call_res == TF_ERR) {
                     if (ctx->error_suppression_depth == 0 &&

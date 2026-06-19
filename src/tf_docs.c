@@ -199,6 +199,7 @@ static const tf_doc_entry builtin_docs[] = {
     {"exit", "--", "", "Terminate the interpreter."},
     {"bye", "--", "", "Terminate the interpreter."},
     {"def", "'name block --", "", "Bind a quoted symbol to a block definition."},
+    {"help", "--", "", "Show the categorized REPL word catalog."},
     {"hints", "--", "", "Toggle REPL inline stack-effect hints."},
     {"trace", "--", "", "Toggle REPL stack display after successful input."},
 };

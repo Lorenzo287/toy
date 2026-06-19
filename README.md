@@ -138,21 +138,24 @@ changing the data stack.
 
 ## Built-in Words
 
-| Category      | Words |
-| ------------- | ----- |
-| Stack         | `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty` |
-| Math          | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `max`, `min`, `sqrt`, `pow`, `exp`, `log`, `log10`, `sin`, `cos`, `tan`, `floor`, `ceil`, `round`, `pred`, `succ`, `square`, `cube`, `pi`, `e`, `tau` |
-| Logic         | `and`, `or`, `xor`, `not`, `shl`, `shr` |
-| Comparison    | `==`, `!=`, `<`, `>`, `<=`, `>=` |
-| Control       | `if`, `ifelse`, `while`, `try`, `error`, `exec`, `i`, `app2`, `infra`, `cond`, `cleave`, `construct`, `replicate`, `times`, `dip`, `keep`, `bi`, `linrec`, `binrec`, `genrec`, `treerec` |
-| Combinators   | `each`, `map`, `fold`, `filter`, `some`, `all`, `split`, `merge` |
-| Sequence/Data | `at`, `set-at`, `>vector`, `>list`, `contains?`, `indexof`, `unique`, `sort`, `slice`, `take`, `dropn`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `reverse`, `join`, `trim`, `upper`, `lower`, `splitmid`, `range`, `empty?`, `char?`, `letter?`, `digit?`, `alnum?`, `space?`, `upper?`, `lower?`, `punct?` |
-| Map/Set       | `>map`, `>set`, `has?`, `get`, `assoc`, `dissoc`, `keys`, `values`, `pairs`, `items`, `adjoin`, `remove` |
-| Deque/PQueue  | `>deque`, `push-front`, `push-back`, `pop-front`, `pop-back`, `front`, `back`, `>pqueue`, `pqueue-push`, `pqueue-peek`, `pqueue-pop`, `pqueue-drain` |
-| Introspection | `typeof`, `bool?`, `int?`, `float?`, `string?`, `symbol?`, `vector?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `number?`, `sequence?`, `callable?`, `nan?`, `inf?`, `word?`, `var?`, `inf`, `nan`, `body`, `intern`, `name`, `words`, `see`, `doc`, `apropos` |
-| I/O           | `print`, `printf`, `.`, `.s`, `.S`, `cr`, `key`, `input`, `load`, `readf`, `writef`, `delf`, `readl`, `exists?`, `clear`, `page` |
-| System        | `rand`, `sleep`, `argc`, `argv`, `env?`, `getenv`, `setenv`, `pwd`, `shell`, `time`, `clock`, `bye`, `exit` |
-| Definition    | `def` |
+| Category                 | Words |
+| ------------------------ | ----- |
+| Stack                    | `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty` |
+| Math                     | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `max`, `min`, `sqrt`, `pow`, `exp`, `log`, `log10`, `sin`, `cos`, `tan`, `floor`, `ceil`, `round`, `pred`, `succ`, `square`, `cube`, `pi`, `e`, `tau`, `inf`, `nan`, `inf?`, `nan?`, `rand` |
+| Logic / Bitwise          | `and`, `or`, `xor`, `not`, `shl`, `shr` |
+| Comparison               | `==`, `!=`, `<`, `>`, `<=`, `>=` |
+| Control                  | `exec`, `i`, `if`, `ifelse`, `while`, `cond`, `try`, `error` |
+| Combinators              | `app2`, `infra`, `cleave`, `construct`, `replicate`, `times`, `dip`, `keep`, `bi`, `linrec`, `binrec`, `genrec`, `treerec` |
+| Sequence Combinators     | `each`, `map`, `fold`, `filter`, `some`, `all`, `split`, `merge` |
+| Sequence                 | `at`, `set-at`, `>vector`, `>list`, `contains?`, `indexof`, `unique`, `sort`, `slice`, `take`, `dropn`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `reverse`, `splitmid`, `range`, `empty?` |
+| String                   | `join`, `trim`, `upper`, `lower`, `char?`, `letter?`, `digit?`, `alnum?`, `space?`, `upper?`, `lower?`, `punct?` |
+| Map / Set                | `>map`, `>set`, `has?`, `get`, `assoc`, `dissoc`, `keys`, `values`, `pairs`, `items`, `adjoin`, `remove` |
+| Deque / Priority Queue   | `>deque`, `>pqueue`, `push-front`, `push-back`, `pop-front`, `pop-back`, `front`, `back`, `pqueue-push`, `pqueue-peek`, `pqueue-pop`, `pqueue-drain` |
+| Types                    | `typeof`, `bool?`, `int?`, `float?`, `string?`, `symbol?`, `vector?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `number?`, `sequence?`, `callable?` |
+| Dictionary / Symbols     | `def`, `word?`, `var?`, `body`, `intern`, `name`, `words`, `see`, `doc`, `apropos` |
+| Console                  | `printf`, `print`, `cr`, `.`, `.s`, `.S`, `key`, `input`, `clear`, `page` |
+| Files                    | `load`, `readf`, `writef`, `delf`, `readl`, `exists?` |
+| System                   | `sleep`, `argc`, `argv`, `env?`, `getenv`, `setenv`, `pwd`, `shell`, `time`, `clock`, `bye`, `exit` |
 
 ## Tooling
 

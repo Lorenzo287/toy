@@ -1,10 +1,12 @@
 #include "tf_console.h"
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #ifdef _WIN32
 #include <windows.h>
 #else
+#include <sys/ioctl.h>
 #include <unistd.h>
 #endif
 
@@ -46,6 +48,28 @@ bool tf_console_use_color(void) {
 
 const char *tf_console_clr(const char *code) {
     return console_color_enabled ? code : "";
+}
+
+size_t tf_console_width(void) {
+    const char *cols_env = getenv("LINENOISE_COLS");
+    if (cols_env) {
+        char *end = NULL;
+        long cols = strtol(cols_env, &end, 10);
+        if (end != cols_env && *end == '\0' && cols > 0) return (size_t)cols;
+    }
+
+#ifdef _WIN32
+    CONSOLE_SCREEN_BUFFER_INFO info;
+    if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &info)) {
+        return (size_t)(info.srWindow.Right - info.srWindow.Left + 1);
+    }
+#else
+    struct winsize size;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &size) == 0 && size.ws_col > 0) {
+        return size.ws_col;
+    }
+#endif
+    return 80;
 }
 
 void tf_console_lexer_errorf(const char *fmt, ...) {

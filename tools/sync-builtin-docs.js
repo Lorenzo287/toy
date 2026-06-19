@@ -52,6 +52,12 @@ while ((match = entryRe.exec(source)) !== null) {
 
 entries.push(
   {
+    name: 'help',
+    stackEffect: '--',
+    syntax: '',
+    description: 'Show the categorized REPL word catalog.',
+  },
+  {
     name: 'hints',
     stackEffect: '--',
     syntax: '',

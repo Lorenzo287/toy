@@ -50,6 +50,16 @@ static void repl_completion(const char *buf, linenoiseCompletions *lc);
 static char *repl_hints(const char *buf, int *color, int *bold);
 static void repl_free_hints(void *ptr);
 static char *doc_stack_hint(const tf_doc_entry *doc);
+static tf_ret help_show(tf_ctx *ctx);
+static tf_ret hints_toggle(tf_ctx *ctx);
+static tf_ret trace_toggle(tf_ctx *ctx);
+
+static const tf_builtin_word repl_words[] = {
+    {"help", help_show},
+    {"hints", hints_toggle},
+    {"trace", trace_toggle},
+    {NULL, NULL},
+};
 
 tf_ret tf_run_file(tf_ctx *ctx, const char *filename, bool debug) {
     FILE *fp = fopen(filename, "r");
@@ -77,7 +87,7 @@ static tf_ret hints_toggle(tf_ctx *ctx) {
     hints_enabled = !hints_enabled;
     printf("%shints: %s%s\n", tf_console_clr(TF_CLR_INFO),
            tf_console_clr(TF_CLR_RESET), hints_enabled ? "on" : "off");
-    return TF_REPL_TOGGLE;
+    return TF_REPL_COMMAND;
 }
 
 static tf_ret trace_toggle(tf_ctx *ctx) {
@@ -85,7 +95,103 @@ static tf_ret trace_toggle(tf_ctx *ctx) {
     trace_enabled = !trace_enabled;
     printf("%strace: %s%s\n", tf_console_clr(TF_CLR_INFO),
            tf_console_clr(TF_CLR_RESET), trace_enabled ? "on" : "off");
-    return TF_REPL_TOGGLE;
+    return TF_REPL_COMMAND;
+}
+
+static int name_ptr_cmp(const void *a, const void *b) {
+    const char *const *left = a;
+    const char *const *right = b;
+    return strcmp(*left, *right);
+}
+
+static bool native_word_is_active(tf_ctx *ctx, const tf_builtin_word *builtin) {
+    tf_obj *name = tf_obj_new_symbol((char *)builtin->name, strlen(builtin->name));
+    tf_word *word = tf_dict_lookup(ctx, name);
+    tf_obj_release(name);
+    return word && word->type == TF_WORD_NATIVE && word->native_impl == builtin->cb;
+}
+
+static void print_word_grid(const char *title, const char **names, size_t count) {
+    if (count == 0) return;
+
+    qsort(names, count, sizeof(*names), name_ptr_cmp);
+
+    size_t longest = 0;
+    for (size_t i = 0; i < count; i++) {
+        size_t len = strlen(names[i]);
+        if (len > longest) longest = len;
+    }
+
+    size_t column_width = longest + 2;
+    size_t console_width = tf_console_width();
+    size_t available = console_width > 2 ? console_width - 2 : 1;
+    size_t columns = available / column_width;
+    if (columns == 0) columns = 1;
+    if (columns > count) columns = count;
+    size_t rows = (count + columns - 1) / columns;
+
+    char form_title[strlen(title) + strlen("===  ===") + 1];
+    snprintf(form_title, sizeof(form_title), "=== %s ===", title);
+    // int padding = (tf_console_width() - strlen(form_title)) / 2 + strlen(form_title);
+    // printf("%s%*s%s\n", tf_console_clr(TF_CLR_PROMPT), padding, form_title,
+    printf("%s%s%s\n", tf_console_clr(TF_CLR_RESET), title,
+           tf_console_clr(TF_CLR_RESET));
+    for (size_t row = 0; row < rows; row++) {
+        printf("  ");
+        for (size_t column = 0; column < columns; column++) {
+            size_t index = column * rows + row;
+            if (index >= count) continue;
+
+            printf("%s", names[index]);
+            size_t next = (column + 1) * rows + row;
+            if (next < count) {
+                size_t padding = column_width - strlen(names[index]);
+                printf("%*s", (int)padding, "");
+            }
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
+static void print_builtin_group(tf_ctx *ctx, const tf_builtin_group *group) {
+    size_t capacity = 0;
+    while (group->words[capacity].name) capacity++;
+
+    const char **names = capacity ? tf_xmalloc(sizeof(*names) * capacity) : NULL;
+    size_t count = 0;
+    for (size_t i = 0; i < capacity; i++) {
+        if (native_word_is_active(ctx, &group->words[i])) {
+            names[count++] = group->words[i].name;
+        }
+    }
+
+    print_word_grid(group->title, names, count);
+    free(names);
+}
+
+static tf_ret help_show(tf_ctx *ctx) {
+    size_t group_count = 0;
+    const tf_builtin_group *groups = tf_builtin_groups(&group_count);
+    for (size_t i = 0; i < group_count; i++) {
+        print_builtin_group(ctx, &groups[i]);
+    }
+
+    const tf_builtin_group repl_group = {"REPL", repl_words};
+    print_builtin_group(ctx, &repl_group);
+
+    const char **user_names =
+        ctx->words.count ? tf_xmalloc(sizeof(*user_names) * ctx->words.count) : NULL;
+    size_t user_count = 0;
+    for (size_t i = 0; i < ctx->words.capacity; i++) {
+        tf_word *word = ctx->words.buckets[i];
+        if (word && word->type == TF_WORD_USER) {
+            user_names[user_count++] = word->name->str.ptr;
+        }
+    }
+    print_word_grid("User words", user_names, user_count);
+    free(user_names);
+    return TF_REPL_COMMAND;
 }
 
 tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
@@ -99,8 +205,10 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
     init_repl_ui(ctx);
     printf("%s=== Toy REPL ===%s\n", tf_console_clr(TF_CLR_PROMPT),
            tf_console_clr(TF_CLR_RESET));
-    printf("%sType 'hints' to toggle hints, 'trace' to toggle stack display.%s\n",
-           tf_console_clr(TF_CLR_INFO), tf_console_clr(TF_CLR_RESET));
+    printf(
+        "%sType 'help' for words, 'hints' to toggle hints, or 'trace' to "
+        "toggle stack display.%s\n",
+        tf_console_clr(TF_CLR_INFO), tf_console_clr(TF_CLR_RESET));
 #ifdef _WIN32
     printf("%sPress Ctrl-Z to exit.%s\n", tf_console_clr(TF_CLR_INFO),
            tf_console_clr(TF_CLR_RESET));
@@ -164,7 +272,7 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
                 printf("%snot ok%s\n", tf_console_clr(TF_CLR_ERR),
                        tf_console_clr(TF_CLR_RESET));
             }
-        } else if (result == TF_INTERRUPTED || result == TF_REPL_TOGGLE) {
+        } else if (result == TF_INTERRUPTED || result == TF_REPL_COMMAND) {
             fflush(stdout);
         } else {
             if (trace_enabled) {
@@ -455,8 +563,9 @@ static void init_repl_ui(tf_ctx *ctx) {
         history_atexit_registered = 1;
     }
 
-    tf_dict_set_native(ctx, "hints", hints_toggle);
-    tf_dict_set_native(ctx, "trace", trace_toggle);
+    for (size_t i = 0; repl_words[i].name; i++) {
+        tf_dict_set_native(ctx, repl_words[i].name, repl_words[i].cb);
+    }
 
     linenoiseSetMultiLine(1);
     linenoiseHistorySetMaxLen(256);

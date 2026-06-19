@@ -2,6 +2,7 @@
 #define TF_CONSOLE_H
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #define TF_CLR_RESET "\x1b[0m"
 #define TF_CLR_PROMPT "\x1b[96m"
@@ -15,6 +16,7 @@
 void tf_console_init(void);
 bool tf_console_use_color(void);
 const char *tf_console_clr(const char *code);
+size_t tf_console_width(void);
 
 /* User-facing diagnostics that do not depend on interpreter source context. */
 void tf_console_lexer_errorf(const char *fmt, ...);
