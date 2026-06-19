@@ -282,7 +282,10 @@ static bool frame_handle_error(tf_ctx *ctx, size_t entry_depth,
                 status = res;
                 continue;
             }
-            if (handled) return true;
+            if (handled) {
+                ctx->program_error = false;
+                return true;
+            }
         }
         tf_frame_pop(ctx, status);
     }
@@ -490,6 +493,7 @@ tf_ctx *tf_ctx_new(int argc, char **argv) {
     ctx->argv = argv;
     ctx->error_suppression_depth = 0;
     ctx->error_reported = false;
+    ctx->program_error = false;
     ctx->current_span = (tf_source_span){0};
     ctx->current_word = NULL;
 
@@ -666,6 +670,7 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
      * instead of re-entering tf_vm_exec(). */
     size_t entry_depth = ctx->call_stack_len;
     ctx->error_reported = false;
+    ctx->program_error = false;
     tf_frame_push_program(ctx, program);
 
     while (ctx->call_stack_len > entry_depth) {
@@ -680,10 +685,14 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
             bool done = false;
             tf_ret cont_res = f->step(ctx, f->state, &done);
             if (cont_res != TF_OK) {
-                if (ctx->error_suppression_depth == 0 && !ctx->error_reported) {
-                    tf_ctx_runtime_errorf(ctx, "execution failed\n");
+                if (cont_res == TF_ERR) {
+                    if (ctx->error_suppression_depth == 0 && !ctx->error_reported) {
+                        tf_ctx_runtime_errorf(ctx, "execution failed\n");
+                    }
+                    if (frame_handle_error(ctx, entry_depth, cont_res)) continue;
+                } else {
+                    frame_unwind_to(ctx, entry_depth, cont_res);
                 }
-                if (frame_handle_error(ctx, entry_depth, cont_res)) continue;
                 return cont_res;
             }
             if (done) tf_frame_pop(ctx, TF_OK);
@@ -719,6 +728,10 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
                 if (call_res == TF_INTERRUPTED) {
                     frame_unwind_to(ctx, entry_depth, TF_INTERRUPTED);
                     return TF_INTERRUPTED;
+                }
+                if (call_res == TF_REPL_TOGGLE) {
+                    frame_unwind_to(ctx, entry_depth, TF_REPL_TOGGLE);
+                    return TF_REPL_TOGGLE;
                 }
                 if (call_res == TF_ERR) {
                     if (ctx->error_suppression_depth == 0 &&

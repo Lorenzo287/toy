@@ -3,7 +3,7 @@
 
 #include "tf_obj.h"
 
-typedef enum { TF_OK, TF_ERR, TF_INTERRUPTED } tf_ret;
+typedef enum { TF_OK, TF_ERR, TF_INTERRUPTED, TF_REPL_TOGGLE } tf_ret;
 
 typedef struct tf_ctx tf_ctx;
 typedef tf_ret (*tf_native_fn)(tf_ctx *ctx);
@@ -86,6 +86,7 @@ struct tf_ctx {
     char **argv;
     size_t error_suppression_depth;
     bool error_reported;
+    bool program_error;
     tf_source_span current_span;
     const char *current_word;
 };

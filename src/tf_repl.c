@@ -7,6 +7,7 @@
 #include "tf_alloc.h"
 #include "tf_console.h"
 #include "tf_docs.h"
+#include "tf_exec.h"
 #include "tf_lexer.h"
 #include "tf_obj.h"
 #include <linenoise.h>
@@ -76,7 +77,7 @@ static tf_ret hints_toggle(tf_ctx *ctx) {
     hints_enabled = !hints_enabled;
     printf("%shints: %s%s\n", tf_console_clr(TF_CLR_INFO),
            tf_console_clr(TF_CLR_RESET), hints_enabled ? "on" : "off");
-    return TF_OK;
+    return TF_REPL_TOGGLE;
 }
 
 static tf_ret trace_toggle(tf_ctx *ctx) {
@@ -84,7 +85,7 @@ static tf_ret trace_toggle(tf_ctx *ctx) {
     trace_enabled = !trace_enabled;
     printf("%strace: %s%s\n", tf_console_clr(TF_CLR_INFO),
            tf_console_clr(TF_CLR_RESET), trace_enabled ? "on" : "off");
-    return TF_OK;
+    return TF_REPL_TOGGLE;
 }
 
 tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
@@ -99,8 +100,7 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
     printf("%s=== Toy REPL ===%s\n", tf_console_clr(TF_CLR_PROMPT),
            tf_console_clr(TF_CLR_RESET));
     printf("%sType 'hints' to toggle hints, 'trace' to toggle stack display.%s\n",
-           tf_console_clr(TF_CLR_INFO),
-           tf_console_clr(TF_CLR_RESET));
+           tf_console_clr(TF_CLR_INFO), tf_console_clr(TF_CLR_RESET));
 #ifdef _WIN32
     printf("%sPress Ctrl-Z to exit.%s\n", tf_console_clr(TF_CLR_INFO),
            tf_console_clr(TF_CLR_RESET));
@@ -156,16 +156,25 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
         if (!input_complete(&state)) { continue; }
 
         tf_ret result = run_source(ctx, "<repl>", source, debug);
-        if (result == TF_ERR) {
+        if (result == TF_ERR && !trace_enabled) {
             printf("%snot ok%s\n", tf_console_clr(TF_CLR_ERR),
                    tf_console_clr(TF_CLR_RESET));
-        } else if (result == TF_INTERRUPTED) {
+        } else if (result == TF_INTERRUPTED || result == TF_REPL_TOGGLE) {
             fflush(stdout);
         } else {
             if (trace_enabled) {
                 size_t stack_len = tf_stack_len(ctx);
-                printf("%s<%zu>%s", tf_console_clr(TF_CLR_OK), stack_len,
-                       tf_console_clr(TF_CLR_RESET));
+                if (result == TF_ERR) {
+                    if (ctx->program_error) {
+                        printf("%s<%zu>%s", tf_console_clr(TF_CLR_PROGRAM_ERR),
+                               stack_len, tf_console_clr(TF_CLR_RESET));
+                    } else
+                        printf("%s<%zu>%s", tf_console_clr(TF_CLR_ERR), stack_len,
+                               tf_console_clr(TF_CLR_RESET));
+                } else {
+                    printf("%s<%zu>%s", tf_console_clr(TF_CLR_OK), stack_len,
+                           tf_console_clr(TF_CLR_RESET));
+                }
                 if (stack_len > 0) printf(" ");
                 for (size_t i = 0; i < stack_len; i++) {
                     tf_obj_print_source(tf_stack_peek(ctx, stack_len - 1 - i));
@@ -321,8 +330,8 @@ static void repl_free_hints(void *ptr) {
 
 static char *read_repl_line(bool complete) {
     errno = 0;
-    return linenoise(complete ? TF_CLR_PROMPT "tf:: " TF_CLR_RESET
-                              : TF_CLR_PROMPT "..:: " TF_CLR_RESET);
+    return linenoise(complete ? TF_CLR_PROMPT "toy:: " TF_CLR_RESET
+                              : TF_CLR_PROMPT "...:: " TF_CLR_RESET);
 }
 
 static bool append_text(char **buf, size_t *len, size_t *cap, const char *text) {
@@ -420,12 +429,8 @@ static void feed_state(repl_state *state, const char *text) {
             }
             continue;
         }
-        if (isspace((unsigned char)c)) {
-            continue;
-        }
-        if (tf_lexer_is_symbol_char((unsigned char)c)) {
-            continue;
-        }
+        if (isspace((unsigned char)c)) continue;
+        if (tf_lexer_is_symbol_char((unsigned char)c)) continue;
     }
 }
 

@@ -51,8 +51,7 @@ static void restore_stack_owned(tf_ctx *ctx, tf_obj **saved_stack,
     for (size_t i = 0; i < saved_len; i++) tf_stack_push(ctx, saved_stack[i]);
 }
 
-static void restore_stack_copy(tf_ctx *ctx, tf_obj **saved_stack,
-                               size_t saved_len) {
+static void restore_stack_copy(tf_ctx *ctx, tf_obj **saved_stack, size_t saved_len) {
     while (tf_stack_len(ctx) > 0) {
         tf_obj *o = tf_stack_pop(ctx);
         tf_obj_release(o);
@@ -81,9 +80,9 @@ static bool require_condition(tf_ctx *ctx, size_t depth) {
     tf_obj *o = tf_stack_peek(ctx, depth);
     if (o->type == TF_OBJ_TYPE_BOOL || tf_obj_is_callable(o)) return true;
 
-    tf_ctx_runtime_errorf(ctx,
-                          "'%s' expected bool or callable at stack depth %zu, found %s\n",
-                          ctx->current_word, depth, tf_obj_type_name(o));
+    tf_ctx_runtime_errorf(
+        ctx, "'%s' expected bool or callable at stack depth %zu, found %s\n",
+        ctx->current_word, depth, tf_obj_type_name(o));
     return false;
 }
 
@@ -169,11 +168,9 @@ static size_t stack_results_after(tf_ctx *ctx, size_t base_len) {
     return len > base_len ? len - base_len : 0;
 }
 
-static void save_stack_copy(tf_ctx *ctx, tf_obj ***saved_stack,
-                            size_t *saved_len) {
+static void save_stack_copy(tf_ctx *ctx, tf_obj ***saved_stack, size_t *saved_len) {
     *saved_len = tf_stack_len(ctx);
-    *saved_stack =
-        *saved_len > 0 ? tf_xmalloc(sizeof(tf_obj *) * *saved_len) : NULL;
+    *saved_stack = *saved_len > 0 ? tf_xmalloc(sizeof(tf_obj *) * *saved_len) : NULL;
     for (size_t i = 0; i < *saved_len; i++) {
         (*saved_stack)[i] = tf_stack_peek(ctx, *saved_len - 1 - i);
         tf_obj_retain((*saved_stack)[i]);
@@ -192,8 +189,7 @@ static void clear_stack(tf_ctx *ctx) {
     }
 }
 
-static tf_ret collect_outputs(tf_ctx *ctx, size_t base_len,
-                              tf_obj *outputs) {
+static tf_ret collect_outputs(tf_ctx *ctx, size_t base_len, tf_obj *outputs) {
     size_t len = tf_stack_len(ctx);
     if (len < base_len) return TF_ERR;
     for (size_t i = base_len; i < len; i++) {
@@ -356,7 +352,8 @@ static tf_ret fold_step(tf_ctx *ctx, void *state, bool *done) {
         if (tf_stack_len(ctx) != s->saved_len + 1) {
             tf_ctx_runtime_errorf(
                 ctx,
-                "'fold' expected body to consume accumulator and item and leave one accumulator, found %zu value(s) above the saved stack\n",
+                "'fold' expected body to consume accumulator and item and leave one "
+                "accumulator, found %zu value(s) above the saved stack\n",
                 stack_results_after(ctx, s->saved_len));
             return TF_ERR;
         }
@@ -377,9 +374,7 @@ static tf_ret fold_step(tf_ctx *ctx, void *state, bool *done) {
 
 static void fold_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     fold_state *s = state;
-    if (status != TF_OK) {
-        restore_stack_copy(ctx, s->saved_stack, s->saved_len);
-    }
+    if (status != TF_OK) { restore_stack_copy(ctx, s->saved_stack, s->saved_len); }
     release_stack_copy(s->saved_stack, s->saved_len);
     tf_obj_release(s->body);
     tf_obj_release(s->data);
@@ -406,7 +401,8 @@ static tf_ret map_step(tf_ctx *ctx, void *state, bool *done) {
         if (tf_stack_len(ctx) != s->saved_len + 1) {
             tf_ctx_runtime_errorf(
                 ctx,
-                "'map' expected body to consume one item and leave one result, found %zu value(s) above the saved stack\n",
+                "'map' expected body to consume one item and leave one result, "
+                "found %zu value(s) above the saved stack\n",
                 stack_results_after(ctx, s->saved_len));
             return TF_ERR;
         }
@@ -414,10 +410,10 @@ static tf_ret map_step(tf_ctx *ctx, void *state, bool *done) {
         tf_obj *mapped = tf_stack_pop(ctx);
         if (s->string_result) {
             if (!is_char_string(mapped)) {
-                tf_ctx_runtime_errorf(
-                    ctx,
-                    "'map' expected string body to return a one-byte string, found %s\n",
-                    tf_obj_type_name(mapped));
+                tf_ctx_runtime_errorf(ctx,
+                                      "'map' expected string body to return a "
+                                      "one-byte string, found %s\n",
+                                      tf_obj_type_name(mapped));
                 tf_obj_release(mapped);
                 return TF_ERR;
             }
@@ -438,8 +434,7 @@ static tf_ret map_step(tf_ctx *ctx, void *state, bool *done) {
             s->str_result.ptr = NULL;
         } else {
             tf_stack_push(ctx,
-                          finish_vector_family(&s->vector_result,
-                                               s->list_result));
+                          finish_vector_family(&s->vector_result, s->list_result));
         }
         *done = true;
         return TF_OK;
@@ -453,9 +448,7 @@ static tf_ret map_step(tf_ctx *ctx, void *state, bool *done) {
 
 static void map_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     map_state *s = state;
-    if (status != TF_OK) {
-        restore_stack_copy(ctx, s->saved_stack, s->saved_len);
-    }
+    if (status != TF_OK) { restore_stack_copy(ctx, s->saved_stack, s->saved_len); }
     release_stack_copy(s->saved_stack, s->saved_len);
     tf_obj_release(s->body);
     tf_obj_release(s->data);
@@ -481,10 +474,10 @@ static tf_ret replicate_step(tf_ctx *ctx, void *state, bool *done) {
 
     if (s->awaiting_body) {
         if (tf_stack_len(ctx) != s->saved_len + 1) {
-            tf_ctx_runtime_errorf(
-                ctx,
-                "'replicate' expected body to leave one result, found %zu value(s) above the saved stack\n",
-                stack_results_after(ctx, s->saved_len));
+            tf_ctx_runtime_errorf(ctx,
+                                  "'replicate' expected body to leave one result, "
+                                  "found %zu value(s) above the saved stack\n",
+                                  stack_results_after(ctx, s->saved_len));
             return TF_ERR;
         }
         tf_obj *item = tf_stack_pop(ctx);
@@ -508,9 +501,7 @@ static tf_ret replicate_step(tf_ctx *ctx, void *state, bool *done) {
 
 static void replicate_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     replicate_state *s = state;
-    if (status != TF_OK) {
-        restore_stack_copy(ctx, s->saved_stack, s->saved_len);
-    }
+    if (status != TF_OK) { restore_stack_copy(ctx, s->saved_stack, s->saved_len); }
     release_stack_copy(s->saved_stack, s->saved_len);
     tf_obj_release(s->body);
     if (s->result) tf_obj_release(s->result);
@@ -547,9 +538,7 @@ static tf_ret infra_step(tf_ctx *ctx, void *state, bool *done) {
 
 static void infra_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     infra_state *s = state;
-    if (status != TF_OK) {
-        restore_stack_copy(ctx, s->saved_stack, s->saved_len);
-    }
+    if (status != TF_OK) { restore_stack_copy(ctx, s->saved_stack, s->saved_len); }
     release_stack_copy(s->saved_stack, s->saved_len);
     tf_obj_release(s->body);
     tf_obj_release(s->data);
@@ -606,9 +595,7 @@ static tf_ret cleave_step(tf_ctx *ctx, void *state, bool *done) {
 
 static void cleave_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     cleave_state *s = state;
-    if (status != TF_OK) {
-        restore_stack_copy(ctx, s->saved_stack, s->saved_len);
-    }
+    if (status != TF_OK) { restore_stack_copy(ctx, s->saved_stack, s->saved_len); }
     release_stack_copy(s->saved_stack, s->saved_len);
     tf_obj_release(s->branches);
     tf_obj_release(s->value);
@@ -648,10 +635,9 @@ static tf_ret bi_step(tf_ctx *ctx, void *state, bool *done) {
     if (s->stage == TF_BI_AFTER_LEFT) {
         if (tf_stack_len(ctx) < s->base_len) return TF_ERR;
         s->left_out_len = tf_stack_len(ctx) - s->base_len;
-        s->left_outputs =
-            s->left_out_len > 0
-                ? tf_xmalloc(sizeof(tf_obj *) * s->left_out_len)
-                : NULL;
+        s->left_outputs = s->left_out_len > 0
+                              ? tf_xmalloc(sizeof(tf_obj *) * s->left_out_len)
+                              : NULL;
         for (size_t i = s->left_out_len; i > 0; i--) {
             s->left_outputs[i - 1] = tf_stack_pop(ctx);
         }
@@ -739,8 +725,7 @@ static tf_ret try_step(tf_ctx *ctx, void *state, bool *done) {
     return TF_OK;
 }
 
-static tf_ret try_error(tf_ctx *ctx, void *state, tf_ret status,
-                           bool *handled) {
+static tf_ret try_error(tf_ctx *ctx, void *state, tf_ret status, bool *handled) {
     try_state *s = state;
     *handled = false;
     if (status != TF_ERR || s->stage != TF_TRY_BODY) return TF_OK;
@@ -772,10 +757,7 @@ static void try_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     free(s);
 }
 
-typedef enum {
-    TF_PRED_IDLE,
-    TF_PRED_AWAITING
-} predicate_eval_phase;
+typedef enum { TF_PRED_IDLE, TF_PRED_AWAITING } predicate_eval_phase;
 
 typedef struct {
     predicate_eval_phase phase;
@@ -795,10 +777,9 @@ static void predicate_eval_clear(predicate_eval *eval) {
     eval->saved_len = 0;
 }
 
-static tf_ret predicate_eval_step(tf_ctx *ctx, predicate_eval *eval,
-                                     tf_obj *pred, bool allow_bool,
-                                     tf_obj **inputs, size_t input_len,
-                                     bool *ready, bool *pred_val) {
+static tf_ret predicate_eval_step(tf_ctx *ctx, predicate_eval *eval, tf_obj *pred,
+                                  bool allow_bool, tf_obj **inputs, size_t input_len,
+                                  bool *ready, bool *pred_val) {
     *ready = false;
 
     if (eval->phase == TF_PRED_IDLE) {
@@ -863,8 +844,8 @@ static tf_ret if_step(tf_ctx *ctx, void *state, bool *done) {
     if (s->stage == TF_IF_COND) {
         bool ready = false;
         bool cond_val = false;
-        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->cond, true,
-                                            NULL, 0, &ready, &cond_val);
+        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->cond, true, NULL, 0,
+                                         &ready, &cond_val);
         if (res != TF_OK || !ready) {
             *done = false;
             return res;
@@ -908,8 +889,8 @@ static tf_ret while_step(tf_ctx *ctx, void *state, bool *done) {
     if (s->stage == TF_WHILE_COND) {
         bool ready = false;
         bool continue_loop = false;
-        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->cond, false,
-                                            NULL, 0, &ready, &continue_loop);
+        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->cond, false, NULL, 0,
+                                         &ready, &continue_loop);
         if (res != TF_OK || !ready) {
             *done = false;
             return res;
@@ -965,8 +946,8 @@ static tf_ret cond_step(tf_ctx *ctx, void *state, bool *done) {
 
         bool ready = false;
         bool cond_val = false;
-        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, pred, true,
-                                            NULL, 0, &ready, &cond_val);
+        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, pred, true, NULL, 0,
+                                         &ready, &cond_val);
         if (res != TF_OK || !ready) {
             *done = false;
             return res;
@@ -1010,15 +991,13 @@ static tf_ret filter_step(tf_ctx *ctx, void *state, bool *done) {
     size_t len = sequence_len(s->seq);
 
     while (s->index < len || s->current) {
-        if (!s->current) {
-            s->current = sequence_item_owned(s->seq, s->index++);
-        }
+        if (!s->current) { s->current = sequence_item_owned(s->seq, s->index++); }
 
-        tf_obj *inputs[] = { s->current };
+        tf_obj *inputs[] = {s->current};
         bool ready = false;
         bool keep = false;
-        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->pred,
-                                            false, inputs, 1, &ready, &keep);
+        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->pred, false, inputs,
+                                         1, &ready, &keep);
         if (res != TF_OK || !ready) {
             *done = false;
             return res;
@@ -1042,9 +1021,7 @@ static tf_ret filter_step(tf_ctx *ctx, void *state, bool *done) {
         free(s->str_result.ptr);
         s->str_result.ptr = NULL;
     } else {
-        tf_stack_push(ctx,
-                      finish_vector_family(&s->vector_result,
-                                           s->list_result));
+        tf_stack_push(ctx, finish_vector_family(&s->vector_result, s->list_result));
     }
     *done = true;
     return TF_OK;
@@ -1081,16 +1058,13 @@ static tf_ret quantifier_step(tf_ctx *ctx, void *state, bool *done) {
     size_t len = sequence_len(s->seq);
 
     while (s->index < len || s->current) {
-        if (!s->current) {
-            s->current = sequence_item_owned(s->seq, s->index++);
-        }
+        if (!s->current) { s->current = sequence_item_owned(s->seq, s->index++); }
 
-        tf_obj *inputs[] = { s->current };
+        tf_obj *inputs[] = {s->current};
         bool ready = false;
         bool pred_val = false;
-        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->pred,
-                                            false, inputs, 1, &ready,
-                                            &pred_val);
+        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->pred, false, inputs,
+                                         1, &ready, &pred_val);
         if (res != TF_OK || !ready) {
             *done = false;
             return res;
@@ -1145,16 +1119,13 @@ static tf_ret split_step(tf_ctx *ctx, void *state, bool *done) {
     size_t len = sequence_len(s->seq);
 
     while (s->index < len || s->current) {
-        if (!s->current) {
-            s->current = sequence_item_owned(s->seq, s->index++);
-        }
+        if (!s->current) { s->current = sequence_item_owned(s->seq, s->index++); }
 
-        tf_obj *inputs[] = { s->current };
+        tf_obj *inputs[] = {s->current};
         bool ready = false;
         bool pred_val = false;
-        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->pred,
-                                            false, inputs, 1, &ready,
-                                            &pred_val);
+        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->pred, false, inputs,
+                                         1, &ready, &pred_val);
         if (res != TF_OK || !ready) {
             *done = false;
             return res;
@@ -1162,7 +1133,7 @@ static tf_ret split_step(tf_ctx *ctx, void *state, bool *done) {
 
         if (s->string_result) {
             bytebuf_append(pred_val ? &s->true_str : &s->false_str,
-                              s->current->str.ptr[0]);
+                           s->current->str.ptr[0]);
             tf_obj_release(s->current);
         } else {
             tf_vector_push(pred_val ? s->true_list : s->false_list, s->current);
@@ -1178,10 +1149,8 @@ static tf_ret split_step(tf_ctx *ctx, void *state, bool *done) {
         s->true_str.ptr = NULL;
         s->false_str.ptr = NULL;
     } else {
-        tf_stack_push(ctx,
-                      finish_vector_family(&s->true_list, s->list_result));
-        tf_stack_push(ctx,
-                      finish_vector_family(&s->false_list, s->list_result));
+        tf_stack_push(ctx, finish_vector_family(&s->true_list, s->list_result));
+        tf_stack_push(ctx, finish_vector_family(&s->false_list, s->list_result));
     }
     *done = true;
     return TF_OK;
@@ -1256,12 +1225,11 @@ static tf_ret merge_step(tf_ctx *ctx, void *state, bool *done) {
             s->o2 = sequence_item_owned(s->l2, s->i2);
         }
 
-        tf_obj *inputs[] = { s->o1, s->o2 };
+        tf_obj *inputs[] = {s->o1, s->o2};
         bool ready = false;
         bool take_left = false;
-        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->pred,
-                                            false, inputs, 2, &ready,
-                                            &take_left);
+        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->pred, false, inputs,
+                                         2, &ready, &take_left);
         if (res != TF_OK || !ready) {
             *done = false;
             return res;
@@ -1278,8 +1246,7 @@ static tf_ret merge_step(tf_ctx *ctx, void *state, bool *done) {
         if (s->string_result) {
             bytebuf_append(&s->str_result, s->l1->str.ptr[s->i1]);
         } else {
-            tf_vector_push(s->vector_result,
-                           sequence_item_owned(s->l1, s->i1));
+            tf_vector_push(s->vector_result, sequence_item_owned(s->l1, s->i1));
         }
         s->i1++;
     }
@@ -1287,8 +1254,7 @@ static tf_ret merge_step(tf_ctx *ctx, void *state, bool *done) {
         if (s->string_result) {
             bytebuf_append(&s->str_result, s->l2->str.ptr[s->i2]);
         } else {
-            tf_vector_push(s->vector_result,
-                           sequence_item_owned(s->l2, s->i2));
+            tf_vector_push(s->vector_result, sequence_item_owned(s->l2, s->i2));
         }
         s->i2++;
     }
@@ -1298,9 +1264,7 @@ static tf_ret merge_step(tf_ctx *ctx, void *state, bool *done) {
         free(s->str_result.ptr);
         s->str_result.ptr = NULL;
     } else {
-        tf_stack_push(ctx,
-                      finish_vector_family(&s->vector_result,
-                                           s->list_result));
+        tf_stack_push(ctx, finish_vector_family(&s->vector_result, s->list_result));
     }
     *done = true;
     return TF_OK;
@@ -1344,8 +1308,8 @@ static tf_ret linrec_step(tf_ctx *ctx, void *state, bool *done) {
     if (s->stage == TF_LINREC_PRED) {
         bool ready = false;
         bool is_done = false;
-        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->pred,
-                                            false, NULL, 0, &ready, &is_done);
+        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->pred, false, NULL, 0,
+                                         &ready, &is_done);
         if (res != TF_OK || !ready) {
             *done = false;
             return res;
@@ -1412,8 +1376,8 @@ static tf_ret binrec_step(tf_ctx *ctx, void *state, bool *done) {
     if (s->stage == TF_BINREC_PRED) {
         bool ready = false;
         bool is_done = false;
-        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->pred,
-                                            false, NULL, 0, &ready, &is_done);
+        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->pred, false, NULL, 0,
+                                         &ready, &is_done);
         if (res != TF_OK || !ready) {
             *done = false;
             return res;
@@ -1489,8 +1453,8 @@ static tf_ret genrec_step(tf_ctx *ctx, void *state, bool *done) {
     if (s->stage == TF_GENREC_PRED) {
         bool ready = false;
         bool is_done = false;
-        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->pred,
-                                            false, NULL, 0, &ready, &is_done);
+        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->pred, false, NULL, 0,
+                                         &ready, &is_done);
         if (res != TF_OK || !ready) {
             *done = false;
             return res;
@@ -1556,10 +1520,9 @@ typedef struct {
 } treerec_state;
 
 static void treerec_push_owned(tf_ctx *ctx, tf_obj *tree, tf_obj *leaf,
-                                  tf_obj *node);
+                               tf_obj *node);
 
-static tf_ret treerec_finish_single(tf_ctx *ctx, treerec_state *s,
-                                       bool *done) {
+static tf_ret treerec_finish_single(tf_ctx *ctx, treerec_state *s, bool *done) {
     if (tf_stack_len(ctx) != s->saved_len + 1) return TF_ERR;
     tf_obj *result = tf_stack_pop(ctx);
     restore_stack_copy(ctx, s->saved_stack, s->saved_len);
@@ -1624,9 +1587,7 @@ static tf_ret treerec_step(tf_ctx *ctx, void *state, bool *done) {
 
 static void treerec_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     treerec_state *s = state;
-    if (status != TF_OK) {
-        restore_stack_copy(ctx, s->saved_stack, s->saved_len);
-    }
+    if (status != TF_OK) { restore_stack_copy(ctx, s->saved_stack, s->saved_len); }
     release_stack_copy(s->saved_stack, s->saved_len);
     tf_obj_release(s->tree);
     tf_obj_release(s->leaf);
@@ -1636,7 +1597,7 @@ static void treerec_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
 }
 
 static void treerec_push_owned(tf_ctx *ctx, tf_obj *tree, tf_obj *leaf,
-                                  tf_obj *node) {
+                               tf_obj *node) {
     treerec_state *state = tf_xmalloc(sizeof(*state));
     state->tree = tree;
     state->leaf = leaf;
@@ -1665,9 +1626,10 @@ tf_ret tf_error(tf_ctx *ctx) {
     }
 
     if (ctx->error_suppression_depth == 0) {
-        tf_ctx_program_errorf(ctx, "error\n");
+        tf_ctx_program_errorf(ctx, "\n");  // default error message
         ctx->error_reported = true;
     }
+    ctx->program_error = true;
     return TF_ERR;
 }
 
@@ -1690,8 +1652,7 @@ tf_ret tf_try(tf_ctx *ctx) {
     state->suppressing_errors = false;
     save_stack_copy(ctx, &state->saved_stack, &state->saved_len);
 
-    tf_frame_push_native_handler(ctx, try_step, try_cleanup, try_error,
-                              state);
+    tf_frame_push_native_handler(ctx, try_step, try_cleanup, try_error, state);
     return TF_OK;
 }
 
@@ -1967,7 +1928,7 @@ tf_ret tf_binrec(tf_ctx *ctx) {
 }
 
 static tf_ret pop_rec_parts(tf_ctx *ctx, tf_obj **pred, tf_obj **then_b,
-                               tf_obj **before, tf_obj **after) {
+                            tf_obj **before, tf_obj **after) {
     if (tf_stack_len(ctx) >= 4 && tf_obj_is_callable(tf_stack_peek(ctx, 0)) &&
         tf_obj_is_callable(tf_stack_peek(ctx, 1)) &&
         tf_obj_is_callable(tf_stack_peek(ctx, 2)) &&
@@ -1982,9 +1943,9 @@ static tf_ret pop_rec_parts(tf_ctx *ctx, tf_obj **pred, tf_obj **then_b,
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *parts = tf_stack_peek(ctx, 0);
     if (parts->type != TF_OBJ_TYPE_VECTOR || parts->vector.len != 4) {
-        tf_ctx_runtime_errorf(ctx,
-                              "'%s' expected four callables or a vector of four callables\n",
-                              ctx->current_word);
+        tf_ctx_runtime_errorf(
+            ctx, "'%s' expected four callables or a vector of four callables\n",
+            ctx->current_word);
         return TF_ERR;
     }
     for (size_t i = 0; i < 4; i++) {
@@ -2196,10 +2157,13 @@ tf_ret tf_split(tf_ctx *ctx) {
 
     if (!tf_obj_is_callable(pred) || !is_sequence(seq)) {
         if (!is_sequence(seq)) {
-            tf_ctx_runtime_errorf(ctx, "'%s' expected sequence at stack depth 1, found %s\n",
-                                  ctx->current_word, tf_obj_type_name(seq));
+            tf_ctx_runtime_errorf(
+                ctx, "'%s' expected sequence at stack depth 1, found %s\n",
+                ctx->current_word, tf_obj_type_name(seq));
         } else {
-            tf_ctx_runtime_errorf(ctx, "'%s' expected callable or string separator at stack depth 0, found %s\n",
+            tf_ctx_runtime_errorf(ctx,
+                                  "'%s' expected callable or string separator at "
+                                  "stack depth 0, found %s\n",
                                   ctx->current_word, tf_obj_type_name(pred));
         }
         return TF_ERR;
@@ -2242,14 +2206,15 @@ tf_ret tf_merge(tf_ctx *ctx) {
     tf_obj *l2 = tf_stack_peek(ctx, 1);
     tf_obj *l1 = tf_stack_peek(ctx, 2);
     if (!is_sequence(l2)) {
-        tf_ctx_runtime_errorf(ctx, "'%s' expected sequence at stack depth 1, found %s\n",
+        tf_ctx_runtime_errorf(ctx,
+                              "'%s' expected sequence at stack depth 1, found %s\n",
                               ctx->current_word, tf_obj_type_name(l2));
         return TF_ERR;
     }
     if (l1->type != l2->type) {
-        tf_ctx_runtime_errorf(ctx, "'%s' expected matching sequence types, found %s and %s\n",
-                              ctx->current_word, tf_obj_type_name(l1),
-                              tf_obj_type_name(l2));
+        tf_ctx_runtime_errorf(
+            ctx, "'%s' expected matching sequence types, found %s and %s\n",
+            ctx->current_word, tf_obj_type_name(l1), tf_obj_type_name(l2));
         return TF_ERR;
     }
     pred = tf_stack_pop(ctx);

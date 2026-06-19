@@ -22,11 +22,9 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 - Shared sequence words for vectors, lists, and strings when the result type is
   clear. String items are one-byte strings.
 - Dedicated collection syntax: `[ ... ]` for ordered vectors/quotations,
-  `( ... )` for linked lists, `{ key value ... }` for maps, and `#{ ... }` for
-  sets.
+  `( ... )` for linked lists, `{ key value ... }` for maps, and `#{ ... }` for sets.
 - Comments use `\` to the end of a line or `/* ... */` for block comments.
-- Explicit constructors for secondary structures such as `>deque` and
-  `>pqueue`.
+- Explicit constructors for secondary structures such as `>deque` and `>pqueue`.
 - Representation predicates such as `vector?`, `list?`, and `symbol?`, plus
   capability predicates such as `sequence?` and `callable?`.
 - Local captures with `| name |` and `$name` when stack-only code gets too hard
@@ -140,21 +138,21 @@ changing the data stack.
 
 ## Built-in Words
 
-| Category      | Words                                                                                                                                                                                                                                                              |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Stack         | `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty`                                                                                                                                                                              |
-| Math          | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `max`, `min`, `sqrt`, `pow`, `exp`, `log`, `log10`, `sin`, `cos`, `tan`, `floor`, `ceil`, `round`, `pred`, `succ`, `square`, `cube`, `pi`, `e`, `tau`                                                                |
-| Logic         | `and`, `or`, `xor`, `not`, `shl`, `shr`                                                                                                                                                                                                                            |
-| Comparison    | `==`, `!=`, `<`, `>`, `<=`, `>=`                                                                                                                                                                                                                                   |
-| Control       | `if`, `ifelse`, `while`, `try`, `error`, `exec`, `i`, `app2`, `infra`, `cond`, `cleave`, `construct`, `replicate`, `times`, `dip`, `keep`, `bi`, `linrec`, `binrec`, `genrec`, `treerec`                                                                           |
-| Combinators   | `each`, `map`, `fold`, `filter`, `some`, `all`, `split`, `merge`                                                                                                                                                                                                   |
+| Category      | Words |
+| ------------- | ----- |
+| Stack         | `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty` |
+| Math          | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `max`, `min`, `sqrt`, `pow`, `exp`, `log`, `log10`, `sin`, `cos`, `tan`, `floor`, `ceil`, `round`, `pred`, `succ`, `square`, `cube`, `pi`, `e`, `tau` |
+| Logic         | `and`, `or`, `xor`, `not`, `shl`, `shr` |
+| Comparison    | `==`, `!=`, `<`, `>`, `<=`, `>=` |
+| Control       | `if`, `ifelse`, `while`, `try`, `error`, `exec`, `i`, `app2`, `infra`, `cond`, `cleave`, `construct`, `replicate`, `times`, `dip`, `keep`, `bi`, `linrec`, `binrec`, `genrec`, `treerec` |
+| Combinators   | `each`, `map`, `fold`, `filter`, `some`, `all`, `split`, `merge` |
 | Sequence/Data | `at`, `set-at`, `>vector`, `>list`, `contains?`, `indexof`, `unique`, `sort`, `slice`, `take`, `dropn`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `reverse`, `join`, `trim`, `upper`, `lower`, `splitmid`, `range`, `empty?`, `char?`, `letter?`, `digit?`, `alnum?`, `space?`, `upper?`, `lower?`, `punct?` |
-| Map/Set       | `>map`, `>set`, `has?`, `get`, `assoc`, `dissoc`, `keys`, `values`, `pairs`, `items`, `adjoin`, `remove`                                                                                                                                                           |
-| Deque/PQueue  | `>deque`, `push-front`, `push-back`, `pop-front`, `pop-back`, `front`, `back`, `>pqueue`, `pqueue-push`, `pqueue-peek`, `pqueue-pop`, `pqueue-drain`                                                                                                               |
-| Introspection | `typeof`, `bool?`, `int?`, `float?`, `string?`, `symbol?`, `vector?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `number?`, `sequence?`, `callable?`, `nan?`, `inf?`, `word?`, `var?`, `inf`, `nan`, `body`, `intern`, `name`, `words`, `see`, `doc`, `apropos`                      |
-| I/O           | `print`, `printf`, `.`, `.s`, `.S`, `cr`, `key`, `input`, `load`, `readf`, `writef`, `delf`, `readl`, `exists?`, `clear`, `page`                                                                                                                                   |
-| System        | `rand`, `sleep`, `argc`, `argv`, `env?`, `getenv`, `setenv`, `pwd`, `shell`, `time`, `clock`, `bye`, `exit`                                                                                                                                                        |
-| Definition    | `def`                                                                                                                                                                                                                                                              |
+| Map/Set       | `>map`, `>set`, `has?`, `get`, `assoc`, `dissoc`, `keys`, `values`, `pairs`, `items`, `adjoin`, `remove` |
+| Deque/PQueue  | `>deque`, `push-front`, `push-back`, `pop-front`, `pop-back`, `front`, `back`, `>pqueue`, `pqueue-push`, `pqueue-peek`, `pqueue-pop`, `pqueue-drain` |
+| Introspection | `typeof`, `bool?`, `int?`, `float?`, `string?`, `symbol?`, `vector?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `number?`, `sequence?`, `callable?`, `nan?`, `inf?`, `word?`, `var?`, `inf`, `nan`, `body`, `intern`, `name`, `words`, `see`, `doc`, `apropos` |
+| I/O           | `print`, `printf`, `.`, `.s`, `.S`, `cr`, `key`, `input`, `load`, `readf`, `writef`, `delf`, `readl`, `exists?`, `clear`, `page` |
+| System        | `rand`, `sleep`, `argc`, `argv`, `env?`, `getenv`, `setenv`, `pwd`, `shell`, `time`, `clock`, `bye`, `exit` |
+| Definition    | `def` |
 
 ## Tooling
 
