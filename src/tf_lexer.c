@@ -95,7 +95,8 @@ tf_obj *tf_lexer_parse(const char *filename, char *prg_text) {
 
 static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
     tf_source_span vector_span = lexer_mark(lexer);
-    tf_obj *prg = tf_obj_new_vector();
+    tf_obj *prg = terminator == 0 ? tf_obj_new_vector_with_capacity(32)
+                                  : tf_obj_new_vector();
 
     while (lexer->pos && lexer->pos[0] != 0) {
         skip_spaces(lexer);

@@ -2,14 +2,21 @@
 
 'check [ [ ] [ "stack effect check failed" error ] ifelse ] def
 
+words 'push-back contains? true == check
+words 'append contains? false == check
+words 'last contains? true == check
+words 'front contains? false == check
+words 'back contains? false == check
+
 "abc" len 3 == check
 "abc" first "a" == check
+"abc" last "c" == check
 "abc" rest "bc" == check
 "" rest "" == check
 "abc" uncons "bc" == check
 "a" == check
 "a" "bc" cons "abc" == check
-"ab" "c" append "abc" == check
+"ab" "c" push-back "abc" == check
 "ab" "cd" concat "abcd" == check
 "a" "b" < true == check
 "b" "a" > true == check
@@ -18,8 +25,23 @@
 10 int? true == check
 [ 1 2 3 ] first 1 == check
 [ 1 2 3 ] rest [ 2 3 ] == check
-[ 1 2 ] 3 append [ 1 2 3 ] == check
+[ 1 2 ] 3 push-back [ 1 2 3 ] == check
+[ 1 2 3 ] last 3 == check
+[ 1 2 3 ] pop-back 3 == check
+[ 1 2 ] == check
+[ 1 2 3 ] pop-back push-back [ 1 2 3 ] == check
+[ 1 2 ] dup 3 push-back [ 1 2 3 ] == check
+[ 1 2 ] == check
+[ 1 2 3 ] dup pop-back 3 == check
+[ 1 2 ] == check
+[ 1 2 3 ] == check
+0 40 range pop-back 39 == check
+len 39 == check
+[ [ ] pop-back ] [ "empty-vector" ] try "empty-vector" == check
 [ 1 2 ] [ 3 4 ] concat [ 1 2 3 4 ] == check
+0 2 range [ 2 3 ] concat [ 0 1 2 3 ] == check
+[ 1 2 ] dup [ 3 4 ] concat [ 1 2 3 4 ] == check
+[ 1 2 ] == check
 [] empty? true == check
 [ 1 2 3 ] vector? true == check
 [ 1 2 3 ] list? false == check
@@ -28,8 +50,9 @@
 ( 1 2 3 ) list? true == check
 ( 1 2 3 ) typeof "list" == check
 ( 1 2 3 ) first 1 == check
+( 1 2 3 ) last 3 == check
 ( 1 2 3 ) rest ( 2 3 ) == check
-( 1 2 ) 3 append ( 1 2 3 ) == check
+( 1 2 ) 3 push-back ( 1 2 3 ) == check
 0 ( 1 2 3 ) cons ( 0 1 2 3 ) == check
 ( 1 2 ) ( 3 4 ) concat ( 1 2 3 4 ) == check
 ( 1 2 3 ) [ 1 + ] map ( 2 3 4 ) == check
@@ -39,6 +62,7 @@
 "" empty? true == check
 ( ) empty? true == check
 [ 1 2 3 ] 1 99 set-at [ 1 99 3 ] == check
+0 5 range 1 99 set-at [ 0 99 2 3 4 ] == check
 [ 1 2 3 ] dup 1 99 set-at [ 1 99 3 ] == check
 [ 1 2 3 ] == check
 "abc" 1 "x" set-at "axc" == check

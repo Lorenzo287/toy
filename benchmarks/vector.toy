@@ -1,0 +1,19 @@
+\ Vector microbenchmarks. Each body consumes and returns one state vector.
+\ Usage: [ setup ] [ body ] count "Name" bench-state
+'bench-state [
+    | setup block count name |
+    $name printf ": " printf
+    clock
+    $setup exec
+    $count [ $block exec ] times
+    drop
+    clock swap - printf " ticks\n" printf
+] def
+
+"--- Vector ---\n" printf
+
+[ 0 0 range ] [ 0 push-back ] 200000 "push-back unique" bench-state
+[ 0 200000 range ] [ pop-back drop ] 200000 "pop-back unique" bench-state
+[ 0 100000 range ] [ dup 50000 at drop ] 500000 "indexed read" bench-state
+[ 0 0 range ] [ [ 1 2 3 4 ] concat ] 25000 "concat unique-left" bench-state
+[ 0 1024 range ] [ dup [ 1 2 3 4 ] concat drop ] 10000 "concat shared-left" bench-state

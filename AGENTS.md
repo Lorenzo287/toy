@@ -17,6 +17,8 @@ navigation and development rules.
   collection combinator usage.
 - `docs/data-model.md`: collection, conversion, equality, and hashing design
   plan.
+- `benchmarks/`: reproducible performance workloads, runner, and recorded
+  experiment results.
 - `tools/`: Tree-sitter grammar, Go LSP, VS Code extension.
 - `deps/`: vendored `linenoise` and `stb_leakcheck`.
 

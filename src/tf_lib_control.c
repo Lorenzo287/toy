@@ -23,7 +23,7 @@ tf_ret tf_app2(tf_ctx *ctx) {
     tf_obj *b = tf_stack_pop(ctx);
     tf_obj *a = tf_stack_pop(ctx);
 
-    tf_obj *synthetic = tf_obj_new_vector();
+    tf_obj *synthetic = tf_obj_new_vector_with_capacity(6);
     tf_obj *exec_sym = tf_obj_new_symbol("exec", 4);
 
     tf_vector_push(synthetic, a);
@@ -192,6 +192,7 @@ static void clear_stack(tf_ctx *ctx) {
 static tf_ret collect_outputs(tf_ctx *ctx, size_t base_len, tf_obj *outputs) {
     size_t len = tf_stack_len(ctx);
     if (len < base_len) return TF_ERR;
+    tf_vector_reserve(outputs, outputs->vector.len + len - base_len);
     for (size_t i = base_len; i < len; i++) {
         push_retained(outputs, ctx->data_stack->vector.elem[i]);
     }
@@ -1325,7 +1326,7 @@ static tf_ret linrec_step(tf_ctx *ctx, void *state, bool *done) {
         return TF_OK;
     }
 
-    tf_obj *cont = tf_obj_new_vector();
+    tf_obj *cont = tf_obj_new_vector_with_capacity(7);
     tf_obj *linrec_sym = tf_obj_new_symbol("linrec", 6);
     tf_obj *exec_sym = tf_obj_new_symbol("exec", 4);
 
@@ -1393,7 +1394,7 @@ static tf_ret binrec_step(tf_ctx *ctx, void *state, bool *done) {
         return TF_OK;
     }
 
-    tf_obj *rec_call = tf_obj_new_vector();
+    tf_obj *rec_call = tf_obj_new_vector_with_capacity(5);
     tf_obj *binrec_sym = tf_obj_new_symbol("binrec", 6);
     push_retained(rec_call, s->pred);
     push_retained(rec_call, s->then_b);
@@ -1401,7 +1402,7 @@ static tf_ret binrec_step(tf_ctx *ctx, void *state, bool *done) {
     push_retained(rec_call, s->rec2);
     tf_vector_push(rec_call, binrec_sym);
 
-    tf_obj *cont = tf_obj_new_vector();
+    tf_obj *cont = tf_obj_new_vector_with_capacity(6);
     tf_obj *dip_sym = tf_obj_new_symbol("dip", 3);
     tf_obj *exec_rec_sym = tf_obj_new_symbol("exec", 4);
     tf_obj *exec_combine_sym = tf_obj_new_symbol("exec", 4);
@@ -1470,7 +1471,7 @@ static tf_ret genrec_step(tf_ctx *ctx, void *state, bool *done) {
         return TF_OK;
     }
 
-    tf_obj *cont = tf_obj_new_vector();
+    tf_obj *cont = tf_obj_new_vector_with_capacity(7);
     tf_obj *genrec_sym = tf_obj_new_symbol("genrec", 6);
     tf_obj *exec_sym = tf_obj_new_symbol("exec", 4);
 
@@ -1543,7 +1544,8 @@ static tf_ret treerec_step(tf_ctx *ctx, void *state, bool *done) {
             return tf_vm_call_callable(ctx, s->leaf);
         }
 
-        s->mapped = tf_obj_new_vector();
+        s->mapped =
+            tf_obj_new_vector_with_capacity(s->tree->vector.len);
         s->index = 0;
         s->stage = TF_TREEREC_CHILD_LOOP;
     }
@@ -2033,7 +2035,7 @@ tf_ret tf_replicate(tf_ctx *ctx) {
     state->saved_len = 0;
     state->remaining = n;
     state->awaiting_body = false;
-    state->result = tf_obj_new_vector();
+    state->result = tf_obj_new_vector_with_capacity((size_t)n);
     save_stack_copy(ctx, &state->saved_stack, &state->saved_len);
 
     tf_frame_push_native(ctx, replicate_step, replicate_cleanup, state);
@@ -2110,7 +2112,10 @@ tf_ret tf_map(tf_ctx *ctx) {
     state->awaiting_body = false;
     state->string_result = data->type == TF_OBJ_TYPE_STR;
     state->list_result = data->type == TF_OBJ_TYPE_LIST;
-    state->vector_result = state->string_result ? NULL : tf_obj_new_vector();
+    state->vector_result =
+        state->string_result
+            ? NULL
+            : tf_obj_new_vector_with_capacity(sequence_len(data));
     state->str_result.ptr = NULL;
     state->str_result.len = 0;
     state->str_result.cap = 0;
@@ -2232,7 +2237,11 @@ tf_ret tf_merge(tf_ctx *ctx) {
     state->o2 = NULL;
     state->string_result = l1->type == TF_OBJ_TYPE_STR;
     state->list_result = l1->type == TF_OBJ_TYPE_LIST;
-    state->vector_result = state->string_result ? NULL : tf_obj_new_vector();
+    state->vector_result =
+        state->string_result
+            ? NULL
+            : tf_obj_new_vector_with_capacity(sequence_len(l1) +
+                                              sequence_len(l2));
     state->str_result.ptr = NULL;
     state->str_result.len = 0;
     state->str_result.cap = 0;

@@ -77,7 +77,7 @@ Generic sequence words preserve the input family when that is clear. Mapping a
 list returns a list, mapping a vector returns a vector, and mapping a string
 returns a string when each result is a one-byte string.
 
-Words: `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`,
+Words: `len`, `first`, `last`, `rest`, `uncons`, `cons`, `push-back`, `concat`,
 `reverse`, `take`, `dropn`, `contains?`, `indexof`, `unique`, `sort`, `each`,
 `map`, `fold`, `filter`, `split`, `merge`, `splitmid`.
 
@@ -99,6 +99,14 @@ Words: `at`, `set-at`, `slice`.
 
 Do not treat every sequence as indexed. A linked list, stream, tree traversal,
 or generator can be a sequence without cheap random access.
+
+### Back Stack
+
+Vectors use their last item as the stack top. `push-back` adds one item, `last`
+reads the top item, and `pop-back` returns `vector item`. This matches the
+constructor input order, so `pop-back push-back` reconstructs the original
+vector. Deques share the endpoint update words and use the same `first`/`last`
+selectors as other ordered collections.
 
 ### Associative
 
@@ -218,6 +226,7 @@ language guarantee:
 
 ```toy
 vector idx value set-at
+vector item push-back
 map key value assoc
 map key dissoc
 set item adjoin
@@ -225,9 +234,24 @@ set item remove
 deque item push-front
 ```
 
-The implementation may later optimize by mutating uniquely owned values, using
-copy-on-write, or using persistent sharing. User code should not observe aliasing
-surprises.
+When an endpoint removal returns both state and an item, it returns them in the
+constructor's input order. `vector pop-back` leaves `vector item`, while deque
+`pop-front` leaves `deque item`. This makes the corresponding pop/push pair an
+identity. `uncons` already follows the same rule because `cons` accepts an item
+followed by a sequence.
+
+The implementation may optimize by mutating uniquely owned values, using
+copy-on-write, or using persistent sharing. User code must not observe aliasing
+surprises. Vectors currently keep two items inline and use copy-on-write for
+`set-at`, `push-back`, `pop-back`, and `concat`. A vector `concat` reuses the
+left vector only when it is uniquely owned; otherwise it allocates a result
+after reserving for the exact output length, so an alias never observes the
+update. Exact-size vector producers reserve their final element count before
+filling, while selective or delimiter-driven producers keep geometric growth
+rather than retaining a loose upper bound. Indexed reads are O(1); endpoint
+updates are O(1) or amortized O(1) on a unique update chain and O(n) when a
+shared vector must be copied. Removing the back item does not shrink vector
+capacity.
 
 ## Maps
 
@@ -269,9 +293,10 @@ Rules:
 - `>deque` accepts vectors, lists, and strings
 - conversion preserves front-to-back order
 - `push-front` and `push-back` return updated deques
-- `pop-front` and `pop-back` return `item deque`
-- `front` and `back` consume a non-empty deque and return one end; use
-  `dup front` or `dup back` when the deque should be preserved
+- `pop-front` and `pop-back` return `deque item`, matching the corresponding
+  constructor input order
+- `first` and `last` consume a non-empty deque and return one end; use
+  `dup first` or `dup last` when the deque should be preserved
 - `items` projects a deque to a vector
 - `len` and `empty?` treat deques as finite collections
 
@@ -289,7 +314,8 @@ Rules:
 - `pqueue-push` returns an updated priority queue
 - `pqueue-peek` consumes a priority queue and returns the next value; use
   `dup pqueue-peek` when the queue should be preserved
-- `pqueue-pop` returns `value pqueue`
+- `pqueue-pop` returns `pqueue value`, leaving the removed value on top; it is
+  not an inverse of `pqueue-push` because the stable insertion order is hidden
 - `pqueue-drain` projects values to a vector in priority order
 - `len` and `empty?` treat priority queues as finite collections
 

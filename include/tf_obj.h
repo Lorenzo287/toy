@@ -63,6 +63,9 @@ typedef struct tf_list_node {
     struct tf_list_node *next;
 } tf_list_node;
 
+/* Two inline slots fit inside the union space already required by maps. */
+#define TF_VECTOR_INLINE_CAP 2
+
 struct tf_obj {
     int refcount;
     tf_type type;
@@ -80,6 +83,7 @@ struct tf_obj {
             struct tf_obj **elem;
             size_t len;
             size_t cap;
+            struct tf_obj *inline_elem[TF_VECTOR_INLINE_CAP];
         } vector;
         struct {
             tf_list_node *head;
@@ -114,9 +118,13 @@ struct tf_obj {
     };
 };
 
+_Static_assert(sizeof(((tf_obj *)0)->vector) <= sizeof(((tf_obj *)0)->map),
+               "inline vector storage must not increase tf_obj size");
+
 /* Object constructors. Returned objects start with refcount 1. */
 tf_obj *tf_obj_new(int type);
 tf_obj *tf_obj_new_vector(void);
+tf_obj *tf_obj_new_vector_with_capacity(size_t capacity);
 tf_obj *tf_obj_new_list(void);
 tf_obj *tf_obj_new_map(void);
 tf_obj *tf_obj_new_set(void);
@@ -132,9 +140,11 @@ void tf_obj_set_span(tf_obj *o, tf_source_span span);
 
 /* String/symbol comparison and vector storage helpers. */
 int tf_obj_compare_string(tf_obj *a, tf_obj *b);
+void tf_vector_reserve(tf_obj *v, size_t capacity);
 void tf_vector_push(tf_obj *v, tf_obj *elem);
 tf_obj *tf_vector_pop_type(tf_obj *v, tf_type type);
 tf_obj *tf_vector_pop(tf_obj *v);
+tf_obj *tf_vector_clone(tf_obj *src);
 
 /* Equality, hashing, and collection storage helpers. */
 bool tf_obj_equal(tf_obj *a, tf_obj *b);

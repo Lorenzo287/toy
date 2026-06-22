@@ -81,7 +81,8 @@ tf_ret tf_argc(tf_ctx *ctx) {
 }
 
 tf_ret tf_argv(tf_ctx *ctx) {
-    tf_obj *argv = tf_obj_new_vector();
+    size_t count = ctx->argc > 0 ? (size_t)ctx->argc : 0;
+    tf_obj *argv = tf_obj_new_vector_with_capacity(count);
     for (int i = 0; i < ctx->argc; i++) {
         tf_obj *str = tf_obj_new_string(ctx->argv[i], strlen(ctx->argv[i]));
         tf_vector_push(argv, str);

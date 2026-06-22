@@ -18,8 +18,14 @@ tf_obj *tf_obj_new(int type) {
 tf_obj *tf_obj_new_vector(void) {
     tf_obj *o = tf_obj_new(TF_OBJ_TYPE_VECTOR);
     o->vector.len = 0;
-    o->vector.cap = 32;
-    o->vector.elem = tf_xmalloc(sizeof(tf_obj *) * o->vector.cap);
+    o->vector.cap = TF_VECTOR_INLINE_CAP;
+    o->vector.elem = o->vector.inline_elem;
+    return o;
+}
+
+tf_obj *tf_obj_new_vector_with_capacity(size_t capacity) {
+    tf_obj *o = tf_obj_new_vector();
+    tf_vector_reserve(o, capacity);
     return o;
 }
 
@@ -133,12 +139,26 @@ int tf_obj_compare_string(tf_obj *a, tf_obj *b) {
     }
 }
 
-void tf_vector_push(tf_obj *v, tf_obj *elem) {
-    if (v->vector.len >= v->vector.cap) {
-        v->vector.cap *= 2;
+void tf_vector_reserve(tf_obj *v, size_t capacity) {
+    if (capacity <= v->vector.cap) return;
+
+    size_t new_cap = v->vector.cap;
+    while (new_cap < capacity) new_cap *= 2;
+
+    if (v->vector.elem == v->vector.inline_elem) {
+        tf_obj **new_elem = tf_xmalloc(sizeof(tf_obj *) * new_cap);
+        memcpy(new_elem, v->vector.inline_elem,
+               sizeof(tf_obj *) * v->vector.len);
+        v->vector.elem = new_elem;
+    } else {
         v->vector.elem =
-            tf_xrealloc(v->vector.elem, sizeof(tf_obj *) * v->vector.cap);
+            tf_xrealloc(v->vector.elem, sizeof(tf_obj *) * new_cap);
     }
+    v->vector.cap = new_cap;
+}
+
+void tf_vector_push(tf_obj *v, tf_obj *elem) {
+    tf_vector_reserve(v, v->vector.len + 1);
     v->vector.elem[v->vector.len++] = elem;
 }
 
@@ -152,15 +172,18 @@ tf_obj *tf_vector_pop_type(tf_obj *v, tf_type type) {
 
 tf_obj *tf_vector_pop(tf_obj *v) {
     if (v->vector.len == 0) return NULL;
-    tf_obj *o = v->vector.elem[v->vector.len - 1];
+    /* Stack pops retain capacity so removal never reallocates. */
+    return v->vector.elem[--v->vector.len];
+}
 
-    v->vector.len--;
-    if (v->vector.len < v->vector.cap / 4 && v->vector.cap > 32) {
-        v->vector.cap /= 2;
-        v->vector.elem =
-            tf_xrealloc(v->vector.elem, sizeof(tf_obj *) * v->vector.cap);
+tf_obj *tf_vector_clone(tf_obj *src) {
+    tf_obj *result = tf_obj_new_vector_with_capacity(src->vector.len);
+    for (size_t i = 0; i < src->vector.len; i++) {
+        tf_obj *elem = src->vector.elem[i];
+        tf_obj_retain(elem);
+        tf_vector_push(result, elem);
     }
-    return o;
+    return result;
 }
 
 static void list_node_retain(tf_list_node *node) {
@@ -714,7 +737,7 @@ void tf_obj_free(tf_obj *o) {
     case TF_OBJ_TYPE_VARLIST:
     case TF_OBJ_TYPE_VECTOR:
         for (size_t i = 0; i < o->vector.len; i++) tf_obj_release(o->vector.elem[i]);
-        free(o->vector.elem);
+        if (o->vector.elem != o->vector.inline_elem) free(o->vector.elem);
         break;
     case TF_OBJ_TYPE_LIST:
         list_node_release(o->list.head);

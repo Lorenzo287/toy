@@ -93,8 +93,10 @@ are data sequences, not callables.
 ( 1 2 3 ) uncons     \ leaves 1 (2 3)
 0 ( 1 2 3 ) cons     \ leaves (0 1 2 3)
 "abc" first          \ leaves "a"
-"ab" "c" append      \ leaves "abc"
+"abc" last           \ leaves "c"
+"ab" "c" push-back   \ leaves "abc"
 "ab" "cd" concat     \ leaves "abcd"
+[ 1 2 3 ] pop-back    \ leaves [ 1 2 ] 3
 "  alpha,beta,gamma  " trim "," split [ upper ] map "-" join print
 
 { 'name "Ada" 'age 36 } 'name get print
@@ -145,10 +147,10 @@ changing the data stack.
 | Control                  | `exec`, `i`, `if`, `ifelse`, `while`, `cond`, `try`, `error` |
 | Combinators              | `app2`, `infra`, `cleave`, `construct`, `replicate`, `times`, `dip`, `keep`, `bi`, `linrec`, `binrec`, `genrec`, `treerec` |
 | Sequence Combinators     | `each`, `map`, `fold`, `filter`, `some`, `all`, `split`, `merge` |
-| Sequence                 | `at`, `set-at`, `>vector`, `>list`, `contains?`, `indexof`, `unique`, `sort`, `slice`, `take`, `dropn`, `len`, `first`, `rest`, `uncons`, `cons`, `append`, `concat`, `reverse`, `splitmid`, `range`, `empty?` |
+| Sequence                 | `at`, `set-at`, `>vector`, `>list`, `contains?`, `indexof`, `unique`, `sort`, `slice`, `take`, `dropn`, `len`, `first`, `last`, `rest`, `uncons`, `cons`, `push-back`, `pop-back`, `concat`, `reverse`, `splitmid`, `range`, `empty?` |
 | String                   | `join`, `trim`, `upper`, `lower`, `char?`, `letter?`, `digit?`, `alnum?`, `space?`, `upper?`, `lower?`, `punct?` |
 | Map / Set                | `>map`, `>set`, `has?`, `get`, `assoc`, `dissoc`, `keys`, `values`, `pairs`, `items`, `adjoin`, `remove` |
-| Deque / Priority Queue   | `>deque`, `>pqueue`, `push-front`, `push-back`, `pop-front`, `pop-back`, `front`, `back`, `pqueue-push`, `pqueue-peek`, `pqueue-pop`, `pqueue-drain` |
+| Deque / Priority Queue   | `>deque`, `>pqueue`, `push-front`, `push-back`, `pop-front`, `pop-back`, `first`, `last`, `pqueue-push`, `pqueue-peek`, `pqueue-pop`, `pqueue-drain` |
 | Types                    | `typeof`, `bool?`, `int?`, `float?`, `string?`, `symbol?`, `vector?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `number?`, `sequence?`, `callable?` |
 | Dictionary / Symbols     | `def`, `word?`, `var?`, `body`, `intern`, `name`, `words`, `see`, `doc`, `apropos` |
 | Console                  | `printf`, `print`, `cr`, `.`, `.s`, `.S`, `key`, `input`, `clear`, `page` |
@@ -165,6 +167,7 @@ changing the data stack.
 ## Extra
 
 - [Combinator Examples](./docs/combinators.md)
+- [Benchmarks](./benchmarks/README.md)
 - [Data Model Plan](./docs/data-model.md)
 - [Roadmap](./docs/language-roadmap.md)
 

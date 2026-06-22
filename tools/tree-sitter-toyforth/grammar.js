@@ -66,10 +66,10 @@ export default grammar({
       'doc', 'apropos',
       '>vector', '>list', '>map', '>set', '>deque', '>pqueue', 'contains?', 'indexof', 'unique', 'sort',
       'has?', 'get', 'assoc', 'dissoc', 'keys', 'values', 'pairs', 'items', 'adjoin', 'remove',
-      'push-front', 'push-back', 'pop-front', 'pop-back', 'front', 'back',
+      'push-front', 'push-back', 'pop-front', 'pop-back',
       'pqueue-push', 'pqueue-peek', 'pqueue-pop', 'pqueue-drain',
-      'at', 'set-at', 'slice', 'take', 'dropn', 'len', 'first', 'rest', 'uncons', 'cons',
-      'append', 'concat', 'reverse', 'join', 'trim', 'upper', 'lower', 'splitmid', 'range', 'empty?',
+      'at', 'set-at', 'slice', 'take', 'dropn', 'len', 'first', 'last', 'rest', 'uncons', 'cons',
+      'concat', 'reverse', 'join', 'trim', 'upper', 'lower', 'splitmid', 'range', 'empty?',
       'char?', 'letter?', 'digit?', 'alnum?', 'space?', 'upper?', 'lower?', 'punct?',
       'rand', 'sleep', 'argc', 'argv', 'env?', 'getenv', 'setenv', 'pwd', 'shell', 'time', 'clock',
       'def', 'bye', 'exit'

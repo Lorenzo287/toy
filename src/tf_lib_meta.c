@@ -445,7 +445,7 @@ static bool word_matches_query(tf_word *word, const char *query,
 
 tf_ret tf_words(tf_ctx *ctx) {
     size_t count = ctx->words.count;
-    tf_obj *result = tf_obj_new_vector();
+    tf_obj *result = tf_obj_new_vector_with_capacity(count);
     if (count == 0) {
         tf_stack_push(ctx, result);
         return TF_OK;
@@ -553,7 +553,7 @@ tf_ret tf_apropos(tf_ctx *ctx) {
         qsort(matches, match_count, sizeof(tf_word *), word_name_cmp);
     }
 
-    tf_obj *result = tf_obj_new_vector();
+    tf_obj *result = tf_obj_new_vector_with_capacity(match_count);
     for (size_t i = 0; i < match_count; i++) {
         tf_vector_push(
             result, tf_obj_new_quoted_symbol(matches[i]->name->str.ptr,

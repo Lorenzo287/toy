@@ -72,9 +72,14 @@ with fixtures before editor integration.
 
 ### Performance Lab
 
-Profile first, change one technique at a time, and record results. Topics:
-dispatch, dictionary lookup, allocation, stack/vector/list growth, hot-path
-specialization, bytecode, threaded code, cache behavior.
+The reproducible benchmark suite lives in [`benchmarks/`](../benchmarks/README.md).
+Keep benchmarks separate from regression tests, compare optimized builds in the
+same environment, change one technique at a time, and record the commit,
+compiler, configuration, and machine with results. Initial coverage includes
+dispatch and vector growth/index/endpoint/concatenation paths.
+
+Future topics: dictionary lookup, allocation, list growth, hot-path
+specialization, bytecode, threaded code, and cache behavior.
 
 ### Compiler / LLVM
 
@@ -92,7 +97,7 @@ then bytecode for the existing VM, then LLVM for a constrained subset.
   (`split` for sequence partitioning and string splitting); avoid aliases that
   only encode implementation categories.
 - Treat strings as byte sequences for shared sequence words. A string item is a
-  one-byte string; `append` adds one item, while `concat` combines two
+  one-byte string; `push-back` adds one item, while `concat` combines two
   sequences.
 - Introspection words should push data rather than print directly. Word names
   are symbols: `words` and `apropos` push vectors of symbols, while `see` and
@@ -104,6 +109,9 @@ then bytecode for the existing VM, then LLVM for a constrained subset.
   error, not by returning an unrelated sentinel value such as `[]`.
 - Ordinary words consume their declared stack inputs. Use `dup`, `keep`, `bi`,
   and related stack combinators when a caller wants preservation.
+- Endpoint destructors return reconstruction inputs in constructor order:
+  `pop-back` leaves `collection item` for `push-back`, while `uncons` leaves
+  `item sequence` for `cons`.
 - Predicate quotations used by control and predicate combinators observe the
   surrounding data stack by sandboxing stack changes and reading one boolean
   result. Side effects inside predicates are still real effects.

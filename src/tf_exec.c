@@ -108,13 +108,6 @@ void tf_frame_pop(tf_ctx *ctx, tf_ret status) {
     }
 
     ctx->call_stack_len--;
-
-    if (ctx->call_stack_len < ctx->call_stack_cap / 4 &&
-        ctx->call_stack_cap > 64) {
-        ctx->call_stack_cap /= 2;
-        ctx->call_stack =
-            tf_xrealloc(ctx->call_stack, sizeof(tf_frame) * ctx->call_stack_cap);
-    }
 }
 
 static void frame_unwind_to(tf_ctx *ctx, size_t entry_depth, tf_ret status) {
@@ -409,8 +402,9 @@ static const tf_builtin_word native_sequence_combinator_words[] = {
 };
 
 /* Sequence data words are shared by vectors, lists, and strings when the
- * operation has the same shape. String items are one-byte strings: append adds
- * one item, while concat combines two sequences. */
+ * operation has the same shape; endpoint words also accept deques. String
+ * items are one-byte strings: push-back adds one item, while concat combines
+ * two sequences. */
 static const tf_builtin_word native_sequence_words[] = {
     {"at", tf_at},           {"set-at", tf_set_at},
     {">vector", tf_to_vector}, {">list", tf_to_list},
@@ -418,9 +412,10 @@ static const tf_builtin_word native_sequence_words[] = {
     {"unique", tf_unique},   {"sort", tf_sort},
     {"slice", tf_slice},     {"take", tf_take},
     {"dropn", tf_dropn},     {"len", tf_len},
-    {"first", tf_first},     {"rest", tf_rest},
+    {"first", tf_first},     {"last", tf_last},
+    {"rest", tf_rest},
     {"uncons", tf_uncons},   {"cons", tf_cons},
-    {"append", tf_append},   {"concat", tf_concat},
+    {"push-back", tf_push_back}, {"concat", tf_concat},
     {"reverse", tf_reverse}, {"splitmid", tf_splitmid},
     {"range", tf_range},     {"empty?", tf_empty_q},
     {NULL, NULL},
@@ -449,10 +444,8 @@ static const tf_builtin_word native_map_set_words[] = {
 static const tf_builtin_word native_deque_pqueue_words[] = {
     {">deque", tf_to_deque}, {">pqueue", tf_to_pqueue},
     {"push-front", tf_push_front},
-    {"push-back", tf_push_back},
     {"pop-front", tf_pop_front},
     {"pop-back", tf_pop_back},
-    {"front", tf_front},     {"back", tf_back},
     {"pqueue-push", tf_pqueue_push_word},
     {"pqueue-peek", tf_pqueue_peek_word},
     {"pqueue-pop", tf_pqueue_pop_word},
@@ -520,7 +513,7 @@ const tf_builtin_group *tf_builtin_groups(size_t *count) {
 tf_ctx *tf_ctx_new(int argc, char **argv) {
     srand(time(NULL));
     tf_ctx *ctx = tf_xmalloc(sizeof(tf_ctx));
-    ctx->data_stack = tf_obj_new_vector();
+    ctx->data_stack = tf_obj_new_vector_with_capacity(32);
     ctx->words.capacity = 128;
     ctx->words.count = 0;
     ctx->words.buckets = tf_xcalloc(ctx->words.capacity, sizeof(tf_word *));
