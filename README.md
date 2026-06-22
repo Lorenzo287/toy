@@ -89,9 +89,7 @@ are data sequences, not callables.
 ```
 
 ```toy
-\ Vectors, lists, strings, and files are available for small scripts.
-[ 1 2 3 ] uncons     \ leaves 1 [2 3]
-0 [ 1 2 3 ] cons     \ leaves [0 1 2 3]
+\ Vectors, lists, strings, and files are available
 ( 1 2 3 ) uncons     \ leaves 1 (2 3)
 0 ( 1 2 3 ) cons     \ leaves (0 1 2 3)
 "abc" first          \ leaves "a"

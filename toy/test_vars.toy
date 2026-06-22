@@ -13,6 +13,6 @@ $shadow print \ Should print 10
 
 \ Comments support
 \ This is a comment
-( This is a
-   block comment )
+/* This is a
+   block comment */
 "Comment test passed" print
