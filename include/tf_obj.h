@@ -72,6 +72,9 @@ typedef struct {
 /* Two inline slots fit inside the union space already required by maps. */
 #define TF_VECTOR_INLINE_CAP 2
 
+/* Heap strings reuse these otherwise-idle bytes to store their capacity. */
+#define TF_STRING_INLINE_CAP (sizeof(void *) == 8 ? 22 : 10)
+
 struct tf_obj {
     int refcount;
     tf_type type;
@@ -84,6 +87,7 @@ struct tf_obj {
             char *ptr;
             size_t len;
             bool quoted;
+            char inline_buf[TF_STRING_INLINE_CAP + 1];
         } str;
         struct {
             struct tf_obj **elem;
@@ -126,6 +130,8 @@ struct tf_obj {
 
 _Static_assert(sizeof(((tf_obj *)0)->vector) <= sizeof(((tf_obj *)0)->map),
                "inline vector storage must not increase tf_obj size");
+_Static_assert(sizeof(((tf_obj *)0)->str) <= sizeof(((tf_obj *)0)->map),
+               "inline string storage must not increase tf_obj size");
 
 /* Non-owning cursor over a sequence owned by the caller. */
 typedef struct {
@@ -149,10 +155,14 @@ tf_obj *tf_obj_new_float(float f);
 tf_obj *tf_obj_new_symbol(const char *s, size_t len);
 tf_obj *tf_obj_new_quoted_symbol(const char *s, size_t len);
 tf_obj *tf_obj_new_string(const char *s, size_t len);
+tf_obj *tf_obj_new_string_uninitialized(size_t len);
+/* Takes a heap buffer of at least len + 1 bytes and always consumes it. */
+tf_obj *tf_obj_new_string_take(char *s, size_t len);
 void tf_obj_set_span(tf_obj *o, tf_source_span span);
 
 /* String/symbol comparison and vector storage helpers. */
 int tf_obj_compare_string(tf_obj *a, tf_obj *b);
+void tf_string_reserve(tf_obj *s, size_t capacity);
 void tf_vector_reserve(tf_obj *v, size_t capacity);
 void tf_vector_push(tf_obj *v, tf_obj *elem);
 tf_obj *tf_vector_pop_type(tf_obj *v, tf_type type);

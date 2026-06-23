@@ -167,7 +167,7 @@ func TestLookupHover(t *testing.T) {
 	if builtinHover.Range.Start.Character != 7 {
 		t.Fatalf("unexpected builtin hover range: %+v", builtinHover.Range)
 	}
-	if builtinHover.Contents != "```toy\nprint\n```\nstack: `x --`\n\nPrint a value." {
+	if builtinHover.Contents != "```toy\nprint\n```\nstack: `x --`\n\nPrint one value literally, followed by a newline." {
 		t.Fatalf("unexpected builtin hover contents: %q", builtinHover.Contents)
 	}
 }

@@ -136,7 +136,11 @@ static void bytebuf_append(bytebuf *buf, char c) {
 }
 
 static tf_obj *bytebuf_to_string(bytebuf *buf) {
-    return tf_obj_new_string(buf->ptr, buf->len);
+    tf_obj *result = tf_obj_new_string_take(buf->ptr, buf->len);
+    buf->ptr = NULL;
+    buf->len = 0;
+    buf->cap = 0;
+    return result;
 }
 
 static size_t stack_results_after(tf_ctx *ctx, size_t base_len) {

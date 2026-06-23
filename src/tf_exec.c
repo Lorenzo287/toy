@@ -408,6 +408,7 @@ static const tf_builtin_word native_sequence_combinator_words[] = {
 static const tf_builtin_word native_sequence_words[] = {
     {"at", tf_at},           {"set-at", tf_set_at},
     {">vector", tf_to_vector}, {">list", tf_to_list},
+    {">string", tf_to_string},
     {"contains?", tf_contains_q}, {"indexof", tf_indexof},
     {"unique", tf_unique},   {"sort", tf_sort},
     {"slice", tf_slice},     {"take", tf_take},
@@ -424,7 +425,9 @@ static const tf_builtin_word native_sequence_words[] = {
 static const tf_builtin_word native_string_words[] = {
     {"join", tf_join},       {"trim", tf_trim},
     {"upper", tf_upper},     {"lower", tf_lower},
-    {"char?", tf_char_q},    {"letter?", tf_letter_q},
+    {"char?", tf_char_q},    {">char", tf_to_char},
+    {"char-code", tf_char_code},
+    {"letter?", tf_letter_q},
     {"digit?", tf_digit_q},  {"alnum?", tf_alnum_q},
     {"space?", tf_space_q},  {"upper?", tf_upper_q},
     {"lower?", tf_lower_q},  {"punct?", tf_punct_q},
@@ -471,6 +474,7 @@ static const tf_builtin_word native_dictionary_words[] = {
     {"intern", tf_intern}, {"name", tf_name},
     {"words", tf_words},   {"see", tf_see},
     {"doc", tf_doc},       {"apropos", tf_apropos},
+    {"repr", tf_repr},
     {NULL, NULL},
 };
 

@@ -1,9 +1,21 @@
 #include "tf_obj.h"
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "tf_alloc.h"
+
+static void string_set_heap_capacity(tf_obj *s, size_t capacity) {
+    /* Heap strings do not use inline_buf; memcpy also avoids alignment assumptions. */
+    memcpy(s->str.inline_buf, &capacity, sizeof(capacity));
+}
+
+static size_t string_heap_capacity(tf_obj *s) {
+    size_t capacity = 0;
+    memcpy(&capacity, s->str.inline_buf, sizeof(capacity));
+    return capacity;
+}
 
 /* === Object Creation === */
 
@@ -105,12 +117,37 @@ tf_obj *tf_obj_new_quoted_symbol(const char *s, size_t len) {
 }
 
 tf_obj *tf_obj_new_string(const char *s, size_t len) {
+    tf_obj *o = tf_obj_new_string_uninitialized(len);
+    memcpy(o->str.ptr, s, len);
+    return o;
+}
+
+tf_obj *tf_obj_new_string_uninitialized(size_t len) {
     tf_obj *o = tf_obj_new(TF_OBJ_TYPE_STR);
-    o->str.ptr = tf_xmalloc(len + 1);
     o->str.len = len;
     o->str.quoted = false;
-    memcpy(o->str.ptr, s, len);
+    o->str.ptr = len <= TF_STRING_INLINE_CAP
+                     ? o->str.inline_buf
+                     : tf_xmalloc(len + 1);
+    if (o->str.ptr != o->str.inline_buf) string_set_heap_capacity(o, len);
     o->str.ptr[len] = 0;
+    return o;
+}
+
+tf_obj *tf_obj_new_string_take(char *s, size_t len) {
+    tf_obj *o = tf_obj_new(TF_OBJ_TYPE_STR);
+    o->str.len = len;
+    o->str.quoted = false;
+    if (len <= TF_STRING_INLINE_CAP) {
+        o->str.ptr = o->str.inline_buf;
+        if (len > 0) memcpy(o->str.ptr, s, len);
+        o->str.ptr[len] = 0;
+        free(s);
+    } else {
+        o->str.ptr = s;
+        string_set_heap_capacity(o, len);
+        o->str.ptr[len] = 0;
+    }
     return o;
 }
 
@@ -137,6 +174,32 @@ int tf_obj_compare_string(tf_obj *a, tf_obj *b) {
         if (cmp < 0) return -1;
         return 1;
     }
+}
+
+void tf_string_reserve(tf_obj *s, size_t capacity) {
+    assert(s->type == TF_OBJ_TYPE_STR);
+    bool is_inline = s->str.ptr == s->str.inline_buf;
+    size_t current_cap = is_inline ? TF_STRING_INLINE_CAP
+                                   : string_heap_capacity(s);
+    if (capacity <= current_cap) return;
+
+    size_t new_cap = current_cap;
+    while (new_cap < capacity) {
+        if (new_cap > SIZE_MAX / 2) {
+            new_cap = capacity;
+            break;
+        }
+        new_cap *= 2;
+    }
+
+    if (is_inline) {
+        char *new_ptr = tf_xmalloc(new_cap + 1);
+        memcpy(new_ptr, s->str.inline_buf, s->str.len + 1);
+        s->str.ptr = new_ptr;
+    } else {
+        s->str.ptr = tf_xrealloc(s->str.ptr, new_cap + 1);
+    }
+    string_set_heap_capacity(s, new_cap);
 }
 
 void tf_vector_reserve(tf_obj *v, size_t capacity) {
@@ -896,7 +959,7 @@ void tf_obj_free(tf_obj *o) {
     case TF_OBJ_TYPE_VARFETCH:
     case TF_OBJ_TYPE_SYMBOL:
     case TF_OBJ_TYPE_STR:
-        free(o->str.ptr);
+        if (o->str.ptr != o->str.inline_buf) free(o->str.ptr);
         break;
     default:
         break;
@@ -906,7 +969,8 @@ void tf_obj_free(tf_obj *o) {
 
 static void print_escaped_string(const char *s, size_t len) {
     for (size_t i = 0; i < len; i++) {
-        switch (s[i]) {
+        unsigned char c = (unsigned char)s[i];
+        switch (c) {
         case '\\':
             printf("\\\\");
             break;
@@ -923,7 +987,11 @@ static void print_escaped_string(const char *s, size_t len) {
             printf("\\t");
             break;
         default:
-            putchar((unsigned char)s[i]);
+            if (c < 0x20 || c >= 0x7f) {
+                printf("\\x%02x", c);
+            } else {
+                putchar(c);
+            }
             break;
         }
     }
@@ -1055,7 +1123,7 @@ void tf_obj_print_value(tf_obj *o) {
         printf("%s", o->str.ptr);
         break;
     case TF_OBJ_TYPE_STR:
-        printf("%s", o->str.ptr);
+        fwrite(o->str.ptr, 1, o->str.len, stdout);
         break;
     case TF_OBJ_TYPE_BOOL:
         printf("%s", o->b ? "true" : "false");
@@ -1147,9 +1215,13 @@ void tf_obj_print_source(tf_obj *o) {
     case TF_OBJ_TYPE_INT:
         printf("%d", o->i);
         break;
-    case TF_OBJ_TYPE_FLOAT:
-        printf("%g", o->f);
+    case TF_OBJ_TYPE_FLOAT: {
+        char buf[64];
+        snprintf(buf, sizeof buf, "%.9g", o->f);
+        printf("%s", buf);
+        if (isfinite(o->f) && !strpbrk(buf, ".eE")) printf(".0");
         break;
+    }
     case TF_OBJ_TYPE_SYMBOL:
         if (o->str.quoted) printf("'");
         printf("%s", o->str.ptr);

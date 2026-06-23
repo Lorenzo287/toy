@@ -82,6 +82,13 @@ static int lexer_at_token_boundary(tf_lexer *lexer);
 static int lexer_is_structural_char(int c);
 static int lexer_skip_block_comment(tf_lexer *lexer);
 
+static int hex_value(int c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
 /* Parse source text into a vector of runtime objects. */
 tf_obj *tf_lexer_parse(const char *filename, char *prg_text) {
     tf_lexer lexer_state = {.filename = filename ? filename : "<unknown>",
@@ -394,14 +401,19 @@ static tf_obj *lexer_tokenize_string(tf_lexer *lexer) {
             case 't':
                 buf[len++] = '\t';
                 break;
-            case '0': {
-                if (lexer->pos[1] == '3' && lexer->pos[2] == '3') {
-                    buf[len++] = '\033';
-                    lexer_advance(lexer);
-                    lexer_advance(lexer);
-                } else {
-                    buf[len++] = '0';
+            case 'x': {
+                int high = hex_value((unsigned char)lexer->pos[1]);
+                int low = hex_value((unsigned char)lexer->pos[2]);
+                if (high < 0 || low < 0) {
+                    lexer_errorf(
+                        lexer,
+                        "invalid hexadecimal escape; expected \\x followed by two hexadecimal digits\n");
+                    free(buf);
+                    return NULL;
                 }
+                buf[len++] = (char)((high << 4) | low);
+                lexer_advance(lexer);
+                lexer_advance(lexer);
                 break;
             }
             case '"':
@@ -411,8 +423,10 @@ static tf_obj *lexer_tokenize_string(tf_lexer *lexer) {
                 buf[len++] = '\\';
                 break;
             default:
-                buf[len++] = lexer->pos[0];
-                break;
+                lexer_errorf(lexer, "unknown string escape '\\%c'\n",
+                             lexer->pos[0]);
+                free(buf);
+                return NULL;
             }
         } else {
             buf[len++] = lexer->pos[0];
@@ -430,10 +444,9 @@ static tf_obj *lexer_tokenize_string(tf_lexer *lexer) {
     }
     lexer_advance(lexer);  // skip closing "
 
-    tf_obj *o = tf_obj_new_string(buf, len);
+    tf_obj *o = tf_obj_new_string_take(buf, len);
     lexer_finish_span(lexer, &span);
     tf_obj_set_span(o, span);
-    free(buf);
     return o;
 }
 

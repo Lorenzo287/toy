@@ -12,6 +12,8 @@
 
 "a,b,c"","split [ "a" "b" "c" ] == check
 "abc"["b"!=]filter "ac" == check
+"\x3f" "?" == check
+"\x00" char-code 0 == check
 
 ( outer ( inner ) still outer )
 true check

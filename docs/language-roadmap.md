@@ -78,7 +78,9 @@ same environment, change one technique at a time, and record the commit,
 compiler, configuration, and machine with results. Initial coverage includes
 dispatch, vector growth/index/endpoint/concatenation paths, and persistent-list
 front/traversal/concatenation paths. Sequence-algorithm workloads cover sort
-crossovers and duplicate-density effects in `unique`.
+crossovers and duplicate-density effects in `unique`. String workloads cover
+inline storage, byte extraction and traversal, transforms, splitting, and
+incremental flat-string growth.
 
 Future topics: dictionary lookup, allocation, list growth, hot-path
 specialization, bytecode, threaded code, and cache behavior.
@@ -104,9 +106,10 @@ then bytecode for the existing VM, then LLVM for a constrained subset.
 - Capability names may carry complexity contracts: indexed access and
   persistent-list front operations are O(1). Update capabilities must document
   both their unique-update cost and the copying required when a value is shared.
-- Treat strings as byte sequences for shared sequence words. A string item is a
-  one-byte string; `push-back` adds one item, while `concat` combines two
-  sequences.
+- Treat strings as byte sequences for shared sequence words. A Toy character is
+  a one-byte string with an unsigned code from 0 through 255; `push-back` adds
+  one character, while `concat` combines two sequences. String `contains?` and
+  `indexof` search substrings because their operand is itself a string.
 - Introspection words should push data rather than print directly. Word names
   are symbols: `words` and `apropos` push vectors of symbols, while `see` and
   `doc` push strings.
@@ -125,6 +128,8 @@ then bytecode for the existing VM, then LLVM for a constrained subset.
   result. Side effects inside predicates are still real effects.
 - Diagnostic display words such as `.`, `.s`, and `.S` may observe the stack
   without consuming values.
+- `print` emits one literal value and a newline. Formatting is explicit through
+  `printf`; source-style conversion is data-producing through `repr`.
 - Update-style data words such as `set-at` should return updated values rather
   than mutating shared objects in place.
 - New native words need focused tests and lightweight tooling metadata updates.

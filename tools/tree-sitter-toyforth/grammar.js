@@ -63,14 +63,14 @@ export default grammar({
       'typeof', 'bool?', 'int?', 'float?', 'string?', 'symbol?', 'vector?', 'list?', 'number?', 'sequence?', 'callable?', 'nan?', 'inf?',
       'map?', 'set?', 'deque?', 'pqueue?',
       'word?', 'var?', 'inf', 'nan', 'body', 'intern', 'name', 'words', 'see',
-      'doc', 'apropos',
-      '>vector', '>list', '>map', '>set', '>deque', '>pqueue', 'contains?', 'indexof', 'unique', 'sort',
+      'doc', 'apropos', 'repr',
+      '>vector', '>list', '>string', '>map', '>set', '>deque', '>pqueue', 'contains?', 'indexof', 'unique', 'sort',
       'has?', 'get', 'assoc', 'dissoc', 'keys', 'values', 'pairs', 'items', 'adjoin', 'remove',
       'push-front', 'push-back', 'pop-front', 'pop-back',
       'pqueue-push', 'pqueue-peek', 'pqueue-pop', 'pqueue-drain',
       'at', 'set-at', 'slice', 'take', 'dropn', 'len', 'first', 'last', 'rest', 'uncons', 'cons',
       'concat', 'reverse', 'join', 'trim', 'upper', 'lower', 'splitmid', 'range', 'empty?',
-      'char?', 'letter?', 'digit?', 'alnum?', 'space?', 'upper?', 'lower?', 'punct?',
+      'char?', '>char', 'char-code', 'letter?', 'digit?', 'alnum?', 'space?', 'upper?', 'lower?', 'punct?',
       'rand', 'sleep', 'argc', 'argv', 'env?', 'getenv', 'setenv', 'pwd', 'shell', 'time', 'clock',
       'def', 'bye', 'exit'
     ),
@@ -89,9 +89,7 @@ export default grammar({
       /\\t/,
       /\\"/,
       /\\\\/,
-      /\\033/,
-      /\\0/,
-      /\\./,  // catch-all
+      /\\x[0-9a-fA-F]{2}/,
     )),
     quoted_symbol: $ => seq(
       "'",

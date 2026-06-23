@@ -37,6 +37,11 @@ callable and are not indexed by `at`, `set-at`, or `slice`.
 `{ ... }` creates an associative map from alternating key/value forms.
 `#{ ... }` creates a membership set with duplicate items rejected in literals.
 
+Strings are byte sequences rather than Unicode text. A language-level
+character is exactly a one-byte string. String literals accept `\n`, `\r`,
+`\t`, `\"`, `\\`, and `\xHH`; other backslash escapes are errors. `\xHH`
+uses exactly two hexadecimal digits and can construct any byte.
+
 Secondary structures are built explicitly:
 
 ```toy
@@ -81,9 +86,9 @@ Words: `len`, `first`, `last`, `rest`, `uncons`, `cons`, `push-back`, `concat`,
 `reverse`, `take`, `dropn`, `contains?`, `indexof`, `unique`, `sort`, `each`,
 `map`, `fold`, `filter`, `split`, `merge`, `splitmid`.
 
-`contains?` and `indexof` are sequence membership/search words. For strings,
-the searched item is a one-byte string. `indexof` returns `-1` when the item is
-absent.
+`contains?` and `indexof` use item equality for vectors and lists. For strings,
+the second argument is a substring of any length. The empty substring is found
+at byte index zero. `indexof` returns `-1` when the item or substring is absent.
 
 `join` is adjacent to sequence words but narrower: it accepts a vector or list
 of strings plus a separator and returns a string.
@@ -151,7 +156,8 @@ Membership values support containment by equality/hash:
 Words: `has?`, `adjoin`, `remove`, `items`.
 
 This capability is separate from sequence search. Use `contains?` for
-vector/list/string item search; use `has?` for map keys and set items.
+vector/list item search or string substring search; use `has?` for map keys and
+set items.
 
 Mapping over a set should be explicit through projection:
 
@@ -211,6 +217,7 @@ Examples:
 ```toy
 [ 1 2 3 ] >list       \ choose linked-list sequence behavior
 ( 1 2 3 ) >vector     \ choose indexed vector behavior
+[ "a" "b" "c" ] >string \ validate and combine characters
 [ 1 2 2 3 ] >set       \ duplicates intentionally collapse
 ( 1 2 3 ) >deque       \ choose front/back discipline
 m keys                 \ choose key projection
@@ -218,7 +225,13 @@ m values               \ choose value projection
 m pairs                \ choose pair projection
 pairs >map             \ build associative structure
 pq pqueue-drain        \ choose priority order output
+63 >char               \ construct the one-byte string "?"
+"?" char-code          \ inspect its unsigned code
 ```
+
+`>char` accepts integer codes from 0 through 255. `char-code` is its inverse,
+and `key` returns the same one-byte string representation. `repr` returns a
+source-style string and uses canonical escapes for control and non-ASCII bytes.
 
 Internal layout optimizations may be transparent when observable semantics do
 not change: vector capacity growth, hash-table resize, cached hashes,
@@ -313,6 +326,19 @@ rather than retaining a loose upper bound. Indexed reads are O(1); endpoint
 updates are O(1) or amortized O(1) on a unique update chain and O(n) when a
 shared vector must be copied. Removing the back item does not shrink vector
 capacity.
+
+Strings are immutable flat byte sequences. Short strings and symbols keep their
+bytes inside `tf_obj` (up to 22 bytes on 64-bit targets and 10 bytes on 32-bit
+targets) without increasing the object size; longer values use one separate
+allocation. Exact-size producers fill the final string storage directly, while
+dynamic byte buffers transfer their allocation into the result. Indexed byte
+reads remain O(1), but they return a newly allocated one-byte string. Heap
+strings reuse their otherwise-idle inline bytes to track capacity. `set-at`,
+`push-back`, and `concat` may update a uniquely owned string; geometric reserve
+makes repeated `push-back` and fixed-chunk `concat` amortized linear in the total
+output length. Shared strings are copied before updates, preserving value
+semantics. Slices always copy their output, and repeated front `cons` remains
+O(n²) because existing bytes must shift even when capacity is available.
 
 ## Maps
 

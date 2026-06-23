@@ -46,3 +46,18 @@ Basic expressions
   (var_list
     (word)
     (word)))
+
+==================
+String escapes
+==================
+
+"line\nquote\"slash\\byte\x3f"
+
+---
+
+(source_file
+  (string
+    (escape_sequence)
+    (escape_sequence)
+    (escape_sequence)
+    (escape_sequence)))

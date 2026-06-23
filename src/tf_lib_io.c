@@ -104,9 +104,12 @@ tf_ret tf_printf(tf_ctx *ctx) {
 }
 
 tf_ret tf_print(tf_ctx *ctx) {
-    tf_ret res = tf_printf(ctx);
-    if (res == TF_OK) printf("\n");
-    return res;
+    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
+    tf_obj *o = tf_stack_pop(ctx);
+    tf_obj_print_value(o);
+    putchar('\n');
+    tf_obj_release(o);
+    return TF_OK;
 }
 
 tf_ret tf_dot(tf_ctx *ctx) {
@@ -175,7 +178,8 @@ tf_ret tf_key(tf_ctx *ctx) {
         tf_ctx_runtime_errorf(ctx, "'key' failed to read input\n");
         return TF_ERR;
     }
-    tf_stack_push(ctx, tf_obj_new_int(c));
+    unsigned char byte = (unsigned char)c;
+    tf_stack_push(ctx, tf_obj_new_string((const char *)&byte, 1));
     return TF_OK;
 }
 
@@ -269,8 +273,7 @@ tf_ret tf_readf(tf_ctx *ctx) {
     buf[n_read] = '\0';
     fclose(fp);
 
-    tf_stack_push(ctx, tf_obj_new_string(buf, n_read));
-    free(buf);
+    tf_stack_push(ctx, tf_obj_new_string_take(buf, n_read));
     tf_obj_release(path);
     return TF_OK;
 }

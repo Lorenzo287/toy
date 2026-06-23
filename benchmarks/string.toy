@@ -1,0 +1,23 @@
+\ Flat byte-string allocation and traversal microbenchmarks.
+\ Usage: [ setup ] [ body ] count "Name" bench-state
+'bench-state [
+    | setup block count name |
+    $name printf ": " printf
+    clock
+    $setup exec
+    $count [ $block exec ] times
+    drop
+    clock swap - printf " ticks\n" printf
+] def
+
+"--- String ---\n" printf
+
+[ "abcdefghijklmnop" ] [ dup 8 at drop ] 200000 "indexed byte read short" bench-state
+[ "" 64 [ "0123456789abcdef" concat ] times ] [ dup 512 at drop ] 100000 "indexed byte read long" bench-state
+[ "abcdefghijklmnop" ] [ dup reverse drop ] 100000 "reverse short" bench-state
+[ "" 64 [ "abcdefghijklmnop" concat ] times ] [ dup upper drop ] 10000 "upper long" bench-state
+[ "" ] [ "x" push-back ] 10000 "push-back growth n=10000" bench-state
+[ "" ] [ "x" push-back ] 40000 "push-back growth n=40000" bench-state
+[ "" 64 [ "abcdefghijklmnop" concat ] times ] [ dup "" split drop ] 1000 "split into bytes" bench-state
+[ "" 16 [ "Az 09!xy" concat ] times ] [ dup 'alnum? filter drop ] 2000 "filter bytes" bench-state
+[ "" 16 [ "abcdefgh" concat ] times ] [ dup [ ] map drop ] 2000 "map identity bytes" bench-state

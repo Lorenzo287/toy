@@ -112,6 +112,7 @@ tf_ret tf_words(tf_ctx *ctx);
 tf_ret tf_see(tf_ctx *ctx);
 tf_ret tf_doc(tf_ctx *ctx);
 tf_ret tf_apropos(tf_ctx *ctx);
+tf_ret tf_repr(tf_ctx *ctx);
 tf_ret tf_def(tf_ctx *ctx);
 
 // Quotation execution, control flow, and recursion
@@ -151,6 +152,7 @@ tf_ret tf_at(tf_ctx *ctx);
 tf_ret tf_set_at(tf_ctx *ctx);
 tf_ret tf_to_vector(tf_ctx *ctx);
 tf_ret tf_to_list(tf_ctx *ctx);
+tf_ret tf_to_string(tf_ctx *ctx);
 tf_ret tf_to_map(tf_ctx *ctx);
 tf_ret tf_to_set(tf_ctx *ctx);
 tf_ret tf_to_deque(tf_ctx *ctx);
@@ -197,6 +199,8 @@ tf_ret tf_splitmid(tf_ctx *ctx);
 tf_ret tf_range(tf_ctx *ctx);
 tf_ret tf_empty_q(tf_ctx *ctx);
 tf_ret tf_char_q(tf_ctx *ctx);
+tf_ret tf_to_char(tf_ctx *ctx);
+tf_ret tf_char_code(tf_ctx *ctx);
 tf_ret tf_letter_q(tf_ctx *ctx);
 tf_ret tf_digit_q(tf_ctx *ctx);
 tf_ret tf_alnum_q(tf_ctx *ctx);

@@ -65,8 +65,7 @@ tf_ret tf_shell(tf_ctx *ctx) {
     }
 
     int status = pclose(fp);
-    tf_stack_push(ctx, tf_obj_new_string(output ? output : "", total_size));
-    free(output);
+    tf_stack_push(ctx, tf_obj_new_string_take(output, total_size));
     
     // We could also push the status code, but for now let's just return the output
     (void)status; 

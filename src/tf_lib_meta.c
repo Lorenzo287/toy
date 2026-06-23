@@ -258,7 +258,8 @@ static void strbuf_append_char(strbuf *buf, char c) {
 
 static void strbuf_append_escaped(strbuf *buf, const char *s, size_t len) {
     for (size_t i = 0; i < len; i++) {
-        switch (s[i]) {
+        unsigned char c = (unsigned char)s[i];
+        switch (c) {
         case '\\':
             strbuf_append_cstr(buf, "\\\\");
             break;
@@ -274,9 +275,16 @@ static void strbuf_append_escaped(strbuf *buf, const char *s, size_t len) {
         case '\t':
             strbuf_append_cstr(buf, "\\t");
             break;
-        default:
-            strbuf_append_char(buf, s[i]);
+        default: {
+            if (c < 0x20 || c >= 0x7f) {
+                char escaped[5];
+                snprintf(escaped, sizeof escaped, "\\x%02x", c);
+                strbuf_append_cstr(buf, escaped);
+            } else {
+                strbuf_append_char(buf, (char)c);
+            }
             break;
+        }
         }
     }
 }
@@ -290,8 +298,11 @@ static void strbuf_append_source_obj(strbuf *buf, tf_obj *o) {
         strbuf_append_cstr(buf, num_buf);
         break;
     case TF_OBJ_TYPE_FLOAT:
-        snprintf(num_buf, sizeof num_buf, "%g", o->f);
+        snprintf(num_buf, sizeof num_buf, "%.9g", o->f);
         strbuf_append_cstr(buf, num_buf);
+        if (isfinite(o->f) && !strpbrk(num_buf, ".eE")) {
+            strbuf_append_cstr(buf, ".0");
+        }
         break;
     case TF_OBJ_TYPE_BOOL:
         strbuf_append_cstr(buf, o->b ? "true" : "false");
@@ -383,6 +394,17 @@ static void strbuf_append_source_obj(strbuf *buf, tf_obj *o) {
         break;
     }
     }
+}
+
+tf_ret tf_repr(tf_ctx *ctx) {
+    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
+    tf_obj *value = tf_stack_pop(ctx);
+    strbuf buf;
+    strbuf_init(&buf);
+    strbuf_append_source_obj(&buf, value);
+    tf_stack_push(ctx, tf_obj_new_string_take(buf.ptr, buf.len));
+    tf_obj_release(value);
+    return TF_OK;
 }
 
 static void strbuf_append_word_source(strbuf *buf, tf_word *word) {
@@ -484,8 +506,7 @@ tf_ret tf_see(tf_ctx *ctx) {
     strbuf_init(&buf);
     strbuf_append_word_source(&buf, word);
 
-    tf_stack_push(ctx, tf_obj_new_string(buf.ptr, buf.len));
-    free(buf.ptr);
+    tf_stack_push(ctx, tf_obj_new_string_take(buf.ptr, buf.len));
     tf_obj_release(name);
     return TF_OK;
 }
@@ -522,8 +543,7 @@ tf_ret tf_doc(tf_ctx *ctx) {
         strbuf_append_word_source(&buf, word);
     }
 
-    tf_stack_push(ctx, tf_obj_new_string(buf.ptr, buf.len));
-    free(buf.ptr);
+    tf_stack_push(ctx, tf_obj_new_string_take(buf.ptr, buf.len));
     tf_obj_release(name);
     return TF_OK;
 }

@@ -39,5 +39,7 @@ Current workloads:
   copy-left/share-right concatenation.
 - `sequence-algorithms.toy`: sort and unique crossover workloads by size,
   shape, and sequence family.
+- `string.toy`: short-string storage, byte extraction and traversal, flat
+  string transforms, splitting, and incremental growth.
 - `vector.toy`: unique `push-back`, non-shrinking `pop-back`, indexed reads,
   and unique/shared-left `concat`.

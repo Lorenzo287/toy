@@ -86,9 +86,14 @@ static bool vector_contains_equal(tf_obj *vector, tf_obj *needle) {
 
 static int sequence_indexof(tf_obj *seq, tf_obj *needle) {
     if (seq->type == TF_OBJ_TYPE_STR) {
-        if (!is_char_obj(needle)) return -1;
-        for (size_t i = 0; i < seq->str.len; i++) {
-            if (seq->str.ptr[i] == needle->str.ptr[0]) return (int)i;
+        if (needle->str.len == 0) return 0;
+        if (needle->str.len > seq->str.len) return -1;
+        size_t last = seq->str.len - needle->str.len;
+        for (size_t i = 0; i <= last; i++) {
+            if (memcmp(seq->str.ptr + i, needle->str.ptr,
+                       needle->str.len) == 0) {
+                return (int)i;
+            }
         }
         return -1;
     }
@@ -498,13 +503,16 @@ tf_ret tf_set_at(tf_ctx *ctx) {
     idx_obj = tf_stack_pop(ctx);
     coll_obj = tf_stack_pop(ctx);
 
-    tf_obj *new_str = tf_obj_new_string(coll_obj->str.ptr, coll_obj->str.len);
-    new_str->str.ptr[idx] = val->str.ptr[0];
-    tf_stack_push(ctx, new_str);
+    tf_obj *result = coll_obj->refcount == 1
+                         ? coll_obj
+                         : tf_obj_new_string(coll_obj->str.ptr,
+                                             coll_obj->str.len);
+    result->str.ptr[idx] = val->str.ptr[0];
+    tf_stack_push(ctx, result);
 
     tf_obj_release(val);
     tf_obj_release(idx_obj);
-    tf_obj_release(coll_obj);
+    if (result != coll_obj) tf_obj_release(coll_obj);
     return TF_OK;
 }
 
@@ -819,14 +827,22 @@ tf_ret tf_cons(tf_ctx *ctx) {
 
         seq = tf_stack_pop(ctx);
         tf_obj *head = tf_stack_pop(ctx);
-        char *new_ptr = tf_xmalloc(seq->str.len + 2);
-        new_ptr[0] = head->str.ptr[0];
-        memcpy(new_ptr + 1, seq->str.ptr, seq->str.len);
-        new_ptr[seq->str.len + 1] = '\0';
-        tf_stack_push(ctx, tf_obj_new_string(new_ptr, seq->str.len + 1));
-        free(new_ptr);
+        tf_obj *result = seq->refcount == 1
+                             ? seq
+                             : tf_obj_new_string_uninitialized(seq->str.len + 1);
+        if (result == seq) {
+            tf_string_reserve(result, result->str.len + 1);
+            memmove(result->str.ptr + 1, result->str.ptr, result->str.len);
+            result->str.len++;
+            result->str.ptr[result->str.len] = '\0';
+        } else {
+            result->str.ptr[0] = head->str.ptr[0];
+            memcpy(result->str.ptr + 1, seq->str.ptr, seq->str.len);
+        }
+        result->str.ptr[0] = head->str.ptr[0];
+        tf_stack_push(ctx, result);
         tf_obj_release(head);
-        tf_obj_release(seq);
+        if (result != seq) tf_obj_release(seq);
         return TF_OK;
     }
 
@@ -844,13 +860,20 @@ tf_ret tf_concat(tf_ctx *ctx) {
         right = tf_stack_pop(ctx);
         left = tf_stack_pop(ctx);
         size_t new_len = left->str.len + right->str.len;
-        char *new_ptr = tf_xmalloc(new_len + 1);
-        memcpy(new_ptr, left->str.ptr, left->str.len);
-        memcpy(new_ptr + left->str.len, right->str.ptr, right->str.len);
-        new_ptr[new_len] = '\0';
-        tf_stack_push(ctx, tf_obj_new_string(new_ptr, new_len));
-        free(new_ptr);
-        tf_obj_release(left);
+        size_t left_len = left->str.len;
+        tf_obj *result = left->refcount == 1
+                             ? left
+                             : tf_obj_new_string_uninitialized(new_len);
+        if (result == left) {
+            tf_string_reserve(result, new_len);
+        } else {
+            memcpy(result->str.ptr, left->str.ptr, left_len);
+        }
+        memcpy(result->str.ptr + left_len, right->str.ptr, right->str.len);
+        result->str.len = new_len;
+        result->str.ptr[new_len] = '\0';
+        tf_stack_push(ctx, result);
+        if (result != left) tf_obj_release(left);
         tf_obj_release(right);
         return TF_OK;
     }
@@ -915,13 +938,11 @@ tf_ret tf_reverse(tf_ctx *ctx) {
         return TF_OK;
     }
 
-    char *buf = tf_xmalloc(seq->str.len + 1);
+    tf_obj *result = tf_obj_new_string_uninitialized(seq->str.len);
     for (size_t i = 0; i < seq->str.len; i++) {
-        buf[i] = seq->str.ptr[seq->str.len - 1 - i];
+        result->str.ptr[i] = seq->str.ptr[seq->str.len - 1 - i];
     }
-    buf[seq->str.len] = '\0';
-    tf_stack_push(ctx, tf_obj_new_string(buf, seq->str.len));
-    free(buf);
+    tf_stack_push(ctx, result);
     tf_obj_release(seq);
     return TF_OK;
 }
@@ -983,6 +1004,45 @@ tf_ret tf_to_list(tf_ctx *ctx) {
     tf_obj *items = sequence_to_vector(seq);
     tf_stack_push(ctx, tf_list_from_vector(items));
     tf_obj_release(items);
+    tf_obj_release(seq);
+    return TF_OK;
+}
+
+tf_ret tf_to_string(tf_ctx *ctx) {
+    if (!tf_ctx_require_sequence(ctx, 0)) return TF_ERR;
+    tf_obj *seq = tf_stack_peek(ctx, 0);
+    if (seq->type == TF_OBJ_TYPE_STR) {
+        seq = tf_stack_pop(ctx);
+        tf_stack_push(ctx, seq);
+        return TF_OK;
+    }
+
+    tf_sequence_iter iter;
+    tf_sequence_iter_init(&iter, seq);
+    for (size_t i = 0;; i++) {
+        tf_obj *item = tf_sequence_iter_next_owned(&iter);
+        if (!item) break;
+        bool valid = is_char_obj(item);
+        tf_obj_release(item);
+        if (!valid) {
+            tf_ctx_runtime_errorf(
+                ctx,
+                "'%s' expected item %zu to be a one-character string\n",
+                ctx->current_word, i);
+            return TF_ERR;
+        }
+    }
+
+    seq = tf_stack_pop(ctx);
+    tf_obj *result = tf_obj_new_string_uninitialized(sequence_len(seq));
+    tf_sequence_iter_init(&iter, seq);
+    for (size_t i = 0;; i++) {
+        tf_obj *item = tf_sequence_iter_next_owned(&iter);
+        if (!item) break;
+        result->str.ptr[i] = item->str.ptr[0];
+        tf_obj_release(item);
+    }
+    tf_stack_push(ctx, result);
     tf_obj_release(seq);
     return TF_OK;
 }
@@ -1172,6 +1232,16 @@ tf_ret tf_contains_q(tf_ctx *ctx) {
         return TF_ERR;
     }
 
+    tf_obj *seq_arg = tf_stack_peek(ctx, 1);
+    tf_obj *item_arg = tf_stack_peek(ctx, 0);
+    if (seq_arg->type == TF_OBJ_TYPE_STR &&
+        item_arg->type != TF_OBJ_TYPE_STR) {
+        tf_ctx_runtime_errorf(ctx,
+                              "'%s' expected a string substring, found %s\n",
+                              ctx->current_word, tf_obj_type_name(item_arg));
+        return TF_ERR;
+    }
+
     tf_obj *item = tf_stack_pop(ctx);
     tf_obj *seq = tf_stack_pop(ctx);
     tf_stack_push(ctx, tf_obj_new_bool(sequence_indexof(seq, item) >= 0));
@@ -1182,6 +1252,16 @@ tf_ret tf_contains_q(tf_ctx *ctx) {
 
 tf_ret tf_indexof(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 2) || !tf_ctx_require_sequence(ctx, 1)) {
+        return TF_ERR;
+    }
+
+    tf_obj *seq_arg = tf_stack_peek(ctx, 1);
+    tf_obj *item_arg = tf_stack_peek(ctx, 0);
+    if (seq_arg->type == TF_OBJ_TYPE_STR &&
+        item_arg->type != TF_OBJ_TYPE_STR) {
+        tf_ctx_runtime_errorf(ctx,
+                              "'%s' expected a string substring, found %s\n",
+                              ctx->current_word, tf_obj_type_name(item_arg));
         return TF_ERR;
     }
 
@@ -1208,8 +1288,7 @@ tf_ret tf_unique(tf_ctx *ctx) {
             buf[len++] = (char)c;
         }
         buf[len] = '\0';
-        tf_stack_push(ctx, tf_obj_new_string(buf, len));
-        free(buf);
+        tf_stack_push(ctx, tf_obj_new_string_take(buf, len));
         tf_obj_release(seq);
         return TF_OK;
     }
@@ -1258,12 +1337,10 @@ tf_ret tf_sort(tf_ctx *ctx) {
     tf_obj *seq = tf_stack_pop(ctx);
 
     if (seq->type == TF_OBJ_TYPE_STR) {
-        char *buf = tf_xmalloc(seq->str.len + 1);
-        memcpy(buf, seq->str.ptr, seq->str.len);
-        buf[seq->str.len] = '\0';
-        sort_string_bytes(buf, seq->str.len);
-        tf_stack_push(ctx, tf_obj_new_string(buf, seq->str.len));
-        free(buf);
+        tf_obj *result = tf_obj_new_string_uninitialized(seq->str.len);
+        memcpy(result->str.ptr, seq->str.ptr, seq->str.len);
+        sort_string_bytes(result->str.ptr, result->str.len);
+        tf_stack_push(ctx, result);
         tf_obj_release(seq);
         return TF_OK;
     }
@@ -1551,14 +1628,21 @@ tf_ret tf_push_back(tf_ctx *ctx) {
         if (!require_char(ctx, 0)) return TF_ERR;
         item = tf_stack_pop(ctx);
         seq = tf_stack_pop(ctx);
-        char *new_ptr = tf_xmalloc(seq->str.len + 2);
-        memcpy(new_ptr, seq->str.ptr, seq->str.len);
-        new_ptr[seq->str.len] = item->str.ptr[0];
-        new_ptr[seq->str.len + 1] = '\0';
-        tf_stack_push(ctx, tf_obj_new_string(new_ptr, seq->str.len + 1));
-        free(new_ptr);
+        size_t old_len = seq->str.len;
+        tf_obj *result = seq->refcount == 1
+                             ? seq
+                             : tf_obj_new_string_uninitialized(old_len + 1);
+        if (result == seq) {
+            tf_string_reserve(result, old_len + 1);
+        } else {
+            memcpy(result->str.ptr, seq->str.ptr, old_len);
+        }
+        result->str.ptr[old_len] = item->str.ptr[0];
+        result->str.len = old_len + 1;
+        result->str.ptr[result->str.len] = '\0';
+        tf_stack_push(ctx, result);
         tf_obj_release(item);
-        tf_obj_release(seq);
+        if (result != seq) tf_obj_release(seq);
         return TF_OK;
     }
 
@@ -1746,8 +1830,8 @@ tf_ret tf_join(tf_ctx *ctx) {
     sep = tf_stack_pop(ctx);
     seq = tf_stack_pop(ctx);
 
-    char *result = tf_xmalloc(total_len + 1);
-    char *p = result;
+    tf_obj *result = tf_obj_new_string_uninitialized(total_len);
+    char *p = result->str.ptr;
     tf_sequence_iter_init(&iter, seq);
     for (size_t i = 0;; i++) {
         tf_obj *elem = tf_sequence_iter_next_owned(&iter);
@@ -1760,10 +1844,7 @@ tf_ret tf_join(tf_ctx *ctx) {
         }
         tf_obj_release(elem);
     }
-    *p = '\0';
-
-    tf_stack_push(ctx, tf_obj_new_string(result, total_len));
-    free(result);
+    tf_stack_push(ctx, result);
     tf_obj_release(seq);
     tf_obj_release(sep);
     return TF_OK;
@@ -1795,14 +1876,12 @@ tf_ret tf_upper(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_STR)) return TF_ERR;
     tf_obj *str = tf_stack_pop_type(ctx, TF_OBJ_TYPE_STR);
 
-    char *new_str = tf_xmalloc(str->str.len + 1);
+    tf_obj *result = tf_obj_new_string_uninitialized(str->str.len);
     for (size_t i = 0; i < str->str.len; i++) {
-        new_str[i] = (char)toupper((unsigned char)str->str.ptr[i]);
+        result->str.ptr[i] = (char)toupper((unsigned char)str->str.ptr[i]);
     }
-    new_str[str->str.len] = '\0';
 
-    tf_stack_push(ctx, tf_obj_new_string(new_str, str->str.len));
-    free(new_str);
+    tf_stack_push(ctx, result);
     tf_obj_release(str);
     return TF_OK;
 }
@@ -1811,14 +1890,12 @@ tf_ret tf_lower(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_STR)) return TF_ERR;
     tf_obj *str = tf_stack_pop_type(ctx, TF_OBJ_TYPE_STR);
 
-    char *new_str = tf_xmalloc(str->str.len + 1);
+    tf_obj *result = tf_obj_new_string_uninitialized(str->str.len);
     for (size_t i = 0; i < str->str.len; i++) {
-        new_str[i] = (char)tolower((unsigned char)str->str.ptr[i]);
+        result->str.ptr[i] = (char)tolower((unsigned char)str->str.ptr[i]);
     }
-    new_str[str->str.len] = '\0';
 
-    tf_stack_push(ctx, tf_obj_new_string(new_str, str->str.len));
-    free(new_str);
+    tf_stack_push(ctx, result);
     tf_obj_release(str);
     return TF_OK;
 }
@@ -1909,6 +1986,31 @@ tf_ret tf_char_q(tf_ctx *ctx) {
     tf_obj *o = tf_stack_pop(ctx);
     tf_stack_push(ctx, tf_obj_new_bool(is_char_obj(o)));
     tf_obj_release(o);
+    return TF_OK;
+}
+
+tf_ret tf_to_char(tf_ctx *ctx) {
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_INT)) return TF_ERR;
+    tf_obj *value = tf_stack_peek(ctx, 0);
+    if (value->i < 0 || value->i > 255) {
+        tf_ctx_runtime_errorf(ctx,
+                              "'%s' expected an integer from 0 through 255\n",
+                              ctx->current_word);
+        return TF_ERR;
+    }
+
+    value = tf_stack_pop_type(ctx, TF_OBJ_TYPE_INT);
+    unsigned char byte = (unsigned char)value->i;
+    tf_stack_push(ctx, tf_obj_new_string((const char *)&byte, 1));
+    tf_obj_release(value);
+    return TF_OK;
+}
+
+tf_ret tf_char_code(tf_ctx *ctx) {
+    if (!require_char(ctx, 0)) return TF_ERR;
+    tf_obj *value = tf_stack_pop_type(ctx, TF_OBJ_TYPE_STR);
+    tf_stack_push(ctx, tf_obj_new_int((unsigned char)value->str.ptr[0]));
+    tf_obj_release(value);
     return TF_OK;
 }
 

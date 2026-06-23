@@ -20,7 +20,8 @@ words, Tree-sitter grammar, Go LSP, and VS Code extension.
 - Stack combinators such as `dip`, `keep`, `bi`, `map`, `filter`, `fold`,
   `linrec`, `binrec`, and `genrec`.
 - Shared sequence words for vectors, lists, and strings when the result type is
-  clear. String items are one-byte strings.
+  clear. A Toy character is exactly a one-byte string; strings are not
+  Unicode-aware.
 - Dedicated collection syntax: `[ ... ]` for ordered vectors/quotations,
   `( ... )` for linked lists, `{ key value ... }` for maps, and `#{ ... }` for sets.
 - Comments use `\` to the end of a line or `/* ... */` for block comments.
@@ -104,6 +105,10 @@ without repeated linear `push-back`, prepend each item and reverse once:
 "abc" last           \ leaves "c"
 "ab" "c" push-back   \ leaves "abc"
 "ab" "cd" concat     \ leaves "abcd"
+"abcabc" "bc" indexof \ leaves 1
+"abc" "bc" contains? \ leaves true
+[ "a" "b" "c" ] >string \ leaves "abc"
+63 >char char-code     \ leaves 63
 [ 1 2 3 ] pop-back    \ leaves [ 1 2 ] 3
 "  alpha,beta,gamma  " trim "," split [ upper ] map "-" join print
 
@@ -144,6 +149,12 @@ predicate are not undone.
 Diagnostic display words are also observers: `.`, `.s`, and `.S` print without
 changing the data stack.
 
+String escapes are strict. `\n`, `\r`, `\t`, `\"`, and `\\` cover common
+text escapes; `\xHH` constructs any byte from exactly two hexadecimal digits.
+Use `repr` to obtain a source-style string with bytes escaped. `print` always
+prints one value literally with a newline, while `printf` explicitly interprets
+`{}` placeholders and does not append a newline.
+
 ## Built-in Words
 
 | Category                 | Words |
@@ -155,12 +166,12 @@ changing the data stack.
 | Control                  | `exec`, `i`, `if`, `ifelse`, `while`, `cond`, `try`, `error` |
 | Combinators              | `app2`, `infra`, `cleave`, `construct`, `replicate`, `times`, `dip`, `keep`, `bi`, `linrec`, `binrec`, `genrec`, `treerec` |
 | Sequence Combinators     | `each`, `map`, `fold`, `filter`, `some`, `all`, `split`, `merge` |
-| Sequence                 | `at`, `set-at`, `>vector`, `>list`, `contains?`, `indexof`, `unique`, `sort`, `slice`, `take`, `dropn`, `len`, `first`, `last`, `rest`, `uncons`, `cons`, `push-back`, `pop-back`, `concat`, `reverse`, `splitmid`, `range`, `empty?` |
-| String                   | `join`, `trim`, `upper`, `lower`, `char?`, `letter?`, `digit?`, `alnum?`, `space?`, `upper?`, `lower?`, `punct?` |
+| Sequence                 | `at`, `set-at`, `>vector`, `>list`, `>string`, `contains?`, `indexof`, `unique`, `sort`, `slice`, `take`, `dropn`, `len`, `first`, `last`, `rest`, `uncons`, `cons`, `push-back`, `pop-back`, `concat`, `reverse`, `splitmid`, `range`, `empty?` |
+| String                   | `join`, `trim`, `upper`, `lower`, `char?`, `>char`, `char-code`, `letter?`, `digit?`, `alnum?`, `space?`, `upper?`, `lower?`, `punct?` |
 | Map / Set                | `>map`, `>set`, `has?`, `get`, `assoc`, `dissoc`, `keys`, `values`, `pairs`, `items`, `adjoin`, `remove` |
 | Deque / Priority Queue   | `>deque`, `>pqueue`, `push-front`, `push-back`, `pop-front`, `pop-back`, `first`, `last`, `pqueue-push`, `pqueue-peek`, `pqueue-pop`, `pqueue-drain` |
 | Types                    | `typeof`, `bool?`, `int?`, `float?`, `string?`, `symbol?`, `vector?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `number?`, `sequence?`, `callable?` |
-| Dictionary / Symbols     | `def`, `word?`, `var?`, `body`, `intern`, `name`, `words`, `see`, `doc`, `apropos` |
+| Dictionary / Symbols     | `def`, `word?`, `var?`, `body`, `intern`, `name`, `words`, `see`, `doc`, `apropos`, `repr` |
 | Console                  | `printf`, `print`, `cr`, `.`, `.s`, `.S`, `key`, `input`, `clear`, `page` |
 | Files                    | `load`, `readf`, `writef`, `delf`, `readl`, `exists?` |
 | System                   | `sleep`, `argc`, `argv`, `env?`, `getenv`, `setenv`, `pwd`, `shell`, `time`, `clock`, `bye`, `exit` |
