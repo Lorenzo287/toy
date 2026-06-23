@@ -81,7 +81,11 @@ front/traversal/concatenation paths. Sequence-algorithm workloads cover sort
 crossovers and duplicate-density effects in `unique`. String workloads cover
 inline storage, byte extraction and traversal, transforms, splitting, and
 incremental flat-string growth. Map workloads cover unique growth and
-replacement, shared updates, lookup, and absent-key deletion.
+replacement, shared updates, lookup, and absent-key deletion. Set workloads
+cover unique growth, duplicate insertion, shared updates, membership, ordered
+removal, and the temporary-set path used by `unique`. Deque and priority-queue
+workloads cover both deque ends, ring-buffer wraparound, heap construction,
+unique/shared heap updates, peek, pop, and ordered pair projection.
 
 Future topics: dictionary lookup, allocation, list growth, hot-path
 specialization, bytecode, threaded code, and cache behavior.

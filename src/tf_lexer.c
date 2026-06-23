@@ -358,6 +358,7 @@ static tf_obj *lexer_vector_to_map(tf_lexer *lexer, tf_obj *items) {
 
 static tf_obj *lexer_vector_to_set(tf_lexer *lexer, tf_obj *items) {
     tf_obj *set = tf_obj_new_set();
+    tf_set_reserve(set, items->vector.len);
     for (size_t i = 0; i < items->vector.len; i++) {
         tf_obj *item = items->vector.elem[i];
         if (!tf_obj_hashable(item)) {

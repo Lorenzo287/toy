@@ -54,7 +54,7 @@
 ( ( 'a 1 ) ( 'b 2 ) ) >map 'b get 2 == check
 [ ( ( 'a 1 ) ( 'a 2 ) ) >map ] [ "duplicate-list-map" ] try
 "duplicate-list-map" == check
-( ( 2 "b" ) ( 1 "a" ) ) >pqueue pqueue-drain [ "a" "b" ] == check
+( ( 2 "b" ) ( 1 "a" ) ) >pqueue pairs [ [ 1 "a" ] [ 2 "b" ] ] == check
 
 [ ( 1 2 3 ) [ dup 2 == [ "bad" square ] [ 1 + ] ifelse ] map ]
 [ "list-map-error" ] try "list-map-error" == check

@@ -372,7 +372,7 @@ static tf_ret char_predicate(tf_ctx *ctx, char_pred pred) {
 }
 
 static char *find_mem(char *haystack, size_t haystack_len,
-                         const char *needle, size_t needle_len) {
+                      const char *needle, size_t needle_len) {
     if (needle_len == 0) return haystack;
     if (needle_len > haystack_len) return NULL;
     for (size_t i = 0; i <= haystack_len - needle_len; i++) {
@@ -383,35 +383,54 @@ static char *find_mem(char *haystack, size_t haystack_len,
     return NULL;
 }
 
-static tf_obj *set_clone(tf_obj *src) {
+static bool require_set_pair(tf_ctx *ctx) {
+    return tf_ctx_require_stack(ctx, 2) &&
+           tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_SET) &&
+           tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_SET);
+}
+
+static bool set_is_subset(tf_obj *left, tf_obj *right) {
+    if (left->set.len > right->set.len) return false;
+    for (size_t i = 0; i < left->set.len; i++) {
+        if (!tf_set_has(right, left->set.entries[i].item)) return false;
+    }
+    return true;
+}
+
+static bool sets_are_disjoint(tf_obj *left, tf_obj *right) {
+    tf_obj *smaller = left->set.len <= right->set.len ? left : right;
+    tf_obj *larger = smaller == left ? right : left;
+    for (size_t i = 0; i < smaller->set.len; i++) {
+        if (tf_set_has(larger, smaller->set.entries[i].item)) return false;
+    }
+    return true;
+}
+
+static tf_obj *set_select(tf_obj *source, tf_obj *membership,
+                          bool keep_present) {
     tf_obj *result = tf_obj_new_set();
-    for (size_t i = 0; i < src->set.len; i++) {
-        tf_set_add(result, src->set.entries[i].item);
+    for (size_t i = 0; i < source->set.len; i++) {
+        tf_obj *item = source->set.entries[i].item;
+        if (tf_set_has(membership, item) == keep_present) {
+            tf_set_add(result, item);
+        }
     }
     return result;
 }
 
-static tf_obj *set_clone_without(tf_obj *src, tf_obj *item) {
-    tf_obj *result = tf_obj_new_set();
-    for (size_t i = 0; i < src->set.len; i++) {
-        if (tf_obj_equal(src->set.entries[i].item, item)) continue;
-        tf_set_add(result, src->set.entries[i].item);
-    }
-    return result;
-}
-
-static bool priority_from_obj(tf_ctx *ctx, tf_obj *priority, double *out) {
+static bool valid_priority(tf_ctx *ctx, tf_obj *priority) {
+    double value = 0;
     if (priority->type == TF_OBJ_TYPE_INT) {
-        *out = priority->i;
+        value = priority->i;
     } else if (priority->type == TF_OBJ_TYPE_FLOAT) {
-        *out = priority->f;
+        value = priority->f;
     } else {
         tf_ctx_runtime_errorf(ctx, "'%s' expected numeric priority, found %s\n",
                               ctx->current_word, tf_obj_type_name(priority));
         return false;
     }
 
-    if (!isfinite(*out)) {
+    if (!isfinite(value)) {
         tf_ctx_runtime_errorf(ctx, "'%s' expected finite priority\n",
                               ctx->current_word);
         return false;
@@ -1132,6 +1151,7 @@ tf_ret tf_to_deque(tf_ctx *ctx) {
     if (!tf_ctx_require_sequence(ctx, 0)) return TF_ERR;
     tf_obj *seq = tf_stack_pop(ctx);
     tf_obj *deque = tf_obj_new_deque();
+    tf_deque_reserve(deque, sequence_len(seq));
 
     if (seq->type == TF_OBJ_TYPE_VECTOR) {
         for (size_t i = 0; i < seq->vector.len; i++) {
@@ -1164,6 +1184,7 @@ tf_ret tf_to_pqueue(tf_ctx *ctx) {
     }
     pairs = tf_stack_pop(ctx);
     tf_obj *pqueue = tf_obj_new_pqueue();
+    tf_pqueue_reserve(pqueue, sequence_len(pairs));
 
     tf_sequence_iter iter;
     tf_sequence_iter_init(&iter, pairs);
@@ -1202,9 +1223,11 @@ tf_ret tf_to_pqueue(tf_ctx *ctx) {
             tf_obj_release(pairs);
             return TF_ERR;
         }
-        tf_pqueue_push(pqueue, priority, value);
+        tf_pqueue_append(pqueue, priority_obj, value);
         tf_obj_release(pair);
     }
+
+    tf_pqueue_heapify(pqueue);
 
     tf_stack_push(ctx, pqueue);
     tf_obj_release(pairs);
@@ -1290,6 +1313,7 @@ tf_ret tf_unique(tf_ctx *ctx) {
         if (hashable && !seen_hashable &&
             hashable_count >= TF_UNIQUE_HASH_CUTOFF) {
             seen_hashable = tf_obj_new_set();
+            tf_set_reserve(seen_hashable, hashable_count);
             for (size_t i = 0; i < items->vector.len; i++) {
                 tf_obj *seen = items->vector.elem[i];
                 if (tf_obj_hashable(seen)) tf_set_add(seen_hashable, seen);
@@ -1515,21 +1539,49 @@ tf_ret tf_values(tf_ctx *ctx) {
 }
 
 tf_ret tf_pairs(tf_ctx *ctx) {
-    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_MAP)) return TF_ERR;
-    tf_obj *map = tf_stack_pop_type(ctx, TF_OBJ_TYPE_MAP);
-    tf_obj *pairs = tf_obj_new_vector_with_capacity(map->map.len);
-    for (size_t i = 0; i < map->map.len; i++) {
+    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
+    tf_obj *coll = tf_stack_peek(ctx, 0);
+    if (coll->type != TF_OBJ_TYPE_MAP && coll->type != TF_OBJ_TYPE_PQUEUE) {
+        tf_ctx_runtime_errorf(ctx,
+                              "'%s' expected map or pqueue, found %s\n",
+                              ctx->current_word, tf_obj_type_name(coll));
+        return TF_ERR;
+    }
+
+    coll = tf_stack_pop(ctx);
+    tf_obj *pairs = NULL;
+    if (coll->type == TF_OBJ_TYPE_MAP) {
+        pairs = tf_obj_new_vector_with_capacity(coll->map.len);
+        for (size_t i = 0; i < coll->map.len; i++) {
+            tf_obj *pair = tf_obj_new_vector();
+            tf_obj *key = coll->map.entries[i].key;
+            tf_obj *value = coll->map.entries[i].value;
+            tf_obj_retain(key);
+            tf_obj_retain(value);
+            tf_vector_push(pair, key);
+            tf_vector_push(pair, value);
+            tf_vector_push(pairs, pair);
+        }
+        tf_stack_push(ctx, pairs);
+        tf_obj_release(coll);
+        return TF_OK;
+    }
+
+    tf_obj *tmp = coll->refcount == 1 ? coll : tf_pqueue_clone(coll);
+    bool cloned = tmp != coll;
+    pairs = tf_obj_new_vector_with_capacity(coll->pqueue.len);
+    while (tmp->pqueue.len > 0) {
+        tf_obj *priority = NULL;
+        tf_obj *value = NULL;
+        tf_pqueue_pop(tmp, &priority, &value);
         tf_obj *pair = tf_obj_new_vector();
-        tf_obj *key = map->map.entries[i].key;
-        tf_obj *value = map->map.entries[i].value;
-        tf_obj_retain(key);
-        tf_obj_retain(value);
-        tf_vector_push(pair, key);
+        tf_vector_push(pair, priority);
         tf_vector_push(pair, value);
         tf_vector_push(pairs, pair);
     }
     tf_stack_push(ctx, pairs);
-    tf_obj_release(map);
+    tf_obj_release(tmp);
+    if (cloned) tf_obj_release(coll);
     return TF_OK;
 }
 
@@ -1564,7 +1616,7 @@ tf_ret tf_items(tf_ctx *ctx) {
     return TF_OK;
 }
 
-tf_ret tf_adjoin(tf_ctx *ctx) {
+tf_ret tf_insert(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_SET) ||
         !tf_ctx_require_stack(ctx, 2)) {
         return TF_ERR;
@@ -1577,13 +1629,20 @@ tf_ret tf_adjoin(tf_ctx *ctx) {
         return TF_ERR;
     }
 
+    bool present = tf_set_has(set, item);
     item = tf_stack_pop(ctx);
     set = tf_stack_pop(ctx);
-    tf_obj *result = set_clone(set);
+    if (present) {
+        tf_stack_push(ctx, set);
+        tf_obj_release(item);
+        return TF_OK;
+    }
+
+    tf_obj *result = set->refcount == 1 ? set : tf_set_clone(set);
     tf_set_add(result, item);
     tf_stack_push(ctx, result);
     tf_obj_release(item);
-    tf_obj_release(set);
+    if (result != set) tf_obj_release(set);
     return TF_OK;
 }
 
@@ -1600,12 +1659,143 @@ tf_ret tf_remove(tf_ctx *ctx) {
         return TF_ERR;
     }
 
+    bool present = tf_set_has(set, item);
     item = tf_stack_pop(ctx);
     set = tf_stack_pop(ctx);
-    tf_stack_push(ctx, set_clone_without(set, item));
+    if (!present) {
+        tf_stack_push(ctx, set);
+        tf_obj_release(item);
+        return TF_OK;
+    }
+
+    tf_obj *result = set->refcount == 1 ? set : tf_set_clone(set);
+    tf_set_remove(result, item);
+    tf_stack_push(ctx, result);
     tf_obj_release(item);
-    tf_obj_release(set);
+    if (result != set) tf_obj_release(set);
     return TF_OK;
+}
+
+tf_ret tf_union(tf_ctx *ctx) {
+    if (!require_set_pair(ctx)) return TF_ERR;
+    tf_obj *left = tf_stack_peek(ctx, 1);
+    tf_obj *right = tf_stack_peek(ctx, 0);
+    bool changes = left->refcount == 1 || !set_is_subset(right, left);
+
+    right = tf_stack_pop(ctx);
+    left = tf_stack_pop(ctx);
+    if (!changes) {
+        tf_stack_push(ctx, left);
+        tf_obj_release(right);
+        return TF_OK;
+    }
+
+    tf_obj *result = left->refcount == 1 ? left : tf_set_clone(left);
+    for (size_t i = 0; i < right->set.len; i++) {
+        tf_set_add(result, right->set.entries[i].item);
+    }
+    tf_stack_push(ctx, result);
+    tf_obj_release(right);
+    if (result != left) tf_obj_release(left);
+    return TF_OK;
+}
+
+tf_ret tf_intersection(tf_ctx *ctx) {
+    if (!require_set_pair(ctx)) return TF_ERR;
+    tf_obj *right = tf_stack_pop(ctx);
+    tf_obj *left = tf_stack_pop(ctx);
+    tf_obj *result = NULL;
+    if (set_is_subset(left, right)) {
+        result = left;
+    } else {
+        result = set_select(left, right, true);
+    }
+    tf_stack_push(ctx, result);
+    tf_obj_release(right);
+    if (result != left) tf_obj_release(left);
+    return TF_OK;
+}
+
+tf_ret tf_difference(tf_ctx *ctx) {
+    if (!require_set_pair(ctx)) return TF_ERR;
+    tf_obj *right = tf_stack_pop(ctx);
+    tf_obj *left = tf_stack_pop(ctx);
+    tf_obj *result = NULL;
+    if (sets_are_disjoint(left, right)) {
+        result = left;
+    } else {
+        result = set_select(left, right, false);
+    }
+    tf_stack_push(ctx, result);
+    tf_obj_release(right);
+    if (result != left) tf_obj_release(left);
+    return TF_OK;
+}
+
+tf_ret tf_symmetric_difference(tf_ctx *ctx) {
+    if (!require_set_pair(ctx)) return TF_ERR;
+    tf_obj *right = tf_stack_pop(ctx);
+    tf_obj *left = tf_stack_pop(ctx);
+    if (left->set.len == 0 || right->set.len == 0) {
+        tf_obj *result = left->set.len == 0 ? right : left;
+        tf_obj *discard = result == left ? right : left;
+        tf_stack_push(ctx, result);
+        tf_obj_release(discard);
+        return TF_OK;
+    }
+
+    tf_obj *result = set_select(left, right, false);
+    for (size_t i = 0; i < right->set.len; i++) {
+        tf_obj *item = right->set.entries[i].item;
+        if (!tf_set_has(left, item)) tf_set_add(result, item);
+    }
+    tf_stack_push(ctx, result);
+    tf_obj_release(left);
+    tf_obj_release(right);
+    return TF_OK;
+}
+
+static tf_ret set_relation_result(tf_ctx *ctx, bool result) {
+    tf_obj *right = tf_stack_pop(ctx);
+    tf_obj *left = tf_stack_pop(ctx);
+    tf_stack_push(ctx, tf_obj_new_bool(result));
+    tf_obj_release(left);
+    tf_obj_release(right);
+    return TF_OK;
+}
+
+tf_ret tf_subset_q(tf_ctx *ctx) {
+    if (!require_set_pair(ctx)) return TF_ERR;
+    return set_relation_result(
+        ctx, set_is_subset(tf_stack_peek(ctx, 1), tf_stack_peek(ctx, 0)));
+}
+
+tf_ret tf_proper_subset_q(tf_ctx *ctx) {
+    if (!require_set_pair(ctx)) return TF_ERR;
+    tf_obj *left = tf_stack_peek(ctx, 1);
+    tf_obj *right = tf_stack_peek(ctx, 0);
+    return set_relation_result(
+        ctx, left->set.len < right->set.len && set_is_subset(left, right));
+}
+
+tf_ret tf_superset_q(tf_ctx *ctx) {
+    if (!require_set_pair(ctx)) return TF_ERR;
+    return set_relation_result(
+        ctx, set_is_subset(tf_stack_peek(ctx, 0), tf_stack_peek(ctx, 1)));
+}
+
+tf_ret tf_proper_superset_q(tf_ctx *ctx) {
+    if (!require_set_pair(ctx)) return TF_ERR;
+    tf_obj *left = tf_stack_peek(ctx, 1);
+    tf_obj *right = tf_stack_peek(ctx, 0);
+    return set_relation_result(
+        ctx, left->set.len > right->set.len && set_is_subset(right, left));
+}
+
+tf_ret tf_disjoint_q(tf_ctx *ctx) {
+    if (!require_set_pair(ctx)) return TF_ERR;
+    return set_relation_result(
+        ctx, sets_are_disjoint(tf_stack_peek(ctx, 1), tf_stack_peek(ctx, 0)));
 }
 
 tf_ret tf_push_front(tf_ctx *ctx) {
@@ -1616,11 +1806,11 @@ tf_ret tf_push_front(tf_ctx *ctx) {
 
     tf_obj *item = tf_stack_pop(ctx);
     tf_obj *deque = tf_stack_pop_type(ctx, TF_OBJ_TYPE_DEQUE);
-    tf_obj *result = tf_deque_clone(deque);
+    tf_obj *result = deque->refcount == 1 ? deque : tf_deque_clone(deque);
     tf_deque_push_front(result, item);
     tf_stack_push(ctx, result);
     tf_obj_release(item);
-    tf_obj_release(deque);
+    if (result != deque) tf_obj_release(deque);
     return TF_OK;
 }
 
@@ -1698,11 +1888,11 @@ tf_ret tf_pop_front(tf_ctx *ctx) {
     }
 
     deque = tf_stack_pop_type(ctx, TF_OBJ_TYPE_DEQUE);
-    tf_obj *result = tf_deque_clone(deque);
+    tf_obj *result = deque->refcount == 1 ? deque : tf_deque_clone(deque);
     tf_obj *item = tf_deque_pop_front(result);
     tf_stack_push(ctx, result);
     tf_stack_push(ctx, item);
-    tf_obj_release(deque);
+    if (result != deque) tf_obj_release(deque);
     return TF_OK;
 }
 
@@ -1742,7 +1932,7 @@ tf_ret tf_pop_back(tf_ctx *ctx) {
     return TF_OK;
 }
 
-tf_ret tf_pqueue_push_word(tf_ctx *ctx) {
+tf_ret tf_pq_push(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 2, TF_OBJ_TYPE_PQUEUE) ||
         !tf_ctx_require_number(ctx, 1) ||
         !tf_ctx_require_stack(ctx, 3)) {
@@ -1750,39 +1940,39 @@ tf_ret tf_pqueue_push_word(tf_ctx *ctx) {
     }
 
     tf_obj *priority_obj = tf_stack_peek(ctx, 1);
-    double priority = 0;
-    if (!priority_from_obj(ctx, priority_obj, &priority)) return TF_ERR;
+    if (!valid_priority(ctx, priority_obj)) return TF_ERR;
 
     tf_obj *value = tf_stack_pop(ctx);
     priority_obj = tf_stack_pop(ctx);
     tf_obj *pqueue = tf_stack_pop_type(ctx, TF_OBJ_TYPE_PQUEUE);
-    tf_obj *result = tf_pqueue_clone(pqueue);
-    tf_pqueue_push(result, priority, value);
+    tf_obj *result = pqueue->refcount == 1 ? pqueue : tf_pqueue_clone(pqueue);
+    tf_pqueue_push(result, priority_obj, value);
     tf_stack_push(ctx, result);
     tf_obj_release(value);
     tf_obj_release(priority_obj);
-    tf_obj_release(pqueue);
+    if (result != pqueue) tf_obj_release(pqueue);
     return TF_OK;
 }
 
-tf_ret tf_pqueue_peek_word(tf_ctx *ctx) {
+tf_ret tf_pq_peek(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_PQUEUE)) return TF_ERR;
     tf_obj *pqueue = tf_stack_peek(ctx, 0);
+    tf_obj *priority = NULL;
     tf_obj *value = NULL;
-    if (!tf_pqueue_peek(pqueue, NULL, &value)) {
+    if (!tf_pqueue_peek(pqueue, &priority, &value)) {
         tf_ctx_runtime_errorf(ctx, "'%s' expected non-empty pqueue\n",
                               ctx->current_word);
         return TF_ERR;
     }
 
+    tf_obj_retain(priority);
     tf_obj_retain(value);
-    pqueue = tf_stack_pop_type(ctx, TF_OBJ_TYPE_PQUEUE);
+    tf_stack_push(ctx, priority);
     tf_stack_push(ctx, value);
-    tf_obj_release(pqueue);
     return TF_OK;
 }
 
-tf_ret tf_pqueue_pop_word(tf_ctx *ctx) {
+tf_ret tf_pq_pop(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_PQUEUE)) return TF_ERR;
     tf_obj *pqueue = tf_stack_peek(ctx, 0);
     if (pqueue->pqueue.len == 0) {
@@ -1792,30 +1982,14 @@ tf_ret tf_pqueue_pop_word(tf_ctx *ctx) {
     }
 
     pqueue = tf_stack_pop_type(ctx, TF_OBJ_TYPE_PQUEUE);
-    tf_obj *result = tf_pqueue_clone(pqueue);
+    tf_obj *result = pqueue->refcount == 1 ? pqueue : tf_pqueue_clone(pqueue);
+    tf_obj *priority = NULL;
     tf_obj *value = NULL;
-    tf_pqueue_pop(result, NULL, &value);
+    tf_pqueue_pop(result, &priority, &value);
     tf_stack_push(ctx, result);
+    tf_stack_push(ctx, priority);
     tf_stack_push(ctx, value);
-    tf_obj_release(pqueue);
-    return TF_OK;
-}
-
-tf_ret tf_pqueue_drain(tf_ctx *ctx) {
-    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_PQUEUE)) return TF_ERR;
-    tf_obj *pqueue = tf_stack_pop_type(ctx, TF_OBJ_TYPE_PQUEUE);
-    tf_obj *tmp = tf_pqueue_clone(pqueue);
-    tf_obj *items = tf_obj_new_vector_with_capacity(pqueue->pqueue.len);
-
-    while (tmp->pqueue.len > 0) {
-        tf_obj *value = NULL;
-        tf_pqueue_pop(tmp, NULL, &value);
-        tf_vector_push(items, value);
-    }
-
-    tf_stack_push(ctx, items);
-    tf_obj_release(tmp);
-    tf_obj_release(pqueue);
+    if (result != pqueue) tf_obj_release(pqueue);
     return TF_OK;
 }
 

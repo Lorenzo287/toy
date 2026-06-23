@@ -153,7 +153,9 @@ Membership values support containment by equality/hash:
 - set
 - map keys
 
-Words: `has?`, `adjoin`, `remove`, `items`.
+Words: `has?`, `insert`, `remove`, `items`, `union`, `intersection`,
+`difference`, `symmetric-difference`, `subset?`, `proper-subset?`, `superset?`,
+`proper-superset?`, `disjoint?`.
 
 This capability is separate from sequence search. Use `contains?` for
 vector/list item search or string substring search; use `has?` for map keys and
@@ -169,9 +171,10 @@ myset items [ square ] map >set
 
 Priority queues expose access by minimum priority.
 
-Words: `pqueue-push`, `pqueue-peek`, `pqueue-pop`, `pqueue-drain`.
+Words: `pq-push`, `pq-peek`, `pq-pop`, `pairs`.
 
-The heap layout is not public. `pqueue-drain` projects values in priority order.
+The heap layout is not public. `pairs` projects priority/value pairs in priority
+order.
 
 ## Result Families
 
@@ -181,7 +184,6 @@ Projection words return vectors as the default interchange sequence:
 - string `split`
 - `keys`, `values`, `pairs`
 - `items`
-- `pqueue-drain`
 - `readl`
 - `argv`
 - `words`
@@ -224,7 +226,7 @@ m keys                 \ choose key projection
 m values               \ choose value projection
 m pairs                \ choose pair projection
 pairs >map             \ build associative structure
-pq pqueue-drain        \ choose priority order output
+pq pairs               \ choose priority order and preserve priorities
 63 >char               \ construct the one-byte string "?"
 "?" char-code          \ inspect its unsigned code
 ```
@@ -303,7 +305,7 @@ vector idx value set-at
 vector item push-back
 map key value assoc
 map key dissoc
-set item adjoin
+set item insert
 set item remove
 deque item push-front
 ```
@@ -377,9 +379,39 @@ Rules:
 
 - literal syntax is `#{ item ... }`
 - constructor input is a vector, list, or string
+- items must be hashable
+- duplicate literal items are an error
 - duplicates collapse intentionally in `>set`
 - `items` returns a deterministic vector in insertion order
 - mapping a set is explicit through `items`
+
+Sets use the same dense insertion-order array and open-addressed index strategy
+as maps. Empty sets allocate no backing storage; the first insertion allocates
+four entry slots and eight buckets. Literals reserve their known final size,
+while `>set` grows geometrically because duplicate collapsing makes its output
+size unknown. Membership and unique-owner `insert` are expected O(1), with
+geometric growth making insertion amortized O(1). Inserting an existing item is
+an expected-O(1) no-op even for a shared set. Inserting into a shared set copies
+its entries and buckets first at O(n). Ordered `remove` is O(n) for a present
+item and an expected-O(1) no-op for an absent item. `items` is O(n), and structural
+set equality is insertion-order independent.
+
+`insert` and `remove` are set-specific membership updates rather than positional
+sequence operations. Inserting an existing item does not move it to the end;
+removing and later inserting it does.
+
+Set algebra preserves deterministic order:
+
+- `union` returns left items followed by previously unseen right items
+- `intersection` and `difference` preserve the relative order of left items
+- `symmetric-difference` returns left-only items followed by right-only items
+
+`subset?` and `superset?` include equality; their `proper-` forms require
+strict inequality. `disjoint?` checks that there is no shared item. Algebraic
+operations take expected O(n+m) time. Subset checks take expected O(n) in the
+left operand, while `disjoint?` scans the smaller set. Result construction may
+reuse a uniquely owned left set when doing so preserves order and value
+semantics.
 
 ## Deques
 
@@ -398,6 +430,12 @@ Rules:
 - `items` projects a deque to a vector
 - `len` and `empty?` treat deques as finite collections
 
+Deques use a circular buffer. Empty deques allocate no backing storage; the
+first insertion allocates four slots, while `>deque` reserves its known final
+length. Pushes at either end are amortized O(1), pops and `first`/`last` are
+O(1), and `items` is O(n). Endpoint updates reuse uniquely owned deques and copy
+shared deques before modification. Pops retain capacity instead of reallocating.
+
 ## Priority Queues
 
 Priority queues are backed by a heap internally. The heap layout is not public.
@@ -409,13 +447,22 @@ Rules:
 - priorities must be finite numbers
 - lower priorities are returned first
 - equal priorities are returned in insertion order
-- `pqueue-push` returns an updated priority queue
-- `pqueue-peek` consumes a priority queue and returns the next value; use
-  `dup pqueue-peek` when the queue should be preserved
-- `pqueue-pop` returns `pqueue value`, leaving the removed value on top; it is
-  not an inverse of `pqueue-push` because the stable insertion order is hidden
-- `pqueue-drain` projects values to a vector in priority order
+- `pq-push` returns an updated priority queue
+- `pq-peek` leaves the queue followed by its next `priority value` pair
+- `pq-pop` returns `pqueue priority value`, matching `pq-push` input order
+- `pairs` returns `[ priority value ]` vectors in priority order
 - `len` and `empty?` treat priority queues as finite collections
+
+Priority objects retain their original integer or float representation. The
+whole-queue projection is invertible: `pq pairs >pqueue` reconstructs an equal
+queue, including equal-priority order. A single `pq-pop pq-push` is not an exact
+inverse when equal-priority entries remain, because reinsertion intentionally
+places the returned entry after them.
+
+The binary heap gives O(1) peek and O(log n) unique-owner push/pop. A shared
+update first copies O(n) heap entries to preserve value semantics. `>pqueue`
+reserves once and uses bottom-up O(n) heap construction. `pairs` takes
+O(n log n) time because it emits the complete priority order.
 
 ## Implementation Notes
 

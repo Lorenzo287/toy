@@ -8,6 +8,10 @@
 
 #define TF_MAP_INITIAL_CAP 4
 #define TF_MAP_INITIAL_BUCKET_CAP 8
+#define TF_SET_INITIAL_CAP 4
+#define TF_SET_INITIAL_BUCKET_CAP 8
+#define TF_DEQUE_INITIAL_CAP 4
+#define TF_PQUEUE_INITIAL_CAP 4
 
 static void string_set_heap_capacity(tf_obj *s, size_t capacity) {
     /* Heap strings do not use inline_buf; memcpy also avoids alignment assumptions. */
@@ -64,28 +68,28 @@ tf_obj *tf_obj_new_map(void) {
 tf_obj *tf_obj_new_set(void) {
     tf_obj *o = tf_obj_new(TF_OBJ_TYPE_SET);
     o->set.len = 0;
-    o->set.cap = 16;
-    o->set.entries = tf_xmalloc(sizeof(tf_set_entry) * o->set.cap);
-    o->set.bucket_cap = 32;
-    o->set.buckets = tf_xcalloc(o->set.bucket_cap, sizeof(size_t));
+    o->set.cap = 0;
+    o->set.entries = NULL;
+    o->set.bucket_cap = 0;
+    o->set.buckets = NULL;
     return o;
 }
 
 tf_obj *tf_obj_new_deque(void) {
     tf_obj *o = tf_obj_new(TF_OBJ_TYPE_DEQUE);
     o->deque.len = 0;
-    o->deque.cap = 32;
+    o->deque.cap = 0;
     o->deque.head = 0;
-    o->deque.elem = tf_xmalloc(sizeof(tf_obj *) * o->deque.cap);
+    o->deque.elem = NULL;
     return o;
 }
 
 tf_obj *tf_obj_new_pqueue(void) {
     tf_obj *o = tf_obj_new(TF_OBJ_TYPE_PQUEUE);
     o->pqueue.len = 0;
-    o->pqueue.cap = 16;
+    o->pqueue.cap = 0;
     o->pqueue.next_order = 0;
-    o->pqueue.entries = tf_xmalloc(sizeof(tf_pqueue_entry) * o->pqueue.cap);
+    o->pqueue.entries = NULL;
     return o;
 }
 
@@ -497,6 +501,7 @@ static size_t map_find_slot(tf_obj *map, tf_obj *key, uint64_t hash,
 
 static size_t set_find_slot(tf_obj *set, tf_obj *item, uint64_t hash,
                             bool *found) {
+    assert(set->set.bucket_cap > 0);
     size_t idx = (size_t)(hash % set->set.bucket_cap);
     while (set->set.buckets[idx] != 0) {
         size_t entry_idx = set->set.buckets[idx] - 1;
@@ -528,9 +533,13 @@ static void map_rebuild_buckets(tf_obj *map, size_t bucket_cap) {
 }
 
 static void set_rebuild_buckets(tf_obj *set, size_t bucket_cap) {
-    free(set->set.buckets);
-    set->set.bucket_cap = bucket_cap;
-    set->set.buckets = tf_xcalloc(bucket_cap, sizeof(size_t));
+    if (bucket_cap != set->set.bucket_cap) {
+        free(set->set.buckets);
+        set->set.bucket_cap = bucket_cap;
+        set->set.buckets = tf_xcalloc(bucket_cap, sizeof(size_t));
+    } else {
+        memset(set->set.buckets, 0, bucket_cap * sizeof(size_t));
+    }
     for (size_t i = 0; i < set->set.len; i++) {
         bool found = false;
         size_t slot = set_find_slot(set, set->set.entries[i].item,
@@ -664,10 +673,58 @@ bool tf_map_remove(tf_obj *map, tf_obj *key) {
     return true;
 }
 
+void tf_set_reserve(tf_obj *set, size_t capacity) {
+    assert(set->type == TF_OBJ_TYPE_SET);
+    if (capacity == 0) return;
+
+    if (capacity > set->set.cap) {
+        size_t new_cap = set->set.cap ? set->set.cap : TF_SET_INITIAL_CAP;
+        while (new_cap < capacity) new_cap *= 2;
+        set->set.entries = tf_xrealloc(set->set.entries,
+                                       sizeof(tf_set_entry) * new_cap);
+        set->set.cap = new_cap;
+    }
+
+    size_t bucket_cap = set->set.bucket_cap
+                            ? set->set.bucket_cap
+                            : TF_SET_INITIAL_BUCKET_CAP;
+    while (bucket_cap / 2 < capacity) bucket_cap *= 2;
+    if (bucket_cap != set->set.bucket_cap) {
+        set_rebuild_buckets(set, bucket_cap);
+    }
+}
+
+tf_obj *tf_set_clone(tf_obj *set) {
+    assert(set->type == TF_OBJ_TYPE_SET);
+    tf_obj *result = tf_obj_new_set();
+    result->set.len = set->set.len;
+    result->set.cap = set->set.cap;
+    result->set.bucket_cap = set->set.bucket_cap;
+
+    if (set->set.cap > 0) {
+        result->set.entries =
+            tf_xmalloc(sizeof(tf_set_entry) * set->set.cap);
+        memcpy(result->set.entries, set->set.entries,
+               sizeof(tf_set_entry) * set->set.len);
+    }
+    if (set->set.bucket_cap > 0) {
+        result->set.buckets =
+            tf_xmalloc(sizeof(size_t) * set->set.bucket_cap);
+        memcpy(result->set.buckets, set->set.buckets,
+               sizeof(size_t) * set->set.bucket_cap);
+    }
+
+    for (size_t i = 0; i < set->set.len; i++) {
+        tf_obj_retain(result->set.entries[i].item);
+    }
+    return result;
+}
+
 bool tf_set_has(tf_obj *set, tf_obj *item) {
     if (!set || set->type != TF_OBJ_TYPE_SET || !tf_obj_hashable(item)) {
         return false;
     }
+    if (set->set.len == 0) return false;
     bool found = false;
     (void)set_find_slot(set, item, tf_obj_hash(item), &found);
     return found;
@@ -678,24 +735,45 @@ bool tf_set_add(tf_obj *set, tf_obj *item) {
         return false;
     }
 
-    if ((set->set.len + 1) * 2 >= set->set.bucket_cap) {
-        set_rebuild_buckets(set, set->set.bucket_cap * 2);
-    }
-
     uint64_t hash = tf_obj_hash(item);
     bool found = false;
-    size_t slot = set_find_slot(set, item, hash, &found);
+    size_t slot = 0;
+    if (set->set.bucket_cap > 0) {
+        slot = set_find_slot(set, item, hash, &found);
+    }
     if (found) return true;
 
-    if (set->set.len >= set->set.cap) {
-        set->set.cap *= 2;
-        set->set.entries =
-            tf_xrealloc(set->set.entries, sizeof(tf_set_entry) * set->set.cap);
+    size_t old_bucket_cap = set->set.bucket_cap;
+    tf_set_reserve(set, set->set.len + 1);
+    if (set->set.bucket_cap != old_bucket_cap) {
+        slot = set_find_slot(set, item, hash, &found);
     }
     size_t entry_idx = set->set.len++;
     set->set.entries[entry_idx] = (tf_set_entry){item, hash};
     tf_obj_retain(item);
     set->set.buckets[slot] = entry_idx + 1;
+    return true;
+}
+
+bool tf_set_remove(tf_obj *set, tf_obj *item) {
+    if (!set || set->type != TF_OBJ_TYPE_SET || !tf_obj_hashable(item) ||
+        set->set.len == 0) {
+        return false;
+    }
+
+    bool found = false;
+    size_t slot = set_find_slot(set, item, tf_obj_hash(item), &found);
+    if (!found) return false;
+
+    size_t entry_idx = set->set.buckets[slot] - 1;
+    tf_obj_release(set->set.entries[entry_idx].item);
+    if (entry_idx + 1 < set->set.len) {
+        memmove(&set->set.entries[entry_idx],
+                &set->set.entries[entry_idx + 1],
+                sizeof(tf_set_entry) * (set->set.len - entry_idx - 1));
+    }
+    set->set.len--;
+    set_rebuild_buckets(set, set->set.bucket_cap);
     return true;
 }
 
@@ -706,7 +784,7 @@ static size_t deque_slot(tf_obj *deque, size_t idx) {
 static void deque_ensure_capacity(tf_obj *deque, size_t needed) {
     if (needed <= deque->deque.cap) return;
 
-    size_t new_cap = deque->deque.cap;
+    size_t new_cap = deque->deque.cap ? deque->deque.cap : TF_DEQUE_INITIAL_CAP;
     while (new_cap < needed) new_cap *= 2;
 
     tf_obj **new_elem = tf_xmalloc(sizeof(tf_obj *) * new_cap);
@@ -719,11 +797,19 @@ static void deque_ensure_capacity(tf_obj *deque, size_t needed) {
     deque->deque.head = 0;
 }
 
+void tf_deque_reserve(tf_obj *deque, size_t capacity) {
+    assert(deque->type == TF_OBJ_TYPE_DEQUE);
+    deque_ensure_capacity(deque, capacity);
+}
+
 tf_obj *tf_deque_clone(tf_obj *src) {
     tf_obj *result = tf_obj_new_deque();
-    deque_ensure_capacity(result, src->deque.len);
+    deque_ensure_capacity(result, src->deque.cap);
+    result->deque.len = src->deque.len;
     for (size_t i = 0; i < src->deque.len; i++) {
-        tf_deque_push_back(result, tf_deque_get(src, i));
+        tf_obj *item = tf_deque_get(src, i);
+        result->deque.elem[i] = item;
+        tf_obj_retain(item);
     }
     return result;
 }
@@ -775,9 +861,16 @@ tf_obj *tf_deque_pop_back(tf_obj *deque) {
     return value;
 }
 
+static double pqueue_priority_value(tf_obj *priority) {
+    return priority->type == TF_OBJ_TYPE_INT ? (double)priority->i
+                                             : (double)priority->f;
+}
+
 static bool pqueue_entry_less(tf_pqueue_entry a, tf_pqueue_entry b) {
-    if (a.priority < b.priority) return true;
-    if (a.priority > b.priority) return false;
+    double a_priority = pqueue_priority_value(a.priority);
+    double b_priority = pqueue_priority_value(b.priority);
+    if (a_priority < b_priority) return true;
+    if (a_priority > b_priority) return false;
     return a.order < b.order;
 }
 
@@ -827,34 +920,53 @@ static void pqueue_sift_down(tf_obj *pqueue, size_t idx) {
 static void pqueue_ensure_capacity(tf_obj *pqueue, size_t needed) {
     if (needed <= pqueue->pqueue.cap) return;
 
+    if (pqueue->pqueue.cap == 0) pqueue->pqueue.cap = TF_PQUEUE_INITIAL_CAP;
     while (pqueue->pqueue.cap < needed) pqueue->pqueue.cap *= 2;
     pqueue->pqueue.entries =
         tf_xrealloc(pqueue->pqueue.entries,
                     sizeof(tf_pqueue_entry) * pqueue->pqueue.cap);
 }
 
+void tf_pqueue_reserve(tf_obj *pqueue, size_t capacity) {
+    assert(pqueue->type == TF_OBJ_TYPE_PQUEUE);
+    pqueue_ensure_capacity(pqueue, capacity);
+}
+
 tf_obj *tf_pqueue_clone(tf_obj *src) {
     tf_obj *result = tf_obj_new_pqueue();
-    pqueue_ensure_capacity(result, src->pqueue.len);
+    pqueue_ensure_capacity(result, src->pqueue.cap);
     result->pqueue.len = src->pqueue.len;
     result->pqueue.next_order = src->pqueue.next_order;
     for (size_t i = 0; i < src->pqueue.len; i++) {
         result->pqueue.entries[i] = src->pqueue.entries[i];
+        tf_obj_retain(result->pqueue.entries[i].priority);
         tf_obj_retain(result->pqueue.entries[i].value);
     }
     return result;
 }
 
-void tf_pqueue_push(tf_obj *pqueue, double priority, tf_obj *value) {
+void tf_pqueue_append(tf_obj *pqueue, tf_obj *priority, tf_obj *value) {
     pqueue_ensure_capacity(pqueue, pqueue->pqueue.len + 1);
     size_t idx = pqueue->pqueue.len++;
     pqueue->pqueue.entries[idx] =
         (tf_pqueue_entry){priority, pqueue->pqueue.next_order++, value};
+    tf_obj_retain(priority);
     tf_obj_retain(value);
-    pqueue_sift_up(pqueue, idx);
 }
 
-bool tf_pqueue_peek(tf_obj *pqueue, double *priority, tf_obj **value) {
+void tf_pqueue_heapify(tf_obj *pqueue) {
+    assert(pqueue->type == TF_OBJ_TYPE_PQUEUE);
+    for (size_t i = pqueue->pqueue.len / 2; i > 0; i--) {
+        pqueue_sift_down(pqueue, i - 1);
+    }
+}
+
+void tf_pqueue_push(tf_obj *pqueue, tf_obj *priority, tf_obj *value) {
+    tf_pqueue_append(pqueue, priority, value);
+    pqueue_sift_up(pqueue, pqueue->pqueue.len - 1);
+}
+
+bool tf_pqueue_peek(tf_obj *pqueue, tf_obj **priority, tf_obj **value) {
     if (!pqueue || pqueue->type != TF_OBJ_TYPE_PQUEUE ||
         pqueue->pqueue.len == 0) {
         return false;
@@ -865,7 +977,7 @@ bool tf_pqueue_peek(tf_obj *pqueue, double *priority, tf_obj **value) {
     return true;
 }
 
-bool tf_pqueue_pop(tf_obj *pqueue, double *priority, tf_obj **value) {
+bool tf_pqueue_pop(tf_obj *pqueue, tf_obj **priority, tf_obj **value) {
     if (!pqueue || pqueue->type != TF_OBJ_TYPE_PQUEUE ||
         pqueue->pqueue.len == 0) {
         return false;
@@ -878,7 +990,11 @@ bool tf_pqueue_pop(tf_obj *pqueue, double *priority, tf_obj **value) {
         pqueue_sift_down(pqueue, 0);
     }
 
-    if (priority) *priority = root.priority;
+    if (priority) {
+        *priority = root.priority;
+    } else {
+        tf_obj_release(root.priority);
+    }
     if (value) {
         *value = root.value;
     } else {
@@ -958,15 +1074,18 @@ static bool obj_equal_inner(tf_obj *a, tf_obj *b, size_t depth) {
         tf_obj *left = tf_pqueue_clone(a);
         tf_obj *right = tf_pqueue_clone(b);
         while (left->pqueue.len > 0) {
-            double left_priority = 0;
-            double right_priority = 0;
+            tf_obj *left_priority = NULL;
+            tf_obj *right_priority = NULL;
             tf_obj *left_value = NULL;
             tf_obj *right_value = NULL;
             bool left_ok = tf_pqueue_pop(left, &left_priority, &left_value);
             bool right_ok = tf_pqueue_pop(right, &right_priority, &right_value);
             bool same = left_ok && right_ok &&
-                        left_priority == right_priority &&
+                        pqueue_priority_value(left_priority) ==
+                            pqueue_priority_value(right_priority) &&
                         obj_equal_inner(left_value, right_value, depth + 1);
+            if (left_priority) tf_obj_release(left_priority);
+            if (right_priority) tf_obj_release(right_priority);
             if (left_value) tf_obj_release(left_value);
             if (right_value) tf_obj_release(right_value);
             if (!same) {
@@ -1032,6 +1151,7 @@ void tf_obj_free(tf_obj *o) {
         break;
     case TF_OBJ_TYPE_PQUEUE:
         for (size_t i = 0; i < o->pqueue.len; i++) {
+            tf_obj_release(o->pqueue.entries[i].priority);
             tf_obj_release(o->pqueue.entries[i].value);
         }
         free(o->pqueue.entries);
@@ -1170,15 +1290,16 @@ void tf_obj_print(tf_obj *o, size_t *count) {
         printf("pqueue[");
         tf_obj *tmp = tf_pqueue_clone(o);
         for (size_t i = 0; tmp->pqueue.len > 0; i++) {
-            double priority = 0;
+            tf_obj *priority = NULL;
             tf_obj *value = NULL;
             tf_pqueue_pop(tmp, &priority, &value);
             if (i > 0) printf(" ");
             printf("[");
-            printf("%g", priority);
+            tf_obj_print(priority, count);
             printf(" ");
             tf_obj_print(value, count);
             printf("]");
+            tf_obj_release(priority);
             tf_obj_release(value);
         }
         tf_obj_release(tmp);
@@ -1268,15 +1389,16 @@ void tf_obj_print_value(tf_obj *o) {
         printf("[");
         tf_obj *tmp = tf_pqueue_clone(o);
         for (size_t i = 0; tmp->pqueue.len > 0; i++) {
-            double priority = 0;
+            tf_obj *priority = NULL;
             tf_obj *value = NULL;
             tf_pqueue_pop(tmp, &priority, &value);
             if (i > 0) printf(" ");
             printf("[");
-            printf("%g", priority);
+            tf_obj_print_value(priority);
             printf(" ");
             tf_obj_print_value(value);
             printf("]");
+            tf_obj_release(priority);
             tf_obj_release(value);
         }
         tf_obj_release(tmp);
@@ -1374,15 +1496,16 @@ void tf_obj_print_source(tf_obj *o) {
         printf("[");
         tf_obj *tmp = tf_pqueue_clone(o);
         for (size_t i = 0; tmp->pqueue.len > 0; i++) {
-            double priority = 0;
+            tf_obj *priority = NULL;
             tf_obj *value = NULL;
             tf_pqueue_pop(tmp, &priority, &value);
             if (i > 0) printf(" ");
             printf("[");
-            printf("%g", priority);
+            tf_obj_print_source(priority);
             printf(" ");
             tf_obj_print_source(value);
             printf("]");
+            tf_obj_release(priority);
             tf_obj_release(value);
         }
         tf_obj_release(tmp);

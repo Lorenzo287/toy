@@ -1,0 +1,25 @@
+\ Priority-queue microbenchmarks. Each body consumes and returns one state queue.
+\ Usage: [ setup ] [ body ] count "Name" bench-state
+'bench-state [
+    | setup block count name |
+    $name printf ": " printf
+    clock
+    $setup exec
+    $count [ $block exec ] times
+    drop
+    clock swap - printf " ticks\n" printf
+] def
+
+'identity-pq [
+    | count |
+    [ ] >pqueue $count [ dup len dup pq-push ] times
+] def
+
+"--- Priority Queue ---\n" printf
+
+[ [ ] >pqueue ] [ dup len dup pq-push ] 50000 "pq-push unique n=50000" bench-state
+[ 50000 identity-pq ] [ pq-pop drop drop ] 50000 "pq-pop unique n=50000" bench-state
+[ 16384 identity-pq ] [ pq-peek drop drop ] 200000 "pq-peek n=16384" bench-state
+[ 1024 identity-pq ] [ dup -1 -1 pq-push drop ] 10000 "pq-push shared n=1024" bench-state
+[ 1024 identity-pq ] [ dup pq-pop drop drop drop ] 10000 "pq-pop shared n=1024" bench-state
+[ 1024 identity-pq ] [ dup pairs drop ] 1000 "pairs shared n=1024" bench-state

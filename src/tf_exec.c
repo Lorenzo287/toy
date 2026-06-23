@@ -441,7 +441,14 @@ static const tf_builtin_word native_map_set_words[] = {
     {"assoc", tf_assoc},     {"dissoc", tf_dissoc},
     {"keys", tf_keys},       {"values", tf_values},
     {"pairs", tf_pairs},     {"items", tf_items},
-    {"adjoin", tf_adjoin},   {"remove", tf_remove},
+    {"insert", tf_insert},   {"remove", tf_remove},
+    {"union", tf_union},     {"intersection", tf_intersection},
+    {"difference", tf_difference},
+    {"symmetric-difference", tf_symmetric_difference},
+    {"subset?", tf_subset_q}, {"proper-subset?", tf_proper_subset_q},
+    {"superset?", tf_superset_q},
+    {"proper-superset?", tf_proper_superset_q},
+    {"disjoint?", tf_disjoint_q},
     {NULL, NULL},
 };
 
@@ -450,10 +457,9 @@ static const tf_builtin_word native_deque_pqueue_words[] = {
     {"push-front", tf_push_front},
     {"pop-front", tf_pop_front},
     {"pop-back", tf_pop_back},
-    {"pqueue-push", tf_pqueue_push_word},
-    {"pqueue-peek", tf_pqueue_peek_word},
-    {"pqueue-pop", tf_pqueue_pop_word},
-    {"pqueue-drain", tf_pqueue_drain},
+    {"pq-push", tf_pq_push},
+    {"pq-peek", tf_pq_peek},
+    {"pq-pop", tf_pq_pop},
     {NULL, NULL},
 };
 

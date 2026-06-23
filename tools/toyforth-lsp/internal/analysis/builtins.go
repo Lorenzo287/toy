@@ -13,6 +13,12 @@ type builtinDoc struct {
 	Description string
 }
 
+const (
+	symDiffWord  = "symmetric-difference"
+	properSubQ   = "proper-subset?"
+	properSuperQ = "proper-superset?"
+)
+
 var builtinDocs = map[string]builtinDoc{
 	"dup":          {StackEffect: "x -- x x", Description: "Duplicate the top stack item."},
 	"drop":         {StackEffect: "x --", Description: "Discard the top stack item."},
@@ -160,18 +166,26 @@ var builtinDocs = map[string]builtinDoc{
 	"dissoc":       {StackEffect: "map key -- map", Description: "Return a map without key. Missing keys leave the map unchanged."},
 	"keys":         {StackEffect: "map -- vector", Description: "Return map keys in insertion order."},
 	"values":       {StackEffect: "map -- vector", Description: "Return map values in insertion order."},
-	"pairs":        {StackEffect: "map -- vector", Description: "Return map entries as two-item key/value vectors in insertion order."},
+	"pairs":        {StackEffect: "map|pqueue -- vector", Description: "Return map key/value pairs in insertion order or priority/value pairs in priority order."},
 	"items":        {StackEffect: "set -- vector | deque -- vector", Description: "Return set items in insertion order or deque items from front to back."},
-	"adjoin":       {StackEffect: "set item -- set", Description: "Return a set containing item."},
+	"insert":       {StackEffect: "set item -- set", Description: "Return a set containing item. An existing item leaves the set and its insertion order unchanged."},
 	"remove":       {StackEffect: "set item -- set", Description: "Return a set without item. Missing items leave the set unchanged."},
+	"union":        {StackEffect: "set set -- set", Description: "Return items from either set, preserving left order then unseen right items."},
+	"intersection": {StackEffect: "set set -- set", Description: "Return items present in both sets, preserving left-set order."},
+	"difference":   {StackEffect: "set set -- set", Description: "Return items from the left set that are absent from the right set."},
+	symDiffWord:    {StackEffect: "set set -- set", Description: "Return left-only items followed by right-only items."},
+	"subset?":      {StackEffect: "set set -- bool", Description: "Check whether the left set is a subset of the right set, including equality."},
+	properSubQ:     {StackEffect: "set set -- bool", Description: "Check whether the left set is a strict subset of the right set."},
+	"superset?":    {StackEffect: "set set -- bool", Description: "Check whether the left set is a superset of the right set, including equality."},
+	properSuperQ:   {StackEffect: "set set -- bool", Description: "Check whether the left set is a strict superset of the right set."},
+	"disjoint?":    {StackEffect: "set set -- bool", Description: "Check whether the sets have no items in common."},
 	"push-front":   {StackEffect: "deque item -- deque", Description: "Return a deque with item added at the front."},
 	"push-back":    {StackEffect: "vector|list|string|deque item -- vector|list|string|deque", Description: "Return a sequence or deque with one item added at the back. String items are one-byte strings."},
 	"pop-front":    {StackEffect: "deque -- deque item", Description: "Return the updated deque followed by the removed front item."},
 	"pop-back":     {StackEffect: "vector|deque -- vector|deque item", Description: "Return the updated vector or deque followed by the removed back item."},
-	"pqueue-push":  {StackEffect: "pqueue priority value -- pqueue", Description: "Return a priority queue with value inserted at a finite numeric priority."},
-	"pqueue-peek":  {StackEffect: "pqueue -- value", Description: "Consume a priority queue and return the next value without exposing heap storage order. Use dup pqueue-peek to preserve the queue."},
-	"pqueue-pop":   {StackEffect: "pqueue -- pqueue value", Description: "Return the updated priority queue followed by the removed value."},
-	"pqueue-drain": {StackEffect: "pqueue -- vector", Description: "Return all values in priority order without exposing heap storage order."},
+	"pq-push":      {StackEffect: "pqueue priority value -- pqueue", Description: "Return a priority queue with value inserted at a finite numeric priority."},
+	"pq-peek":      {StackEffect: "pqueue -- pqueue priority value", Description: "Leave a priority queue unchanged and copy its next priority/value pair to the top."},
+	"pq-pop":       {StackEffect: "pqueue -- pqueue priority value", Description: "Return the updated priority queue followed by the removed priority and value."},
 	"slice":        {StackEffect: "vector|string start end -- vector|string", Description: "Return a sub-vector or substring from start up to, but not including, end."},
 	"take":         {StackEffect: "vector|list|string n -- vector|list|string", Description: "Return the first n items or characters from a vector, list, or string."},
 	"dropn":        {StackEffect: "vector|list|string n -- vector|list|string", Description: "Return a vector, list, or string with the first n items or characters removed."},

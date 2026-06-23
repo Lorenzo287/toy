@@ -9,6 +9,8 @@ Basic expressions
 #{ 1 2 3 }
 | x y |
 get-or
+symmetric-difference
+pq-peek
 
 ---
 
@@ -47,6 +49,8 @@ get-or
   (var_list
     (word)
     (word))
+  (builtin_word)
+  (builtin_word)
   (builtin_word))
 
 ==================

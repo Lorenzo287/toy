@@ -117,8 +117,9 @@ without repeated linear `push-back`, prepend each item and reverse once:
 [ [ 'name "Ada" ] [ 'age 36 ] ] >map pairs print
 #{ "red" "green" "blue" } "green" has? print
 [ 1 2 2 3 ] >set items print
+#{ "red" "green" } #{ "green" "blue" } union items print
 [ 1 2 3 ] >deque 0 push-front items print
-[ [ 10 "low" ] [ 1 "urgent" ] ] >pqueue pqueue-drain print
+[ [ 10 "low" ] [ 1 "urgent" ] ] >pqueue pairs print
 
 "notes.txt" "hello from Toy" writef
 "notes.txt" readf print
@@ -169,8 +170,8 @@ prints one value literally with a newline, while `printf` explicitly interprets
 | Sequence Combinators     | `each`, `map`, `fold`, `filter`, `some`, `all`, `split`, `merge` |
 | Sequence                 | `at`, `set-at`, `>vector`, `>list`, `>string`, `contains?`, `indexof`, `unique`, `sort`, `slice`, `take`, `dropn`, `len`, `first`, `last`, `rest`, `uncons`, `cons`, `push-back`, `pop-back`, `concat`, `reverse`, `splitmid`, `range`, `empty?` |
 | String                   | `join`, `trim`, `upper`, `lower`, `char?`, `>char`, `char-code`, `letter?`, `digit?`, `alnum?`, `space?`, `upper?`, `lower?`, `punct?` |
-| Map / Set                | `>map`, `>set`, `has?`, `get`, `get-or`, `assoc`, `dissoc`, `keys`, `values`, `pairs`, `items`, `adjoin`, `remove` |
-| Deque / Priority Queue   | `>deque`, `>pqueue`, `push-front`, `push-back`, `pop-front`, `pop-back`, `first`, `last`, `pqueue-push`, `pqueue-peek`, `pqueue-pop`, `pqueue-drain` |
+| Map / Set                | `>map`, `>set`, `has?`, `get`, `get-or`, `assoc`, `dissoc`, `keys`, `values`, `pairs`, `items`, `insert`, `remove`, `union`, `intersection`, `difference`, `symmetric-difference`, `subset?`, `proper-subset?`, `superset?`, `proper-superset?`, `disjoint?` |
+| Deque / Priority Queue   | `>deque`, `>pqueue`, `push-front`, `push-back`, `pop-front`, `pop-back`, `first`, `last`, `pq-push`, `pq-peek`, `pq-pop`, `pairs` |
 | Types                    | `typeof`, `bool?`, `int?`, `float?`, `string?`, `symbol?`, `vector?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `number?`, `sequence?`, `callable?` |
 | Dictionary / Symbols     | `def`, `word?`, `var?`, `body`, `intern`, `name`, `words`, `see`, `doc`, `apropos`, `repr` |
 | Console                  | `printf`, `print`, `cr`, `.`, `.s`, `.S`, `key`, `input`, `clear`, `page` |

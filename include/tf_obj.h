@@ -52,7 +52,7 @@ typedef struct {
 } tf_set_entry;
 
 typedef struct {
-    double priority;
+    tf_obj *priority;
     size_t order;
     tf_obj *value;
 } tf_pqueue_entry;
@@ -179,8 +179,11 @@ bool tf_map_has(tf_obj *map, tf_obj *key);
 bool tf_map_get(tf_obj *map, tf_obj *key, tf_obj **out);
 bool tf_map_set(tf_obj *map, tf_obj *key, tf_obj *value);
 bool tf_map_remove(tf_obj *map, tf_obj *key);
+void tf_set_reserve(tf_obj *set, size_t capacity);
+tf_obj *tf_set_clone(tf_obj *set);
 bool tf_set_has(tf_obj *set, tf_obj *item);
 bool tf_set_add(tf_obj *set, tf_obj *item);
+bool tf_set_remove(tf_obj *set, tf_obj *item);
 tf_obj *tf_list_from_vector(tf_obj *vector);
 tf_obj *tf_list_cons_obj(tf_obj *head, tf_obj *tail);
 tf_obj *tf_list_rest_obj(tf_obj *list);
@@ -196,16 +199,20 @@ tf_obj *tf_list_builder_finish(tf_list_builder *builder);
 void tf_list_builder_cleanup(tf_list_builder *builder);
 void tf_sequence_iter_init(tf_sequence_iter *iter, tf_obj *sequence);
 tf_obj *tf_sequence_iter_next_owned(tf_sequence_iter *iter);
+void tf_deque_reserve(tf_obj *deque, size_t capacity);
 tf_obj *tf_deque_clone(tf_obj *src);
 tf_obj *tf_deque_get(tf_obj *deque, size_t idx);
 void tf_deque_push_front(tf_obj *deque, tf_obj *value);
 void tf_deque_push_back(tf_obj *deque, tf_obj *value);
 tf_obj *tf_deque_pop_front(tf_obj *deque);
 tf_obj *tf_deque_pop_back(tf_obj *deque);
+void tf_pqueue_reserve(tf_obj *pqueue, size_t capacity);
 tf_obj *tf_pqueue_clone(tf_obj *src);
-void tf_pqueue_push(tf_obj *pqueue, double priority, tf_obj *value);
-bool tf_pqueue_peek(tf_obj *pqueue, double *priority, tf_obj **value);
-bool tf_pqueue_pop(tf_obj *pqueue, double *priority, tf_obj **value);
+void tf_pqueue_append(tf_obj *pqueue, tf_obj *priority, tf_obj *value);
+void tf_pqueue_heapify(tf_obj *pqueue);
+void tf_pqueue_push(tf_obj *pqueue, tf_obj *priority, tf_obj *value);
+bool tf_pqueue_peek(tf_obj *pqueue, tf_obj **priority, tf_obj **value);
+bool tf_pqueue_pop(tf_obj *pqueue, tf_obj **priority, tf_obj **value);
 
 /* Reference-count ownership. */
 void tf_obj_retain(tf_obj *o);

@@ -5,6 +5,16 @@
 words 'push-back contains? true == check
 words 'append contains? false == check
 words 'get-or contains? true == check
+words 'insert contains? true == check
+words 'adjoin contains? false == check
+words 'union contains? true == check
+words 'pq-push contains? true == check
+words 'pq-peek contains? true == check
+words 'pq-pop contains? true == check
+words 'pqueue-push contains? false == check
+words 'pqueue-peek contains? false == check
+words 'pqueue-pop contains? false == check
+words 'pqueue-drain contains? false == check
 words 'last contains? true == check
 words 'front contains? false == check
 words 'back contains? false == check

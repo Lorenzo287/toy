@@ -1,0 +1,32 @@
+\ Set microbenchmarks. Each body consumes and returns one state set.
+\ Usage: [ setup ] [ body ] count "Name" bench-state
+'bench-state [
+    | setup block count name |
+    $name printf ": " printf
+    clock
+    $setup exec
+    $count [ $block exec ] times
+    drop
+    clock swap - printf " ticks\n" printf
+] def
+
+'identity-set [
+    | count |
+    #{} $count [ dup len insert ] times
+] def
+
+"--- Set ---\n" printf
+
+[ #{} ] [ dup len insert ] 16000 "insert unique growth n=16000" bench-state
+[ #{ 'item } ] [ 'item insert ] 200000 "insert duplicate unique" bench-state
+[ 16384 identity-set ] [ dup 8192 insert drop ] 200000 "insert duplicate shared n=16384" bench-state
+[ 1024 identity-set ] [ dup -1 insert drop ] 10000 "insert shared new n=1024" bench-state
+[ 16384 identity-set ] [ dup 8192 has? drop ] 200000 "has? n=16384" bench-state
+[ 16384 identity-set ] [ -1 remove ] 200000 "remove absent n=16384" bench-state
+[ 1024 identity-set ] [ dup 512 remove drop ] 10000 "remove shared present n=1024" bench-state
+
+[ [ ] [ 0 1024 range >set 512 1536 range >set ] infra ] [ dup 0 at over 1 at union drop ] 1000 "union overlap n=1024" bench-state
+[ [ ] [ 0 1024 range >set 512 1536 range >set ] infra ] [ dup 0 at over 1 at intersection drop ] 1000 "intersection overlap n=1024" bench-state
+[ [ ] [ 0 1024 range >set 512 1536 range >set ] infra ] [ dup 0 at over 1 at difference drop ] 1000 "difference overlap n=1024" bench-state
+[ [ ] [ 0 1024 range >set 512 1536 range >set ] infra ] [ dup 0 at over 1 at symmetric-difference drop ] 1000 "symmetric difference n=1024" bench-state
+[ [ ] [ 0 1024 range >set 512 1536 range >set ] infra ] [ dup 0 at over 1 at disjoint? drop ] 10000 "disjoint? overlap n=1024" bench-state

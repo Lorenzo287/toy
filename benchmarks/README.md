@@ -35,10 +35,15 @@ Before drawing a conclusion:
 Current workloads:
 
 - `dispatch.toy`: inline native calls versus user-word dispatch.
+- `deque.toy`: unique/shared endpoint updates, pops, wraparound, and projection.
 - `list.toy`: constant-time front operations, linear traversal, and
   copy-left/share-right concatenation.
 - `map.toy`: unique growth and replacement, shared updates, lookup, and
   absent-key deletion.
+- `set.toy`: unique growth, duplicate insertion, shared updates, membership,
+  present/absent removal, algebra, and relation predicates.
+- `pqueue.toy`: unique/shared heap updates, non-consuming peek, pop, and ordered
+  pair projection.
 - `sequence-algorithms.toy`: sort and unique crossover workloads by size,
   shape, and sequence family.
 - `string.toy`: short-string storage, byte extraction and traversal, flat

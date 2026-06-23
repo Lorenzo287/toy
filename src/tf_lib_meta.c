@@ -377,16 +377,16 @@ static void strbuf_append_source_obj(strbuf *buf, tf_obj *o) {
         strbuf_append_char(buf, '[');
         tf_obj *tmp = tf_pqueue_clone(o);
         for (size_t i = 0; tmp->pqueue.len > 0; i++) {
-            double priority = 0;
+            tf_obj *priority = NULL;
             tf_obj *value = NULL;
             tf_pqueue_pop(tmp, &priority, &value);
             if (i > 0) strbuf_append_char(buf, ' ');
-            snprintf(num_buf, sizeof num_buf, "%g", priority);
             strbuf_append_cstr(buf, "[");
-            strbuf_append_cstr(buf, num_buf);
+            strbuf_append_source_obj(buf, priority);
             strbuf_append_char(buf, ' ');
             strbuf_append_source_obj(buf, value);
             strbuf_append_char(buf, ']');
+            tf_obj_release(priority);
             tf_obj_release(value);
         }
         tf_obj_release(tmp);

@@ -1,0 +1,22 @@
+\ Deque microbenchmarks. Each body consumes and returns one state deque.
+\ Usage: [ setup ] [ body ] count "Name" bench-state
+'bench-state [
+    | setup block count name |
+    $name printf ": " printf
+    clock
+    $setup exec
+    $count [ $block exec ] times
+    drop
+    clock swap - printf " ticks\n" printf
+] def
+
+"--- Deque ---\n" printf
+
+[ [ ] >deque ] [ 0 push-front ] 200000 "push-front unique" bench-state
+[ [ ] >deque ] [ 0 push-back ] 200000 "push-back unique" bench-state
+[ 0 200000 range >deque ] [ pop-front drop ] 200000 "pop-front unique" bench-state
+[ 0 200000 range >deque ] [ pop-back drop ] 200000 "pop-back unique" bench-state
+[ 0 1024 range >deque ] [ dup 0 push-front drop ] 10000 "push-front shared n=1024" bench-state
+[ 0 1024 range >deque ] [ dup 0 push-back drop ] 10000 "push-back shared n=1024" bench-state
+[ 0 1024 range >deque ] [ pop-front drop 0 push-back ] 200000 "fixed-size wraparound" bench-state
+[ 0 1024 range >deque ] [ dup items drop ] 10000 "items n=1024" bench-state

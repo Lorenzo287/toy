@@ -8,7 +8,7 @@
 'dup doc "dup\nstack: x -- x x\nDuplicate the top stack item." == check
 'twice doc "'twice [ dup + ] def" == check
 ":" intern word? false == check
-"priority" apropos dup 'pqueue-push contains? true == check drop
+"priority" apropos dup 'pq-push contains? true == check drop
 'see apropos 'see contains? true == check
 "twice" apropos 'twice contains? true == check
 words vector? [ "words returns symbol vector\n" printf ] if
