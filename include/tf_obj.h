@@ -63,6 +63,12 @@ typedef struct tf_list_node {
     struct tf_list_node *next;
 } tf_list_node;
 
+typedef struct {
+    tf_list_node *head;
+    tf_list_node **next;
+    size_t len;
+} tf_list_builder;
+
 /* Two inline slots fit inside the union space already required by maps. */
 #define TF_VECTOR_INLINE_CAP 2
 
@@ -121,6 +127,13 @@ struct tf_obj {
 _Static_assert(sizeof(((tf_obj *)0)->vector) <= sizeof(((tf_obj *)0)->map),
                "inline vector storage must not increase tf_obj size");
 
+/* Non-owning cursor over a sequence owned by the caller. */
+typedef struct {
+    tf_obj *sequence;
+    size_t index;
+    tf_list_node *node;
+} tf_sequence_iter;
+
 /* Object constructors. Returned objects start with refcount 1. */
 tf_obj *tf_obj_new(int type);
 tf_obj *tf_obj_new_vector(void);
@@ -158,7 +171,18 @@ bool tf_set_add(tf_obj *set, tf_obj *item);
 tf_obj *tf_list_from_vector(tf_obj *vector);
 tf_obj *tf_list_cons_obj(tf_obj *head, tf_obj *tail);
 tf_obj *tf_list_rest_obj(tf_obj *list);
+tf_obj *tf_list_take_obj(tf_obj *list, size_t count);
+tf_obj *tf_list_drop_obj(tf_obj *list, size_t count);
+tf_obj *tf_list_concat_obj(tf_obj *left, tf_obj *right);
+tf_obj *tf_list_push_back_obj(tf_obj *list, tf_obj *item);
+tf_obj *tf_list_reverse_obj(tf_obj *list);
 tf_obj *tf_list_get(tf_obj *list, size_t idx);
+void tf_list_builder_init(tf_list_builder *builder);
+void tf_list_builder_push_owned(tf_list_builder *builder, tf_obj *item);
+tf_obj *tf_list_builder_finish(tf_list_builder *builder);
+void tf_list_builder_cleanup(tf_list_builder *builder);
+void tf_sequence_iter_init(tf_sequence_iter *iter, tf_obj *sequence);
+tf_obj *tf_sequence_iter_next_owned(tf_sequence_iter *iter);
 tf_obj *tf_deque_clone(tf_obj *src);
 tf_obj *tf_deque_get(tf_obj *deque, size_t idx);
 void tf_deque_push_front(tf_obj *deque, tf_obj *value);

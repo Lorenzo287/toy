@@ -1,0 +1,20 @@
+\ Persistent-list and shared-sequence microbenchmarks.
+\ Usage: [ setup ] [ body ] count "Name" bench-state
+'bench-state [
+    | setup block count name |
+    $name printf ": " printf
+    clock
+    $setup exec
+    $count [ $block exec ] times
+    drop
+    clock swap - printf " ticks\n" printf
+] def
+
+"--- List ---\n" printf
+
+[ ( ) ] [ 0 swap cons ] 200000 "cons front" bench-state
+[ 0 200000 range >list ] [ rest ] 200000 "rest shared-tail" bench-state
+[ 0 10000 range >list ] [ dup 9999 contains? drop ] 100 "contains traversal" bench-state
+[ 0 5000 range >list ] [ dup 0 swap [ + ] fold drop ] 100 "fold traversal" bench-state
+[ 0 5000 range >list ] [ dup [ 1 + ] map drop ] 100 "map and build" bench-state
+[ 0 1000 range >list ] [ dup ( 1 2 3 4 ) concat drop ] 2000 "concat copies-left" bench-state

@@ -68,6 +68,14 @@ positions.
 Vectors are the compound quotation type; linked lists created with `( ... )`
 are data sequences, not callables.
 
+Lists are persistent front-oriented sequences. `cons`, `rest`, and `uncons`
+are constant-time and may share tails. To construct a list in forward order
+without repeated linear `push-back`, prepend each item and reverse once:
+
+```toy
+( ) [ 1 2 3 4 ] [ swap cons ] fold reverse   \ leaves (1 2 3 4)
+```
+
 ```toy
 \ Conditions can be callables that inspect the stack.
 5 [ 0 > ] [ "Positive" print ] if

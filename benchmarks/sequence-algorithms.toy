@@ -1,0 +1,31 @@
+\ Sort/unique crossover benchmarks. Setup runs outside the timed region.
+\ Usage: [ setup ] [ body ] count "Name" bench-state
+'bench-state [
+    | setup block count name |
+    $name printf ": " printf
+    clock
+    $setup exec
+    $count [ $block exec ] times
+    drop
+    clock swap - printf " ticks\n" printf
+] def
+
+"--- Sort / Unique ---\n" printf
+
+[ 0 8 range ] [ dup sort drop ] 10000 "sort vector sorted n=8" bench-state
+[ 0 512 range ] [ dup sort drop ] 500 "sort vector sorted n=512" bench-state
+[ 0 32 range reverse ] [ dup sort drop ] 5000 "sort vector reverse n=32" bench-state
+[ 0 128 range [ 37 * 128 % ] map ] [ dup sort drop ] 500 "sort vector permuted n=128" bench-state
+[ 0 512 range [ 37 * 512 % ] map ] [ dup sort drop ] 50 "sort vector permuted n=512" bench-state
+[ 0 2048 range reverse ] [ dup sort drop ] 3 "sort vector reverse n=2048" bench-state
+[ 0 512 range reverse >list ] [ dup sort drop ] 20 "sort list reverse n=512" bench-state
+
+[ "zyxwvutsrqponmlkjihgfedcba" ] [ dup sort drop ] 10000 "sort string n=26" bench-state
+[ "" 8 [ "zyxwvutsrqponmlkjihgfedcba" concat ] times ] [ dup sort drop ] 100 "sort string n=208" bench-state
+[ "" 64 [ "zyxwvutsrqponmlkjihgfedcba" concat ] times ] [ dup sort drop ] 3 "sort string n=1664" bench-state
+
+[ 0 16 range ] [ dup unique drop ] 10000 "unique distinct vector n=16" bench-state
+[ 0 128 range ] [ dup unique drop ] 1000 "unique distinct vector n=128" bench-state
+[ 0 1024 range ] [ dup unique drop ] 20 "unique distinct vector n=1024" bench-state
+[ 0 1024 range [ 16 % ] map ] [ dup unique drop ] 100 "unique dense vector n=1024" bench-state
+[ 0 512 range >list ] [ dup unique drop ] 20 "unique distinct list n=512" bench-state

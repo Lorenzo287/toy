@@ -76,7 +76,9 @@ The reproducible benchmark suite lives in [`benchmarks/`](../benchmarks/README.m
 Keep benchmarks separate from regression tests, compare optimized builds in the
 same environment, change one technique at a time, and record the commit,
 compiler, configuration, and machine with results. Initial coverage includes
-dispatch and vector growth/index/endpoint/concatenation paths.
+dispatch, vector growth/index/endpoint/concatenation paths, and persistent-list
+front/traversal/concatenation paths. Sequence-algorithm workloads cover sort
+crossovers and duplicate-density effects in `unique`.
 
 Future topics: dictionary lookup, allocation, list growth, hot-path
 specialization, bytecode, threaded code, and cache behavior.
@@ -96,6 +98,12 @@ then bytecode for the existing VM, then LLVM for a constrained subset.
 - Overload existing words when the language concept is the same across types
   (`split` for sequence partitioning and string splitting); avoid aliases that
   only encode implementation categories.
+- Shared words use representation-aware implementations. Accept intrinsic
+  complexity differences such as list versus vector `uncons`, but require
+  one-pass sequence operations to remain O(n) for every finite sequence.
+- Capability names may carry complexity contracts: indexed access and
+  persistent-list front operations are O(1). Update capabilities must document
+  both their unique-update cost and the copying required when a value is shared.
 - Treat strings as byte sequences for shared sequence words. A string item is a
   one-byte string; `push-back` adds one item, while `concat` combines two
   sequences.

@@ -213,6 +213,53 @@ static tf_list_node *list_node_new(tf_obj *value, tf_list_node *next) {
     return node;
 }
 
+void tf_list_builder_init(tf_list_builder *builder) {
+    builder->head = NULL;
+    builder->next = &builder->head;
+    builder->len = 0;
+}
+
+void tf_list_builder_push_owned(tf_list_builder *builder, tf_obj *item) {
+    tf_list_node *node = tf_xmalloc(sizeof(tf_list_node));
+    node->refcount = 1;
+    node->value = item;
+    node->next = NULL;
+    *builder->next = node;
+    builder->next = &node->next;
+    builder->len++;
+}
+
+tf_obj *tf_list_builder_finish(tf_list_builder *builder) {
+    tf_obj *result = tf_obj_new_list();
+    result->list.head = builder->head;
+    result->list.len = builder->len;
+    tf_list_builder_init(builder);
+    return result;
+}
+
+void tf_list_builder_cleanup(tf_list_builder *builder) {
+    list_node_release(builder->head);
+    tf_list_builder_init(builder);
+}
+
+static tf_list_node *list_copy_prefix_nodes(tf_list_node *source, size_t count,
+                                            tf_list_node *tail) {
+    tf_list_node *head = NULL;
+    tf_list_node **next = &head;
+
+    for (size_t i = 0; i < count && source; i++, source = source->next) {
+        tf_list_node *copy = list_node_new(source->value, NULL);
+        *next = copy;
+        next = &copy->next;
+    }
+
+    if (tail) {
+        list_node_retain(tail);
+        *next = tail;
+    }
+    return head;
+}
+
 tf_obj *tf_list_from_vector(tf_obj *vector) {
     tf_obj *result = tf_obj_new_list();
     for (size_t i = vector->vector.len; i > 0; i--) {
@@ -241,6 +288,54 @@ tf_obj *tf_list_rest_obj(tf_obj *list) {
     return result;
 }
 
+tf_obj *tf_list_take_obj(tf_obj *list, size_t count) {
+    if (count > list->list.len) count = list->list.len;
+    tf_obj *result = tf_obj_new_list();
+    result->list.head = list_copy_prefix_nodes(list->list.head, count, NULL);
+    result->list.len = count;
+    return result;
+}
+
+tf_obj *tf_list_drop_obj(tf_obj *list, size_t count) {
+    if (count > list->list.len) count = list->list.len;
+    tf_obj *result = tf_obj_new_list();
+    tf_list_node *node = list->list.head;
+    for (size_t i = 0; i < count; i++) node = node->next;
+    result->list.head = node;
+    result->list.len = list->list.len - count;
+    list_node_retain(node);
+    return result;
+}
+
+tf_obj *tf_list_concat_obj(tf_obj *left, tf_obj *right) {
+    tf_obj *result = tf_obj_new_list();
+    result->list.head = list_copy_prefix_nodes(
+        left->list.head, left->list.len, right->list.head);
+    result->list.len = left->list.len + right->list.len;
+    return result;
+}
+
+tf_obj *tf_list_push_back_obj(tf_obj *list, tf_obj *item) {
+    tf_list_node *tail = list_node_new(item, NULL);
+    tf_obj *result = tf_obj_new_list();
+    result->list.head =
+        list_copy_prefix_nodes(list->list.head, list->list.len, tail);
+    result->list.len = list->list.len + 1;
+    list_node_release(tail);
+    return result;
+}
+
+tf_obj *tf_list_reverse_obj(tf_obj *list) {
+    tf_obj *result = tf_obj_new_list();
+    for (tf_list_node *node = list->list.head; node; node = node->next) {
+        tf_list_node *old_head = result->list.head;
+        result->list.head = list_node_new(node->value, old_head);
+        result->list.len++;
+        list_node_release(old_head);
+    }
+    return result;
+}
+
 tf_obj *tf_list_get(tf_obj *list, size_t idx) {
     if (!list || list->type != TF_OBJ_TYPE_LIST || idx >= list->list.len) {
         return NULL;
@@ -248,6 +343,35 @@ tf_obj *tf_list_get(tf_obj *list, size_t idx) {
     tf_list_node *node = list->list.head;
     for (size_t i = 0; i < idx; i++) node = node->next;
     return node->value;
+}
+
+void tf_sequence_iter_init(tf_sequence_iter *iter, tf_obj *sequence) {
+    iter->sequence = sequence;
+    iter->index = 0;
+    iter->node = sequence->type == TF_OBJ_TYPE_LIST ? sequence->list.head : NULL;
+}
+
+tf_obj *tf_sequence_iter_next_owned(tf_sequence_iter *iter) {
+    tf_obj *sequence = iter->sequence;
+    if (sequence->type == TF_OBJ_TYPE_VECTOR) {
+        if (iter->index >= sequence->vector.len) return NULL;
+        tf_obj *item = sequence->vector.elem[iter->index++];
+        tf_obj_retain(item);
+        return item;
+    }
+    if (sequence->type == TF_OBJ_TYPE_LIST) {
+        if (!iter->node) return NULL;
+        tf_obj *item = iter->node->value;
+        iter->node = iter->node->next;
+        iter->index++;
+        tf_obj_retain(item);
+        return item;
+    }
+    if (sequence->type == TF_OBJ_TYPE_STR) {
+        if (iter->index >= sequence->str.len) return NULL;
+        return tf_obj_new_string(sequence->str.ptr + iter->index++, 1);
+    }
+    return NULL;
 }
 
 static uint64_t fnv1a_bytes(const void *data, size_t len, uint64_t seed) {

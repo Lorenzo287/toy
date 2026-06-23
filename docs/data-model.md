@@ -88,6 +88,13 @@ absent.
 `join` is adjacent to sequence words but narrower: it accepts a vector or list
 of strings plus a separator and returns a string.
 
+Shared vocabulary means shared semantics, not a lowest-common-denominator
+implementation or identical complexity. One-pass words such as `each`, `map`,
+`fold`, `filter`, `some`, `all`, and predicate `split` must advance every finite
+sequence in O(n), excluding callable work. Intrinsic differences remain visible:
+list `uncons` is O(1) because it can share a tail, while vector `uncons` is O(n)
+because it returns an independent vector.
+
 ### Indexed
 
 Indexed values support efficient random access by integer index:
@@ -99,6 +106,21 @@ Words: `at`, `set-at`, `slice`.
 
 Do not treat every sequence as indexed. A linked list, stream, tree traversal,
 or generator can be a sequence without cheap random access.
+
+### Persistent Front
+
+Lists provide constant-time front construction and decomposition with shared
+tails.
+
+Words: `cons`, `first`, `rest`, `uncons`.
+
+Repeated `push-back` on a list is quadratic because every call copies the
+existing spine. Build in reverse with `cons`, then reverse once:
+
+```toy
+( ) [ 1 2 3 4 ] [ swap cons ] fold reverse
+\ leaves (1 2 3 4)
+```
 
 ### Back Stack
 
@@ -218,6 +240,45 @@ defer: float, vector, list, map, set, deque, pqueue
 
 Floats need a policy for `nan`, `-0`, and `0`. Structural keys can be added
 after update semantics and cached hash invalidation are settled.
+
+## Lists
+
+Lists are immutable singly linked values. The list wrapper caches its length,
+and independently refcounted nodes allow multiple lists to share a suffix.
+
+| Operation | Complexity | Storage behavior |
+| --- | ---: | --- |
+| `len`, `empty?`, `first` | O(1) | no node copy |
+| `cons` | O(1) | one new node; shares the old list |
+| `rest`, `uncons` | O(1) | new wrapper; shares the suffix |
+| `last` | O(n) | traverses the spine |
+| `take`, `reverse`, `push-back` | O(n) | copies the required nodes |
+| `dropn` | O(n) | traverses n nodes, then shares the suffix |
+| `concat` | O(length(left)) | copies the left spine and shares the right |
+| `splitmid` | O(n) | copies the left half and shares the right half |
+| sequence traversal words | O(n) | advance directly by node |
+| `sort` | O(n log n) | stable pointer sort, then rebuilds the list |
+| `unique` | expected O(n) for hashable scalars | O(n²) equality fallback for unhashable values |
+
+Converting an existing list with `>list`, or an existing vector with `>vector`,
+is an identity operation.
+
+## Sorting and Uniqueness
+
+Natural `sort` is stable. Numeric vectors/lists may mix integers and floats;
+string elements compare lexicographically. NaN is rejected because it does not
+participate in a total numeric order. The current implementation uses stable
+insertion sort for runs of at most 16 elements and bottom-up stable merge sort
+above that, giving O(n log n) worst-case comparisons and O(n) auxiliary pointer
+storage. Strings use insertion sort through 64 bytes and byte-counting sort for
+larger inputs.
+
+`unique` preserves the first occurrence. Strings use a 256-entry byte table.
+Vectors and lists scan directly while small, then use a temporary set after 16
+distinct hashable values. Bool, int, string, and symbol collections therefore
+have expected O(n) behavior. Floats and structural values retain the general
+O(n²) equality fallback until their hashing policy is defined. These cutoffs are
+implementation details selected by [`sequence-algorithms.toy`](../benchmarks/sequence-algorithms.toy).
 
 ## Mutability
 

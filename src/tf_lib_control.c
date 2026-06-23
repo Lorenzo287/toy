@@ -109,30 +109,6 @@ static size_t sequence_len(tf_obj *seq) {
     return seq->str.len;
 }
 
-static tf_obj *sequence_item_owned(tf_obj *seq, size_t idx) {
-    if (seq->type == TF_OBJ_TYPE_VECTOR) {
-        tf_obj *elem = seq->vector.elem[idx];
-        tf_obj_retain(elem);
-        return elem;
-    }
-    if (seq->type == TF_OBJ_TYPE_LIST) {
-        tf_obj *elem = tf_list_get(seq, idx);
-        tf_obj_retain(elem);
-        return elem;
-    }
-    return tf_obj_new_string(seq->str.ptr + idx, 1);
-}
-
-static tf_obj *finish_vector_family(tf_obj **vector_result, bool list_result) {
-    tf_obj *items = *vector_result;
-    *vector_result = NULL;
-    if (!list_result) return items;
-
-    tf_obj *result = tf_list_from_vector(items);
-    tf_obj_release(items);
-    return result;
-}
-
 static bool is_char_string(tf_obj *o) {
     return o->type == TF_OBJ_TYPE_STR && o->str.len == 1;
 }
@@ -227,18 +203,18 @@ static void times_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
 typedef struct {
     tf_obj *body;
     tf_obj *data;
-    size_t index;
+    tf_sequence_iter iter;
 } each_state;
 
 static tf_ret each_step(tf_ctx *ctx, void *state, bool *done) {
     each_state *s = state;
-    size_t len = sequence_len(s->data);
-    if (s->index >= len) {
+    tf_obj *item = tf_sequence_iter_next_owned(&s->iter);
+    if (!item) {
         *done = true;
         return TF_OK;
     }
 
-    tf_stack_push(ctx, sequence_item_owned(s->data, s->index++));
+    tf_stack_push(ctx, item);
     *done = false;
     return tf_vm_call_callable(ctx, s->body);
 }
@@ -342,7 +318,7 @@ typedef struct {
     tf_obj *data;
     tf_obj **saved_stack;
     size_t saved_len;
-    size_t index;
+    tf_sequence_iter iter;
     bool awaiting_body;
 } fold_state;
 
@@ -361,13 +337,13 @@ static tf_ret fold_step(tf_ctx *ctx, void *state, bool *done) {
         s->awaiting_body = false;
     }
 
-    size_t len = sequence_len(s->data);
-    if (s->index >= len) {
+    tf_obj *item = tf_sequence_iter_next_owned(&s->iter);
+    if (!item) {
         *done = true;
         return TF_OK;
     }
 
-    tf_stack_push(ctx, sequence_item_owned(s->data, s->index++));
+    tf_stack_push(ctx, item);
     s->awaiting_body = true;
     *done = false;
     return tf_vm_call_callable(ctx, s->body);
@@ -387,11 +363,12 @@ typedef struct {
     tf_obj *data;
     tf_obj **saved_stack;
     size_t saved_len;
-    size_t index;
+    tf_sequence_iter iter;
     bool awaiting_body;
     bool string_result;
     bool list_result;
     tf_obj *vector_result;
+    tf_list_builder list_builder;
     bytebuf str_result;
 } map_state;
 
@@ -420,6 +397,8 @@ static tf_ret map_step(tf_ctx *ctx, void *state, bool *done) {
             }
             bytebuf_append(&s->str_result, mapped->str.ptr[0]);
             tf_obj_release(mapped);
+        } else if (s->list_result) {
+            tf_list_builder_push_owned(&s->list_builder, mapped);
         } else {
             tf_vector_push(s->vector_result, mapped);
         }
@@ -427,21 +406,23 @@ static tf_ret map_step(tf_ctx *ctx, void *state, bool *done) {
         s->awaiting_body = false;
     }
 
-    size_t len = sequence_len(s->data);
-    if (s->index >= len) {
+    tf_obj *item = tf_sequence_iter_next_owned(&s->iter);
+    if (!item) {
         if (s->string_result) {
             tf_stack_push(ctx, bytebuf_to_string(&s->str_result));
             free(s->str_result.ptr);
             s->str_result.ptr = NULL;
+        } else if (s->list_result) {
+            tf_stack_push(ctx, tf_list_builder_finish(&s->list_builder));
         } else {
-            tf_stack_push(ctx,
-                          finish_vector_family(&s->vector_result, s->list_result));
+            tf_stack_push(ctx, s->vector_result);
+            s->vector_result = NULL;
         }
         *done = true;
         return TF_OK;
     }
 
-    tf_stack_push(ctx, sequence_item_owned(s->data, s->index++));
+    tf_stack_push(ctx, item);
     s->awaiting_body = true;
     *done = false;
     return tf_vm_call_callable(ctx, s->body);
@@ -455,6 +436,8 @@ static void map_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     tf_obj_release(s->data);
     if (s->string_result) {
         free(s->str_result.ptr);
+    } else if (s->list_result) {
+        tf_list_builder_cleanup(&s->list_builder);
     } else if (s->vector_result) {
         tf_obj_release(s->vector_result);
     }
@@ -978,21 +961,24 @@ static void cond_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
 typedef struct {
     tf_obj *pred;
     tf_obj *seq;
-    size_t index;
+    tf_sequence_iter iter;
     tf_obj *current;
     bool string_result;
     bool list_result;
     tf_obj *vector_result;
+    tf_list_builder list_builder;
     bytebuf str_result;
     predicate_eval pred_eval;
 } filter_state;
 
 static tf_ret filter_step(tf_ctx *ctx, void *state, bool *done) {
     filter_state *s = state;
-    size_t len = sequence_len(s->seq);
 
-    while (s->index < len || s->current) {
-        if (!s->current) { s->current = sequence_item_owned(s->seq, s->index++); }
+    while (true) {
+        if (!s->current) {
+            s->current = tf_sequence_iter_next_owned(&s->iter);
+        }
+        if (!s->current) break;
 
         tf_obj *inputs[] = {s->current};
         bool ready = false;
@@ -1008,6 +994,8 @@ static tf_ret filter_step(tf_ctx *ctx, void *state, bool *done) {
             if (s->string_result) {
                 bytebuf_append(&s->str_result, s->current->str.ptr[0]);
                 tf_obj_release(s->current);
+            } else if (s->list_result) {
+                tf_list_builder_push_owned(&s->list_builder, s->current);
             } else {
                 tf_vector_push(s->vector_result, s->current);
             }
@@ -1021,8 +1009,11 @@ static tf_ret filter_step(tf_ctx *ctx, void *state, bool *done) {
         tf_stack_push(ctx, bytebuf_to_string(&s->str_result));
         free(s->str_result.ptr);
         s->str_result.ptr = NULL;
+    } else if (s->list_result) {
+        tf_stack_push(ctx, tf_list_builder_finish(&s->list_builder));
     } else {
-        tf_stack_push(ctx, finish_vector_family(&s->vector_result, s->list_result));
+        tf_stack_push(ctx, s->vector_result);
+        s->vector_result = NULL;
     }
     *done = true;
     return TF_OK;
@@ -1037,6 +1028,8 @@ static void filter_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     if (s->current) tf_obj_release(s->current);
     if (s->string_result) {
         free(s->str_result.ptr);
+    } else if (s->list_result) {
+        tf_list_builder_cleanup(&s->list_builder);
     } else if (s->vector_result) {
         tf_obj_release(s->vector_result);
     }
@@ -1048,7 +1041,7 @@ typedef enum { TF_QUANT_SOME, TF_QUANT_ALL } quantifier_kind;
 typedef struct {
     tf_obj *pred;
     tf_obj *seq;
-    size_t index;
+    tf_sequence_iter iter;
     tf_obj *current;
     quantifier_kind kind;
     predicate_eval pred_eval;
@@ -1056,10 +1049,12 @@ typedef struct {
 
 static tf_ret quantifier_step(tf_ctx *ctx, void *state, bool *done) {
     quantifier_state *s = state;
-    size_t len = sequence_len(s->seq);
 
-    while (s->index < len || s->current) {
-        if (!s->current) { s->current = sequence_item_owned(s->seq, s->index++); }
+    while (true) {
+        if (!s->current) {
+            s->current = tf_sequence_iter_next_owned(&s->iter);
+        }
+        if (!s->current) break;
 
         tf_obj *inputs[] = {s->current};
         bool ready = false;
@@ -1104,12 +1099,14 @@ static void quantifier_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
 typedef struct {
     tf_obj *pred;
     tf_obj *seq;
-    size_t index;
+    tf_sequence_iter iter;
     tf_obj *current;
     bool string_result;
     bool list_result;
-    tf_obj *true_list;
-    tf_obj *false_list;
+    tf_obj *true_vector;
+    tf_obj *false_vector;
+    tf_list_builder true_builder;
+    tf_list_builder false_builder;
     bytebuf true_str;
     bytebuf false_str;
     predicate_eval pred_eval;
@@ -1117,10 +1114,12 @@ typedef struct {
 
 static tf_ret split_step(tf_ctx *ctx, void *state, bool *done) {
     split_state *s = state;
-    size_t len = sequence_len(s->seq);
 
-    while (s->index < len || s->current) {
-        if (!s->current) { s->current = sequence_item_owned(s->seq, s->index++); }
+    while (true) {
+        if (!s->current) {
+            s->current = tf_sequence_iter_next_owned(&s->iter);
+        }
+        if (!s->current) break;
 
         tf_obj *inputs[] = {s->current};
         bool ready = false;
@@ -1136,8 +1135,12 @@ static tf_ret split_step(tf_ctx *ctx, void *state, bool *done) {
             bytebuf_append(pred_val ? &s->true_str : &s->false_str,
                            s->current->str.ptr[0]);
             tf_obj_release(s->current);
+        } else if (s->list_result) {
+            tf_list_builder_push_owned(
+                pred_val ? &s->true_builder : &s->false_builder, s->current);
         } else {
-            tf_vector_push(pred_val ? s->true_list : s->false_list, s->current);
+            tf_vector_push(pred_val ? s->true_vector : s->false_vector,
+                           s->current);
         }
         s->current = NULL;
     }
@@ -1149,9 +1152,14 @@ static tf_ret split_step(tf_ctx *ctx, void *state, bool *done) {
         free(s->false_str.ptr);
         s->true_str.ptr = NULL;
         s->false_str.ptr = NULL;
+    } else if (s->list_result) {
+        tf_stack_push(ctx, tf_list_builder_finish(&s->true_builder));
+        tf_stack_push(ctx, tf_list_builder_finish(&s->false_builder));
     } else {
-        tf_stack_push(ctx, finish_vector_family(&s->true_list, s->list_result));
-        tf_stack_push(ctx, finish_vector_family(&s->false_list, s->list_result));
+        tf_stack_push(ctx, s->true_vector);
+        tf_stack_push(ctx, s->false_vector);
+        s->true_vector = NULL;
+        s->false_vector = NULL;
     }
     *done = true;
     return TF_OK;
@@ -1167,9 +1175,12 @@ static void split_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     if (s->string_result) {
         free(s->true_str.ptr);
         free(s->false_str.ptr);
+    } else if (s->list_result) {
+        tf_list_builder_cleanup(&s->true_builder);
+        tf_list_builder_cleanup(&s->false_builder);
     } else {
-        if (s->true_list) tf_obj_release(s->true_list);
-        if (s->false_list) tf_obj_release(s->false_list);
+        if (s->true_vector) tf_obj_release(s->true_vector);
+        if (s->false_vector) tf_obj_release(s->false_vector);
     }
     free(s);
 }
@@ -1178,53 +1189,46 @@ typedef struct {
     tf_obj *pred;
     tf_obj *l1;
     tf_obj *l2;
-    size_t i1;
-    size_t i2;
+    tf_sequence_iter iter1;
+    tf_sequence_iter iter2;
     tf_obj *o1;
     tf_obj *o2;
     bool string_result;
     bool list_result;
     tf_obj *vector_result;
+    tf_list_builder list_builder;
     bytebuf str_result;
     predicate_eval pred_eval;
 } merge_state;
 
-static void merge_take_left(merge_state *s) {
+static void merge_append_owned(merge_state *s, tf_obj *item) {
     if (s->string_result) {
-        bytebuf_append(&s->str_result, s->o1->str.ptr[0]);
-        tf_obj_release(s->o1);
+        bytebuf_append(&s->str_result, item->str.ptr[0]);
+        tf_obj_release(item);
+    } else if (s->list_result) {
+        tf_list_builder_push_owned(&s->list_builder, item);
     } else {
-        tf_vector_push(s->vector_result, s->o1);
+        tf_vector_push(s->vector_result, item);
     }
-    tf_obj_release(s->o2);
+}
+
+static void merge_take_left(merge_state *s) {
+    merge_append_owned(s, s->o1);
     s->o1 = NULL;
-    s->o2 = NULL;
-    s->i1++;
 }
 
 static void merge_take_right(merge_state *s) {
-    if (s->string_result) {
-        bytebuf_append(&s->str_result, s->o2->str.ptr[0]);
-        tf_obj_release(s->o2);
-    } else {
-        tf_vector_push(s->vector_result, s->o2);
-    }
-    tf_obj_release(s->o1);
-    s->o1 = NULL;
+    merge_append_owned(s, s->o2);
     s->o2 = NULL;
-    s->i2++;
 }
 
 static tf_ret merge_step(tf_ctx *ctx, void *state, bool *done) {
     merge_state *s = state;
-    size_t l1_len = sequence_len(s->l1);
-    size_t l2_len = sequence_len(s->l2);
 
-    while ((s->i1 < l1_len && s->i2 < l2_len) || s->o1 || s->o2) {
-        if (!s->o1 && !s->o2) {
-            s->o1 = sequence_item_owned(s->l1, s->i1);
-            s->o2 = sequence_item_owned(s->l2, s->i2);
-        }
+    while (true) {
+        if (!s->o1) s->o1 = tf_sequence_iter_next_owned(&s->iter1);
+        if (!s->o2) s->o2 = tf_sequence_iter_next_owned(&s->iter2);
+        if (!s->o1 || !s->o2) break;
 
         tf_obj *inputs[] = {s->o1, s->o2};
         bool ready = false;
@@ -1243,29 +1247,34 @@ static tf_ret merge_step(tf_ctx *ctx, void *state, bool *done) {
         }
     }
 
-    while (s->i1 < l1_len) {
-        if (s->string_result) {
-            bytebuf_append(&s->str_result, s->l1->str.ptr[s->i1]);
-        } else {
-            tf_vector_push(s->vector_result, sequence_item_owned(s->l1, s->i1));
-        }
-        s->i1++;
+    if (s->o1) {
+        merge_append_owned(s, s->o1);
+        s->o1 = NULL;
     }
-    while (s->i2 < l2_len) {
-        if (s->string_result) {
-            bytebuf_append(&s->str_result, s->l2->str.ptr[s->i2]);
-        } else {
-            tf_vector_push(s->vector_result, sequence_item_owned(s->l2, s->i2));
-        }
-        s->i2++;
+    while (true) {
+        tf_obj *item = tf_sequence_iter_next_owned(&s->iter1);
+        if (!item) break;
+        merge_append_owned(s, item);
+    }
+    if (s->o2) {
+        merge_append_owned(s, s->o2);
+        s->o2 = NULL;
+    }
+    while (true) {
+        tf_obj *item = tf_sequence_iter_next_owned(&s->iter2);
+        if (!item) break;
+        merge_append_owned(s, item);
     }
 
     if (s->string_result) {
         tf_stack_push(ctx, bytebuf_to_string(&s->str_result));
         free(s->str_result.ptr);
         s->str_result.ptr = NULL;
+    } else if (s->list_result) {
+        tf_stack_push(ctx, tf_list_builder_finish(&s->list_builder));
     } else {
-        tf_stack_push(ctx, finish_vector_family(&s->vector_result, s->list_result));
+        tf_stack_push(ctx, s->vector_result);
+        s->vector_result = NULL;
     }
     *done = true;
     return TF_OK;
@@ -1282,6 +1291,8 @@ static void merge_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     if (s->o2) tf_obj_release(s->o2);
     if (s->string_result) {
         free(s->str_result.ptr);
+    } else if (s->list_result) {
+        tf_list_builder_cleanup(&s->list_builder);
     } else if (s->vector_result) {
         tf_obj_release(s->vector_result);
     }
@@ -2088,7 +2099,7 @@ tf_ret tf_each(tf_ctx *ctx) {
     each_state *state = tf_xmalloc(sizeof(*state));
     state->body = body;
     state->data = data;
-    state->index = 0;
+    tf_sequence_iter_init(&state->iter, data);
     tf_frame_push_native(ctx, each_step, each_cleanup, state);
     return TF_OK;
 }
@@ -2108,14 +2119,15 @@ tf_ret tf_map(tf_ctx *ctx) {
     state->data = data;
     state->saved_stack = NULL;
     state->saved_len = 0;
-    state->index = 0;
+    tf_sequence_iter_init(&state->iter, data);
     state->awaiting_body = false;
     state->string_result = data->type == TF_OBJ_TYPE_STR;
     state->list_result = data->type == TF_OBJ_TYPE_LIST;
-    state->vector_result =
-        state->string_result
-            ? NULL
-            : tf_obj_new_vector_with_capacity(sequence_len(data));
+    state->vector_result = state->string_result || state->list_result
+                               ? NULL
+                               : tf_obj_new_vector_with_capacity(
+                                     sequence_len(data));
+    tf_list_builder_init(&state->list_builder);
     state->str_result.ptr = NULL;
     state->str_result.len = 0;
     state->str_result.cap = 0;
@@ -2143,7 +2155,7 @@ tf_ret tf_fold(tf_ctx *ctx) {
     state->data = data;
     state->saved_stack = NULL;
     state->saved_len = 0;
-    state->index = 0;
+    tf_sequence_iter_init(&state->iter, data);
     state->awaiting_body = false;
     save_stack_copy(ctx, &state->saved_stack, &state->saved_len);
 
@@ -2181,12 +2193,18 @@ tf_ret tf_split(tf_ctx *ctx) {
     split_state *state = tf_xmalloc(sizeof(*state));
     state->pred = pred;
     state->seq = seq;
-    state->index = 0;
+    tf_sequence_iter_init(&state->iter, seq);
     state->current = NULL;
     state->string_result = seq->type == TF_OBJ_TYPE_STR;
     state->list_result = seq->type == TF_OBJ_TYPE_LIST;
-    state->true_list = state->string_result ? NULL : tf_obj_new_vector();
-    state->false_list = state->string_result ? NULL : tf_obj_new_vector();
+    state->true_vector = state->string_result || state->list_result
+                             ? NULL
+                             : tf_obj_new_vector();
+    state->false_vector = state->string_result || state->list_result
+                              ? NULL
+                              : tf_obj_new_vector();
+    tf_list_builder_init(&state->true_builder);
+    tf_list_builder_init(&state->false_builder);
     state->true_str.ptr = NULL;
     state->true_str.len = 0;
     state->true_str.cap = 0;
@@ -2231,17 +2249,17 @@ tf_ret tf_merge(tf_ctx *ctx) {
     state->pred = pred;
     state->l1 = l1;
     state->l2 = l2;
-    state->i1 = 0;
-    state->i2 = 0;
+    tf_sequence_iter_init(&state->iter1, l1);
+    tf_sequence_iter_init(&state->iter2, l2);
     state->o1 = NULL;
     state->o2 = NULL;
     state->string_result = l1->type == TF_OBJ_TYPE_STR;
     state->list_result = l1->type == TF_OBJ_TYPE_LIST;
-    state->vector_result =
-        state->string_result
-            ? NULL
-            : tf_obj_new_vector_with_capacity(sequence_len(l1) +
-                                              sequence_len(l2));
+    state->vector_result = state->string_result || state->list_result
+                               ? NULL
+                               : tf_obj_new_vector_with_capacity(
+                                     sequence_len(l1) + sequence_len(l2));
+    tf_list_builder_init(&state->list_builder);
     state->str_result.ptr = NULL;
     state->str_result.len = 0;
     state->str_result.cap = 0;
@@ -2267,11 +2285,14 @@ tf_ret tf_filter(tf_ctx *ctx) {
     filter_state *state = tf_xmalloc(sizeof(*state));
     state->pred = pred;
     state->seq = seq;
-    state->index = 0;
+    tf_sequence_iter_init(&state->iter, seq);
     state->current = NULL;
     state->string_result = seq->type == TF_OBJ_TYPE_STR;
     state->list_result = seq->type == TF_OBJ_TYPE_LIST;
-    state->vector_result = state->string_result ? NULL : tf_obj_new_vector();
+    state->vector_result = state->string_result || state->list_result
+                               ? NULL
+                               : tf_obj_new_vector();
+    tf_list_builder_init(&state->list_builder);
     state->str_result.ptr = NULL;
     state->str_result.len = 0;
     state->str_result.cap = 0;
@@ -2295,7 +2316,7 @@ tf_ret tf_some(tf_ctx *ctx) {
     quantifier_state *state = tf_xmalloc(sizeof(*state));
     state->pred = pred;
     state->seq = seq;
-    state->index = 0;
+    tf_sequence_iter_init(&state->iter, seq);
     state->current = NULL;
     state->kind = TF_QUANT_SOME;
     predicate_eval_init(&state->pred_eval);
@@ -2317,7 +2338,7 @@ tf_ret tf_all(tf_ctx *ctx) {
     quantifier_state *state = tf_xmalloc(sizeof(*state));
     state->pred = pred;
     state->seq = seq;
-    state->index = 0;
+    tf_sequence_iter_init(&state->iter, seq);
     state->current = NULL;
     state->kind = TF_QUANT_ALL;
     predicate_eval_init(&state->pred_eval);
