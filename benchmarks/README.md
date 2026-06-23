@@ -37,6 +37,8 @@ Current workloads:
 - `dispatch.toy`: inline native calls versus user-word dispatch.
 - `list.toy`: constant-time front operations, linear traversal, and
   copy-left/share-right concatenation.
+- `map.toy`: unique growth and replacement, shared updates, lookup, and
+  absent-key deletion.
 - `sequence-algorithms.toy`: sort and unique crossover workloads by size,
   shape, and sequence family.
 - `string.toy`: short-string storage, byte extraction and traversal, flat

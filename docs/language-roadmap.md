@@ -80,7 +80,8 @@ dispatch, vector growth/index/endpoint/concatenation paths, and persistent-list
 front/traversal/concatenation paths. Sequence-algorithm workloads cover sort
 crossovers and duplicate-density effects in `unique`. String workloads cover
 inline storage, byte extraction and traversal, transforms, splitting, and
-incremental flat-string growth.
+incremental flat-string growth. Map workloads cover unique growth and
+replacement, shared updates, lookup, and absent-key deletion.
 
 Future topics: dictionary lookup, allocation, list growth, hot-path
 specialization, bytecode, threaded code, and cache behavior.

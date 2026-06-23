@@ -163,6 +163,7 @@ tf_ret tf_unique(tf_ctx *ctx);
 tf_ret tf_sort(tf_ctx *ctx);
 tf_ret tf_has_q(tf_ctx *ctx);
 tf_ret tf_get(tf_ctx *ctx);
+tf_ret tf_get_or(tf_ctx *ctx);
 tf_ret tf_assoc(tf_ctx *ctx);
 tf_ret tf_dissoc(tf_ctx *ctx);
 tf_ret tf_keys(tf_ctx *ctx);

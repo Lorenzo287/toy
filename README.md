@@ -113,6 +113,7 @@ without repeated linear `push-back`, prepend each item and reverse once:
 "  alpha,beta,gamma  " trim "," split [ upper ] map "-" join print
 
 { 'name "Ada" 'age 36 } 'name get print
+{ 'name "Ada" } 'missing "unknown" get-or print
 [ [ 'name "Ada" ] [ 'age 36 ] ] >map pairs print
 #{ "red" "green" "blue" } "green" has? print
 [ 1 2 2 3 ] >set items print
@@ -168,7 +169,7 @@ prints one value literally with a newline, while `printf` explicitly interprets
 | Sequence Combinators     | `each`, `map`, `fold`, `filter`, `some`, `all`, `split`, `merge` |
 | Sequence                 | `at`, `set-at`, `>vector`, `>list`, `>string`, `contains?`, `indexof`, `unique`, `sort`, `slice`, `take`, `dropn`, `len`, `first`, `last`, `rest`, `uncons`, `cons`, `push-back`, `pop-back`, `concat`, `reverse`, `splitmid`, `range`, `empty?` |
 | String                   | `join`, `trim`, `upper`, `lower`, `char?`, `>char`, `char-code`, `letter?`, `digit?`, `alnum?`, `space?`, `upper?`, `lower?`, `punct?` |
-| Map / Set                | `>map`, `>set`, `has?`, `get`, `assoc`, `dissoc`, `keys`, `values`, `pairs`, `items`, `adjoin`, `remove` |
+| Map / Set                | `>map`, `>set`, `has?`, `get`, `get-or`, `assoc`, `dissoc`, `keys`, `values`, `pairs`, `items`, `adjoin`, `remove` |
 | Deque / Priority Queue   | `>deque`, `>pqueue`, `push-front`, `push-back`, `pop-front`, `pop-back`, `first`, `last`, `pqueue-push`, `pqueue-peek`, `pqueue-pop`, `pqueue-drain` |
 | Types                    | `typeof`, `bool?`, `int?`, `float?`, `string?`, `symbol?`, `vector?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `number?`, `sequence?`, `callable?` |
 | Dictionary / Symbols     | `def`, `word?`, `var?`, `body`, `intern`, `name`, `words`, `see`, `doc`, `apropos`, `repr` |

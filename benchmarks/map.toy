@@ -1,0 +1,25 @@
+\ Map microbenchmarks. Each body consumes and returns one state map.
+\ Usage: [ setup ] [ body ] count "Name" bench-state
+'bench-state [
+    | setup block count name |
+    $name printf ": " printf
+    clock
+    $setup exec
+    $count [ $block exec ] times
+    drop
+    clock swap - printf " ticks\n" printf
+] def
+
+\ Build an integer-keyed identity map without including it in repeated bodies.
+'identity-map [
+    | count |
+    { } $count [ dup len dup assoc ] times
+] def
+
+"--- Map ---\n" printf
+
+[ { } ] [ dup len dup assoc ] 16000 "assoc unique growth n=16000" bench-state
+[ { 'key 0 } ] [ 'key 1 assoc ] 200000 "assoc unique replacement" bench-state
+[ 1024 identity-map ] [ dup 0 1 assoc drop ] 10000 "assoc shared n=1024" bench-state
+[ 16384 identity-map ] [ dup 8192 get drop ] 200000 "get n=16384" bench-state
+[ 16384 identity-map ] [ -1 dissoc ] 200000 "dissoc absent n=16384" bench-state

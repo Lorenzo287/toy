@@ -141,7 +141,7 @@ Associative values support lookup by key:
 
 - map
 
-Words: `has?`, `get`, `assoc`, `dissoc`, `keys`, `values`, `pairs`.
+Words: `has?`, `get`, `get-or`, `assoc`, `dissoc`, `keys`, `values`, `pairs`.
 
 Do not overload `at` for maps. Indexed lookup and associative lookup are
 separate concepts.
@@ -352,11 +352,22 @@ Rules:
 - duplicate keys are an error
 - `get` on a missing key is an error
 - `has?` checks expected absence
+- `get-or` returns a caller-supplied default when a key is absent
 - `assoc` and `dissoc` return updated maps
 - `keys`, `values`, and `pairs` return vectors
 
 Insertion order costs memory but makes examples, printing, tests, and interop
 deterministic.
+
+Maps keep insertion-ordered entries in a dense array and store entry indexes in
+an open-addressed hash table. Empty maps allocate no backing storage; the first
+insertion allocates four entry slots and eight buckets, and known-size producers
+reserve before filling. Lookup and unique-owner `assoc` are expected O(1), with
+geometric growth making insertion amortized O(1). Updating a shared map copies
+its entries and buckets first, preserving value semantics at O(n). Ordered
+`dissoc` is O(n) when a key is present because later entries shift and bucket
+indexes must be rebuilt; an absent key is an expected-O(1) no-op. Projection
+through `keys`, `values`, or `pairs` is O(n).
 
 ## Sets
 

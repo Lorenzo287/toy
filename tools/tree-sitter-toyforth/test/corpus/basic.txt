@@ -8,6 +8,7 @@ Basic expressions
 { 'a 1 'b 2 }
 #{ 1 2 3 }
 | x y |
+get-or
 
 ---
 
@@ -45,7 +46,8 @@ Basic expressions
     (number))
   (var_list
     (word)
-    (word)))
+    (word))
+  (builtin_word))
 
 ==================
 String escapes

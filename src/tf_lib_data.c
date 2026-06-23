@@ -383,23 +383,6 @@ static char *find_mem(char *haystack, size_t haystack_len,
     return NULL;
 }
 
-static tf_obj *map_clone(tf_obj *src) {
-    tf_obj *result = tf_obj_new_map();
-    for (size_t i = 0; i < src->map.len; i++) {
-        tf_map_set(result, src->map.entries[i].key, src->map.entries[i].value);
-    }
-    return result;
-}
-
-static tf_obj *map_clone_without(tf_obj *src, tf_obj *key) {
-    tf_obj *result = tf_obj_new_map();
-    for (size_t i = 0; i < src->map.len; i++) {
-        if (tf_obj_equal(src->map.entries[i].key, key)) continue;
-        tf_map_set(result, src->map.entries[i].key, src->map.entries[i].value);
-    }
-    return result;
-}
-
 static tf_obj *set_clone(tf_obj *src) {
     tf_obj *result = tf_obj_new_set();
     for (size_t i = 0; i < src->set.len; i++) {
@@ -1057,6 +1040,7 @@ tf_ret tf_to_map(tf_ctx *ctx) {
     }
     pairs = tf_stack_pop(ctx);
     tf_obj *map = tf_obj_new_map();
+    tf_map_reserve(map, sequence_len(pairs));
 
     tf_sequence_iter iter;
     tf_sequence_iter_init(&iter, pairs);
@@ -1414,6 +1398,37 @@ tf_ret tf_get(tf_ctx *ctx) {
     return TF_OK;
 }
 
+tf_ret tf_get_or(tf_ctx *ctx) {
+    if (!tf_ctx_require_type(ctx, 2, TF_OBJ_TYPE_MAP) ||
+        !tf_ctx_require_stack(ctx, 3)) {
+        return TF_ERR;
+    }
+    tf_obj *map = tf_stack_peek(ctx, 2);
+    tf_obj *key = tf_stack_peek(ctx, 1);
+    if (!tf_obj_hashable(key)) {
+        tf_ctx_runtime_errorf(ctx, "'%s' expected hashable key, found %s\n",
+                              ctx->current_word, tf_obj_type_name(key));
+        return TF_ERR;
+    }
+
+    tf_obj *value = NULL;
+    bool found = tf_map_get(map, key, &value);
+    tf_obj *default_value = tf_stack_pop(ctx);
+    key = tf_stack_pop(ctx);
+    map = tf_stack_pop(ctx);
+
+    if (found) {
+        tf_obj_retain(value);
+        tf_stack_push(ctx, value);
+        tf_obj_release(default_value);
+    } else {
+        tf_stack_push(ctx, default_value);
+    }
+    tf_obj_release(key);
+    tf_obj_release(map);
+    return TF_OK;
+}
+
 tf_ret tf_assoc(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 2, TF_OBJ_TYPE_MAP) ||
         !tf_ctx_require_stack(ctx, 3)) {
@@ -1431,13 +1446,13 @@ tf_ret tf_assoc(tf_ctx *ctx) {
     key = tf_stack_pop(ctx);
     map = tf_stack_pop(ctx);
 
-    tf_obj *result = map_clone(map);
+    tf_obj *result = map->refcount == 1 ? map : tf_map_clone(map);
     tf_map_set(result, key, value);
     tf_stack_push(ctx, result);
 
     tf_obj_release(value);
     tf_obj_release(key);
-    tf_obj_release(map);
+    if (result != map) tf_obj_release(map);
     return TF_OK;
 }
 
@@ -1454,11 +1469,20 @@ tf_ret tf_dissoc(tf_ctx *ctx) {
         return TF_ERR;
     }
 
+    bool found = tf_map_has(map, key);
     key = tf_stack_pop(ctx);
     map = tf_stack_pop(ctx);
-    tf_stack_push(ctx, map_clone_without(map, key));
+    if (!found) {
+        tf_stack_push(ctx, map);
+        tf_obj_release(key);
+        return TF_OK;
+    }
+
+    tf_obj *result = map->refcount == 1 ? map : tf_map_clone(map);
+    tf_map_remove(result, key);
+    tf_stack_push(ctx, result);
     tf_obj_release(key);
-    tf_obj_release(map);
+    if (result != map) tf_obj_release(map);
     return TF_OK;
 }
 

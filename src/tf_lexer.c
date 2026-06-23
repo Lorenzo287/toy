@@ -337,6 +337,7 @@ static tf_obj *lexer_vector_to_map(tf_lexer *lexer, tf_obj *items) {
     }
 
     tf_obj *map = tf_obj_new_map();
+    tf_map_reserve(map, items->vector.len / 2);
     for (size_t i = 0; i < items->vector.len; i += 2) {
         tf_obj *key = items->vector.elem[i];
         tf_obj *value = items->vector.elem[i + 1];

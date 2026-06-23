@@ -15,6 +15,10 @@
 { 'name "Ada" 'age 36 } 'name get "Ada" == check
 { 'name "Ada" 'age 36 } 'age has? true == check
 { 'name "Ada" 'age 36 } 'missing has? false == check
+{ 'name "Ada" } 'name "unknown" get-or "Ada" == check
+{ 'name "Ada" } 'missing "unknown" get-or "unknown" == check
+0 { 'a 1 } 'a 9 get-or 1 == check 0 == check
+0 { 'a 1 } 'missing 9 get-or 9 == check 0 == check
 
 { 'a 1 'b 2 } keys [ 'a 'b ] == check
 { 'a 1 'b 2 } values [ 1 2 ] == check
@@ -23,6 +27,31 @@
 { 'a 1 } 'b 2 assoc pairs [ [ 'a 1 ] [ 'b 2 ] ] == check
 { 'a 1 'b 2 } 'a 10 assoc 'a get 10 == check
 { 'a 1 'b 2 } 'a dissoc pairs [ [ 'b 2 ] ] == check
+{ 'a 1 'b 2 } 'a 10 assoc pairs [ [ 'a 10 ] [ 'b 2 ] ] == check
+{ 'a 1 'b 2 } 'a dissoc 'a 3 assoc keys [ 'b 'a ] == check
+{ 'a 1 } 'missing dissoc { 'a 1 } == check
+
+\ Shared updates preserve the original map while the result changes.
+{ 'a 1 } dup 'a 2 assoc swap 'a get 1 == check 'a get 2 == check
+{ 'a 1 'b 2 } dup 'a dissoc swap 'a has? true == check 'a has? false == check
+{ 0 0 1 1 2 2 3 3 } dup 4 4 assoc swap 4 has? false == check 4 get 4 == check
+
+\ Different hashable types remain distinct keys.
+{ 1 "integer" "one" "string" 'one "symbol" true "boolean" } len 4 == check
+{ 1 "integer" "one" "string" 'one "symbol" true "boolean" } "one" get "string" == check
+{ 1 "integer" "one" "string" 'one "symbol" true "boolean" } 'one get "symbol" == check
+
+\ Exercise entry and bucket growth well beyond the initial allocation.
+{ } 1000 [ dup len dup assoc ] times
+dup len 1000 == check
+dup 0 get 0 == check
+dup 511 get 511 == check
+dup 999 get 999 == check
+0 500 range [ dissoc ] each
+dup len 500 == check
+dup 499 has? false == check
+dup 500 get 500 == check
+drop
 
 [ [ 'name "Ada" ] [ 'age 36 ] ] >map { 'name "Ada" 'age 36 } == check
 [ [ [ 'a 1 ] [ 'a 2 ] ] >map ] [ "duplicate" ] try "duplicate" == check

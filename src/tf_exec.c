@@ -437,6 +437,7 @@ static const tf_builtin_word native_string_words[] = {
 static const tf_builtin_word native_map_set_words[] = {
     {">map", tf_to_map},     {">set", tf_to_set},
     {"has?", tf_has_q},      {"get", tf_get},
+    {"get-or", tf_get_or},
     {"assoc", tf_assoc},     {"dissoc", tf_dissoc},
     {"keys", tf_keys},       {"values", tf_values},
     {"pairs", tf_pairs},     {"items", tf_items},

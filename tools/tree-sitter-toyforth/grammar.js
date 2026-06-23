@@ -65,7 +65,7 @@ export default grammar({
       'word?', 'var?', 'inf', 'nan', 'body', 'intern', 'name', 'words', 'see',
       'doc', 'apropos', 'repr',
       '>vector', '>list', '>string', '>map', '>set', '>deque', '>pqueue', 'contains?', 'indexof', 'unique', 'sort',
-      'has?', 'get', 'assoc', 'dissoc', 'keys', 'values', 'pairs', 'items', 'adjoin', 'remove',
+      'has?', 'get', 'get-or', 'assoc', 'dissoc', 'keys', 'values', 'pairs', 'items', 'adjoin', 'remove',
       'push-front', 'push-back', 'pop-front', 'pop-back',
       'pqueue-push', 'pqueue-peek', 'pqueue-pop', 'pqueue-drain',
       'at', 'set-at', 'slice', 'take', 'dropn', 'len', 'first', 'last', 'rest', 'uncons', 'cons',

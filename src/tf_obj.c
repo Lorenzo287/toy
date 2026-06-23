@@ -6,6 +6,9 @@
 #include <string.h>
 #include "tf_alloc.h"
 
+#define TF_MAP_INITIAL_CAP 4
+#define TF_MAP_INITIAL_BUCKET_CAP 8
+
 static void string_set_heap_capacity(tf_obj *s, size_t capacity) {
     /* Heap strings do not use inline_buf; memcpy also avoids alignment assumptions. */
     memcpy(s->str.inline_buf, &capacity, sizeof(capacity));
@@ -51,10 +54,10 @@ tf_obj *tf_obj_new_list(void) {
 tf_obj *tf_obj_new_map(void) {
     tf_obj *o = tf_obj_new(TF_OBJ_TYPE_MAP);
     o->map.len = 0;
-    o->map.cap = 16;
-    o->map.entries = tf_xmalloc(sizeof(tf_map_entry) * o->map.cap);
-    o->map.bucket_cap = 32;
-    o->map.buckets = tf_xcalloc(o->map.bucket_cap, sizeof(size_t));
+    o->map.cap = 0;
+    o->map.entries = NULL;
+    o->map.bucket_cap = 0;
+    o->map.buckets = NULL;
     return o;
 }
 
@@ -477,6 +480,7 @@ uint64_t tf_obj_hash(tf_obj *o) {
 
 static size_t map_find_slot(tf_obj *map, tf_obj *key, uint64_t hash,
                             bool *found) {
+    assert(map->map.bucket_cap > 0);
     size_t idx = (size_t)(hash % map->map.bucket_cap);
     while (map->map.buckets[idx] != 0) {
         size_t entry_idx = map->map.buckets[idx] - 1;
@@ -508,9 +512,13 @@ static size_t set_find_slot(tf_obj *set, tf_obj *item, uint64_t hash,
 }
 
 static void map_rebuild_buckets(tf_obj *map, size_t bucket_cap) {
-    free(map->map.buckets);
-    map->map.bucket_cap = bucket_cap;
-    map->map.buckets = tf_xcalloc(bucket_cap, sizeof(size_t));
+    if (bucket_cap != map->map.bucket_cap) {
+        free(map->map.buckets);
+        map->map.bucket_cap = bucket_cap;
+        map->map.buckets = tf_xcalloc(bucket_cap, sizeof(size_t));
+    } else {
+        memset(map->map.buckets, 0, bucket_cap * sizeof(size_t));
+    }
     for (size_t i = 0; i < map->map.len; i++) {
         bool found = false;
         size_t slot = map_find_slot(map, map->map.entries[i].key,
@@ -531,10 +539,59 @@ static void set_rebuild_buckets(tf_obj *set, size_t bucket_cap) {
     }
 }
 
+void tf_map_reserve(tf_obj *map, size_t capacity) {
+    assert(map->type == TF_OBJ_TYPE_MAP);
+    if (capacity == 0) return;
+
+    if (capacity > map->map.cap) {
+        size_t new_cap = map->map.cap ? map->map.cap : TF_MAP_INITIAL_CAP;
+        while (new_cap < capacity) new_cap *= 2;
+        map->map.entries = tf_xrealloc(map->map.entries,
+                                       sizeof(tf_map_entry) * new_cap);
+        map->map.cap = new_cap;
+    }
+
+    size_t bucket_cap = map->map.bucket_cap
+                            ? map->map.bucket_cap
+                            : TF_MAP_INITIAL_BUCKET_CAP;
+    while (bucket_cap / 2 < capacity) bucket_cap *= 2;
+    if (bucket_cap != map->map.bucket_cap) {
+        map_rebuild_buckets(map, bucket_cap);
+    }
+}
+
+tf_obj *tf_map_clone(tf_obj *map) {
+    assert(map->type == TF_OBJ_TYPE_MAP);
+    tf_obj *result = tf_obj_new_map();
+    result->map.len = map->map.len;
+    result->map.cap = map->map.cap;
+    result->map.bucket_cap = map->map.bucket_cap;
+
+    if (map->map.cap > 0) {
+        result->map.entries =
+            tf_xmalloc(sizeof(tf_map_entry) * map->map.cap);
+        memcpy(result->map.entries, map->map.entries,
+               sizeof(tf_map_entry) * map->map.len);
+    }
+    if (map->map.bucket_cap > 0) {
+        result->map.buckets =
+            tf_xmalloc(sizeof(size_t) * map->map.bucket_cap);
+        memcpy(result->map.buckets, map->map.buckets,
+               sizeof(size_t) * map->map.bucket_cap);
+    }
+
+    for (size_t i = 0; i < map->map.len; i++) {
+        tf_obj_retain(result->map.entries[i].key);
+        tf_obj_retain(result->map.entries[i].value);
+    }
+    return result;
+}
+
 bool tf_map_has(tf_obj *map, tf_obj *key) {
     if (!map || map->type != TF_OBJ_TYPE_MAP || !tf_obj_hashable(key)) {
         return false;
     }
+    if (map->map.len == 0) return false;
     bool found = false;
     (void)map_find_slot(map, key, tf_obj_hash(key), &found);
     return found;
@@ -544,6 +601,7 @@ bool tf_map_get(tf_obj *map, tf_obj *key, tf_obj **out) {
     if (!map || map->type != TF_OBJ_TYPE_MAP || !tf_obj_hashable(key)) {
         return false;
     }
+    if (map->map.len == 0) return false;
     bool found = false;
     size_t slot = map_find_slot(map, key, tf_obj_hash(key), &found);
     if (!found) return false;
@@ -556,13 +614,12 @@ bool tf_map_set(tf_obj *map, tf_obj *key, tf_obj *value) {
         return false;
     }
 
-    if ((map->map.len + 1) * 2 >= map->map.bucket_cap) {
-        map_rebuild_buckets(map, map->map.bucket_cap * 2);
-    }
-
     uint64_t hash = tf_obj_hash(key);
     bool found = false;
-    size_t slot = map_find_slot(map, key, hash, &found);
+    size_t slot = 0;
+    if (map->map.bucket_cap > 0) {
+        slot = map_find_slot(map, key, hash, &found);
+    }
     if (found) {
         tf_map_entry *entry = &map->map.entries[map->map.buckets[slot] - 1];
         tf_obj_retain(value);
@@ -571,16 +628,39 @@ bool tf_map_set(tf_obj *map, tf_obj *key, tf_obj *value) {
         return true;
     }
 
-    if (map->map.len >= map->map.cap) {
-        map->map.cap *= 2;
-        map->map.entries =
-            tf_xrealloc(map->map.entries, sizeof(tf_map_entry) * map->map.cap);
+    size_t old_bucket_cap = map->map.bucket_cap;
+    tf_map_reserve(map, map->map.len + 1);
+    if (map->map.bucket_cap != old_bucket_cap) {
+        slot = map_find_slot(map, key, hash, &found);
     }
     size_t entry_idx = map->map.len++;
     map->map.entries[entry_idx] = (tf_map_entry){key, value, hash};
     tf_obj_retain(key);
     tf_obj_retain(value);
     map->map.buckets[slot] = entry_idx + 1;
+    return true;
+}
+
+bool tf_map_remove(tf_obj *map, tf_obj *key) {
+    if (!map || map->type != TF_OBJ_TYPE_MAP || !tf_obj_hashable(key) ||
+        map->map.len == 0) {
+        return false;
+    }
+
+    bool found = false;
+    size_t slot = map_find_slot(map, key, tf_obj_hash(key), &found);
+    if (!found) return false;
+
+    size_t entry_idx = map->map.buckets[slot] - 1;
+    tf_obj_release(map->map.entries[entry_idx].key);
+    tf_obj_release(map->map.entries[entry_idx].value);
+    if (entry_idx + 1 < map->map.len) {
+        memmove(&map->map.entries[entry_idx],
+                &map->map.entries[entry_idx + 1],
+                sizeof(tf_map_entry) * (map->map.len - entry_idx - 1));
+    }
+    map->map.len--;
+    map_rebuild_buckets(map, map->map.bucket_cap);
     return true;
 }
 

@@ -4,6 +4,7 @@
 
 words 'push-back contains? true == check
 words 'append contains? false == check
+words 'get-or contains? true == check
 words 'last contains? true == check
 words 'front contains? false == check
 words 'back contains? false == check
