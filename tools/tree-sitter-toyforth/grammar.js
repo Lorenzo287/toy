@@ -4,6 +4,8 @@
  * @license MIT
  */
 
+import { builtinWords, controlWords, operatorWords } from './builtin-words.js';
+
 export default grammar({
   name: 'toyforth',
   extras: $ => [
@@ -37,42 +39,9 @@ export default grammar({
     block_comment: $ => token(seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/')),
     boolean: $ => choice('true', 'false'),
     number: $ => token(/[+-]?(?:(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)/),
-    control_word: $ => choice(
-      'if', 'ifelse', 'while', 'try', 'error', 'exec', 'i', 'app2',
-      'infra', 'cond', 'cleave', 'construct', 'replicate', 'times',
-      'dip', 'keep', 'bi', 'linrec', 'binrec', 'genrec', 'treerec',
-      'each', 'map', 'fold', 'filter', 'some', 'all', 'split', 'merge'
-    ),
-    operator: $ => choice(
-      '+', '-', '*', '/', '%', 'mod', 'abs', 'neg', 'max', 'min',
-      'sqrt', 'pow', 'exp', 'log', 'log10', 'sin', 'cos', 'tan',
-      'floor', 'ceil', 'round', 'pred', 'succ', 'square', 'cube',
-      'and', 'or', 'xor', 'not', 'shl', 'shr',
-      '==', '!=', '<', '>', '<=', '>='
-    ),
-    builtin_word: $ => choice(
-      'dup', 'drop', 'swap', 'over', 'rot', 'swapd', 'nip', 'tuck', 'pick', 'roll',
-      'empty',
-      'pi', 'e', 'tau',
-      'print', 'printf', '.', '.s', '.S',
-      'read-key', 'read-line', 'load', 'read-file', 'write-file', 'delete-file', 'read-lines', 'file-exists?', 'clear',
-      'type-of', 'bool?', 'int?', 'float?', 'string?', 'symbol?', 'vector?', 'list?', 'number?', 'sequence?', 'callable?', 'nan?', 'inf?',
-      'map?', 'set?', 'deque?', 'pqueue?',
-      'word?', 'var?', 'inf', 'nan', 'body', 'intern', 'name', 'words', 'see',
-      'doc', 'search-words', 'repr',
-      '>vector', '>list', '>string', '>map', '>set', '>deque', '>pqueue', 'contains?', 'index-of', 'unique', 'sort',
-      'has?', 'get', 'get-or', 'assoc', 'dissoc', 'keys', 'values', 'pairs', 'items', 'insert', 'remove',
-      'union', 'intersection', 'difference', 'symmetric-difference',
-      'subset?', 'proper-subset?', 'superset?', 'proper-superset?', 'disjoint?',
-      'push-front', 'push-back', 'pop-front', 'pop-back',
-      'pq-push', 'pq-peek', 'pq-pop',
-      'at', 'set-at', 'slice', 'take', 'skip', 'len', 'first', 'last', 'rest', 'uncons', 'cons',
-      'concat', 'reverse', 'join', 'trim', 'upper', 'lower', 'split-mid', 'range', 'empty?',
-      'char?', '>char', 'char-code', 'letter?', 'digit?', 'alnum?', 'space?', 'upper?', 'lower?', 'punct?',
-      'rand', 'sleep', 'argc', 'argv', 'env?', 'get-env', 'set-env', 'pwd', 'shell',
-      'unix-time', 'local-time', 'utc-time', 'cpu-time', 'monotonic-ns',
-      'def', 'exit'
-    ),
+    control_word: $ => choice(...controlWords),
+    operator: $ => choice(...operatorWords),
+    builtin_word: $ => choice(...builtinWords),
     string: $ => seq(
       '"',
       repeat(choice(

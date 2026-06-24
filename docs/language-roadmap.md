@@ -12,7 +12,8 @@ concatenative language inspired by Joy. Quotations (`[ ... ]`) and symbols
 - User-defined words and native callable runners use the explicit frame stack.
 - Native continuations represent words that need to resume after user code,
   including predicate sandboxes and error boundaries.
-- Native word source of truth: grouped native tables in `src/tf_exec.c`.
+- Builtin source of truth: `builtins.json`, with generated grouped native tables
+  included by `src/tf_exec.c`.
 
 ## Roadmap Tracks
 

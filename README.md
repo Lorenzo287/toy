@@ -171,32 +171,38 @@ platform clock.
 
 ## Built-in Words
 
-| Category                 | Words |
-| ------------------------ | ----- |
-| Stack                    | `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty` |
-| Math                     | `+`, `-`, `*`, `/`, `%`, `mod`, `abs`, `neg`, `max`, `min`, `sqrt`, `pow`, `exp`, `log`, `log10`, `sin`, `cos`, `tan`, `floor`, `ceil`, `round`, `pred`, `succ`, `square`, `cube`, `pi`, `e`, `tau`, `inf`, `nan`, `inf?`, `nan?`, `rand` |
-| Logic / Bitwise          | `and`, `or`, `xor`, `not`, `shl`, `shr` |
-| Comparison               | `==`, `!=`, `<`, `>`, `<=`, `>=` |
-| Control                  | `exec`, `i`, `if`, `ifelse`, `while`, `cond`, `try`, `error` |
-| Combinators              | `app2`, `infra`, `cleave`, `construct`, `replicate`, `times`, `dip`, `keep`, `bi`, `linrec`, `binrec`, `genrec`, `treerec` |
-| Sequence Combinators     | `each`, `map`, `fold`, `filter`, `some`, `all`, `split`, `merge` |
-| Ordered Collections      | `>vector`, `>list`, `>string`, `>deque`, `at`, `set-at`, `slice`, `take`, `skip`, `len`, `concat`, `reverse`, `split-mid`, `range`, `empty?` |
-| Collection Endpoints     | `first`, `last`, `rest`, `uncons`, `cons`, `push-front`, `push-back`, `pop-front`, `pop-back` |
-| Sequence Search / Ordering | `contains?`, `index-of`, `unique`, `sort` |
-| Strings / Characters    | `join`, `trim`, `upper`, `lower`, `char?`, `>char`, `char-code`, `letter?`, `digit?`, `alnum?`, `space?`, `upper?`, `lower?`, `punct?` |
-| Maps / Sets              | `>map`, `>set`, `has?`, `get`, `get-or`, `assoc`, `dissoc`, `keys`, `values`, `pairs`, `items`, `insert`, `remove` |
-| Set Algebra              | `union`, `intersection`, `difference`, `symmetric-difference`, `subset?`, `proper-subset?`, `superset?`, `proper-superset?`, `disjoint?` |
-| Priority Queues          | `>pqueue`, `pq-push`, `pq-peek`, `pq-pop` |
-| Types                    | `type-of`, `bool?`, `int?`, `float?`, `string?`, `symbol?`, `vector?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `number?`, `sequence?`, `callable?` |
+<!-- BEGIN GENERATED BUILTIN TABLE -->
+| Category                    | Words |
+| --------------------------- | ----- |
+| Stack                       | `dup`, `drop`, `swap`, `over`, `rot`, `swapd`, `nip`, `tuck`, `pick`, `roll`, `empty` |
+| Math                        | `+`, `-`, `*`, `/`, `%`, `mod`, `neg`, `abs`, `max`, `min`, `sqrt`, `pow`, `exp`, `log`, `log10`, `sin`, `cos`, `tan`, `floor`, `ceil`, `round`, `pred`, `succ`, `square`, `cube`, `pi`, `e`, `tau`, `inf`, `nan`, `inf?`, `nan?`, `rand` |
+| Logic / Bitwise             | `and`, `or`, `xor`, `not`, `shl`, `shr` |
+| Comparison                  | `==`, `!=`, `<`, `>`, `<=`, `>=` |
+| Control                     | `exec`, `i`, `if`, `ifelse`, `while`, `cond`, `try`, `error` |
+| Combinators                 | `app2`, `infra`, `cleave`, `construct`, `replicate`, `times`, `dip`, `keep`, `bi`, `linrec`, `binrec`, `genrec`, `treerec` |
+| Sequence Combinators        | `each`, `map`, `fold`, `filter`, `some`, `all`, `split`, `merge` |
+| Ordered Collections         | `>vector`, `>list`, `>string`, `>deque`, `at`, `set-at`, `slice`, `take`, `skip`, `len`, `concat`, `reverse`, `split-mid`, `range`, `empty?` |
+| Collection Endpoints        | `first`, `last`, `rest`, `uncons`, `cons`, `push-front`, `push-back`, `pop-front`, `pop-back` |
+| Sequence Search / Ordering  | `contains?`, `index-of`, `unique`, `sort` |
+| Strings / Characters        | `join`, `trim`, `upper`, `lower`, `char?`, `>char`, `char-code`, `letter?`, `digit?`, `alnum?`, `space?`, `upper?`, `lower?`, `punct?` |
+| Maps / Sets                 | `>map`, `>set`, `has?`, `get`, `get-or`, `assoc`, `dissoc`, `keys`, `values`, `pairs`, `items`, `insert`, `remove` |
+| Set Algebra                 | `union`, `intersection`, `difference`, `symmetric-difference`, `subset?`, `proper-subset?`, `superset?`, `proper-superset?`, `disjoint?` |
+| Priority Queues             | `>pqueue`, `pq-push`, `pq-peek`, `pq-pop` |
+| Types                       | `type-of`, `bool?`, `int?`, `float?`, `string?`, `symbol?`, `vector?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `number?`, `sequence?`, `callable?` |
 | Definitions / Introspection | `def`, `word?`, `var?`, `body`, `intern`, `name`, `words`, `see`, `doc`, `search-words`, `repr` |
-| Console                  | `printf`, `print`, `.`, `.s`, `.S`, `read-key`, `read-line`, `clear` |
-| Files                    | `load`, `read-file`, `write-file`, `delete-file`, `read-lines`, `file-exists?` |
-| Environment / Processes | `argc`, `argv`, `env?`, `get-env`, `set-env`, `pwd`, `shell`, `exit` |
-| Time                     | `sleep`, `unix-time`, `local-time`, `utc-time`, `cpu-time`, `monotonic-ns` |
+| Console                     | `printf`, `print`, `.`, `.s`, `.S`, `read-key`, `read-line`, `clear` |
+| Files                       | `load`, `read-file`, `write-file`, `delete-file`, `read-lines`, `file-exists?` |
+| Environment / Processes     | `argc`, `argv`, `env?`, `get-env`, `set-env`, `pwd`, `shell`, `exit` |
+| Time                        | `sleep`, `unix-time`, `local-time`, `utc-time`, `cpu-time`, `monotonic-ns` |
+<!-- END GENERATED BUILTIN TABLE -->
 
 Words are listed under their primary concept even when they support more than
 one representation. For example, `push-back` works on sequences and deques,
 while `pairs` works on maps and priority queues.
+
+Builtin registration and metadata are canonical in `builtins.json`. After
+editing it, run `node tools/generate-builtins.js`; use `--check` to verify that
+the committed generated files are current.
 
 ## Tooling
 

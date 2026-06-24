@@ -18,6 +18,7 @@
   ],
   "files": [
     "grammar.js",
+    "builtin-words.js",
     "tree-sitter.json",
     "binding.gyp",
     "prebuilds/**",

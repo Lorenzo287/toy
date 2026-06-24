@@ -1,0 +1,1802 @@
+{
+  "schemaVersion": 1,
+  "categories": [
+    {
+      "name": "Stack",
+      "cArray": "native_stack_words",
+      "words": [
+        {
+          "name": "dup",
+          "cFunction": "tf_dup",
+          "stackEffect": "x -- x x",
+          "syntax": "",
+          "description": "Duplicate the top stack item.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "drop",
+          "cFunction": "tf_drop",
+          "stackEffect": "x --",
+          "syntax": "",
+          "description": "Discard the top stack item.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "swap",
+          "cFunction": "tf_swap",
+          "stackEffect": "a b -- b a",
+          "syntax": "",
+          "description": "Swap the top two stack items.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "over",
+          "cFunction": "tf_over",
+          "stackEffect": "a b -- a b a",
+          "syntax": "",
+          "description": "Copy the second stack item to the top.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "rot",
+          "cFunction": "tf_rot",
+          "stackEffect": "a b c -- b c a",
+          "syntax": "",
+          "description": "Rotate the top three stack items.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "swapd",
+          "cFunction": "tf_swapd",
+          "stackEffect": "a b c -- b a c",
+          "syntax": "",
+          "description": "Swap the two items below the top stack item.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "nip",
+          "cFunction": "tf_nip",
+          "stackEffect": "a b -- b",
+          "syntax": "",
+          "description": "Discard the second stack item and keep the top item.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "tuck",
+          "cFunction": "tf_tuck",
+          "stackEffect": "a b -- b a b",
+          "syntax": "",
+          "description": "Copy the top stack item beneath the next item.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "pick",
+          "cFunction": "tf_pick",
+          "stackEffect": "... n -- ... x",
+          "syntax": "",
+          "description": "Copy the stack item at depth n to the top.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "roll",
+          "cFunction": "tf_roll",
+          "stackEffect": "... n -- ...",
+          "syntax": "",
+          "description": "Move the stack item at depth n to the top.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "empty",
+          "cFunction": "tf_empty",
+          "stackEffect": "--",
+          "syntax": "",
+          "description": "Clear the entire data stack.",
+          "syntaxClass": "builtin"
+        }
+      ]
+    },
+    {
+      "name": "Math",
+      "cArray": "native_math_words",
+      "words": [
+        {
+          "name": "+",
+          "cFunction": "tf_add",
+          "stackEffect": "a b -- a+b",
+          "syntax": "",
+          "description": "Add two numeric values.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "-",
+          "cFunction": "tf_sub",
+          "stackEffect": "a b -- a-b",
+          "syntax": "",
+          "description": "Subtract the top value from the next value.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "*",
+          "cFunction": "tf_mul",
+          "stackEffect": "a b -- a*b",
+          "syntax": "",
+          "description": "Multiply two numeric values.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "/",
+          "cFunction": "tf_div",
+          "stackEffect": "a b -- a/b",
+          "syntax": "",
+          "description": "Divide the next value by the top value.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "%",
+          "cFunction": "tf_rem",
+          "stackEffect": "a b -- remainder",
+          "syntax": "",
+          "description": "Compute the truncating remainder of integer division.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "mod",
+          "cFunction": "tf_mod",
+          "stackEffect": "a b -- modulo",
+          "syntax": "",
+          "description": "Compute Euclidean modulo, returning a non-negative result.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "neg",
+          "cFunction": "tf_neg",
+          "stackEffect": "x -- -x",
+          "syntax": "",
+          "description": "Negate the top numeric value.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "abs",
+          "cFunction": "tf_abs",
+          "stackEffect": "x -- |x|",
+          "syntax": "",
+          "description": "Replace a number with its absolute value.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "max",
+          "cFunction": "tf_max",
+          "stackEffect": "a b -- max",
+          "syntax": "",
+          "description": "Keep the larger of two values.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "min",
+          "cFunction": "tf_min",
+          "stackEffect": "a b -- min",
+          "syntax": "",
+          "description": "Keep the smaller of two values.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "sqrt",
+          "cFunction": "tf_sqrt",
+          "stackEffect": "n -- f",
+          "syntax": "",
+          "description": "Compute the square root of a numeric value.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "pow",
+          "cFunction": "tf_pow",
+          "stackEffect": "base exp -- f",
+          "syntax": "",
+          "description": "Raise a numeric base to a numeric exponent.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "exp",
+          "cFunction": "tf_exp",
+          "stackEffect": "n -- f",
+          "syntax": "",
+          "description": "Compute e raised to a numeric value.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "log",
+          "cFunction": "tf_log",
+          "stackEffect": "n -- f",
+          "syntax": "",
+          "description": "Compute the natural logarithm of a numeric value.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "log10",
+          "cFunction": "tf_log10",
+          "stackEffect": "n -- f",
+          "syntax": "",
+          "description": "Compute the base-10 logarithm of a numeric value.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "sin",
+          "cFunction": "tf_sin",
+          "stackEffect": "n -- f",
+          "syntax": "",
+          "description": "Compute the sine of a numeric value in radians.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "cos",
+          "cFunction": "tf_cos",
+          "stackEffect": "n -- f",
+          "syntax": "",
+          "description": "Compute the cosine of a numeric value in radians.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "tan",
+          "cFunction": "tf_tan",
+          "stackEffect": "n -- f",
+          "syntax": "",
+          "description": "Compute the tangent of a numeric value in radians.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "floor",
+          "cFunction": "tf_floor",
+          "stackEffect": "n -- i",
+          "syntax": "",
+          "description": "Round a numeric value down to an integer.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "ceil",
+          "cFunction": "tf_ceil",
+          "stackEffect": "n -- i",
+          "syntax": "",
+          "description": "Round a numeric value up to an integer.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "round",
+          "cFunction": "tf_round",
+          "stackEffect": "n -- i",
+          "syntax": "",
+          "description": "Round a numeric value to the nearest integer.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "pred",
+          "cFunction": "tf_pred",
+          "stackEffect": "i -- i-1",
+          "syntax": "",
+          "description": "Decrement an integer by one.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "succ",
+          "cFunction": "tf_succ",
+          "stackEffect": "i -- i+1",
+          "syntax": "",
+          "description": "Increment an integer by one.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "square",
+          "cFunction": "tf_square",
+          "stackEffect": "n -- n*n",
+          "syntax": "",
+          "description": "Square an integer or float.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "cube",
+          "cFunction": "tf_cube",
+          "stackEffect": "n -- n*n*n",
+          "syntax": "",
+          "description": "Cube an integer or float.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "pi",
+          "cFunction": "tf_pi",
+          "stackEffect": "-- f",
+          "syntax": "",
+          "description": "Push pi as a floating-point value.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "e",
+          "cFunction": "tf_e",
+          "stackEffect": "-- f",
+          "syntax": "",
+          "description": "Push Euler's number as a floating-point value.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "tau",
+          "cFunction": "tf_tau",
+          "stackEffect": "-- f",
+          "syntax": "",
+          "description": "Push tau, equal to two pi, as a floating-point value.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "inf",
+          "cFunction": "tf_inf",
+          "stackEffect": "-- f",
+          "syntax": "",
+          "description": "Push positive infinity as a floating-point value.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "nan",
+          "cFunction": "tf_nan",
+          "stackEffect": "-- f",
+          "syntax": "",
+          "description": "Push NaN as a floating-point value.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "inf?",
+          "cFunction": "tf_inf_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is an infinite float.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "nan?",
+          "cFunction": "tf_nan_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is a NaN float.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "rand",
+          "cFunction": "tf_rand",
+          "stackEffect": "-- n",
+          "syntax": "",
+          "description": "Push a random integer.",
+          "syntaxClass": "builtin"
+        }
+      ]
+    },
+    {
+      "name": "Logic / Bitwise",
+      "cArray": "native_logic_words",
+      "words": [
+        {
+          "name": "and",
+          "cFunction": "tf_and",
+          "stackEffect": "a b -- res",
+          "syntax": "",
+          "description": "Logical AND for booleans, bitwise AND for integers.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "or",
+          "cFunction": "tf_or",
+          "stackEffect": "a b -- res",
+          "syntax": "",
+          "description": "Logical OR for booleans, bitwise OR for integers.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "xor",
+          "cFunction": "tf_xor",
+          "stackEffect": "a b -- res",
+          "syntax": "",
+          "description": "Logical XOR for booleans, bitwise XOR for integers.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "not",
+          "cFunction": "tf_not",
+          "stackEffect": "a -- res",
+          "syntax": "",
+          "description": "Logical NOT for booleans, bitwise NOT for integers.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "shl",
+          "cFunction": "tf_shl",
+          "stackEffect": "n bits -- n<<bits",
+          "syntax": "",
+          "description": "Left shift an integer by the specified number of bits.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "shr",
+          "cFunction": "tf_shr",
+          "stackEffect": "n bits -- n>>bits",
+          "syntax": "",
+          "description": "Right shift an integer by the specified number of bits.",
+          "syntaxClass": "operator"
+        }
+      ]
+    },
+    {
+      "name": "Comparison",
+      "cArray": "native_comparison_words",
+      "words": [
+        {
+          "name": "==",
+          "cFunction": "tf_eq",
+          "stackEffect": "a b -- bool",
+          "syntax": "",
+          "description": "Compare two values for equality. Vectors and lists compare structurally.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "!=",
+          "cFunction": "tf_ne",
+          "stackEffect": "a b -- bool",
+          "syntax": "",
+          "description": "Compare two values for inequality. Vectors and lists compare structurally.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "<",
+          "cFunction": "tf_lt",
+          "stackEffect": "a b -- bool",
+          "syntax": "",
+          "description": "Check numeric or string ordering: whether the next value is less than the top value.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": ">",
+          "cFunction": "tf_gt",
+          "stackEffect": "a b -- bool",
+          "syntax": "",
+          "description": "Check numeric or string ordering: whether the next value is greater than the top value.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": "<=",
+          "cFunction": "tf_le",
+          "stackEffect": "a b -- bool",
+          "syntax": "",
+          "description": "Check numeric or string ordering: whether the next value is less than or equal to the top value.",
+          "syntaxClass": "operator"
+        },
+        {
+          "name": ">=",
+          "cFunction": "tf_ge",
+          "stackEffect": "a b -- bool",
+          "syntax": "",
+          "description": "Check numeric or string ordering: whether the next value is greater than or equal to the top value.",
+          "syntaxClass": "operator"
+        }
+      ]
+    },
+    {
+      "name": "Control",
+      "cArray": "native_control_words",
+      "words": [
+        {
+          "name": "exec",
+          "cFunction": "tf_exec",
+          "stackEffect": "callable -- ...",
+          "syntax": "",
+          "description": "Execute a quoted symbol or quotation.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "i",
+          "cFunction": "tf_exec",
+          "stackEffect": "callable -- ...",
+          "syntax": "",
+          "description": "Alias for exec. Execute a quoted symbol or quotation.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "if",
+          "cFunction": "tf_if",
+          "stackEffect": "bool|callable callable --",
+          "syntax": "",
+          "description": "Execute the callable when the condition is true.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "ifelse",
+          "cFunction": "tf_ifelse",
+          "stackEffect": "bool|callable callable callable --",
+          "syntax": "",
+          "description": "Execute one of two callables based on the condition.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "while",
+          "cFunction": "tf_while",
+          "stackEffect": "callable callable --",
+          "syntax": "",
+          "description": "Repeat while the condition callable yields true.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "cond",
+          "cFunction": "tf_cond",
+          "stackEffect": "clauses --",
+          "syntax": "",
+          "description": "Evaluate predicate/body clause pairs and execute the body for the first true predicate.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "try",
+          "cFunction": "tf_try",
+          "stackEffect": "callable callable --",
+          "syntax": "",
+          "description": "Execute body and run handler if body reports an error.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "error",
+          "cFunction": "tf_error",
+          "stackEffect": "string --",
+          "syntax": "",
+          "description": "Raise a runtime error using a string message.",
+          "syntaxClass": "control"
+        }
+      ]
+    },
+    {
+      "name": "Combinators",
+      "cArray": "native_combinator_words",
+      "words": [
+        {
+          "name": "app2",
+          "cFunction": "tf_app2",
+          "stackEffect": "x y callable -- x' y'",
+          "syntax": "",
+          "description": "Apply a callable independently to two stack items.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "infra",
+          "cFunction": "tf_infra",
+          "stackEffect": "vector callable -- vector",
+          "syntax": "",
+          "description": "Execute a callable using a vector as a temporary stack and collect the resulting stack into a vector.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "cleave",
+          "cFunction": "tf_cleave",
+          "stackEffect": "x callable-vector -- ...",
+          "syntax": "",
+          "description": "Apply several callables independently to the same value and leave all outputs on the stack.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "construct",
+          "cFunction": "tf_construct",
+          "stackEffect": "x callable-vector -- vector",
+          "syntax": "",
+          "description": "Apply several callables independently to the same value and collect their outputs into one vector.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "replicate",
+          "cFunction": "tf_replicate",
+          "stackEffect": "n callable -- vector",
+          "syntax": "",
+          "description": "Execute a callable n times and collect exactly one result from each execution into a vector.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "times",
+          "cFunction": "tf_times",
+          "stackEffect": "... n callable -- ...",
+          "syntax": "",
+          "description": "Execute a callable a fixed number of times, threading the current stack through each run.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "dip",
+          "cFunction": "tf_dip",
+          "stackEffect": "x callable -- x",
+          "syntax": "",
+          "description": "Execute a callable while hiding the top item of the stack.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "keep",
+          "cFunction": "tf_keep",
+          "stackEffect": "x callable -- x ...",
+          "syntax": "",
+          "description": "Execute a callable while keeping a copy of the top item on the stack.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "bi",
+          "cFunction": "tf_bi",
+          "stackEffect": "x callable callable -- ... ...",
+          "syntax": "",
+          "description": "Apply two callables independently to the same stack item.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "linrec",
+          "cFunction": "tf_linrec",
+          "stackEffect": "callable callable callable callable -- ...",
+          "syntax": "",
+          "description": "Linear recursion scheme: run then when pred is true, otherwise run rec1, recurse, then run rec2.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "binrec",
+          "cFunction": "tf_binrec",
+          "stackEffect": "callable callable callable callable -- ...",
+          "syntax": "",
+          "description": "Binary recursion scheme: run then when pred is true, otherwise run rec1, recurse over two produced values, then run rec2.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "genrec",
+          "cFunction": "tf_genrec",
+          "stackEffect": "callable callable callable callable -- ...",
+          "syntax": "",
+          "description": "General recursion scheme: run then when pred is true, otherwise run before, recurse, then run after.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "treerec",
+          "cFunction": "tf_treerec",
+          "stackEffect": "tree callable callable -- result",
+          "syntax": "",
+          "description": "Recursively transform a tree using leaf and node callables.",
+          "syntaxClass": "control"
+        }
+      ]
+    },
+    {
+      "name": "Sequence Combinators",
+      "cArray": "native_sequence_combinator_words",
+      "words": [
+        {
+          "name": "each",
+          "cFunction": "tf_each",
+          "stackEffect": "... vector|list|string callable -- ...",
+          "syntax": "",
+          "description": "Execute a callable for each item in a vector or list, or each byte in a string, threading the current stack through each run.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "map",
+          "cFunction": "tf_map",
+          "stackEffect": "vector|list|string callable -- vector|list|string",
+          "syntax": "",
+          "description": "Apply a callable to each sequence item and preserve the input sequence family.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "fold",
+          "cFunction": "tf_fold",
+          "stackEffect": "init vector|list|string callable -- acc",
+          "syntax": "",
+          "description": "Reduce a vector, list, or string from left to right by applying a callable to the accumulator and each item.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "filter",
+          "cFunction": "tf_filter",
+          "stackEffect": "vector|list|string callable -- vector|list|string",
+          "syntax": "",
+          "description": "Keep sequence items for which a predicate callable returns true.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "some",
+          "cFunction": "tf_some",
+          "stackEffect": "vector|list|string callable -- bool",
+          "syntax": "",
+          "description": "Check whether any sequence item satisfies a predicate callable.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "all",
+          "cFunction": "tf_all",
+          "stackEffect": "vector|list|string callable -- bool",
+          "syntax": "",
+          "description": "Check whether every sequence item satisfies a predicate callable.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "split",
+          "cFunction": "tf_split",
+          "stackEffect": "vector|list|string callable -- true false | string sep -- vector",
+          "syntax": "",
+          "description": "Partition a vector, list, or string with a predicate callable, or split a string using a separator.",
+          "syntaxClass": "control"
+        },
+        {
+          "name": "merge",
+          "cFunction": "tf_merge",
+          "stackEffect": "seq seq callable -- seq",
+          "syntax": "",
+          "description": "Merge two sorted sequences of the same type. The predicate callable runs in a stack sandbox and must leave a boolean on top.",
+          "syntaxClass": "control"
+        }
+      ]
+    },
+    {
+      "name": "Ordered Collections",
+      "cArray": "native_sequence_words",
+      "words": [
+        {
+          "name": ">vector",
+          "cFunction": "tf_to_vector",
+          "stackEffect": "vector|list|string -- vector",
+          "syntax": "",
+          "description": "Build a vector from a sequence, preserving order.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": ">list",
+          "cFunction": "tf_to_list",
+          "stackEffect": "vector|list|string -- list",
+          "syntax": "",
+          "description": "Build a list from a sequence, preserving order.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": ">string",
+          "cFunction": "tf_to_string",
+          "stackEffect": "vector|list|string -- string",
+          "syntax": "",
+          "description": "Build a string from a sequence of one-character strings.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": ">deque",
+          "cFunction": "tf_to_deque",
+          "stackEffect": "vector|list|string -- deque",
+          "syntax": "",
+          "description": "Build a deque from a vector, list, or string, preserving front-to-back order.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "at",
+          "cFunction": "tf_at",
+          "stackEffect": "vector|string idx -- value|char",
+          "syntax": "",
+          "description": "Fetch a vector element or one-character string by index.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "set-at",
+          "cFunction": "tf_set_at",
+          "stackEffect": "vector idx value -- vector | string idx char -- string",
+          "syntax": "",
+          "description": "Return a collection with one element or character replaced.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "slice",
+          "cFunction": "tf_slice",
+          "stackEffect": "vector|string start end -- vector|string",
+          "syntax": "",
+          "description": "Return a sub-vector or substring from start up to, but not including, end.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "take",
+          "cFunction": "tf_take",
+          "stackEffect": "vector|list|string n -- vector|list|string",
+          "syntax": "",
+          "description": "Return the first n items or characters from a vector, list, or string.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "skip",
+          "cFunction": "tf_dropn",
+          "stackEffect": "vector|list|string n -- vector|list|string",
+          "syntax": "",
+          "description": "Return a vector, list, or string with the first n items or characters removed.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "len",
+          "cFunction": "tf_len",
+          "stackEffect": "collection -- n",
+          "syntax": "",
+          "description": "Get the length of a vector, list, string, map, set, deque, or priority queue.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "concat",
+          "cFunction": "tf_concat",
+          "stackEffect": "vector vector -- vector | list list -- list | string string -- string",
+          "syntax": "",
+          "description": "Concatenate two vectors, two lists, or two strings.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "reverse",
+          "cFunction": "tf_reverse",
+          "stackEffect": "vector|list|string -- vector|list|string",
+          "syntax": "",
+          "description": "Return a sequence with its items or bytes in reverse order.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "split-mid",
+          "cFunction": "tf_splitmid",
+          "stackEffect": "vector|list|string -- left right",
+          "syntax": "",
+          "description": "Split a vector, list, or string into left and right halves.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "range",
+          "cFunction": "tf_range",
+          "stackEffect": "start end -- vector",
+          "syntax": "",
+          "description": "Create a vector of integers from start up to, but not including, end.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "empty?",
+          "cFunction": "tf_empty_q",
+          "stackEffect": "collection -- bool",
+          "syntax": "",
+          "description": "Check whether a vector, list, string, map, set, deque, or priority queue is empty.",
+          "syntaxClass": "builtin"
+        }
+      ]
+    },
+    {
+      "name": "Collection Endpoints",
+      "cArray": "native_endpoint_words",
+      "words": [
+        {
+          "name": "first",
+          "cFunction": "tf_first",
+          "stackEffect": "vector|list|string|deque -- x|char",
+          "syntax": "",
+          "description": "Consume a non-empty ordered collection and return its first item.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "last",
+          "cFunction": "tf_last",
+          "stackEffect": "vector|list|string|deque -- x|char",
+          "syntax": "",
+          "description": "Consume a non-empty ordered collection and return its last item.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "rest",
+          "cFunction": "tf_rest",
+          "stackEffect": "vector|list|string -- rest",
+          "syntax": "",
+          "description": "Get all sequence items except the first one.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "uncons",
+          "cFunction": "tf_uncons",
+          "stackEffect": "vector|list|string -- head tail",
+          "syntax": "",
+          "description": "Destructure a sequence into its head and tail.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "cons",
+          "cFunction": "tf_cons",
+          "stackEffect": "x vector|list -- vector|list | char string -- string",
+          "syntax": "",
+          "description": "Add one item to the front of a vector or list, or one-byte string to the front of a string.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "push-front",
+          "cFunction": "tf_push_front",
+          "stackEffect": "deque item -- deque",
+          "syntax": "",
+          "description": "Return a deque with item added at the front.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "push-back",
+          "cFunction": "tf_push_back",
+          "stackEffect": "vector|list|string|deque item -- vector|list|string|deque",
+          "syntax": "",
+          "description": "Return a sequence or deque with one item added at the back. String items are one-byte strings.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "pop-front",
+          "cFunction": "tf_pop_front",
+          "stackEffect": "deque -- deque item",
+          "syntax": "",
+          "description": "Return the updated deque followed by the removed front item.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "pop-back",
+          "cFunction": "tf_pop_back",
+          "stackEffect": "vector|deque -- vector|deque item",
+          "syntax": "",
+          "description": "Return the updated vector or deque followed by the removed back item.",
+          "syntaxClass": "builtin"
+        }
+      ]
+    },
+    {
+      "name": "Sequence Search / Ordering",
+      "cArray": "native_sequence_algorithm_words",
+      "words": [
+        {
+          "name": "contains?",
+          "cFunction": "tf_contains_q",
+          "stackEffect": "vector|list item -- bool | string substring -- bool",
+          "syntax": "",
+          "description": "Check item membership in a vector/list or substring presence in a string.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "index-of",
+          "cFunction": "tf_indexof",
+          "stackEffect": "vector|list item -- idx|-1 | string substring -- idx|-1",
+          "syntax": "",
+          "description": "Return the first item or substring index, or -1 when absent.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "unique",
+          "cFunction": "tf_unique",
+          "stackEffect": "vector|list|string -- vector|list|string",
+          "syntax": "",
+          "description": "Remove duplicate sequence items, preserving the first occurrence and input family.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "sort",
+          "cFunction": "tf_sort",
+          "stackEffect": "vector|list|string -- vector|list|string",
+          "syntax": "",
+          "description": "Sort numbers or strings in natural ascending order, preserving the input family.",
+          "syntaxClass": "builtin"
+        }
+      ]
+    },
+    {
+      "name": "Strings / Characters",
+      "cArray": "native_string_words",
+      "words": [
+        {
+          "name": "join",
+          "cFunction": "tf_join",
+          "stackEffect": "vector|list sep -- string",
+          "syntax": "",
+          "description": "Join a vector or list of strings using a separator.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "trim",
+          "cFunction": "tf_trim",
+          "stackEffect": "string -- string",
+          "syntax": "",
+          "description": "Remove leading and trailing whitespace from a string.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "upper",
+          "cFunction": "tf_upper",
+          "stackEffect": "string -- string",
+          "syntax": "",
+          "description": "Convert a string to uppercase.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "lower",
+          "cFunction": "tf_lower",
+          "stackEffect": "string -- string",
+          "syntax": "",
+          "description": "Convert a string to lowercase.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "char?",
+          "cFunction": "tf_char_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is a one-byte string.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": ">char",
+          "cFunction": "tf_to_char",
+          "stackEffect": "n -- char",
+          "syntax": "",
+          "description": "Construct a one-character string from an integer code between 0 and 255.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "char-code",
+          "cFunction": "tf_char_code",
+          "stackEffect": "char -- n",
+          "syntax": "",
+          "description": "Return the unsigned integer code of a one-character string.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "letter?",
+          "cFunction": "tf_letter_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is a one-byte alphabetic string.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "digit?",
+          "cFunction": "tf_digit_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is a one-byte digit string.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "alnum?",
+          "cFunction": "tf_alnum_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is a one-byte alphabetic or digit string.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "space?",
+          "cFunction": "tf_space_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is a one-byte whitespace string.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "upper?",
+          "cFunction": "tf_upper_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is a one-byte uppercase string.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "lower?",
+          "cFunction": "tf_lower_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is a one-byte lowercase string.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "punct?",
+          "cFunction": "tf_punct_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is a one-byte punctuation string.",
+          "syntaxClass": "builtin"
+        }
+      ]
+    },
+    {
+      "name": "Maps / Sets",
+      "cArray": "native_map_set_words",
+      "words": [
+        {
+          "name": ">map",
+          "cFunction": "tf_to_map",
+          "stackEffect": "pairs -- map",
+          "syntax": "",
+          "description": "Build a map from a vector or list of two-item key/value pairs. Duplicate keys are an error.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": ">set",
+          "cFunction": "tf_to_set",
+          "stackEffect": "vector|list|string -- set",
+          "syntax": "",
+          "description": "Build a set from a vector, list, or string, collapsing duplicate items.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "has?",
+          "cFunction": "tf_has_q",
+          "stackEffect": "map key -- bool | set item -- bool",
+          "syntax": "",
+          "description": "Check whether a map contains a key or a set contains an item.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "get",
+          "cFunction": "tf_get",
+          "stackEffect": "map key -- value",
+          "syntax": "",
+          "description": "Fetch a map value. Missing keys are runtime errors; use get-or or has? when absence is expected.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "get-or",
+          "cFunction": "tf_get_or",
+          "stackEffect": "map key default -- value",
+          "syntax": "",
+          "description": "Fetch a map value, returning the supplied default when the key is absent.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "assoc",
+          "cFunction": "tf_assoc",
+          "stackEffect": "map key value -- map",
+          "syntax": "",
+          "description": "Return a map with key associated to value.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "dissoc",
+          "cFunction": "tf_dissoc",
+          "stackEffect": "map key -- map",
+          "syntax": "",
+          "description": "Return a map without key. Missing keys leave the map unchanged.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "keys",
+          "cFunction": "tf_keys",
+          "stackEffect": "map -- vector",
+          "syntax": "",
+          "description": "Return map keys in insertion order.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "values",
+          "cFunction": "tf_values",
+          "stackEffect": "map -- vector",
+          "syntax": "",
+          "description": "Return map values in insertion order.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "pairs",
+          "cFunction": "tf_pairs",
+          "stackEffect": "map|pqueue -- vector",
+          "syntax": "",
+          "description": "Return map key/value pairs in insertion order or priority/value pairs in priority order.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "items",
+          "cFunction": "tf_items",
+          "stackEffect": "set -- vector | deque -- vector",
+          "syntax": "",
+          "description": "Return set items in insertion order or deque items from front to back.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "insert",
+          "cFunction": "tf_insert",
+          "stackEffect": "set item -- set",
+          "syntax": "",
+          "description": "Return a set containing item. An existing item leaves the set and its insertion order unchanged.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "remove",
+          "cFunction": "tf_remove",
+          "stackEffect": "set item -- set",
+          "syntax": "",
+          "description": "Return a set without item. Missing items leave the set unchanged.",
+          "syntaxClass": "builtin"
+        }
+      ]
+    },
+    {
+      "name": "Set Algebra",
+      "cArray": "native_set_algebra_words",
+      "words": [
+        {
+          "name": "union",
+          "cFunction": "tf_union",
+          "stackEffect": "set set -- set",
+          "syntax": "",
+          "description": "Return items from either set, preserving left order then unseen right items.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "intersection",
+          "cFunction": "tf_intersection",
+          "stackEffect": "set set -- set",
+          "syntax": "",
+          "description": "Return items present in both sets, preserving left-set order.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "difference",
+          "cFunction": "tf_difference",
+          "stackEffect": "set set -- set",
+          "syntax": "",
+          "description": "Return items from the left set that are absent from the right set.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "symmetric-difference",
+          "cFunction": "tf_symmetric_difference",
+          "stackEffect": "set set -- set",
+          "syntax": "",
+          "description": "Return left-only items followed by right-only items.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "subset?",
+          "cFunction": "tf_subset_q",
+          "stackEffect": "set set -- bool",
+          "syntax": "",
+          "description": "Check whether the left set is a subset of the right set, including equality.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "proper-subset?",
+          "cFunction": "tf_proper_subset_q",
+          "stackEffect": "set set -- bool",
+          "syntax": "",
+          "description": "Check whether the left set is a strict subset of the right set.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "superset?",
+          "cFunction": "tf_superset_q",
+          "stackEffect": "set set -- bool",
+          "syntax": "",
+          "description": "Check whether the left set is a superset of the right set, including equality.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "proper-superset?",
+          "cFunction": "tf_proper_superset_q",
+          "stackEffect": "set set -- bool",
+          "syntax": "",
+          "description": "Check whether the left set is a strict superset of the right set.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "disjoint?",
+          "cFunction": "tf_disjoint_q",
+          "stackEffect": "set set -- bool",
+          "syntax": "",
+          "description": "Check whether the sets have no items in common.",
+          "syntaxClass": "builtin"
+        }
+      ]
+    },
+    {
+      "name": "Priority Queues",
+      "cArray": "native_pqueue_words",
+      "words": [
+        {
+          "name": ">pqueue",
+          "cFunction": "tf_to_pqueue",
+          "stackEffect": "pairs -- pqueue",
+          "syntax": "",
+          "description": "Build a priority queue from two-item [priority value] or (priority value) pairs. Lower priorities are returned first.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "pq-push",
+          "cFunction": "tf_pq_push",
+          "stackEffect": "pqueue priority value -- pqueue",
+          "syntax": "",
+          "description": "Return a priority queue with value inserted at a finite numeric priority.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "pq-peek",
+          "cFunction": "tf_pq_peek",
+          "stackEffect": "pqueue -- pqueue priority value",
+          "syntax": "",
+          "description": "Leave a priority queue unchanged and copy its next priority/value pair to the top.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "pq-pop",
+          "cFunction": "tf_pq_pop",
+          "stackEffect": "pqueue -- pqueue priority value",
+          "syntax": "",
+          "description": "Return the updated priority queue followed by the removed priority and value.",
+          "syntaxClass": "builtin"
+        }
+      ]
+    },
+    {
+      "name": "Types",
+      "cArray": "native_type_words",
+      "words": [
+        {
+          "name": "type-of",
+          "cFunction": "tf_typeof",
+          "stackEffect": "x -- string",
+          "syntax": "",
+          "description": "Push a string naming the input type.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "bool?",
+          "cFunction": "tf_bool_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is a boolean.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "int?",
+          "cFunction": "tf_int_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is an integer.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "float?",
+          "cFunction": "tf_float_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is a float.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "string?",
+          "cFunction": "tf_string_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is a string.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "symbol?",
+          "cFunction": "tf_symbol_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is a symbol.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "vector?",
+          "cFunction": "tf_vector_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is a vector.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "list?",
+          "cFunction": "tf_list_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is a linked list.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "map?",
+          "cFunction": "tf_map_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is a map.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "set?",
+          "cFunction": "tf_set_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is a set.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "deque?",
+          "cFunction": "tf_deque_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is a deque.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "pqueue?",
+          "cFunction": "tf_pqueue_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is a priority queue.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "number?",
+          "cFunction": "tf_number_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is an integer or float.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "sequence?",
+          "cFunction": "tf_sequence_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input can be iterated as a sequence: vector, list, or string.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "callable?",
+          "cFunction": "tf_callable_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input can be executed now: a vector quotation or a symbol naming a defined word.",
+          "syntaxClass": "builtin"
+        }
+      ]
+    },
+    {
+      "name": "Definitions / Introspection",
+      "cArray": "native_dictionary_words",
+      "words": [
+        {
+          "name": "def",
+          "cFunction": "tf_def",
+          "stackEffect": "'name block --",
+          "syntax": "",
+          "description": "Bind a quoted symbol to a block definition.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "word?",
+          "cFunction": "tf_word_q",
+          "stackEffect": "symbol -- bool",
+          "syntax": "",
+          "description": "Check whether a symbol names a dictionary word.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "var?",
+          "cFunction": "tf_var_q",
+          "stackEffect": "symbol -- bool",
+          "syntax": "",
+          "description": "Check whether a symbol names a visible dynamic capture.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "body",
+          "cFunction": "tf_body",
+          "stackEffect": "'name -- quot",
+          "syntax": "",
+          "description": "Push the quotation body for a user-defined word.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "intern",
+          "cFunction": "tf_intern",
+          "stackEffect": "string -- symbol",
+          "syntax": "",
+          "description": "Convert a string to a symbol.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "name",
+          "cFunction": "tf_name",
+          "stackEffect": "symbol -- string",
+          "syntax": "",
+          "description": "Convert a symbol to a string.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "words",
+          "cFunction": "tf_words",
+          "stackEffect": "-- vector",
+          "syntax": "",
+          "description": "Push a sorted vector of dictionary word names as symbols.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "see",
+          "cFunction": "tf_see",
+          "stackEffect": "'name -- string",
+          "syntax": "",
+          "description": "Push a source-like representation of a word definition.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "doc",
+          "cFunction": "tf_doc",
+          "stackEffect": "'name -- string",
+          "syntax": "",
+          "description": "Push documentation for a defined word as a string.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "search-words",
+          "cFunction": "tf_apropos",
+          "stackEffect": "query -- vector",
+          "syntax": "",
+          "description": "Push a sorted vector of quoted symbols whose names or docs match query.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "repr",
+          "cFunction": "tf_repr",
+          "stackEffect": "x -- string",
+          "syntax": "",
+          "description": "Return a source-style representation of a value, with string bytes escaped.",
+          "syntaxClass": "builtin"
+        }
+      ]
+    },
+    {
+      "name": "Console",
+      "cArray": "native_console_words",
+      "words": [
+        {
+          "name": "printf",
+          "cFunction": "tf_printf",
+          "stackEffect": "x -- | args... format --",
+          "syntax": "",
+          "description": "Print one value without a newline, interpreting {} placeholders only when the top value is a format string.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "print",
+          "cFunction": "tf_print",
+          "stackEffect": "x --",
+          "syntax": "",
+          "description": "Print one value literally, followed by a newline.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": ".",
+          "cFunction": "tf_dot",
+          "stackEffect": "x -- x",
+          "syntax": "",
+          "description": "Print the top stack item.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": ".s",
+          "cFunction": "tf_stack",
+          "stackEffect": "--",
+          "syntax": "",
+          "description": "Print the current stack state.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": ".S",
+          "cFunction": "tf_stack_source",
+          "stackEffect": "--",
+          "syntax": "",
+          "description": "Print the current stack using source-style value formatting.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "read-key",
+          "cFunction": "tf_key",
+          "stackEffect": "-- char",
+          "syntax": "",
+          "description": "Read one byte from input as a one-character string.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "read-line",
+          "cFunction": "tf_input",
+          "stackEffect": "-- string",
+          "syntax": "",
+          "description": "Read one line from stdin without its trailing newline.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "clear",
+          "cFunction": "tf_clear",
+          "stackEffect": "--",
+          "syntax": "",
+          "description": "Clear the terminal screen.",
+          "syntaxClass": "builtin"
+        }
+      ]
+    },
+    {
+      "name": "Files",
+      "cArray": "native_file_words",
+      "words": [
+        {
+          "name": "load",
+          "cFunction": "tf_load",
+          "stackEffect": "path --",
+          "syntax": "",
+          "description": "Load and execute a Toy source file in the current context.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "read-file",
+          "cFunction": "tf_readf",
+          "stackEffect": "path -- string",
+          "syntax": "",
+          "description": "Read the entire content of a file into a string.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "write-file",
+          "cFunction": "tf_writef",
+          "stackEffect": "path content --",
+          "syntax": "",
+          "description": "Write string content to a file.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "delete-file",
+          "cFunction": "tf_delf",
+          "stackEffect": "path --",
+          "syntax": "",
+          "description": "Delete a file.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "read-lines",
+          "cFunction": "tf_readl",
+          "stackEffect": "path -- vector",
+          "syntax": "",
+          "description": "Read a file and return a vector of its lines.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "file-exists?",
+          "cFunction": "tf_exists_q",
+          "stackEffect": "path -- bool",
+          "syntax": "",
+          "description": "Check if a file exists.",
+          "syntaxClass": "builtin"
+        }
+      ]
+    },
+    {
+      "name": "Environment / Processes",
+      "cArray": "native_system_words",
+      "words": [
+        {
+          "name": "argc",
+          "cFunction": "tf_argc",
+          "stackEffect": "-- n",
+          "syntax": "",
+          "description": "Push the number of script arguments.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "argv",
+          "cFunction": "tf_argv",
+          "stackEffect": "-- vector",
+          "syntax": "",
+          "description": "Push script arguments as a vector of strings.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "env?",
+          "cFunction": "tf_env_q",
+          "stackEffect": "key -- bool",
+          "syntax": "",
+          "description": "Check whether an environment variable is set.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "get-env",
+          "cFunction": "tf_getenv",
+          "stackEffect": "key -- value",
+          "syntax": "",
+          "description": "Read an environment variable. Fails when it is not set; use env? when absence is expected.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "set-env",
+          "cFunction": "tf_setenv",
+          "stackEffect": "key value --",
+          "syntax": "",
+          "description": "Set an environment variable, failing if the operation is rejected.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "pwd",
+          "cFunction": "tf_pwd",
+          "stackEffect": "-- string",
+          "syntax": "",
+          "description": "Push the current working directory.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "shell",
+          "cFunction": "tf_shell",
+          "stackEffect": "cmd -- output status",
+          "syntax": "",
+          "description": "Run a shell command and push its output followed by its exit status.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "exit",
+          "cFunction": "tf_exit",
+          "stackEffect": "--",
+          "syntax": "",
+          "description": "Terminate the interpreter.",
+          "syntaxClass": "builtin"
+        }
+      ]
+    },
+    {
+      "name": "Time",
+      "cArray": "native_time_words",
+      "words": [
+        {
+          "name": "sleep",
+          "cFunction": "tf_sleep",
+          "stackEffect": "ms --",
+          "syntax": "",
+          "description": "Pause execution for a number of milliseconds.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "unix-time",
+          "cFunction": "tf_unix_time",
+          "stackEffect": "-- seconds",
+          "syntax": "",
+          "description": "Push whole seconds since 1970-01-01 00:00:00 UTC.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "local-time",
+          "cFunction": "tf_local_time",
+          "stackEffect": "-- map",
+          "syntax": "",
+          "description": "Push the current local year, month, day, hour, minute, and second.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "utc-time",
+          "cFunction": "tf_utc_time",
+          "stackEffect": "-- map",
+          "syntax": "",
+          "description": "Push the current UTC year, month, day, hour, minute, and second.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "cpu-time",
+          "cFunction": "tf_cpu_time",
+          "stackEffect": "-- seconds",
+          "syntax": "",
+          "description": "Push process CPU time in seconds as a float.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "monotonic-ns",
+          "cFunction": "tf_monotonic_ns",
+          "stackEffect": "-- nanoseconds",
+          "syntax": "",
+          "description": "Push a monotonic wall-clock reading in integer nanosecond units; actual resolution is platform-dependent.",
+          "syntaxClass": "builtin"
+        }
+      ]
+    }
+  ],
+  "replWords": [
+    {
+      "name": "help",
+      "cFunction": "help_show",
+      "stackEffect": "--",
+      "description": "Show the categorized REPL word catalog."
+    },
+    {
+      "name": "hints",
+      "cFunction": "hints_toggle",
+      "stackEffect": "--",
+      "description": "Toggle REPL inline stack-effect hints."
+    },
+    {
+      "name": "trace",
+      "cFunction": "trace_toggle",
+      "stackEffect": "--",
+      "description": "Toggle REPL stack display after successful input."
+    }
+  ]
+}
+

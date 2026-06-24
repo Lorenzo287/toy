@@ -54,12 +54,7 @@ static tf_ret help_show(tf_ctx *ctx);
 static tf_ret hints_toggle(tf_ctx *ctx);
 static tf_ret trace_toggle(tf_ctx *ctx);
 
-static const tf_builtin_word repl_words[] = {
-    {"help", help_show},
-    {"hints", hints_toggle},
-    {"trace", trace_toggle},
-    {NULL, NULL},
-};
+#include "tf_repl_builtins.inc"
 
 tf_ret tf_run_file(tf_ctx *ctx, const char *filename, bool debug) {
     FILE *fp = fopen(filename, "r");

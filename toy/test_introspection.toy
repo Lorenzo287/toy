@@ -6,6 +6,10 @@
 'twice body [ dup + ] == [ "twice body ok\n" printf ] if
 'twice see "'twice [ dup + ] def" == [ "see ok\n" printf ] if
 'dup doc "dup\nstack: x -- x x\nDuplicate the top stack item." == check
+'printf doc "placeholders" contains? true == check
+'symmetric-difference doc "left-only" contains? true == check
+'proper-subset? doc "strict subset" contains? true == check
+'proper-superset? doc "strict superset" contains? true == check
 'twice doc "'twice [ dup + ] def" == check
 ":" intern word? false == check
 "priority" search-words dup 'pq-push contains? true == check drop
