@@ -4,8 +4,8 @@ project(toy C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-set(BUILD_MODE "None" CACHE STRING "None | LeakCheck | Profile")
-set_property(CACHE BUILD_MODE PROPERTY STRINGS None LeakCheck Profile)
+set(BUILD_MODE "None" CACHE STRING "None | AllocationStats | LeakCheck | Profile")
+set_property(CACHE BUILD_MODE PROPERTY STRINGS None AllocationStats LeakCheck Profile)
 message(STATUS "Build mode: ${BUILD_MODE}")
 
 file(GLOB SOURCES CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/src/*.c")
@@ -34,7 +34,10 @@ endif()
 
 # ── LeakCheck / Profile override CMAKE_BUILD_TYPE ────────────────────────────
 
-if(BUILD_MODE STREQUAL "LeakCheck")
+if(BUILD_MODE STREQUAL "AllocationStats")
+    target_compile_definitions(toy PRIVATE TF_ALLOC_STATS)
+
+elseif(BUILD_MODE STREQUAL "LeakCheck")
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "" FORCE)
     if(WIN32)
         target_compile_definitions(toy PRIVATE STB_LEAKCHECK)

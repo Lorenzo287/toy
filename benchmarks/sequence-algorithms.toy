@@ -3,11 +3,11 @@
 'bench-state [
     | setup block count name |
     $name printf ": " printf
-    clock
+    monotonic-ns
     $setup exec
     $count [ $block exec ] times
     drop
-    clock swap - printf " ticks\n" printf
+    monotonic-ns swap - printf " ns\n" printf
 ] def
 
 "--- Sort / Unique ---\n" printf

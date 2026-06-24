@@ -90,12 +90,18 @@ The REPL uses vendored `linenoise`:
 - automatic stack display after successful input (type `trace` to toggle)
 - categorized word catalog (type `help`)
 
+The catalog groups words by their primary language concept. Shared endpoint
+operations are listed together even when they support several collection
+representations.
+
 ## Colors and Status
 
 The REPL uses colored output to distinguish the main categories:
 
 - prompt: light blue
-- success with stack display on: green `<n>` followed by source-style stack values
+- success with stack display on: green `<n>` followed by unambiguous display
+  forms; deques and priority queues are tagged as `deque[...]` and
+  `pqueue[...]`
 - success with stack display off: green `ok`
 - parsing/runtime errors: red labels
 - interrupt: yellow `interrupt: ...`
@@ -106,7 +112,7 @@ The REPL uses colored output to distinguish the main categories:
 - Unix-like systems / WSL: `Ctrl-D`
 - Windows console: `Ctrl-Z`
 - At the prompt: press `Ctrl-C` twice in a row
-- Portable explicit exit: `bye`/`exit`
+- Portable explicit exit: `exit`
 
 ## Interrupting Execution
 

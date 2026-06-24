@@ -36,6 +36,14 @@
 16 == check
 9 == check
 
+10 3 4 [ over + ] app2
+14 == check
+13 == check
+10 == check
+
+[ 1 2 [ dup ] app2 ] [ "app2-shape" ] try
+"app2-shape" == check
+
 0 3 'succ times 3 == check
 
 'emit-x [ "x" ] def

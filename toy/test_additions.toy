@@ -17,10 +17,8 @@ empty
 "Additions: empty clears the stack" print
 1 2 3 empty .s
 
-"Additions: cr prints a blank line after this:" print
-cr
-
-"Additions: page is registered" print
+"Additions: printf can print a blank line after this:" print
+"\n" printf
 words
 
 "Additions: see prints user definitions" print

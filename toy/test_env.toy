@@ -1,5 +1,5 @@
 \ Test environment and arguments
 "PATH" env? print
-"PATH" env? [ "PATH" getenv print ] [ "PATH missing" print ] ifelse
+"PATH" env? [ "PATH" get-env print ] [ "PATH missing" print ] ifelse
 argc print
 argv print

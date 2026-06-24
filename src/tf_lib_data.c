@@ -1,5 +1,7 @@
 #include "tf_lib.h"
+#include <inttypes.h>
 #include <math.h>
+#include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -84,7 +86,7 @@ static bool vector_contains_equal(tf_obj *vector, tf_obj *needle) {
     return false;
 }
 
-static int sequence_indexof(tf_obj *seq, tf_obj *needle) {
+static int64_t sequence_indexof(tf_obj *seq, tf_obj *needle) {
     if (seq->type == TF_OBJ_TYPE_STR) {
         if (needle->str.len == 0) return 0;
         if (needle->str.len > seq->str.len) return -1;
@@ -92,7 +94,7 @@ static int sequence_indexof(tf_obj *seq, tf_obj *needle) {
         for (size_t i = 0; i <= last; i++) {
             if (memcmp(seq->str.ptr + i, needle->str.ptr,
                        needle->str.len) == 0) {
-                return (int)i;
+                return (int64_t)i;
             }
         }
         return -1;
@@ -105,7 +107,7 @@ static int sequence_indexof(tf_obj *seq, tf_obj *needle) {
         if (!item) break;
         bool found = tf_obj_equal(item, needle);
         tf_obj_release(item);
-        if (found) return (int)i;
+        if (found) return (int64_t)i;
     }
     return -1;
 }
@@ -158,9 +160,7 @@ static bool validate_natural_sort(tf_ctx *ctx, tf_obj *items,
 
 static int natural_compare(tf_obj *a, tf_obj *b, natural_sort_kind kind) {
     if (kind == TF_SORT_STRING) return tf_obj_compare_string(a, b);
-    double da = a->type == TF_OBJ_TYPE_FLOAT ? a->f : a->i;
-    double db = b->type == TF_OBJ_TYPE_FLOAT ? b->f : b->i;
-    return (da > db) - (da < db);
+    return tf_obj_compare_number(a, b);
 }
 
 static void insertion_sort_items(tf_obj **items, size_t start, size_t end,
@@ -324,9 +324,10 @@ static bool require_char(tf_ctx *ctx, size_t depth) {
     return false;
 }
 
-static bool index_in_bounds(tf_ctx *ctx, int idx, int len) {
-    if (idx >= 0 && idx < len) return true;
-    tf_ctx_runtime_errorf(ctx, "'%s' index %d is out of range for length %d\n",
+static bool index_in_bounds(tf_ctx *ctx, int64_t idx, size_t len) {
+    if (idx >= 0 && (uint64_t)idx < len) return true;
+    tf_ctx_runtime_errorf(ctx, "'%s' index %" PRId64
+                               " is out of range for length %zu\n",
                           ctx->current_word, idx, len);
     return false;
 }
@@ -446,12 +447,12 @@ tf_ret tf_at(tf_ctx *ctx) {
     tf_obj *idx_obj = tf_stack_peek(ctx, 0);
     tf_obj *coll_obj = tf_stack_peek(ctx, 1);
 
-    int idx = idx_obj->i;
+    int64_t idx = idx_obj->i;
     if (coll_obj->type == TF_OBJ_TYPE_VECTOR) {
-        if (!index_in_bounds(ctx, idx, (int)coll_obj->vector.len)) return TF_ERR;
+        if (!index_in_bounds(ctx, idx, coll_obj->vector.len)) return TF_ERR;
         idx_obj = tf_stack_pop(ctx);
         coll_obj = tf_stack_pop(ctx);
-        tf_obj *result = coll_obj->vector.elem[idx];
+        tf_obj *result = coll_obj->vector.elem[(size_t)idx];
         tf_obj_retain(result);
         tf_stack_push(ctx, result);
         tf_obj_release(idx_obj);
@@ -459,10 +460,10 @@ tf_ret tf_at(tf_ctx *ctx) {
         return TF_OK;
     }
 
-    if (!index_in_bounds(ctx, idx, (int)coll_obj->str.len)) return TF_ERR;
+    if (!index_in_bounds(ctx, idx, coll_obj->str.len)) return TF_ERR;
     idx_obj = tf_stack_pop(ctx);
     coll_obj = tf_stack_pop(ctx);
-    char buf[2] = { coll_obj->str.ptr[idx], 0 };
+    char buf[2] = { coll_obj->str.ptr[(size_t)idx], 0 };
     tf_stack_push(ctx, tf_obj_new_string(buf, 1));
     tf_obj_release(idx_obj);
     tf_obj_release(coll_obj);
@@ -478,10 +479,10 @@ tf_ret tf_set_at(tf_ctx *ctx) {
     tf_obj *idx_obj = tf_stack_peek(ctx, 1);
     tf_obj *coll_obj = tf_stack_peek(ctx, 2);
 
-    int idx = idx_obj->i;
+    int64_t idx = idx_obj->i;
 
     if (coll_obj->type == TF_OBJ_TYPE_VECTOR) {
-        if (!index_in_bounds(ctx, idx, (int)coll_obj->vector.len)) return TF_ERR;
+        if (!index_in_bounds(ctx, idx, coll_obj->vector.len)) return TF_ERR;
         val = tf_stack_pop(ctx);
         idx_obj = tf_stack_pop(ctx);
         coll_obj = tf_stack_pop(ctx);
@@ -489,8 +490,8 @@ tf_ret tf_set_at(tf_ctx *ctx) {
         tf_obj *result = coll_obj->refcount == 1
                              ? coll_obj
                              : tf_vector_clone(coll_obj);
-        tf_obj *old = result->vector.elem[idx];
-        result->vector.elem[idx] = val;
+        tf_obj *old = result->vector.elem[(size_t)idx];
+        result->vector.elem[(size_t)idx] = val;
         tf_obj_release(old);
         tf_stack_push(ctx, result);
 
@@ -499,7 +500,7 @@ tf_ret tf_set_at(tf_ctx *ctx) {
         return TF_OK;
     }
 
-    if (!index_in_bounds(ctx, idx, (int)coll_obj->str.len)) return TF_ERR;
+    if (!index_in_bounds(ctx, idx, coll_obj->str.len)) return TF_ERR;
     if (!require_char(ctx, 0)) return TF_ERR;
     val = tf_stack_pop(ctx);
     idx_obj = tf_stack_pop(ctx);
@@ -509,7 +510,7 @@ tf_ret tf_set_at(tf_ctx *ctx) {
                          ? coll_obj
                          : tf_obj_new_string(coll_obj->str.ptr,
                                              coll_obj->str.len);
-    result->str.ptr[idx] = val->str.ptr[0];
+    result->str.ptr[(size_t)idx] = val->str.ptr[0];
     tf_stack_push(ctx, result);
 
     tf_obj_release(val);
@@ -532,24 +533,28 @@ tf_ret tf_slice(tf_ctx *ctx) {
     start_obj = tf_stack_pop(ctx);
     coll = tf_stack_pop(ctx);
 
-    int start = start_obj->i;
-    int end = end_obj->i;
-    int len = (coll->type == TF_OBJ_TYPE_VECTOR) ? (int)coll->vector.len : (int)coll->str.len;
-
-    if (start < 0) start = 0;
-    if (end < 0) end = 0;
-    if (end > len) end = len;
+    int64_t start_arg = start_obj->i;
+    int64_t end_arg = end_obj->i;
+    size_t len = coll->type == TF_OBJ_TYPE_VECTOR ? coll->vector.len
+                                                  : coll->str.len;
+    size_t start = start_arg <= 0 ? 0
+                   : (uint64_t)start_arg > len ? len
+                                               : (size_t)start_arg;
+    size_t end = end_arg <= 0 ? 0
+                 : (uint64_t)end_arg > len ? len
+                                           : (size_t)end_arg;
     if (start > end) start = end;
 
     if (coll->type == TF_OBJ_TYPE_VECTOR) {
         tf_obj *res = tf_obj_new_vector_with_capacity((size_t)(end - start));
-        for (int i = start; i < end; i++) {
+        for (size_t i = start; i < end; i++) {
             tf_obj_retain(coll->vector.elem[i]);
             tf_vector_push(res, coll->vector.elem[i]);
         }
         tf_stack_push(ctx, res);
     } else {
-        tf_stack_push(ctx, tf_obj_new_string(coll->str.ptr + start, end - start));
+        tf_stack_push(ctx, tf_obj_new_string(coll->str.ptr + start,
+                                             end - start));
     }
 
     tf_obj_release(start_obj);
@@ -561,23 +566,29 @@ tf_ret tf_slice(tf_ctx *ctx) {
 tf_ret tf_len(tf_ctx *ctx) {
     if (!require_countable(ctx, 0)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
-    int len = 0;
+    size_t len = 0;
     if (o->type == TF_OBJ_TYPE_VECTOR) {
-        len = (int)o->vector.len;
+        len = o->vector.len;
     } else if (o->type == TF_OBJ_TYPE_LIST) {
-        len = (int)o->list.len;
+        len = o->list.len;
     } else if (o->type == TF_OBJ_TYPE_STR) {
-        len = (int)o->str.len;
+        len = o->str.len;
     } else if (o->type == TF_OBJ_TYPE_MAP) {
-        len = (int)o->map.len;
+        len = o->map.len;
     } else if (o->type == TF_OBJ_TYPE_SET) {
-        len = (int)o->set.len;
+        len = o->set.len;
     } else if (o->type == TF_OBJ_TYPE_DEQUE) {
-        len = (int)o->deque.len;
+        len = o->deque.len;
     } else {
-        len = (int)o->pqueue.len;
+        len = o->pqueue.len;
     }
-    tf_stack_push(ctx, tf_obj_new_int(len));
+    if (len > INT64_MAX) {
+        tf_obj_release(o);
+        tf_ctx_runtime_errorf(ctx, "'%s' collection length is not representable\n",
+                              ctx->current_word);
+        return TF_ERR;
+    }
+    tf_stack_push(ctx, tf_obj_new_int((int64_t)len));
     tf_obj_release(o);
     return TF_OK;
 }
@@ -741,24 +752,24 @@ tf_ret tf_take(tf_ctx *ctx) {
 
     n_obj = tf_stack_pop(ctx);
     coll = tf_stack_pop(ctx);
-    int n = n_obj->i;
+    int64_t n = n_obj->i;
     tf_obj_release(n_obj);
-    if (n < 0) n = 0;
+    size_t len = sequence_len(coll);
+    size_t count = n <= 0 ? 0
+                   : (uint64_t)n > len ? len
+                                       : (size_t)n;
 
     if (coll->type == TF_OBJ_TYPE_VECTOR) {
-        if (n > (int)coll->vector.len) n = (int)coll->vector.len;
-        tf_obj *res = tf_obj_new_vector_with_capacity((size_t)n);
-        for (int i = 0; i < n; i++) {
+        tf_obj *res = tf_obj_new_vector_with_capacity(count);
+        for (size_t i = 0; i < count; i++) {
             tf_obj_retain(coll->vector.elem[i]);
             tf_vector_push(res, coll->vector.elem[i]);
         }
         tf_stack_push(ctx, res);
     } else if (coll->type == TF_OBJ_TYPE_LIST) {
-        if (n > (int)coll->list.len) n = (int)coll->list.len;
-        tf_stack_push(ctx, tf_list_take_obj(coll, (size_t)n));
+        tf_stack_push(ctx, tf_list_take_obj(coll, count));
     } else {
-        if (n > (int)coll->str.len) n = (int)coll->str.len;
-        tf_stack_push(ctx, tf_obj_new_string(coll->str.ptr, n));
+        tf_stack_push(ctx, tf_obj_new_string(coll->str.ptr, count));
     }
     tf_obj_release(coll);
     return TF_OK;
@@ -774,24 +785,25 @@ tf_ret tf_dropn(tf_ctx *ctx) {
 
     n_obj = tf_stack_pop(ctx);
     coll = tf_stack_pop(ctx);
-    int n = n_obj->i;
+    int64_t n = n_obj->i;
     tf_obj_release(n_obj);
-    if (n < 0) n = 0;
+    size_t len = sequence_len(coll);
+    size_t count = n <= 0 ? 0
+                   : (uint64_t)n > len ? len
+                                       : (size_t)n;
 
     if (coll->type == TF_OBJ_TYPE_VECTOR) {
-        if (n > (int)coll->vector.len) n = (int)coll->vector.len;
-        tf_obj *res = tf_obj_new_vector_with_capacity(coll->vector.len - (size_t)n);
-        for (size_t i = n; i < coll->vector.len; i++) {
+        tf_obj *res = tf_obj_new_vector_with_capacity(coll->vector.len - count);
+        for (size_t i = count; i < coll->vector.len; i++) {
             tf_obj_retain(coll->vector.elem[i]);
             tf_vector_push(res, coll->vector.elem[i]);
         }
         tf_stack_push(ctx, res);
     } else if (coll->type == TF_OBJ_TYPE_LIST) {
-        if (n > (int)coll->list.len) n = (int)coll->list.len;
-        tf_stack_push(ctx, tf_list_drop_obj(coll, (size_t)n));
+        tf_stack_push(ctx, tf_list_drop_obj(coll, count));
     } else {
-        if (n > (int)coll->str.len) n = (int)coll->str.len;
-        tf_stack_push(ctx, tf_obj_new_string(coll->str.ptr + n, coll->str.len - n));
+        tf_stack_push(ctx, tf_obj_new_string(coll->str.ptr + count,
+                                             coll->str.len - count));
     }
     tf_obj_release(coll);
     return TF_OK;
@@ -1003,9 +1015,17 @@ tf_ret tf_to_list(tf_ctx *ctx) {
         tf_stack_push(ctx, seq);
         return TF_OK;
     }
-    tf_obj *items = sequence_to_vector(seq);
-    tf_stack_push(ctx, tf_list_from_vector(items));
-    tf_obj_release(items);
+
+    tf_list_builder builder;
+    tf_list_builder_init(&builder);
+    tf_sequence_iter iter;
+    tf_sequence_iter_init(&iter, seq);
+    while (true) {
+        tf_obj *item = tf_sequence_iter_next_owned(&iter);
+        if (!item) break;
+        tf_list_builder_push_owned(&builder, item);
+    }
+    tf_stack_push(ctx, tf_list_builder_finish(&builder));
     tf_obj_release(seq);
     return TF_OK;
 }
@@ -2134,8 +2154,8 @@ tf_ret tf_range(tf_ctx *ctx) {
     tf_obj *end_obj = tf_stack_peek(ctx, 0);
     tf_obj *start_obj = tf_stack_peek(ctx, 1);
 
-    int start = start_obj->i;
-    int end = end_obj->i;
+    int64_t start = start_obj->i;
+    int64_t end = end_obj->i;
     if (end < start) {
         tf_ctx_runtime_errorf(ctx, "'%s' end must be greater than or equal to start\n",
                               ctx->current_word);
@@ -2145,9 +2165,20 @@ tf_ret tf_range(tf_ctx *ctx) {
     end_obj = tf_stack_pop(ctx);
     start_obj = tf_stack_pop(ctx);
 
-    size_t count = (size_t)((int64_t)end - (int64_t)start);
+    uint64_t count64 = (uint64_t)end - (uint64_t)start;
+    if (count64 > SIZE_MAX / sizeof(tf_obj *)) {
+        tf_obj_release(end_obj);
+        tf_obj_release(start_obj);
+        tf_ctx_runtime_errorf(ctx, "'%s' range is too large\n",
+                              ctx->current_word);
+        return TF_ERR;
+    }
+    size_t count = (size_t)count64;
     tf_obj *result = tf_obj_new_vector_with_capacity(count);
-    for (int i = start; i < end; i++) { tf_vector_push(result, tf_obj_new_int(i)); }
+    int64_t value = start;
+    for (size_t i = 0; i < count; i++, value++) {
+        tf_vector_push(result, tf_obj_new_int(value));
+    }
 
     tf_stack_push(ctx, result);
     tf_obj_release(end_obj);

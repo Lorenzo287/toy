@@ -8,9 +8,26 @@
 'dup doc "dup\nstack: x -- x x\nDuplicate the top stack item." == check
 'twice doc "'twice [ dup + ] def" == check
 ":" intern word? false == check
-"priority" apropos dup 'pq-push contains? true == check drop
-'see apropos 'see contains? true == check
-"twice" apropos 'twice contains? true == check
+"priority" search-words dup 'pq-push contains? true == check drop
+'see search-words 'see contains? true == check
+"twice" search-words 'twice contains? true == check
+
+'type-of word? true == check
+'search-words word? true == check
+'read-file word? true == check
+'set-env word? true == check
+'unix-time word? true == check
+'local-time word? true == check
+'utc-time word? true == check
+'cpu-time word? true == check
+'monotonic-ns word? true == check
+'typeof word? false == check
+'apropos word? false == check
+'cr word? false == check
+'page word? false == check
+'bye word? false == check
+'time word? false == check
+'clock word? false == check
 words vector? [ "words returns symbol vector\n" printf ] if
 words [ symbol? ] all true == check
 "X" intern dup print name print

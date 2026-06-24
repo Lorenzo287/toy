@@ -1,5 +1,5 @@
-\ 1. typeof consumes its input
-5 typeof print
+\ 1. type-of consumes its input
+5 type-of print
 .s empty \ Should show an empty stack
 
 \ 2. Type predicates consume their input
@@ -7,8 +7,8 @@
 .s empty \ Should show an empty stack
 
 \ 3. System words
-pwd typeof print \ Should be "string"
+pwd type-of print \ Should be "string"
 .s empty
 
-"whoami" shell typeof print \ Should be "string"
+"whoami" shell swap type-of print drop \ Should be "string"
 .s empty

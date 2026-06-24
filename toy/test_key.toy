@@ -1,3 +1,3 @@
-\ Test key: wait for and print a one-character string
+\ Test read-key: wait for and print a one-character string
 "Press a key: " print
-key print
+read-key print

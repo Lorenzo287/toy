@@ -1,12 +1,18 @@
-\ Test file I/O operations
+\ File I/O regressions.
 
-"Writing test.txt..." print
-"test.txt" "Hello Toy!" writef
-"Done." print cr
+'check [ [ ] [ "file check failed" error ] ifelse ] def
 
-"Reading test.txt..." print
-"test.txt" readf print cr
+"toy-file-test.tmp" "Hello Toy!" write-file
+"toy-file-test.tmp" read-file "Hello Toy!" == check
+"toy-file-test.tmp" file-exists? true == check
+"toy-file-test.tmp" delete-file
+"toy-file-test.tmp" file-exists? false == check
 
-"Cleanup..." print
-"test.txt" delf
-"Done." print cr
+\ Lines longer than the old 1023-byte buffer remain one logical line.
+"" 2048 [ "x" push-back ] times
+[ | long-line |
+    "toy-file-test.tmp" $long-line "\nshort\n" concat write-file
+    "toy-file-test.tmp" read-lines
+    [ ] $long-line push-back "short" push-back == check
+    "toy-file-test.tmp" delete-file
+] exec

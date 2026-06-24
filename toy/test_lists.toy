@@ -17,12 +17,12 @@
 ( 1 2 ) 3 push-back ( 1 2 3 ) == check
 ( 1 2 3 ) reverse ( 3 2 1 ) == check
 ( 1 2 3 ) 2 take ( 1 2 ) == check
-( 1 2 3 ) 2 dropn ( 3 ) == check
+( 1 2 3 ) 2 skip ( 3 ) == check
 
 ( 3 4 ) dup ( 1 2 ) swap concat ( 1 2 3 4 ) == check
 ( 3 4 ) == check
 
-( 1 2 3 4 5 ) dup splitmid
+( 1 2 3 4 5 ) dup split-mid
 ( 3 4 5 ) == check
 ( 1 2 ) == check
 ( 1 2 3 4 5 ) == check
@@ -46,7 +46,7 @@
 
 ( 1 3 5 ) ( 2 4 6 ) [ < ] merge ( 1 2 3 4 5 6 ) == check
 ( 1 2 3 ) 3 contains? true == check
-( 1 2 3 ) 3 indexof 2 == check
+( 1 2 3 ) 3 index-of 2 == check
 ( 1 2 1 3 ) unique ( 1 2 3 ) == check
 ( 3 1 2 ) sort ( 1 2 3 ) == check
 ( "a" "b" "c" ) "-" join "a-b-c" == check
@@ -65,5 +65,5 @@
 \ Large enough to catch accidental indexed traversal of a list.
 0 2000 range >list
 dup 1999 contains? true == check
-dup 1999 indexof 1999 == check
+dup 1999 index-of 1999 == check
 0 swap [ + ] fold 1999000 == check

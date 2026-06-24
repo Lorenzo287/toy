@@ -1,11 +1,15 @@
 #include "tf_lexer.h"
 #include <ctype.h>
+#include <errno.h>
+#include <stdint.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "tf_alloc.h"
 #include "tf_console.h"
+
+#define TF_TOP_LEVEL_INITIAL_CAP 8
 
 static void lexer_advance(tf_lexer *lexer);
 static tf_source_span lexer_mark(tf_lexer *lexer);
@@ -31,16 +35,15 @@ static void lexer_advance(tf_lexer *lexer) {
 }
 
 static tf_source_span lexer_mark(tf_lexer *lexer) {
-    return (tf_source_span){.filename = lexer->filename,
-                            .offset = lexer_offset(lexer),
+    return (tf_source_span){.source = lexer->source,
+                            .offset = (uint32_t)lexer_offset(lexer),
                             .line = lexer->line,
                             .col = lexer->col,
-                            .len = 1,
-                            .valid = true};
+                            .len = 1};
 }
 
 static void lexer_finish_span(tf_lexer *lexer, tf_source_span *span) {
-    span->len = lexer_offset(lexer) - span->offset;
+    span->len = (uint32_t)(lexer_offset(lexer) - span->offset);
 }
 
 static const char *source_basename(const char *path) {
@@ -59,8 +62,9 @@ static void lexer_errorf(tf_lexer *lexer, const char *fmt, ...) {
     va_start(ap, fmt);
     vfprintf(stderr, fmt, ap);
     va_end(ap);
-    fprintf(stderr, "  at %s:%zu:%zu\n", source_basename(lexer->filename),
-            lexer->line, lexer->col);
+    fprintf(stderr, "  at %s:%zu:%zu\n",
+            source_basename(tf_source_file_name(lexer->source)),
+            (size_t)lexer->line, (size_t)lexer->col);
 }
 
 int tf_lexer_is_symbol_char(int c) {
@@ -91,18 +95,23 @@ static int hex_value(int c) {
 
 /* Parse source text into a vector of runtime objects. */
 tf_obj *tf_lexer_parse(const char *filename, char *prg_text) {
-    tf_lexer lexer_state = {.filename = filename ? filename : "<unknown>",
+    tf_source_file *source = tf_source_file_new(filename);
+    tf_lexer lexer_state = {.source = source,
                             .start = prg_text,
                             .pos = prg_text,
                             .line = 1,
                             .col = 1,
                             .error = 0};
-    return lexer_tokenize_until(&lexer_state, 0);
+    tf_obj *result = lexer_tokenize_until(&lexer_state, 0);
+    tf_source_file_release(source);
+    return result;
 }
 
 static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
     tf_source_span vector_span = lexer_mark(lexer);
-    tf_obj *prg = terminator == 0 ? tf_obj_new_vector_with_capacity(32)
+    tf_obj *prg = terminator == 0
+                                  ? tf_obj_new_vector_with_capacity(
+                                        TF_TOP_LEVEL_INITIAL_CAP)
                                   : tf_obj_new_vector();
 
     while (lexer->pos && lexer->pos[0] != 0) {
@@ -264,22 +273,36 @@ static tf_obj *lexer_tokenize_number(tf_lexer *lexer) {
     tf_source_span span = lexer_mark(lexer);
     if (lexer->pos[0] == '-' || lexer->pos[0] == '+') { lexer_advance(lexer); }
 
-    while (isdigit((unsigned char)lexer->pos[0]) || lexer->pos[0] == '.') {
-        if (lexer->pos[0] == '.') {
-            if (flt) {
-                lexer_errorf(lexer, "malformed number literal\n");
-                return NULL;
-            }
-            flt = true;
-        } else {
-            digit = true;
-        }
+    while (isdigit((unsigned char)lexer->pos[0])) {
+        digit = true;
         lexer_advance(lexer);
+    }
+
+    if (lexer->pos[0] == '.') {
+        flt = true;
+        lexer_advance(lexer);
+        while (isdigit((unsigned char)lexer->pos[0])) {
+            digit = true;
+            lexer_advance(lexer);
+        }
     }
 
     if (!digit) {
         lexer_errorf(lexer, "malformed number literal\n");
         return NULL;
+    }
+
+    if (lexer->pos[0] == 'e' || lexer->pos[0] == 'E') {
+        flt = true;
+        lexer_advance(lexer);
+        if (lexer->pos[0] == '-' || lexer->pos[0] == '+') {
+            lexer_advance(lexer);
+        }
+        if (!isdigit((unsigned char)lexer->pos[0])) {
+            lexer_errorf(lexer, "malformed number literal\n");
+            return NULL;
+        }
+        while (isdigit((unsigned char)lexer->pos[0])) lexer_advance(lexer);
     }
     if (isalpha((unsigned char)lexer->pos[0]) || lexer->pos[0] == '_' ||
         lexer->pos[0] == '.') {
@@ -287,14 +310,32 @@ static tf_obj *lexer_tokenize_number(tf_lexer *lexer) {
         return NULL;
     }
 
-    int num_len = lexer->pos - start;
+    size_t num_len = (size_t)(lexer->pos - start);
     if (num_len >= MAX_NUM_LEN) {
         lexer_errorf(lexer, "number literal is too long\n");
         return NULL;
     }
     memcpy(buf, start, num_len);
     buf[num_len] = 0;
-    tf_obj *o = flt ? tf_obj_new_float(atof(buf)) : tf_obj_new_int(atoi(buf));
+    errno = 0;
+    tf_obj *o = NULL;
+    if (flt) {
+        char *end = NULL;
+        double value = strtod(buf, &end);
+        if (errno == ERANGE || end != buf + num_len) {
+            lexer_errorf(lexer, "floating-point literal is out of range\n");
+            return NULL;
+        }
+        o = tf_obj_new_float(value);
+    } else {
+        char *end = NULL;
+        int64_t value = strtoll(buf, &end, 10);
+        if (errno == ERANGE || end != buf + num_len) {
+            lexer_errorf(lexer, "integer literal is out of range\n");
+            return NULL;
+        }
+        o = tf_obj_new_int(value);
+    }
     lexer_finish_span(lexer, &span);
     tf_obj_set_span(o, span);
     return o;
@@ -316,7 +357,7 @@ static tf_obj *lexer_tokenize_symbol(tf_lexer *lexer) {
         if (lexer->pos[0] == '/' && lexer->pos[1] == '*') break;
         lexer_advance(lexer);
     }
-    int sym_len = lexer->pos - start;
+    size_t sym_len = (size_t)(lexer->pos - start);
     if (sym_len == 0) return NULL;
     tf_obj *o = NULL;
     if (sym_len == 4 && !strncmp(start, "true", 4))
@@ -380,14 +421,21 @@ static tf_obj *lexer_tokenize_string(tf_lexer *lexer) {
     tf_source_span span = lexer_mark(lexer);
     char *string_start = lexer->pos;
     lexer_advance(lexer);  // skip opening "
-    size_t cap = 64;
+    char inline_buf[TF_STRING_INLINE_CAP + 1];
+    size_t cap = sizeof(inline_buf);
     size_t len = 0;
-    char *buf = tf_xmalloc(cap);
+    char *buf = inline_buf;
 
     while (lexer->pos[0] != '"' && lexer->pos[0] != 0) {
         if (len + 1 >= cap) {
-            cap *= 2;
-            buf = tf_xrealloc(buf, cap);
+            size_t new_cap = cap * 2;
+            if (buf == inline_buf) {
+                buf = tf_xmalloc(new_cap);
+                memcpy(buf, inline_buf, len);
+            } else {
+                buf = tf_xrealloc(buf, new_cap);
+            }
+            cap = new_cap;
         }
 
         if (lexer->pos[0] == '\\') {
@@ -404,13 +452,17 @@ static tf_obj *lexer_tokenize_string(tf_lexer *lexer) {
                 buf[len++] = '\t';
                 break;
             case 'x': {
-                int high = hex_value((unsigned char)lexer->pos[1]);
-                int low = hex_value((unsigned char)lexer->pos[2]);
+                int high = lexer->pos[1] == '\0'
+                               ? -1
+                               : hex_value((unsigned char)lexer->pos[1]);
+                int low = lexer->pos[1] == '\0' || lexer->pos[2] == '\0'
+                              ? -1
+                              : hex_value((unsigned char)lexer->pos[2]);
                 if (high < 0 || low < 0) {
                     lexer_errorf(
                         lexer,
                         "invalid hexadecimal escape; expected \\x followed by two hexadecimal digits\n");
-                    free(buf);
+                    if (buf != inline_buf) free(buf);
                     return NULL;
                 }
                 buf[len++] = (char)((high << 4) | low);
@@ -427,7 +479,7 @@ static tf_obj *lexer_tokenize_string(tf_lexer *lexer) {
             default:
                 lexer_errorf(lexer, "unknown string escape '\\%c'\n",
                              lexer->pos[0]);
-                free(buf);
+                if (buf != inline_buf) free(buf);
                 return NULL;
             }
         } else {
@@ -441,12 +493,13 @@ static tf_obj *lexer_tokenize_string(tf_lexer *lexer) {
         lexer->line = span.line;
         lexer->col = span.col;
         lexer_errorf(lexer, "unterminated string literal\n");
-        free(buf);
+        if (buf != inline_buf) free(buf);
         return NULL;
     }
     lexer_advance(lexer);  // skip closing "
 
-    tf_obj *o = tf_obj_new_string_take(buf, len);
+    tf_obj *o = buf == inline_buf ? tf_obj_new_string(buf, len)
+                                  : tf_obj_new_string_take(buf, len);
     lexer_finish_span(lexer, &span);
     tf_obj_set_span(o, span);
     return o;

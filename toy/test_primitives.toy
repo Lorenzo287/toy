@@ -1,8 +1,8 @@
 65 print
-time print
-clock print
+unix-time print
+cpu-time print
 5 [ "hello\n" printf ] times
-time print
-clock print
+unix-time print
+cpu-time print
 exit
 "not reached" print

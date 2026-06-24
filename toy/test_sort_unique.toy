@@ -12,6 +12,8 @@
 \ Mixed numerics compare by value and equal values retain input order.
 [ 1.0 1 0 ] sort [ 0 1.0 1 ] == check
 [ 3 1.5 2 ] sort [ 1.5 2 3 ] == check
+[ 9007199254740993 9007199254740992.0 ] sort
+[ 9007199254740992.0 9007199254740993 ] == check
 
 0 512 range reverse sort 0 512 range == check
 0 128 range reverse >list sort 0 128 range >list == check
@@ -19,9 +21,9 @@
 \ Exercise the byte-counting path without embedding a large expected string.
 "" 8 [ "zyxwvutsrqponmlkjihgfedcba" concat ] times sort
 dup len 208 == check
-dup "a" indexof 0 == check
-dup "b" indexof 8 == check
-dup "z" indexof 200 == check
+dup "a" index-of 0 == check
+dup "b" index-of 8 == check
+dup "z" index-of 200 == check
 last "z" == check
 
 [ [ true ] sort ] [ "unsupported-sort" ] try "unsupported-sort" == check

@@ -1,4 +1,4 @@
-"write something: " printf input
+"write something: " printf read-line
 5 [ "- " printf dup print ] times 
 drop 
 .s

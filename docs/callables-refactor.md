@@ -220,7 +220,7 @@ Open question for a later pass:
 The current predicates expose raw object representation:
 
 ```toy
-typeof
+type-of
 symbol?
 list?
 string?
@@ -238,8 +238,8 @@ The chosen model is to keep representation predicates and add capability
 predicates:
 
 ```toy
-'upper typeof           \ "symbol"
-[ upper ] typeof        \ "list"
+'upper type-of          \ "symbol"
+[ upper ] type-of       \ "list"
 [ upper ] callable?     \ true
 'upper callable?        \ true, when upper is defined
 "upper" callable?       \ false
@@ -248,7 +248,7 @@ predicates:
 'upper sequence?        \ false
 ```
 
-`typeof`, `symbol?`, `list?`, and `string?` describe storage representation.
+`type-of`, `symbol?`, `list?`, and `string?` describe storage representation.
 `sequence?` and `callable?` describe behavior that words may consume.
 
 Related decisions:
@@ -310,9 +310,7 @@ do not simply replace the outer list with callable:
   should become callables, but the clause list remains structural data.
 - `cleave` and `construct` consume a list of branches. Each branch should become
   callable, but the branch container remains a list.
-- `genrec` currently supports either four quotations on the stack or a list of
-  four quotations. The four parts should become callables; the grouped form
-  remains a list of four parts.
+- `genrec` consumes four callables directly, matching `linrec` and `binrec`.
 
 ## Predicate Sandboxing
 
@@ -430,7 +428,7 @@ atomic symbol value and make introspection/source round-tripping worse.
      phase.
 
 7. Update introspection and metadata.
-   - Implement the chosen `typeof`/predicate/name-resolution changes.
+   - Implement the chosen `type-of`/predicate/name-resolution changes.
    - Remove or rename misleading words rather than preserving them with
      confusing semantics.
 

@@ -3,11 +3,11 @@
 'bench [
     | block count name |
     $name printf ": " printf
-    clock
+    monotonic-ns
     0
     $count [ $block exec ] times
     drop
-    clock swap - printf " ticks\n" printf
+    monotonic-ns swap - printf " ns\n" printf
 ] def
 
 "--- Dispatch ---\n" printf

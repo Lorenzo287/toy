@@ -1,7 +1,7 @@
 "--- Testing Recursion Combinators ---\n" printf
 
 \ Testing genrec (factorial)
-5 [ [ 0 == ] [ drop 1 ] [ dup pred ] [ * ] ] genrec "fact(5) = {}\n" printf
+5 [ 0 == ] [ drop 1 ] [ dup pred ] [ * ] genrec "fact(5) = {}\n" printf
 
 \ Testing treerec
 [ 1 [ 2 [ 3 ] ] ] [ 1 + ] [ ] treerec print

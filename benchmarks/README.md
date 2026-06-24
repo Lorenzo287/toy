@@ -19,9 +19,12 @@ Run one workload or use another executable:
 .\benchmarks\run.ps1 -Toy .\build-prof\toy.exe -Benchmark dispatch
 ```
 
-The Toy scripts print `clock` CPU ticks for individual operations. The runner
-also reports wall time for each fresh process and its median. Compare results
+The Toy scripts use `monotonic-ns` and print integer nanosecond durations for
+individual operations. The runner also reports wall time for each fresh process
+and its median. Compare results
 only across the same machine, compiler, build configuration, and workload.
+Use the `AllocationStats` build mode from `docs/build.md` when a change is
+expected to reduce allocation calls or requested bytes.
 Before drawing a conclusion:
 
 1. Record the commit, compiler/version, build type, OS, CPU, and command.
@@ -44,6 +47,8 @@ Current workloads:
   present/absent removal, algebra, and relation predicates.
 - `pqueue.toy`: unique/shared heap updates, non-consuming peek, pop, and ordered
   pair projection.
+- `runtime-internals.toy`: native continuations, dynamic captures, predicate
+  stack snapshots, and recursion-scheme scheduling.
 - `sequence-algorithms.toy`: sort and unique crossover workloads by size,
   shape, and sequence family.
 - `string.toy`: short-string storage, byte extraction and traversal, flat

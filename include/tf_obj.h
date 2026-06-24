@@ -21,13 +21,14 @@ typedef enum {
     TF_OBJ_TYPE_VARFETCH
 } tf_type;
 
+typedef struct tf_source_file tf_source_file;
+
 typedef struct {
-    const char *filename;
-    size_t offset;
-    size_t line;
-    size_t col;
-    size_t len;
-    bool valid;
+    tf_source_file *source;
+    uint32_t offset;
+    uint32_t line;
+    uint32_t col;
+    uint32_t len;
 } tf_source_span;
 
 /*
@@ -80,8 +81,8 @@ struct tf_obj {
     tf_type type;
     tf_source_span span;
     union {
-        int i;
-        float f;
+        int64_t i;
+        double f;
         bool b;
         struct {
             char *ptr;
@@ -149,19 +150,25 @@ tf_obj *tf_obj_new_map(void);
 tf_obj *tf_obj_new_set(void);
 tf_obj *tf_obj_new_deque(void);
 tf_obj *tf_obj_new_pqueue(void);
-tf_obj *tf_obj_new_int(int i);
+tf_obj *tf_obj_new_int(int64_t i);
 tf_obj *tf_obj_new_bool(bool b);
-tf_obj *tf_obj_new_float(float f);
+tf_obj *tf_obj_new_float(double f);
 tf_obj *tf_obj_new_symbol(const char *s, size_t len);
 tf_obj *tf_obj_new_quoted_symbol(const char *s, size_t len);
 tf_obj *tf_obj_new_string(const char *s, size_t len);
 tf_obj *tf_obj_new_string_uninitialized(size_t len);
 /* Takes a heap buffer of at least len + 1 bytes and always consumes it. */
 tf_obj *tf_obj_new_string_take(char *s, size_t len);
+tf_source_file *tf_source_file_new(const char *filename);
+void tf_source_file_retain(tf_source_file *source);
+void tf_source_file_release(tf_source_file *source);
+const char *tf_source_file_name(tf_source_file *source);
 void tf_obj_set_span(tf_obj *o, tf_source_span span);
 
 /* String/symbol comparison and vector storage helpers. */
 int tf_obj_compare_string(tf_obj *a, tf_obj *b);
+int tf_obj_compare_number(tf_obj *a, tf_obj *b);
+void tf_format_double(char *buf, size_t size, double value);
 void tf_string_reserve(tf_obj *s, size_t capacity);
 void tf_vector_reserve(tf_obj *v, size_t capacity);
 void tf_vector_push(tf_obj *v, tf_obj *elem);
@@ -218,10 +225,12 @@ bool tf_pqueue_pop(tf_obj *pqueue, tf_obj **priority, tf_obj **value);
 void tf_obj_retain(tf_obj *o);
 void tf_obj_release(tf_obj *o);
 void tf_obj_free(tf_obj *o);
+void tf_obj_cache_clear(void);
 
 /* Debug, runtime-value, and source-form printers. */
 void tf_obj_print(tf_obj *o, size_t *count);
 void tf_obj_print_value(tf_obj *o);
+void tf_obj_print_display(tf_obj *o);
 void tf_obj_print_source(tf_obj *o);
 
 #endif  // TF_OBJ_H

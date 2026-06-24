@@ -4,11 +4,11 @@
 #include "tf_obj.h"
 
 typedef struct {
-    const char *filename;
+    tf_source_file *source;
     char *start;
     char *pos;
-    size_t line;
-    size_t col;
+    uint32_t line;
+    uint32_t col;
     int error;
 } tf_lexer;
 

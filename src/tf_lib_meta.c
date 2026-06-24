@@ -1,4 +1,5 @@
 #include "tf_lib.h"
+#include <inttypes.h>
 #include <ctype.h>
 #include <math.h>
 #include <stdio.h>
@@ -217,7 +218,12 @@ tf_ret tf_typeof(tf_ctx *ctx) {
 static int word_name_cmp(const void *a, const void *b) {
     tf_word *const *fa = a;
     tf_word *const *fb = b;
-    return tf_obj_compare_string((*fa)->name, (*fb)->name);
+    size_t min_len = (*fa)->name_len < (*fb)->name_len ? (*fa)->name_len
+                                                       : (*fb)->name_len;
+    int cmp = memcmp((*fa)->name, (*fb)->name, min_len);
+    if (cmp != 0) return cmp;
+    return ((*fa)->name_len > (*fb)->name_len) -
+           ((*fa)->name_len < (*fb)->name_len);
 }
 
 typedef struct {
@@ -294,11 +300,11 @@ static void strbuf_append_source_obj(strbuf *buf, tf_obj *o) {
 
     switch (o->type) {
     case TF_OBJ_TYPE_INT:
-        snprintf(num_buf, sizeof num_buf, "%d", o->i);
+        snprintf(num_buf, sizeof num_buf, "%" PRId64, o->i);
         strbuf_append_cstr(buf, num_buf);
         break;
     case TF_OBJ_TYPE_FLOAT:
-        snprintf(num_buf, sizeof num_buf, "%.9g", o->f);
+        tf_format_double(num_buf, sizeof num_buf, o->f);
         strbuf_append_cstr(buf, num_buf);
         if (isfinite(o->f) && !strpbrk(num_buf, ".eE")) {
             strbuf_append_cstr(buf, ".0");
@@ -409,13 +415,13 @@ tf_ret tf_repr(tf_ctx *ctx) {
 
 static void strbuf_append_word_source(strbuf *buf, tf_word *word) {
     if (word->type == TF_WORD_NATIVE) {
-        strbuf_append_mem(buf, word->name->str.ptr, word->name->str.len);
+        strbuf_append_mem(buf, word->name, word->name_len);
         strbuf_append_cstr(buf, " is a native word");
         return;
     }
 
     strbuf_append_char(buf, '\'');
-    strbuf_append_mem(buf, word->name->str.ptr, word->name->str.len);
+    strbuf_append_mem(buf, word->name, word->name_len);
     strbuf_append_cstr(buf, " [");
     for (size_t i = 0; i < word->user_impl->vector.len; i++) {
         strbuf_append_char(buf, ' ');
@@ -448,14 +454,14 @@ static bool contains_ascii_casefold(const char *haystack, size_t haystack_len,
 
 static bool word_matches_query(tf_word *word, const char *query,
                                size_t query_len) {
-    if (contains_ascii_casefold(word->name->str.ptr, word->name->str.len,
-                                query, query_len)) {
+    if (contains_ascii_casefold(word->name, word->name_len, query,
+                                query_len)) {
         return true;
     }
 
     if (word->type != TF_WORD_NATIVE) return false;
 
-    const tf_doc_entry *doc = tf_doc_lookup(word->name->str.ptr);
+    const tf_doc_entry *doc = tf_doc_lookup(word->name);
     return doc &&
            (contains_ascii_casefold(doc->stack_effect, strlen(doc->stack_effect),
                                     query, query_len) ||
@@ -476,14 +482,16 @@ tf_ret tf_words(tf_ctx *ctx) {
     tf_word **words = tf_xmalloc(sizeof(tf_word *) * count);
     size_t j = 0;
     for (size_t i = 0; i < ctx->words.capacity; i++) {
-        tf_word *word = ctx->words.buckets[i];
+        size_t entry = ctx->words.buckets[i];
+        tf_word *word = entry ? &ctx->words.entries[entry - 1] : NULL;
         if (word != NULL) words[j++] = word;
     }
 
     qsort(words, j, sizeof(tf_word *), word_name_cmp);
     for (size_t i = 0; i < j; i++) {
-        tf_vector_push(result, tf_obj_new_quoted_symbol(words[i]->name->str.ptr,
-                                                      words[i]->name->str.len));
+        tf_vector_push(result,
+                       tf_obj_new_quoted_symbol(words[i]->name,
+                                                words[i]->name_len));
     }
     free(words);
     tf_stack_push(ctx, result);
@@ -526,7 +534,7 @@ tf_ret tf_doc(tf_ctx *ctx) {
     strbuf buf;
     strbuf_init(&buf);
     const tf_doc_entry *entry =
-        word->type == TF_WORD_NATIVE ? tf_doc_lookup(word->name->str.ptr) : NULL;
+        word->type == TF_WORD_NATIVE ? tf_doc_lookup(word->name) : NULL;
     if (entry) {
         strbuf_append_cstr(&buf, entry->name);
         if (entry->stack_effect[0] != '\0') {
@@ -564,7 +572,8 @@ tf_ret tf_apropos(tf_ctx *ctx) {
     if (ctx->words.count > 0) {
         matches = tf_xmalloc(sizeof(tf_word *) * ctx->words.count);
         for (size_t i = 0; i < ctx->words.capacity; i++) {
-            tf_word *word = ctx->words.buckets[i];
+            size_t entry = ctx->words.buckets[i];
+            tf_word *word = entry ? &ctx->words.entries[entry - 1] : NULL;
             if (!word) continue;
             if (word_matches_query(word, query->str.ptr, query->str.len)) {
                 matches[match_count++] = word;
@@ -576,8 +585,8 @@ tf_ret tf_apropos(tf_ctx *ctx) {
     tf_obj *result = tf_obj_new_vector_with_capacity(match_count);
     for (size_t i = 0; i < match_count; i++) {
         tf_vector_push(
-            result, tf_obj_new_quoted_symbol(matches[i]->name->str.ptr,
-                                             matches[i]->name->str.len));
+            result, tf_obj_new_quoted_symbol(matches[i]->name,
+                                             matches[i]->name_len));
     }
 
     free(matches);

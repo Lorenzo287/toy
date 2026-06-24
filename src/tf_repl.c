@@ -105,9 +105,8 @@ static int name_ptr_cmp(const void *a, const void *b) {
 }
 
 static bool native_word_is_active(tf_ctx *ctx, const tf_builtin_word *builtin) {
-    tf_obj *name = tf_obj_new_symbol((char *)builtin->name, strlen(builtin->name));
-    tf_word *word = tf_dict_lookup(ctx, name);
-    tf_obj_release(name);
+    tf_word *word =
+        tf_dict_lookup_name(ctx, builtin->name, strlen(builtin->name));
     return word && word->type == TF_WORD_NATIVE && word->native_impl == builtin->cb;
 }
 
@@ -184,9 +183,10 @@ static tf_ret help_show(tf_ctx *ctx) {
         ctx->words.count ? tf_xmalloc(sizeof(*user_names) * ctx->words.count) : NULL;
     size_t user_count = 0;
     for (size_t i = 0; i < ctx->words.capacity; i++) {
-        tf_word *word = ctx->words.buckets[i];
+        size_t entry = ctx->words.buckets[i];
+        tf_word *word = entry ? &ctx->words.entries[entry - 1] : NULL;
         if (word && word->type == TF_WORD_USER) {
-            user_names[user_count++] = word->name->str.ptr;
+            user_names[user_count++] = word->name;
         }
     }
     print_word_grid("User words", user_names, user_count);
@@ -290,7 +290,7 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
                 }
                 if (stack_len > 0) printf(" ");
                 for (size_t i = 0; i < stack_len; i++) {
-                    tf_obj_print_source(tf_stack_peek(ctx, stack_len - 1 - i));
+                    tf_obj_print_display(tf_stack_peek(ctx, stack_len - 1 - i));
                     if (i < stack_len - 1) printf(" ");
                 }
                 printf("\n");
@@ -373,16 +373,18 @@ static void repl_completion(const char *buf, linenoiseCompletions *lc) {
     size_t head_len = (size_t)(token - buf);
 
     for (size_t i = 0; i < completion_ctx->words.capacity; i++) {
-        tf_word *func = completion_ctx->words.buckets[i];
+        size_t entry = completion_ctx->words.buckets[i];
+        tf_word *func =
+            entry ? &completion_ctx->words.entries[entry - 1] : NULL;
         if (!func) continue;
 
-        if (strncmp(func->name->str.ptr, token, stem_len) != 0) continue;
+        if (strncmp(func->name, token, stem_len) != 0) continue;
 
-        size_t word_len = func->name->str.len;
+        size_t word_len = func->name_len;
         char *completion = tf_xmalloc(head_len + prefix_len + word_len + 1);
         memcpy(completion, buf, head_len);
         if (prefix_len) memcpy(completion + head_len, prefix, prefix_len);
-        memcpy(completion + head_len + prefix_len, func->name->str.ptr, word_len);
+        memcpy(completion + head_len + prefix_len, func->name, word_len);
         completion[head_len + prefix_len + word_len] = '\0';
         linenoiseAddCompletion(lc, completion);
         free(completion);

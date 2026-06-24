@@ -3,9 +3,10 @@
 'check [ [ ] [ "deque/pqueue check failed" error ] ifelse ] def
 
 [ 1 2 3 ] >deque deque? true == check
-[ 1 2 3 ] >deque typeof "deque" == check
+[ 1 2 3 ] >deque type-of "deque" == check
 [ 1 2 3 ] >deque len 3 == check
 [ ] >deque empty? true == check
+[ 1 "two" ] >deque repr "[1 \"two\"] >deque" == check
 
 [ 1 2 3 ] >deque items [ 1 2 3 ] == check
 "abc" >deque items [ "a" "b" "c" ] == check
@@ -39,9 +40,11 @@ dup last 999 == check
 drop
 
 [ [ 10 "low" ] [ 1 "urgent" ] [ 5 "mid" ] ] >pqueue pqueue? true == check
-[ [ 10 "low" ] [ 1 "urgent" ] [ 5 "mid" ] ] >pqueue typeof "pqueue" == check
+[ [ 10 "low" ] [ 1 "urgent" ] [ 5 "mid" ] ] >pqueue type-of "pqueue" == check
 [ [ 10 "low" ] [ 1 "urgent" ] [ 5 "mid" ] ] >pqueue len 3 == check
 [ ] >pqueue empty? true == check
+[ [ 2 "two" ] [ 1 "one" ] ] >pqueue repr
+"[[1 \"one\"] [2 \"two\"]] >pqueue" == check
 
 [ [ 10 "low" ] [ 1 "urgent" ] [ 5 "mid" ] ] >pqueue pq-peek
 "urgent" == check 1 == check len 3 == check
@@ -52,6 +55,8 @@ drop
 [ [ 1 "a" ] [ 1 "b" ] [ 1 "c" ] ] >pqueue pairs
 [ [ 1 "a" ] [ 1 "b" ] [ 1 "c" ] ] == check
 [ [ 1.0 "a" ] [ 1 "b" ] ] >pqueue dup pairs >pqueue == check
+[ [ 9007199254740993 "higher" ] [ 9007199254740992.0 "lower" ] ] >pqueue pq-pop
+"lower" == check 9007199254740992.0 == check drop
 
 [ ] >pqueue 2 "two" pq-push 1 "one" pq-push pairs
 [ [ 1 "one" ] [ 2 "two" ] ] == check

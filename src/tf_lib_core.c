@@ -1,39 +1,40 @@
 #include "tf_lib.h"
+#include <inttypes.h>
 #include <string.h>
 #include <stdlib.h>
-#include <limits.h>
+#include <stdint.h>
 #include <math.h>
 #include "tf_alloc.h"
 #include "tf_obj.h"
 
 /* Helper for binary math operations */
-static bool checked_int_add(int a, int b, int *out) {
-    if ((b > 0 && a > INT_MAX - b) ||
-        (b < 0 && a < INT_MIN - b)) {
+static bool checked_int_add(int64_t a, int64_t b, int64_t *out) {
+    if ((b > 0 && a > INT64_MAX - b) ||
+        (b < 0 && a < INT64_MIN - b)) {
         return false;
     }
     *out = a + b;
     return true;
 }
 
-static bool checked_int_sub(int a, int b, int *out) {
-    if ((b < 0 && a > INT_MAX + b) ||
-        (b > 0 && a < INT_MIN + b)) {
+static bool checked_int_sub(int64_t a, int64_t b, int64_t *out) {
+    if ((b < 0 && a > INT64_MAX + b) ||
+        (b > 0 && a < INT64_MIN + b)) {
         return false;
     }
     *out = a - b;
     return true;
 }
 
-static bool checked_int_mul(int a, int b, int *out) {
+static bool checked_int_mul(int64_t a, int64_t b, int64_t *out) {
     if (a > 0) {
-        if ((b > 0 && a > INT_MAX / b) ||
-            (b < 0 && b < INT_MIN / a)) {
+        if ((b > 0 && a > INT64_MAX / b) ||
+            (b < 0 && b < INT64_MIN / a)) {
             return false;
         }
     } else if (a < 0) {
-        if ((b > 0 && a < INT_MIN / b) ||
-            (b < 0 && a < INT_MAX / b)) {
+        if ((b > 0 && a < INT64_MIN / b) ||
+            (b < 0 && a < INT64_MAX / b)) {
             return false;
         }
     }
@@ -49,12 +50,24 @@ static tf_ret binary_math(tf_ctx *ctx, char op) {
     tf_obj *b = tf_stack_pop(ctx);
     tf_obj *a = tf_stack_pop(ctx);
 
+    if ((op == 'M' || op == 'm') && a->type != b->type &&
+        !(a->type == TF_OBJ_TYPE_FLOAT && isnan(a->f)) &&
+        !(b->type == TF_OBJ_TYPE_FLOAT && isnan(b->f))) {
+        int order = tf_obj_compare_number(a, b);
+        tf_obj *selected = op == 'M' ? (order >= 0 ? a : b)
+                                     : (order <= 0 ? a : b);
+        tf_obj *discarded = selected == a ? b : a;
+        tf_stack_push(ctx, selected);
+        tf_obj_release(discarded);
+        return TF_OK;
+    }
+
     bool is_float = (a->type == TF_OBJ_TYPE_FLOAT || b->type == TF_OBJ_TYPE_FLOAT);
 
     if (is_float) {
-        float fa = (a->type == TF_OBJ_TYPE_FLOAT) ? a->f : (float)a->i;
-        float fb = (b->type == TF_OBJ_TYPE_FLOAT) ? b->f : (float)b->i;
-        float fresult = 0;
+        double fa = (a->type == TF_OBJ_TYPE_FLOAT) ? a->f : (double)a->i;
+        double fb = (b->type == TF_OBJ_TYPE_FLOAT) ? b->f : (double)b->i;
+        double fresult = 0;
 
         switch (op) {
         case '+':
@@ -67,7 +80,7 @@ static tf_ret binary_math(tf_ctx *ctx, char op) {
             fresult = fa * fb;
             break;
         case '/':
-            if (fb == 0.0f) {
+            if (fb == 0.0) {
                 tf_stack_push(ctx, a);
                 tf_stack_push(ctx, b);
                 tf_ctx_runtime_errorf(ctx, "'%s' cannot divide by zero\n",
@@ -89,9 +102,9 @@ static tf_ret binary_math(tf_ctx *ctx, char op) {
         }
         tf_stack_push(ctx, tf_obj_new_float(fresult));
     } else {
-        int ia = a->i;
-        int ib = b->i;
-        int iresult = 0;
+        int64_t ia = a->i;
+        int64_t ib = b->i;
+        int64_t iresult = 0;
         bool ok = true;
 
         switch (op) {
@@ -105,7 +118,6 @@ static tf_ret binary_math(tf_ctx *ctx, char op) {
             ok = checked_int_mul(ia, ib, &iresult);
             break;
         case '/':
-        case '%':
             if (ib == 0) {
                 tf_stack_push(ctx, a);
                 tf_stack_push(ctx, b);
@@ -113,17 +125,30 @@ static tf_ret binary_math(tf_ctx *ctx, char op) {
                                       ctx->current_word);
                 return TF_ERR;
             }
-            if (ia == INT_MIN && ib == -1) {
+            if (ia == INT64_MIN && ib == -1) {
                 tf_stack_push(ctx, a);
                 tf_stack_push(ctx, b);
                 tf_ctx_runtime_errorf(ctx, "'%s' integer result would overflow\n",
                                       ctx->current_word);
                 return TF_ERR;
             }
-            if (op == '/')
-                iresult = ia / ib;
-            else
-                iresult = ia % ib;
+            iresult = ia / ib;
+            break;
+        case '%':
+        case 'E':
+            if (ib == 0) {
+                tf_stack_push(ctx, a);
+                tf_stack_push(ctx, b);
+                tf_ctx_runtime_errorf(ctx, "'%s' cannot divide by zero\n",
+                                      ctx->current_word);
+                return TF_ERR;
+            }
+            iresult = ia == INT64_MIN && ib == -1 ? 0 : ia % ib;
+            if (op == 'E' && iresult < 0) {
+                uint64_t modulus = ib < 0 ? (uint64_t)(-(ib + 1)) + 1
+                                          : (uint64_t)ib;
+                iresult = (int64_t)((uint64_t)iresult + modulus);
+            }
             break;
         case 'M':
             iresult = (ia > ib) ? ia : ib;
@@ -163,8 +188,19 @@ tf_ret tf_mul(tf_ctx *ctx) {
 tf_ret tf_div(tf_ctx *ctx) {
     return binary_math(ctx, '/');
 }
-tf_ret tf_mod(tf_ctx *ctx) {
+tf_ret tf_rem(tf_ctx *ctx) {
+    if (!tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_INT) ||
+        !tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_INT)) {
+        return TF_ERR;
+    }
     return binary_math(ctx, '%');
+}
+tf_ret tf_mod(tf_ctx *ctx) {
+    if (!tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_INT) ||
+        !tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_INT)) {
+        return TF_ERR;
+    }
+    return binary_math(ctx, 'E');
 }
 tf_ret tf_max(tf_ctx *ctx) {
     return binary_math(ctx, 'M');
@@ -177,7 +213,7 @@ tf_ret tf_neg(tf_ctx *ctx) {
     if (!tf_ctx_require_number(ctx, 0)) return TF_ERR;
     tf_obj *a = tf_stack_pop(ctx);
     if (a->type == TF_OBJ_TYPE_INT) {
-        if (a->i == INT_MIN) {
+        if (a->i == INT64_MIN) {
             tf_stack_push(ctx, a);
             tf_ctx_runtime_errorf(ctx, "'%s' integer result would overflow\n",
                                   ctx->current_word);
@@ -195,7 +231,7 @@ tf_ret tf_abs(tf_ctx *ctx) {
     if (!tf_ctx_require_number(ctx, 0)) return TF_ERR;
     tf_obj *a = tf_stack_pop(ctx);
     if (a->type == TF_OBJ_TYPE_INT) {
-        if (a->i == INT_MIN) {
+        if (a->i == INT64_MIN) {
             tf_stack_push(ctx, a);
             tf_ctx_runtime_errorf(ctx, "'%s' integer result would overflow\n",
                                   ctx->current_word);
@@ -215,7 +251,7 @@ static tf_ret unary_float_math(tf_ctx *ctx, double (*func)(double)) {
     if (!tf_ctx_require_number(ctx, 0)) return TF_ERR;
     tf_obj *a = tf_stack_pop(ctx);
     double val = (a->type == TF_OBJ_TYPE_FLOAT) ? (double)a->f : (double)a->i;
-    tf_stack_push(ctx, tf_obj_new_float((float)func(val)));
+    tf_stack_push(ctx, tf_obj_new_float(func(val)));
     tf_obj_release(a);
     return TF_OK;
 }
@@ -236,7 +272,7 @@ tf_ret tf_pow(tf_ctx *ctx) {
     tf_obj *a = tf_stack_pop(ctx);
     double val_a = (a->type == TF_OBJ_TYPE_FLOAT) ? (double)a->f : (double)a->i;
     double val_b = (b->type == TF_OBJ_TYPE_FLOAT) ? (double)b->f : (double)b->i;
-    tf_stack_push(ctx, tf_obj_new_float((float)pow(val_a, val_b)));
+    tf_stack_push(ctx, tf_obj_new_float(pow(val_a, val_b)));
     tf_obj_release(a);
     tf_obj_release(b);
     return TF_OK;
@@ -245,8 +281,19 @@ tf_ret tf_pow(tf_ctx *ctx) {
 static tf_ret unary_int_math(tf_ctx *ctx, double (*func)(double)) {
     if (!tf_ctx_require_number(ctx, 0)) return TF_ERR;
     tf_obj *a = tf_stack_pop(ctx);
-    double val = (a->type == TF_OBJ_TYPE_FLOAT) ? (double)a->f : (double)a->i;
-    tf_stack_push(ctx, tf_obj_new_int((int)func(val)));
+    if (a->type == TF_OBJ_TYPE_INT) {
+        tf_stack_push(ctx, a);
+        return TF_OK;
+    }
+    double result = func(a->f);
+    if (!isfinite(result) || result < -9223372036854775808.0 ||
+        result >= 9223372036854775808.0) {
+        tf_stack_push(ctx, a);
+        tf_ctx_runtime_errorf(ctx, "'%s' integer result would be out of range\n",
+                              ctx->current_word);
+        return TF_ERR;
+    }
+    tf_stack_push(ctx, tf_obj_new_int((int64_t)result));
     tf_obj_release(a);
     return TF_OK;
 }
@@ -257,7 +304,7 @@ tf_ret tf_round(tf_ctx *ctx) { return unary_int_math(ctx, round); }
 tf_ret tf_pred(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_INT)) return TF_ERR;
     tf_obj *a = tf_stack_pop_type(ctx, TF_OBJ_TYPE_INT);
-    if (a->i == INT_MIN) {
+    if (a->i == INT64_MIN) {
         tf_stack_push(ctx, a);
         tf_ctx_runtime_errorf(ctx, "'%s' integer result would overflow\n",
                               ctx->current_word);
@@ -271,7 +318,7 @@ tf_ret tf_pred(tf_ctx *ctx) {
 tf_ret tf_succ(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_INT)) return TF_ERR;
     tf_obj *a = tf_stack_pop_type(ctx, TF_OBJ_TYPE_INT);
-    if (a->i == INT_MAX) {
+    if (a->i == INT64_MAX) {
         tf_stack_push(ctx, a);
         tf_ctx_runtime_errorf(ctx, "'%s' integer result would overflow\n",
                               ctx->current_word);
@@ -286,7 +333,7 @@ tf_ret tf_square(tf_ctx *ctx) {
     if (!tf_ctx_require_number(ctx, 0)) return TF_ERR;
     tf_obj *a = tf_stack_pop(ctx);
     if (a->type == TF_OBJ_TYPE_INT) {
-        int result = 0;
+        int64_t result = 0;
         if (!checked_int_mul(a->i, a->i, &result)) {
             tf_stack_push(ctx, a);
             tf_ctx_runtime_errorf(ctx, "'%s' integer result would overflow\n",
@@ -305,8 +352,8 @@ tf_ret tf_cube(tf_ctx *ctx) {
     if (!tf_ctx_require_number(ctx, 0)) return TF_ERR;
     tf_obj *a = tf_stack_pop(ctx);
     if (a->type == TF_OBJ_TYPE_INT) {
-        int squared = 0;
-        int result = 0;
+        int64_t squared = 0;
+        int64_t result = 0;
         if (!checked_int_mul(a->i, a->i, &squared) ||
             !checked_int_mul(squared, a->i, &result)) {
             tf_stack_push(ctx, a);
@@ -322,8 +369,8 @@ tf_ret tf_cube(tf_ctx *ctx) {
     return TF_OK;
 }
 
-#define TF_PI_CONST 3.14159265358979323846f
-#define TF_E_CONST 2.71828182845904523536f
+#define TF_PI_CONST 3.14159265358979323846
+#define TF_E_CONST 2.71828182845904523536
 
 tf_ret tf_pi(tf_ctx *ctx) {
     tf_stack_push(ctx, tf_obj_new_float(TF_PI_CONST));
@@ -336,7 +383,7 @@ tf_ret tf_e(tf_ctx *ctx) {
 }
 
 tf_ret tf_tau(tf_ctx *ctx) {
-    tf_stack_push(ctx, tf_obj_new_float(2.0f * TF_PI_CONST));
+    tf_stack_push(ctx, tf_obj_new_float(2.0 * TF_PI_CONST));
     return TF_OK;
 }
 
@@ -357,7 +404,7 @@ static tf_ret logic_op(tf_ctx *ctx, char op) {
             res = a->b ^ b->b;
         tf_stack_push(ctx, tf_obj_new_bool(res));
     } else if (a->type == TF_OBJ_TYPE_INT && b->type == TF_OBJ_TYPE_INT) {
-        int res = 0;
+        int64_t res = 0;
         if (op == '&')
             res = a->i & b->i;
         else if (op == '|')
@@ -388,17 +435,20 @@ static tf_ret shift_op(tf_ctx *ctx, bool left) {
     tf_obj *b = tf_stack_pop(ctx);
     tf_obj *a = tf_stack_pop(ctx);
 
-    if (b->i < 0 || b->i >= (int)(sizeof(unsigned int) * CHAR_BIT)) {
+    if (b->i < 0 || b->i >= 64) {
         tf_stack_push(ctx, a);
         tf_stack_push(ctx, b);
         tf_ctx_runtime_errorf(ctx, "'%s' shift count must be between 0 and %zu\n",
                               ctx->current_word,
-                              sizeof(unsigned int) * CHAR_BIT - 1);
+                              (size_t)63);
         return TF_ERR;
     }
-    unsigned int value = (unsigned int)a->i;
-    unsigned int res = left ? (value << b->i) : (value >> b->i);
-    tf_stack_push(ctx, tf_obj_new_int((int)res));
+    uint64_t value = (uint64_t)a->i;
+    uint64_t bits = left ? (value << (unsigned)b->i)
+                         : (value >> (unsigned)b->i);
+    int64_t res = 0;
+    memcpy(&res, &bits, sizeof res);
+    tf_stack_push(ctx, tf_obj_new_int(res));
 
     tf_obj_release(a);
     tf_obj_release(b);
@@ -516,10 +566,12 @@ tf_ret tf_pick(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_INT)) return TF_ERR;
     if (!tf_ctx_require_stack(ctx, 2)) return TF_ERR;
     tf_obj *o = tf_stack_peek(ctx, 0);
-    int pos = o->i;
+    int64_t pos = o->i;
     size_t len = tf_stack_len(ctx);
-    if (pos < 0 || len < (size_t)pos + 2) {
-        tf_ctx_runtime_errorf(ctx, "'%s' stack position %d is out of range\n",
+    if (pos < 0 || (uint64_t)pos > SIZE_MAX ||
+        len < (size_t)pos + 2) {
+        tf_ctx_runtime_errorf(ctx, "'%s' stack position %" PRId64
+                                   " is out of range\n",
                               ctx->current_word, pos);
         return TF_ERR;
     }
@@ -537,9 +589,11 @@ tf_ret tf_roll(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_INT)) return TF_ERR;
     if (!tf_ctx_require_stack(ctx, 2)) return TF_ERR;
     tf_obj *o = tf_stack_peek(ctx, 0);
-    int pos = o->i;
-    if (pos < 0 || tf_stack_len(ctx) < (size_t)pos + 2) {
-        tf_ctx_runtime_errorf(ctx, "'%s' stack position %d is out of range\n",
+    int64_t pos = o->i;
+    if (pos < 0 || (uint64_t)pos > SIZE_MAX ||
+        tf_stack_len(ctx) < (size_t)pos + 2) {
+        tf_ctx_runtime_errorf(ctx, "'%s' stack position %" PRId64
+                                   " is out of range\n",
                               ctx->current_word, pos);
         return TF_ERR;
     }
@@ -548,12 +602,13 @@ tf_ret tf_roll(tf_ctx *ctx) {
     tf_obj_release(o);
     if (pos == 0) return TF_OK;
 
-    tf_obj **temp_stack = tf_xmalloc(sizeof(tf_obj *) * (size_t)pos);
-    for (int i = 0; i < pos; i++) { temp_stack[i] = tf_stack_pop(ctx); }
-    tf_obj *b = tf_stack_pop(ctx);
-    for (int i = pos - 1; i >= 0; i--) tf_stack_push(ctx, temp_stack[i]);
-    tf_stack_push(ctx, b);
-    free(temp_stack);
+    size_t len = tf_stack_len(ctx);
+    size_t target = len - 1 - (size_t)pos;
+    tf_obj *selected = ctx->data_stack->vector.elem[target];
+    memmove(&ctx->data_stack->vector.elem[target],
+            &ctx->data_stack->vector.elem[target + 1],
+            sizeof(tf_obj *) * (size_t)pos);
+    ctx->data_stack->vector.elem[len - 1] = selected;
     return TF_OK;
 }
 
@@ -563,6 +618,21 @@ tf_ret tf_empty(tf_ctx *ctx) {
         tf_obj_release(o);
     }
     return TF_OK;
+}
+
+static bool compare_from_order(int order, const char *op) {
+    if (!strcmp(op, "==")) return order == 0;
+    if (!strcmp(op, "!=")) return order != 0;
+    if (!strcmp(op, "<")) return order < 0;
+    if (!strcmp(op, ">")) return order > 0;
+    if (!strcmp(op, "<=")) return order <= 0;
+    return order >= 0;
+}
+
+static bool compare_mixed_number(tf_obj *a, tf_obj *b, const char *op) {
+    tf_obj *float_obj = a->type == TF_OBJ_TYPE_FLOAT ? a : b;
+    if (isnan(float_obj->f)) return !strcmp(op, "!=");
+    return compare_from_order(tf_obj_compare_number(a, b), op);
 }
 
 static tf_ret compare_op(tf_ctx *ctx, const char *op) {
@@ -575,21 +645,38 @@ static tf_ret compare_op(tf_ctx *ctx, const char *op) {
 
     if ((a->type == TF_OBJ_TYPE_INT || a->type == TF_OBJ_TYPE_FLOAT) &&
         (b->type == TF_OBJ_TYPE_INT || b->type == TF_OBJ_TYPE_FLOAT)) {
-        float fa = (a->type == TF_OBJ_TYPE_FLOAT) ? a->f : (float)a->i;
-        float fb = (b->type == TF_OBJ_TYPE_FLOAT) ? b->f : (float)b->i;
-
-        if (!strcmp(op, "=="))
-            result = (fa == fb);
-        else if (!strcmp(op, "!="))
-            result = (fa != fb);
-        else if (!strcmp(op, "<"))
-            result = (fa < fb);
-        else if (!strcmp(op, ">"))
-            result = (fa > fb);
-        else if (!strcmp(op, "<="))
-            result = (fa <= fb);
-        else if (!strcmp(op, ">="))
-            result = (fa >= fb);
+        if (a->type == TF_OBJ_TYPE_INT && b->type == TF_OBJ_TYPE_INT) {
+            if (!strcmp(op, "=="))
+                result = a->i == b->i;
+            else if (!strcmp(op, "!="))
+                result = a->i != b->i;
+            else if (!strcmp(op, "<"))
+                result = a->i < b->i;
+            else if (!strcmp(op, ">"))
+                result = a->i > b->i;
+            else if (!strcmp(op, "<="))
+                result = a->i <= b->i;
+            else if (!strcmp(op, ">="))
+                result = a->i >= b->i;
+        } else if (a->type == TF_OBJ_TYPE_FLOAT &&
+                   b->type == TF_OBJ_TYPE_FLOAT) {
+            double da = a->f;
+            double db = b->f;
+            if (!strcmp(op, "=="))
+                result = da == db;
+            else if (!strcmp(op, "!="))
+                result = da != db;
+            else if (!strcmp(op, "<"))
+                result = da < db;
+            else if (!strcmp(op, ">"))
+                result = da > db;
+            else if (!strcmp(op, "<="))
+                result = da <= db;
+            else if (!strcmp(op, ">="))
+                result = da >= db;
+        } else {
+            result = compare_mixed_number(a, b, op);
+        }
     } else if (a->type == TF_OBJ_TYPE_STR && b->type == TF_OBJ_TYPE_STR) {
         int cmp = tf_obj_compare_string(a, b);
         if (!strcmp(op, "=="))

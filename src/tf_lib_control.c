@@ -5,6 +5,46 @@
 #include "tf_alloc.h"
 #include "tf_obj.h"
 
+#define TF_CONTROL_STATE_BLOCK_SIZE 512
+#define TF_CONTROL_STATE_CACHE_LIMIT 128
+
+typedef struct control_state_cache_node {
+    struct control_state_cache_node *next;
+} control_state_cache_node;
+
+static control_state_cache_node *control_state_cache = NULL;
+static size_t control_state_cache_len = 0;
+
+static void *control_state_acquire(size_t size) {
+    if (size > TF_CONTROL_STATE_BLOCK_SIZE) return tf_xmalloc(size);
+    if (!control_state_cache) return tf_xmalloc(TF_CONTROL_STATE_BLOCK_SIZE);
+    control_state_cache_node *node = control_state_cache;
+    control_state_cache = node->next;
+    control_state_cache_len--;
+    return node;
+}
+
+static void control_state_release(void *ptr, size_t size) {
+    if (size > TF_CONTROL_STATE_BLOCK_SIZE ||
+        control_state_cache_len >= TF_CONTROL_STATE_CACHE_LIMIT) {
+        free(ptr);
+        return;
+    }
+    control_state_cache_node *node = ptr;
+    node->next = control_state_cache;
+    control_state_cache = node;
+    control_state_cache_len++;
+}
+
+void tf_control_state_cache_clear(void) {
+    while (control_state_cache) {
+        control_state_cache_node *next = control_state_cache->next;
+        free(control_state_cache);
+        control_state_cache = next;
+    }
+    control_state_cache_len = 0;
+}
+
 tf_ret tf_exec(tf_ctx *ctx) {
     if (!tf_ctx_require_callable(ctx, 0)) return TF_ERR;
     tf_obj *o = tf_stack_pop_callable(ctx);
@@ -14,30 +54,92 @@ tf_ret tf_exec(tf_ctx *ctx) {
     return res;
 }
 
+static void restore_stack_copy(tf_ctx *ctx, tf_obj **saved_stack,
+                               size_t saved_len);
+static void save_stack_copy(tf_ctx *ctx, tf_obj ***saved_stack,
+                            size_t *saved_len);
+static void release_stack_copy(tf_obj **saved_stack, size_t saved_len);
+
+typedef enum { TF_APP2_LEFT, TF_APP2_RIGHT, TF_APP2_DONE } app2_stage;
+
+typedef struct {
+    tf_obj *callable;
+    tf_obj *left;
+    tf_obj *right;
+    tf_obj *left_result;
+    tf_obj **saved_stack;
+    size_t saved_len;
+    app2_stage stage;
+} app2_state;
+
+static tf_ret app2_step(tf_ctx *ctx, void *state, bool *done) {
+    app2_state *s = state;
+    if (s->stage == TF_APP2_LEFT) {
+        tf_obj_retain(s->left);
+        tf_stack_push(ctx, s->left);
+        s->stage = TF_APP2_RIGHT;
+        *done = false;
+        return tf_vm_call_callable(ctx, s->callable);
+    }
+    if (s->stage == TF_APP2_RIGHT) {
+        if (tf_stack_len(ctx) != s->saved_len + 1) {
+            tf_ctx_runtime_errorf(
+                ctx,
+                "'app2' expected the callable to consume one item and leave "
+                "one result\n");
+            return TF_ERR;
+        }
+        s->left_result = tf_stack_pop(ctx);
+        restore_stack_copy(ctx, s->saved_stack, s->saved_len);
+        tf_obj_retain(s->right);
+        tf_stack_push(ctx, s->right);
+        s->stage = TF_APP2_DONE;
+        *done = false;
+        return tf_vm_call_callable(ctx, s->callable);
+    }
+
+    if (tf_stack_len(ctx) != s->saved_len + 1) {
+        tf_ctx_runtime_errorf(
+            ctx,
+            "'app2' expected the callable to consume one item and leave one "
+            "result\n");
+        return TF_ERR;
+    }
+    tf_obj *right_result = tf_stack_pop(ctx);
+    restore_stack_copy(ctx, s->saved_stack, s->saved_len);
+    tf_stack_push(ctx, s->left_result);
+    s->left_result = NULL;
+    tf_stack_push(ctx, right_result);
+    *done = true;
+    return TF_OK;
+}
+
+static void app2_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
+    app2_state *s = state;
+    if (status != TF_OK) restore_stack_copy(ctx, s->saved_stack, s->saved_len);
+    release_stack_copy(s->saved_stack, s->saved_len);
+    tf_obj_release(s->callable);
+    tf_obj_release(s->left);
+    tf_obj_release(s->right);
+    if (s->left_result) tf_obj_release(s->left_result);
+    control_state_release(s, sizeof(*s));
+}
+
 tf_ret tf_app2(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 3) || !tf_ctx_require_callable(ctx, 0)) {
         return TF_ERR;
     }
 
-    tf_obj *callable = tf_stack_pop(ctx);
-    tf_obj *b = tf_stack_pop(ctx);
-    tf_obj *a = tf_stack_pop(ctx);
-
-    tf_obj *synthetic = tf_obj_new_vector_with_capacity(6);
-    tf_obj *exec_sym = tf_obj_new_symbol("exec", 4);
-
-    tf_vector_push(synthetic, a);
-    tf_vector_push(synthetic, callable);
-    tf_obj_retain(callable);
-    tf_vector_push(synthetic, exec_sym);
-    tf_obj_retain(exec_sym);
-
-    tf_vector_push(synthetic, b);
-    tf_vector_push(synthetic, callable);
-    tf_vector_push(synthetic, exec_sym);
-
-    tf_frame_push_program(ctx, synthetic);
-    tf_obj_release(synthetic);
+    app2_state *state = control_state_acquire(sizeof(*state));
+    state->callable = tf_stack_pop(ctx);
+    state->right = tf_stack_pop(ctx);
+    state->left = tf_stack_pop(ctx);
+    state->left_result = NULL;
+    state->saved_stack = NULL;
+    state->saved_len = 0;
+    save_stack_copy(ctx, &state->saved_stack, &state->saved_len);
+    state->stage = TF_APP2_LEFT;
+    tf_frame_push_native(ctx, app2_step, app2_cleanup, state);
 
     return TF_OK;
 }
@@ -181,7 +283,7 @@ static tf_ret collect_outputs(tf_ctx *ctx, size_t base_len, tf_obj *outputs) {
 
 typedef struct {
     tf_obj *body;
-    int remaining;
+    int64_t remaining;
 } times_state;
 
 static tf_ret times_step(tf_ctx *ctx, void *state, bool *done) {
@@ -201,7 +303,7 @@ static void times_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     (void)status;
     times_state *s = state;
     tf_obj_release(s->body);
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef struct {
@@ -229,7 +331,7 @@ static void each_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     each_state *s = state;
     tf_obj_release(s->body);
     tf_obj_release(s->data);
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef struct {
@@ -266,7 +368,7 @@ static void dip_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     release_stack_copy(s->saved_stack, s->saved_len);
     tf_obj_release(s->body);
     if (s->saved) tf_obj_release(s->saved);
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef struct {
@@ -314,7 +416,7 @@ static void keep_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     release_stack_copy(s->saved_stack, s->base_len);
     tf_obj_release(s->body);
     if (s->saved) tf_obj_release(s->saved);
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef struct {
@@ -359,7 +461,7 @@ static void fold_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     release_stack_copy(s->saved_stack, s->saved_len);
     tf_obj_release(s->body);
     tf_obj_release(s->data);
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef struct {
@@ -445,14 +547,14 @@ static void map_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     } else if (s->vector_result) {
         tf_obj_release(s->vector_result);
     }
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef struct {
     tf_obj *body;
     tf_obj **saved_stack;
     size_t saved_len;
-    int remaining;
+    int64_t remaining;
     bool awaiting_body;
     tf_obj *result;
 } replicate_state;
@@ -493,7 +595,7 @@ static void replicate_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     release_stack_copy(s->saved_stack, s->saved_len);
     tf_obj_release(s->body);
     if (s->result) tf_obj_release(s->result);
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef struct {
@@ -531,7 +633,7 @@ static void infra_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     tf_obj_release(s->body);
     tf_obj_release(s->data);
     if (s->result) tf_obj_release(s->result);
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef struct {
@@ -588,7 +690,7 @@ static void cleave_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     tf_obj_release(s->branches);
     tf_obj_release(s->value);
     if (s->outputs) tf_obj_release(s->outputs);
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef enum {
@@ -676,7 +778,7 @@ static void bi_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     tf_obj_release(s->left);
     tf_obj_release(s->right);
     if (s->saved) tf_obj_release(s->saved);
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef enum { TF_TRY_START, TF_TRY_BODY, TF_TRY_HANDLER } try_stage;
@@ -742,27 +844,64 @@ static void try_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     release_stack_copy(s->saved_stack, s->saved_len);
     tf_obj_release(s->body);
     tf_obj_release(s->handler);
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef enum { TF_PRED_IDLE, TF_PRED_AWAITING } predicate_eval_phase;
+
+#define TF_PREDICATE_INLINE_STACK 16
 
 typedef struct {
     predicate_eval_phase phase;
     tf_obj **saved_stack;
     size_t saved_len;
+    bool reusable_snapshot;
+    tf_obj *inline_stack[TF_PREDICATE_INLINE_STACK];
 } predicate_eval;
+
+static void predicate_save_stack(tf_ctx *ctx, predicate_eval *eval) {
+    eval->saved_len = tf_stack_len(ctx);
+    if (eval->saved_len == 0) {
+        eval->saved_stack = NULL;
+    } else if (eval->saved_len <= TF_PREDICATE_INLINE_STACK) {
+        eval->saved_stack = eval->inline_stack;
+    } else {
+        eval->saved_stack =
+            tf_xmalloc(sizeof(tf_obj *) * eval->saved_len);
+    }
+    for (size_t i = 0; i < eval->saved_len; i++) {
+        eval->saved_stack[i] =
+            tf_stack_peek(ctx, eval->saved_len - 1 - i);
+        tf_obj_retain(eval->saved_stack[i]);
+    }
+}
+
+static void predicate_free_stack_storage(predicate_eval *eval) {
+    if (eval->saved_stack && eval->saved_stack != eval->inline_stack) {
+        free(eval->saved_stack);
+    }
+    eval->saved_stack = NULL;
+    eval->saved_len = 0;
+}
+
+static void predicate_release_stack(predicate_eval *eval) {
+    for (size_t i = 0; i < eval->saved_len; i++) {
+        tf_obj_release(eval->saved_stack[i]);
+    }
+    predicate_free_stack_storage(eval);
+}
 
 static void predicate_eval_init(predicate_eval *eval) {
     eval->phase = TF_PRED_IDLE;
     eval->saved_stack = NULL;
     eval->saved_len = 0;
+    eval->reusable_snapshot = false;
 }
 
-static void predicate_eval_clear(predicate_eval *eval) {
-    eval->phase = TF_PRED_IDLE;
-    eval->saved_stack = NULL;
-    eval->saved_len = 0;
+static void predicate_eval_init_reusable(tf_ctx *ctx, predicate_eval *eval) {
+    predicate_eval_init(eval);
+    predicate_save_stack(ctx, eval);
+    eval->reusable_snapshot = true;
 }
 
 static tf_ret predicate_eval_step(tf_ctx *ctx, predicate_eval *eval, tf_obj *pred,
@@ -780,7 +919,9 @@ static tf_ret predicate_eval_step(tf_ctx *ctx, predicate_eval *eval, tf_obj *pre
 
         if (!tf_obj_is_callable(pred)) return TF_ERR;
 
-        save_stack_copy(ctx, &eval->saved_stack, &eval->saved_len);
+        if (!eval->reusable_snapshot) {
+            predicate_save_stack(ctx, eval);
+        }
         for (size_t i = 0; i < input_len; i++) {
             tf_stack_push(ctx, inputs[i]);
             tf_obj_retain(inputs[i]);
@@ -792,28 +933,44 @@ static tf_ret predicate_eval_step(tf_ctx *ctx, predicate_eval *eval, tf_obj *pre
 
     tf_obj *bool_res = tf_stack_pop_type(ctx, TF_OBJ_TYPE_BOOL);
     if (!bool_res) {
-        restore_stack_owned(ctx, eval->saved_stack, eval->saved_len);
-        free(eval->saved_stack);
-        predicate_eval_clear(eval);
+        if (eval->reusable_snapshot) {
+            restore_stack_copy(ctx, eval->saved_stack, eval->saved_len);
+        } else {
+            restore_stack_owned(ctx, eval->saved_stack, eval->saved_len);
+            predicate_free_stack_storage(eval);
+        }
+        eval->phase = TF_PRED_IDLE;
         return TF_ERR;
     }
 
     *pred_val = bool_res->b;
     tf_obj_release(bool_res);
 
-    restore_stack_owned(ctx, eval->saved_stack, eval->saved_len);
-    free(eval->saved_stack);
-    predicate_eval_clear(eval);
+    if (eval->reusable_snapshot) {
+        restore_stack_copy(ctx, eval->saved_stack, eval->saved_len);
+    } else {
+        restore_stack_owned(ctx, eval->saved_stack, eval->saved_len);
+        predicate_free_stack_storage(eval);
+    }
+    eval->phase = TF_PRED_IDLE;
     *ready = true;
     return TF_OK;
 }
 
 static void predicate_eval_cleanup(tf_ctx *ctx, predicate_eval *eval) {
-    if (eval->phase == TF_PRED_AWAITING && eval->saved_stack) {
-        restore_stack_owned(ctx, eval->saved_stack, eval->saved_len);
-        free(eval->saved_stack);
-        predicate_eval_clear(eval);
+    if (eval->phase == TF_PRED_AWAITING) {
+        if (eval->reusable_snapshot) {
+            restore_stack_copy(ctx, eval->saved_stack, eval->saved_len);
+        } else {
+            restore_stack_owned(ctx, eval->saved_stack, eval->saved_len);
+        }
     }
+    if (eval->reusable_snapshot) {
+        predicate_release_stack(eval);
+    } else {
+        predicate_free_stack_storage(eval);
+    }
+    predicate_eval_init(eval);
 }
 
 typedef enum { TF_IF_COND, TF_IF_BODY } if_stage;
@@ -860,7 +1017,7 @@ static void if_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     tf_obj_release(s->cond);
     tf_obj_release(s->then_b);
     if (s->has_else) tf_obj_release(s->else_b);
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef enum { TF_WHILE_COND, TF_WHILE_BODY } while_stage;
@@ -903,7 +1060,7 @@ static void while_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     predicate_eval_cleanup(ctx, &s->pred_eval);
     tf_obj_release(s->cond);
     tf_obj_release(s->body);
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef enum { TF_COND_PRED, TF_COND_BODY } cond_stage;
@@ -959,7 +1116,7 @@ static void cond_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     cond_state *s = state;
     predicate_eval_cleanup(ctx, &s->pred_eval);
     tf_obj_release(s->clauses);
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef struct {
@@ -1037,7 +1194,7 @@ static void filter_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     } else if (s->vector_result) {
         tf_obj_release(s->vector_result);
     }
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef enum { TF_QUANT_SOME, TF_QUANT_ALL } quantifier_kind;
@@ -1097,7 +1254,7 @@ static void quantifier_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     tf_obj_release(s->pred);
     tf_obj_release(s->seq);
     if (s->current) tf_obj_release(s->current);
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef struct {
@@ -1186,7 +1343,7 @@ static void split_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
         if (s->true_vector) tf_obj_release(s->true_vector);
         if (s->false_vector) tf_obj_release(s->false_vector);
     }
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef struct {
@@ -1300,14 +1457,15 @@ static void merge_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     } else if (s->vector_result) {
         tf_obj_release(s->vector_result);
     }
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef enum {
     TF_LINREC_PRED,
     TF_LINREC_THEN,
     TF_LINREC_REC1,
-    TF_LINREC_CONT
+    TF_LINREC_AFTER_RECURSE,
+    TF_LINREC_REC2
 } linrec_stage;
 
 typedef struct {
@@ -1318,6 +1476,8 @@ typedef struct {
     linrec_stage stage;
     predicate_eval pred_eval;
 } linrec_state;
+
+static void linrec_cleanup(tf_ctx *ctx, void *state, tf_ret status);
 
 static tf_ret linrec_step(tf_ctx *ctx, void *state, bool *done) {
     linrec_state *s = state;
@@ -1336,28 +1496,32 @@ static tf_ret linrec_step(tf_ctx *ctx, void *state, bool *done) {
         return tf_vm_call_callable(ctx, is_done ? s->then_b : s->rec1);
     }
 
-    if (s->stage == TF_LINREC_THEN || s->stage == TF_LINREC_CONT) {
+    if (s->stage == TF_LINREC_THEN || s->stage == TF_LINREC_REC2) {
         *done = true;
         return TF_OK;
     }
 
-    tf_obj *cont = tf_obj_new_vector_with_capacity(7);
-    tf_obj *linrec_sym = tf_obj_new_symbol("linrec", 6);
-    tf_obj *exec_sym = tf_obj_new_symbol("exec", 4);
+    if (s->stage == TF_LINREC_REC1) {
+        linrec_state *child = control_state_acquire(sizeof(*child));
+        child->pred = s->pred;
+        child->then_b = s->then_b;
+        child->rec1 = s->rec1;
+        child->rec2 = s->rec2;
+        tf_obj_retain(child->pred);
+        tf_obj_retain(child->then_b);
+        tf_obj_retain(child->rec1);
+        tf_obj_retain(child->rec2);
+        child->stage = TF_LINREC_PRED;
+        predicate_eval_init(&child->pred_eval);
+        s->stage = TF_LINREC_AFTER_RECURSE;
+        tf_frame_push_native(ctx, linrec_step, linrec_cleanup, child);
+        *done = false;
+        return TF_OK;
+    }
 
-    push_retained(cont, s->pred);
-    push_retained(cont, s->then_b);
-    push_retained(cont, s->rec1);
-    push_retained(cont, s->rec2);
-    tf_vector_push(cont, linrec_sym);
-    push_retained(cont, s->rec2);
-    tf_vector_push(cont, exec_sym);
-
-    tf_frame_push_program(ctx, cont);
-    tf_obj_release(cont);
-    s->stage = TF_LINREC_CONT;
+    s->stage = TF_LINREC_REC2;
     *done = false;
-    return TF_OK;
+    return tf_vm_call_callable(ctx, s->rec2);
 }
 
 static void linrec_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
@@ -1368,14 +1532,16 @@ static void linrec_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     tf_obj_release(s->then_b);
     tf_obj_release(s->rec1);
     tf_obj_release(s->rec2);
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef enum {
     TF_BINREC_PRED,
     TF_BINREC_THEN,
     TF_BINREC_REC1,
-    TF_BINREC_CONT
+    TF_BINREC_AFTER_FIRST,
+    TF_BINREC_AFTER_SECOND,
+    TF_BINREC_COMBINE
 } binrec_stage;
 
 typedef struct {
@@ -1383,9 +1549,35 @@ typedef struct {
     tf_obj *then_b;
     tf_obj *rec1;
     tf_obj *rec2;
+    tf_obj *hidden;
+    tf_obj **saved_stack;
+    size_t saved_len;
+    bool first_sandbox_active;
     binrec_stage stage;
     predicate_eval pred_eval;
 } binrec_state;
+
+static tf_ret binrec_step(tf_ctx *ctx, void *state, bool *done);
+static void binrec_cleanup(tf_ctx *ctx, void *state, tf_ret status);
+
+static void binrec_push_child(tf_ctx *ctx, binrec_state *parent) {
+    binrec_state *child = control_state_acquire(sizeof(*child));
+    child->pred = parent->pred;
+    child->then_b = parent->then_b;
+    child->rec1 = parent->rec1;
+    child->rec2 = parent->rec2;
+    tf_obj_retain(child->pred);
+    tf_obj_retain(child->then_b);
+    tf_obj_retain(child->rec1);
+    tf_obj_retain(child->rec2);
+    child->hidden = NULL;
+    child->saved_stack = NULL;
+    child->saved_len = 0;
+    child->first_sandbox_active = false;
+    child->stage = TF_BINREC_PRED;
+    predicate_eval_init(&child->pred_eval);
+    tf_frame_push_native(ctx, binrec_step, binrec_cleanup, child);
+}
 
 static tf_ret binrec_step(tf_ctx *ctx, void *state, bool *done) {
     binrec_state *s = state;
@@ -1404,55 +1596,67 @@ static tf_ret binrec_step(tf_ctx *ctx, void *state, bool *done) {
         return tf_vm_call_callable(ctx, is_done ? s->then_b : s->rec1);
     }
 
-    if (s->stage == TF_BINREC_THEN || s->stage == TF_BINREC_CONT) {
+    if (s->stage == TF_BINREC_THEN || s->stage == TF_BINREC_COMBINE) {
         *done = true;
         return TF_OK;
     }
 
-    tf_obj *rec_call = tf_obj_new_vector_with_capacity(5);
-    tf_obj *binrec_sym = tf_obj_new_symbol("binrec", 6);
-    push_retained(rec_call, s->pred);
-    push_retained(rec_call, s->then_b);
-    push_retained(rec_call, s->rec1);
-    push_retained(rec_call, s->rec2);
-    tf_vector_push(rec_call, binrec_sym);
+    if (s->stage == TF_BINREC_REC1) {
+        if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
+        s->hidden = tf_stack_pop(ctx);
+        save_stack_copy(ctx, &s->saved_stack, &s->saved_len);
+        s->first_sandbox_active = true;
+        s->stage = TF_BINREC_AFTER_FIRST;
+        binrec_push_child(ctx, s);
+        *done = false;
+        return TF_OK;
+    }
 
-    tf_obj *cont = tf_obj_new_vector_with_capacity(6);
-    tf_obj *dip_sym = tf_obj_new_symbol("dip", 3);
-    tf_obj *exec_rec_sym = tf_obj_new_symbol("exec", 4);
-    tf_obj *exec_combine_sym = tf_obj_new_symbol("exec", 4);
+    if (s->stage == TF_BINREC_AFTER_FIRST) {
+        release_stack_copy(s->saved_stack, s->saved_len);
+        s->saved_stack = NULL;
+        s->saved_len = 0;
+        s->first_sandbox_active = false;
+        tf_stack_push(ctx, s->hidden);
+        s->hidden = NULL;
+        s->stage = TF_BINREC_AFTER_SECOND;
+        binrec_push_child(ctx, s);
+        *done = false;
+        return TF_OK;
+    }
 
-    push_retained(cont, rec_call);
-    tf_vector_push(cont, dip_sym);
-    push_retained(cont, rec_call);
-    tf_vector_push(cont, exec_rec_sym);
-    push_retained(cont, s->rec2);
-    tf_vector_push(cont, exec_combine_sym);
-
-    tf_frame_push_program(ctx, cont);
-    tf_obj_release(cont);
-    tf_obj_release(rec_call);
-    s->stage = TF_BINREC_CONT;
+    s->stage = TF_BINREC_COMBINE;
     *done = false;
-    return TF_OK;
+    return tf_vm_call_callable(ctx, s->rec2);
 }
 
 static void binrec_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
-    (void)status;
     binrec_state *s = state;
     predicate_eval_cleanup(ctx, &s->pred_eval);
+    if (s->first_sandbox_active) {
+        if (status != TF_OK) {
+            restore_stack_copy(ctx, s->saved_stack, s->saved_len);
+            if (s->hidden) {
+                tf_stack_push(ctx, s->hidden);
+                s->hidden = NULL;
+            }
+        }
+        release_stack_copy(s->saved_stack, s->saved_len);
+    }
+    if (s->hidden) tf_obj_release(s->hidden);
     tf_obj_release(s->pred);
     tf_obj_release(s->then_b);
     tf_obj_release(s->rec1);
     tf_obj_release(s->rec2);
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef enum {
     TF_GENREC_PRED,
     TF_GENREC_THEN,
     TF_GENREC_BEFORE,
-    TF_GENREC_CONT
+    TF_GENREC_AFTER_RECURSE,
+    TF_GENREC_AFTER
 } genrec_stage;
 
 typedef struct {
@@ -1463,6 +1667,8 @@ typedef struct {
     genrec_stage stage;
     predicate_eval pred_eval;
 } genrec_state;
+
+static void genrec_cleanup(tf_ctx *ctx, void *state, tf_ret status);
 
 static tf_ret genrec_step(tf_ctx *ctx, void *state, bool *done) {
     genrec_state *s = state;
@@ -1481,28 +1687,32 @@ static tf_ret genrec_step(tf_ctx *ctx, void *state, bool *done) {
         return tf_vm_call_callable(ctx, is_done ? s->then_b : s->before);
     }
 
-    if (s->stage == TF_GENREC_THEN || s->stage == TF_GENREC_CONT) {
+    if (s->stage == TF_GENREC_THEN || s->stage == TF_GENREC_AFTER) {
         *done = true;
         return TF_OK;
     }
 
-    tf_obj *cont = tf_obj_new_vector_with_capacity(7);
-    tf_obj *genrec_sym = tf_obj_new_symbol("genrec", 6);
-    tf_obj *exec_sym = tf_obj_new_symbol("exec", 4);
+    if (s->stage == TF_GENREC_BEFORE) {
+        genrec_state *child = control_state_acquire(sizeof(*child));
+        child->pred = s->pred;
+        child->then_b = s->then_b;
+        child->before = s->before;
+        child->after = s->after;
+        tf_obj_retain(child->pred);
+        tf_obj_retain(child->then_b);
+        tf_obj_retain(child->before);
+        tf_obj_retain(child->after);
+        child->stage = TF_GENREC_PRED;
+        predicate_eval_init(&child->pred_eval);
+        s->stage = TF_GENREC_AFTER_RECURSE;
+        tf_frame_push_native(ctx, genrec_step, genrec_cleanup, child);
+        *done = false;
+        return TF_OK;
+    }
 
-    push_retained(cont, s->pred);
-    push_retained(cont, s->then_b);
-    push_retained(cont, s->before);
-    push_retained(cont, s->after);
-    tf_vector_push(cont, genrec_sym);
-    push_retained(cont, s->after);
-    tf_vector_push(cont, exec_sym);
-
-    tf_frame_push_program(ctx, cont);
-    tf_obj_release(cont);
-    s->stage = TF_GENREC_CONT;
+    s->stage = TF_GENREC_AFTER;
     *done = false;
-    return TF_OK;
+    return tf_vm_call_callable(ctx, s->after);
 }
 
 static void genrec_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
@@ -1513,7 +1723,7 @@ static void genrec_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     tf_obj_release(s->then_b);
     tf_obj_release(s->before);
     tf_obj_release(s->after);
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 typedef enum {
@@ -1610,12 +1820,12 @@ static void treerec_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     tf_obj_release(s->leaf);
     tf_obj_release(s->node);
     if (s->mapped) tf_obj_release(s->mapped);
-    free(s);
+    control_state_release(s, sizeof(*s));
 }
 
 static void treerec_push_owned(tf_ctx *ctx, tf_obj *tree, tf_obj *leaf,
                                tf_obj *node) {
-    treerec_state *state = tf_xmalloc(sizeof(*state));
+    treerec_state *state = control_state_acquire(sizeof(*state));
     state->tree = tree;
     state->leaf = leaf;
     state->node = node;
@@ -1629,24 +1839,13 @@ static void treerec_push_owned(tf_ctx *ctx, tf_obj *tree, tf_obj *leaf,
 }
 
 tf_ret tf_error(tf_ctx *ctx) {
-    if (tf_stack_len(ctx) > 0) {
-        tf_obj *msg = tf_stack_peek(ctx, 0);
-        if (msg->type == TF_OBJ_TYPE_STR) {
-            msg = tf_stack_pop(ctx);
-            if (ctx->error_suppression_depth == 0) {
-                tf_ctx_program_errorf(ctx, "%s\n", msg->str.ptr);
-                ctx->error_reported = true;
-            }
-            tf_obj_release(msg);
-            ctx->program_error = true;
-            return TF_ERR;
-        }
-    }
-
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_STR)) return TF_ERR;
+    tf_obj *msg = tf_stack_pop(ctx);
     if (ctx->error_suppression_depth == 0) {
-        tf_ctx_program_errorf(ctx, "\n");  // default error message
+        tf_ctx_program_errorf(ctx, "%s\n", msg->str.ptr);
         ctx->error_reported = true;
     }
+    tf_obj_release(msg);
     ctx->program_error = true;
     return TF_ERR;
 }
@@ -1661,7 +1860,7 @@ tf_ret tf_try(tf_ctx *ctx) {
     handler = tf_stack_pop(ctx);
     body = tf_stack_pop(ctx);
 
-    try_state *state = tf_xmalloc(sizeof(*state));
+    try_state *state = control_state_acquire(sizeof(*state));
     state->body = body;
     state->handler = handler;
     state->saved_stack = NULL;
@@ -1684,7 +1883,7 @@ tf_ret tf_if(tf_ctx *ctx) {
     body = tf_stack_pop(ctx);
     cond = tf_stack_pop(ctx);
 
-    if_state *state = tf_xmalloc(sizeof(*state));
+    if_state *state = control_state_acquire(sizeof(*state));
     state->cond = cond;
     state->then_b = body;
     state->else_b = NULL;
@@ -1707,7 +1906,7 @@ tf_ret tf_infra(tf_ctx *ctx) {
     body = tf_stack_pop(ctx);
     data = tf_stack_pop(ctx);
 
-    infra_state *state = tf_xmalloc(sizeof(*state));
+    infra_state *state = control_state_acquire(sizeof(*state));
     state->body = body;
     state->data = data;
     state->saved_stack = NULL;
@@ -1730,11 +1929,11 @@ tf_ret tf_cond(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_VECTOR)) return TF_ERR;
     tf_obj *clauses = tf_stack_pop_type(ctx, TF_OBJ_TYPE_VECTOR);
 
-    cond_state *state = tf_xmalloc(sizeof(*state));
+    cond_state *state = control_state_acquire(sizeof(*state));
     state->clauses = clauses;
     state->index = 0;
     state->stage = TF_COND_PRED;
-    predicate_eval_init(&state->pred_eval);
+    predicate_eval_init_reusable(ctx, &state->pred_eval);
 
     tf_frame_push_native(ctx, cond_step, cond_cleanup, state);
     return TF_OK;
@@ -1754,7 +1953,7 @@ static tf_ret cleave_or_construct(tf_ctx *ctx, bool construct_result) {
     branches = tf_stack_pop(ctx);
     tf_obj *value = tf_stack_pop(ctx);
 
-    cleave_state *state = tf_xmalloc(sizeof(*state));
+    cleave_state *state = control_state_acquire(sizeof(*state));
     state->branches = branches;
     state->value = value;
     state->saved_stack = NULL;
@@ -1790,7 +1989,7 @@ tf_ret tf_ifelse(tf_ctx *ctx) {
     then_b = tf_stack_pop(ctx);
     cond = tf_stack_pop(ctx);
 
-    if_state *state = tf_xmalloc(sizeof(*state));
+    if_state *state = control_state_acquire(sizeof(*state));
     state->cond = cond;
     state->then_b = then_b;
     state->else_b = else_b;
@@ -1812,7 +2011,7 @@ tf_ret tf_while(tf_ctx *ctx) {
     body = tf_stack_pop(ctx);
     cond = tf_stack_pop(ctx);
 
-    while_state *state = tf_xmalloc(sizeof(*state));
+    while_state *state = control_state_acquire(sizeof(*state));
     state->cond = cond;
     state->body = body;
     state->stage = TF_WHILE_COND;
@@ -1831,7 +2030,7 @@ tf_ret tf_dip(tf_ctx *ctx) {
     body = tf_stack_pop(ctx);
     tf_obj *saved = tf_stack_pop(ctx);
 
-    dip_state *state = tf_xmalloc(sizeof(*state));
+    dip_state *state = control_state_acquire(sizeof(*state));
     state->body = body;
     state->saved = saved;
     state->saved_stack = NULL;
@@ -1852,7 +2051,7 @@ tf_ret tf_keep(tf_ctx *ctx) {
     body = tf_stack_pop(ctx);
     tf_obj *saved = tf_stack_pop(ctx);
 
-    keep_state *state = tf_xmalloc(sizeof(*state));
+    keep_state *state = control_state_acquire(sizeof(*state));
     state->body = body;
     state->saved = saved;
     state->saved_stack = NULL;
@@ -1876,7 +2075,7 @@ tf_ret tf_bi(tf_ctx *ctx) {
     left = tf_stack_pop(ctx);
     tf_obj *saved = tf_stack_pop(ctx);
 
-    bi_state *state = tf_xmalloc(sizeof(*state));
+    bi_state *state = control_state_acquire(sizeof(*state));
     state->left = left;
     state->right = right;
     state->saved = saved;
@@ -1906,7 +2105,7 @@ tf_ret tf_linrec(tf_ctx *ctx) {
     then_b = tf_stack_pop(ctx);
     pred = tf_stack_pop(ctx);
 
-    linrec_state *state = tf_xmalloc(sizeof(*state));
+    linrec_state *state = control_state_acquire(sizeof(*state));
     state->pred = pred;
     state->then_b = then_b;
     state->rec1 = rec1;
@@ -1933,11 +2132,15 @@ tf_ret tf_binrec(tf_ctx *ctx) {
     then_b = tf_stack_pop(ctx);
     pred = tf_stack_pop(ctx);
 
-    binrec_state *state = tf_xmalloc(sizeof(*state));
+    binrec_state *state = control_state_acquire(sizeof(*state));
     state->pred = pred;
     state->then_b = then_b;
     state->rec1 = rec1;
     state->rec2 = rec2;
+    state->hidden = NULL;
+    state->saved_stack = NULL;
+    state->saved_len = 0;
+    state->first_sandbox_active = false;
     state->stage = TF_BINREC_PRED;
     predicate_eval_init(&state->pred_eval);
 
@@ -1945,58 +2148,19 @@ tf_ret tf_binrec(tf_ctx *ctx) {
     return TF_OK;
 }
 
-static tf_ret pop_rec_parts(tf_ctx *ctx, tf_obj **pred, tf_obj **then_b,
-                            tf_obj **before, tf_obj **after) {
-    if (tf_stack_len(ctx) >= 4 && tf_obj_is_callable(tf_stack_peek(ctx, 0)) &&
-        tf_obj_is_callable(tf_stack_peek(ctx, 1)) &&
-        tf_obj_is_callable(tf_stack_peek(ctx, 2)) &&
-        tf_obj_is_callable(tf_stack_peek(ctx, 3))) {
-        *after = tf_stack_pop(ctx);
-        *before = tf_stack_pop(ctx);
-        *then_b = tf_stack_pop(ctx);
-        *pred = tf_stack_pop(ctx);
-        return TF_OK;
-    }
-
-    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
-    tf_obj *parts = tf_stack_peek(ctx, 0);
-    if (parts->type != TF_OBJ_TYPE_VECTOR || parts->vector.len != 4) {
-        tf_ctx_runtime_errorf(
-            ctx, "'%s' expected four callables or a vector of four callables\n",
-            ctx->current_word);
+tf_ret tf_genrec(tf_ctx *ctx) {
+    if (!tf_ctx_require_stack(ctx, 4) || !tf_ctx_require_callable(ctx, 3) ||
+        !tf_ctx_require_callable(ctx, 2) || !tf_ctx_require_callable(ctx, 1) ||
+        !tf_ctx_require_callable(ctx, 0)) {
         return TF_ERR;
     }
-    for (size_t i = 0; i < 4; i++) {
-        if (!tf_obj_is_callable(parts->vector.elem[i])) {
-            tf_ctx_runtime_errorf(
-                ctx, "'%s' expected recursion part %zu to be callable, found %s\n",
-                ctx->current_word, i, tf_obj_type_name(parts->vector.elem[i]));
-            return TF_ERR;
-        }
-    }
 
-    parts = tf_stack_pop(ctx);
-    *pred = parts->vector.elem[0];
-    *then_b = parts->vector.elem[1];
-    *before = parts->vector.elem[2];
-    *after = parts->vector.elem[3];
-    tf_obj_retain(*pred);
-    tf_obj_retain(*then_b);
-    tf_obj_retain(*before);
-    tf_obj_retain(*after);
-    tf_obj_release(parts);
-    return TF_OK;
-}
+    tf_obj *after = tf_stack_pop(ctx);
+    tf_obj *before = tf_stack_pop(ctx);
+    tf_obj *then_b = tf_stack_pop(ctx);
+    tf_obj *pred = tf_stack_pop(ctx);
 
-tf_ret tf_genrec(tf_ctx *ctx) {
-    tf_obj *pred = NULL;
-    tf_obj *then_b = NULL;
-    tf_obj *before = NULL;
-    tf_obj *after = NULL;
-    tf_ret res = pop_rec_parts(ctx, &pred, &then_b, &before, &after);
-    if (res != TF_OK) return res;
-
-    genrec_state *state = tf_xmalloc(sizeof(*state));
+    genrec_state *state = control_state_acquire(sizeof(*state));
     state->pred = pred;
     state->then_b = then_b;
     state->before = before;
@@ -2034,7 +2198,7 @@ tf_ret tf_replicate(tf_ctx *ctx) {
     body = tf_stack_pop(ctx);
     n_obj = tf_stack_pop(ctx);
 
-    int n = n_obj->i;
+    int64_t n = n_obj->i;
     tf_obj_release(n_obj);
 
     if (n < 0) {
@@ -2043,8 +2207,14 @@ tf_ret tf_replicate(tf_ctx *ctx) {
                               ctx->current_word);
         return TF_ERR;
     }
+    if ((uint64_t)n > SIZE_MAX / sizeof(tf_obj *)) {
+        tf_obj_release(body);
+        tf_ctx_runtime_errorf(ctx, "'%s' result is too large\n",
+                              ctx->current_word);
+        return TF_ERR;
+    }
 
-    replicate_state *state = tf_xmalloc(sizeof(*state));
+    replicate_state *state = control_state_acquire(sizeof(*state));
     state->body = body;
     state->saved_stack = NULL;
     state->saved_len = 0;
@@ -2068,7 +2238,7 @@ tf_ret tf_times(tf_ctx *ctx) {
     body = tf_stack_pop(ctx);
     n_obj = tf_stack_pop(ctx);
 
-    int n = n_obj->i;
+    int64_t n = n_obj->i;
     if (n < 0) {
         tf_obj_release(body);
         tf_obj_release(n_obj);
@@ -2083,7 +2253,7 @@ tf_ret tf_times(tf_ctx *ctx) {
         return TF_OK;
     }
 
-    times_state *state = tf_xmalloc(sizeof(*state));
+    times_state *state = control_state_acquire(sizeof(*state));
     state->body = body;
     state->remaining = n;
     tf_frame_push_native(ctx, times_step, times_cleanup, state);
@@ -2100,7 +2270,7 @@ tf_ret tf_each(tf_ctx *ctx) {
     body = tf_stack_pop(ctx);
     data = tf_stack_pop(ctx);
 
-    each_state *state = tf_xmalloc(sizeof(*state));
+    each_state *state = control_state_acquire(sizeof(*state));
     state->body = body;
     state->data = data;
     tf_sequence_iter_init(&state->iter, data);
@@ -2118,7 +2288,7 @@ tf_ret tf_map(tf_ctx *ctx) {
     body = tf_stack_pop(ctx);
     data = tf_stack_pop(ctx);
 
-    map_state *state = tf_xmalloc(sizeof(*state));
+    map_state *state = control_state_acquire(sizeof(*state));
     state->body = body;
     state->data = data;
     state->saved_stack = NULL;
@@ -2154,7 +2324,7 @@ tf_ret tf_fold(tf_ctx *ctx) {
     data = tf_stack_pop(ctx);
     tf_obj *acc = tf_stack_pop(ctx);
 
-    fold_state *state = tf_xmalloc(sizeof(*state));
+    fold_state *state = control_state_acquire(sizeof(*state));
     state->body = body;
     state->data = data;
     state->saved_stack = NULL;
@@ -2194,7 +2364,7 @@ tf_ret tf_split(tf_ctx *ctx) {
     pred = tf_stack_pop(ctx);
     seq = tf_stack_pop(ctx);
 
-    split_state *state = tf_xmalloc(sizeof(*state));
+    split_state *state = control_state_acquire(sizeof(*state));
     state->pred = pred;
     state->seq = seq;
     tf_sequence_iter_init(&state->iter, seq);
@@ -2219,7 +2389,7 @@ tf_ret tf_split(tf_ctx *ctx) {
         bytebuf_init(&state->true_str, seq->str.len);
         bytebuf_init(&state->false_str, seq->str.len);
     }
-    predicate_eval_init(&state->pred_eval);
+    predicate_eval_init_reusable(ctx, &state->pred_eval);
 
     tf_frame_push_native(ctx, split_step, split_cleanup, state);
     return TF_OK;
@@ -2249,7 +2419,7 @@ tf_ret tf_merge(tf_ctx *ctx) {
     l2 = tf_stack_pop(ctx);
     l1 = tf_stack_pop(ctx);
 
-    merge_state *state = tf_xmalloc(sizeof(*state));
+    merge_state *state = control_state_acquire(sizeof(*state));
     state->pred = pred;
     state->l1 = l1;
     state->l2 = l2;
@@ -2270,7 +2440,7 @@ tf_ret tf_merge(tf_ctx *ctx) {
     if (state->string_result) {
         bytebuf_init(&state->str_result, l1->str.len + l2->str.len);
     }
-    predicate_eval_init(&state->pred_eval);
+    predicate_eval_init_reusable(ctx, &state->pred_eval);
 
     tf_frame_push_native(ctx, merge_step, merge_cleanup, state);
     return TF_OK;
@@ -2286,7 +2456,7 @@ tf_ret tf_filter(tf_ctx *ctx) {
     pred = tf_stack_pop(ctx);
     seq = tf_stack_pop(ctx);
 
-    filter_state *state = tf_xmalloc(sizeof(*state));
+    filter_state *state = control_state_acquire(sizeof(*state));
     state->pred = pred;
     state->seq = seq;
     tf_sequence_iter_init(&state->iter, seq);
@@ -2301,7 +2471,7 @@ tf_ret tf_filter(tf_ctx *ctx) {
     state->str_result.len = 0;
     state->str_result.cap = 0;
     if (state->string_result) bytebuf_init(&state->str_result, seq->str.len);
-    predicate_eval_init(&state->pred_eval);
+    predicate_eval_init_reusable(ctx, &state->pred_eval);
 
     tf_frame_push_native(ctx, filter_step, filter_cleanup, state);
     return TF_OK;
@@ -2317,13 +2487,13 @@ tf_ret tf_some(tf_ctx *ctx) {
     pred = tf_stack_pop(ctx);
     seq = tf_stack_pop(ctx);
 
-    quantifier_state *state = tf_xmalloc(sizeof(*state));
+    quantifier_state *state = control_state_acquire(sizeof(*state));
     state->pred = pred;
     state->seq = seq;
     tf_sequence_iter_init(&state->iter, seq);
     state->current = NULL;
     state->kind = TF_QUANT_SOME;
-    predicate_eval_init(&state->pred_eval);
+    predicate_eval_init_reusable(ctx, &state->pred_eval);
 
     tf_frame_push_native(ctx, quantifier_step, quantifier_cleanup, state);
     return TF_OK;
@@ -2339,13 +2509,13 @@ tf_ret tf_all(tf_ctx *ctx) {
     pred = tf_stack_pop(ctx);
     seq = tf_stack_pop(ctx);
 
-    quantifier_state *state = tf_xmalloc(sizeof(*state));
+    quantifier_state *state = control_state_acquire(sizeof(*state));
     state->pred = pred;
     state->seq = seq;
     tf_sequence_iter_init(&state->iter, seq);
     state->current = NULL;
     state->kind = TF_QUANT_ALL;
-    predicate_eval_init(&state->pred_eval);
+    predicate_eval_init_reusable(ctx, &state->pred_eval);
 
     tf_frame_push_native(ctx, quantifier_step, quantifier_cleanup, state);
     return TF_OK;

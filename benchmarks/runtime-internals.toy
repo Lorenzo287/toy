@@ -1,0 +1,25 @@
+\ VM continuation, capture, and predicate-sandbox microbenchmarks.
+\ Usage: [ setup ] [ body ] count "Name" bench-clean
+'bench-clean [
+    | setup block count name |
+    $name printf ": " printf
+    monotonic-ns | start |
+    $setup exec
+    $count [ $block exec ] times
+    empty
+    monotonic-ns $start - printf " ns\n" printf
+] def
+
+"--- Runtime Internals ---\n" printf
+
+[ ] [ 3 4 [ 1 + ] app2 drop drop ] 200000
+"app2 continuation" bench-clean
+
+[ ] [ 1 [ | x | $x ] exec drop ] 200000
+"single dynamic capture" bench-clean
+
+[ 99 0 256 range ] [ dup [ 2 % 0 == ] filter drop ] 2000
+"filter with ambient stack" bench-clean
+
+[ ] [ 10 [ 0 == ] [ drop 1 ] [ dup pred ] [ * ] genrec drop ] 20000
+"genrec factorial(10)" bench-clean

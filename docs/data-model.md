@@ -83,12 +83,12 @@ list returns a list, mapping a vector returns a vector, and mapping a string
 returns a string when each result is a one-byte string.
 
 Words: `len`, `first`, `last`, `rest`, `uncons`, `cons`, `push-back`, `concat`,
-`reverse`, `take`, `dropn`, `contains?`, `indexof`, `unique`, `sort`, `each`,
-`map`, `fold`, `filter`, `split`, `merge`, `splitmid`.
+`reverse`, `take`, `skip`, `contains?`, `index-of`, `unique`, `sort`, `each`,
+`map`, `fold`, `filter`, `split`, `merge`, `split-mid`.
 
-`contains?` and `indexof` use item equality for vectors and lists. For strings,
+`contains?` and `index-of` use item equality for vectors and lists. For strings,
 the second argument is a substring of any length. The empty substring is found
-at byte index zero. `indexof` returns `-1` when the item or substring is absent.
+at byte index zero. `index-of` returns `-1` when the item or substring is absent.
 
 `join` is adjacent to sequence words but narrower: it accepts a vector or list
 of strings plus a separator and returns a string.
@@ -184,7 +184,7 @@ Projection words return vectors as the default interchange sequence:
 - string `split`
 - `keys`, `values`, `pairs`
 - `items`
-- `readl`
+- `read-lines`
 - `argv`
 - `words`
 
@@ -197,7 +197,7 @@ input contract:
 | `filter`       | vector/list/string + predicate     | same family                                |
 | `split`        | vector/list/string + predicate     | two values of the same family              |
 | `merge`        | two sequences of the same family   | same family                                |
-| `take`/`dropn` | vector/list/string                 | same family                                |
+| `take`/`skip` | vector/list/string                  | same family                                |
 | `concat`       | two vectors, two lists, two strings | same family                                |
 | `reverse`      | vector/list/string                 | same family                                |
 | `unique`       | vector/list/string                 | same family                                |
@@ -232,7 +232,7 @@ pq pairs               \ choose priority order and preserve priorities
 ```
 
 `>char` accepts integer codes from 0 through 255. `char-code` is its inverse,
-and `key` returns the same one-byte string representation. `repr` returns a
+and `read-key` returns the same one-byte string representation. `repr` returns a
 source-style string and uses canonical escapes for control and non-ASCII bytes.
 
 Internal layout optimizations may be transparent when observable semantics do
@@ -268,9 +268,9 @@ and independently refcounted nodes allow multiple lists to share a suffix.
 | `rest`, `uncons` | O(1) | new wrapper; shares the suffix |
 | `last` | O(n) | traverses the spine |
 | `take`, `reverse`, `push-back` | O(n) | copies the required nodes |
-| `dropn` | O(n) | traverses n nodes, then shares the suffix |
+| `skip` | O(n) | traverses n nodes, then shares the suffix |
 | `concat` | O(length(left)) | copies the left spine and shares the right |
-| `splitmid` | O(n) | copies the left half and shares the right half |
+| `split-mid` | O(n) | copies the left half and shares the right half |
 | sequence traversal words | O(n) | advance directly by node |
 | `sort` | O(n log n) | stable pointer sort, then rebuilds the list |
 | `unique` | expected O(n) for hashable scalars | O(n²) equality fallback for unhashable values |
@@ -436,6 +436,10 @@ length. Pushes at either end are amortized O(1), pops and `first`/`last` are
 O(1), and `items` is O(n). Endpoint updates reuse uniquely owned deques and copy
 shared deques before modification. Pops retain capacity instead of reallocating.
 
+Ordinary value and REPL stack output use the display-only form `deque[...]` so
+the deque reads as one value. `repr` and `.S` retain the reconstructable
+`[...] >deque` source form.
+
 ## Priority Queues
 
 Priority queues are backed by a heap internally. The heap layout is not public.
@@ -463,6 +467,10 @@ The binary heap gives O(1) peek and O(log n) unique-owner push/pop. A shared
 update first copies O(n) heap entries to preserve value semantics. `>pqueue`
 reserves once and uses bottom-up O(n) heap construction. `pairs` takes
 O(n log n) time because it emits the complete priority order.
+
+Ordinary value and REPL stack output use the display-only form
+`pqueue[[priority value] ...]`. `repr` and `.S` retain the reconstructable
+`[[priority value] ...] >pqueue` source form.
 
 ## Implementation Notes
 

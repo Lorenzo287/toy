@@ -4,8 +4,8 @@
 
 { 'name "Ada" 'age 36 } map? true == check
 #{ "red" "green" "blue" } set? true == check
-{ 'name "Ada" 'age 36 } typeof "map" == check
-#{ 1 2 3 } typeof "set" == check
+{ 'name "Ada" 'age 36 } type-of "map" == check
+#{ 1 2 3 } type-of "set" == check
 
 { 'name "Ada" 'age 36 } len 2 == check
 #{ 1 2 3 } len 3 == check

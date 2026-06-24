@@ -30,7 +30,19 @@ cmake -S . -B build-leak -G "Unix Makefiles" -DBUILD_MODE=LeakCheck
 cmake --build build-leak
 ```
 
-### 3. Profiling
+### 3. Allocation statistics
+
+This mode counts checked allocation calls and cumulative requested bytes. It is
+intended for comparing identical workloads before and after an allocation
+change; requested bytes are not a live-memory or peak-memory measurement.
+
+```powershell
+cmake -S . -B build-alloc -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DBUILD_MODE=AllocationStats
+cmake --build build-alloc
+.\build-alloc\toy.exe benchmarks\dispatch.toy
+```
+
+### 4. Profiling
 
 Development build for profiling symbols (uses `-O2`).
 

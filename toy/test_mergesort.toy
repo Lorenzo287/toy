@@ -5,7 +5,7 @@
 'mergesort [
     [ small ]
     []
-    [ splitmid ]
+    [ split-mid ]
     [ [ < ] merge ]
     binrec
 ] def

@@ -5,6 +5,7 @@
 #include "tf_alloc.h"
 #include "tf_console.h"
 #include "tf_exec.h"
+#include "tf_lib.h"
 #include "tf_repl.h"
 
 typedef struct {
@@ -50,6 +51,13 @@ int main(int argc, char **argv) {
         }
     }
     tf_ctx_free(ctx);
+    tf_control_state_cache_clear();
+    tf_obj_cache_clear();
+
+#ifdef TF_ALLOC_STATS
+    fprintf(stderr, "\n=== allocation statistics ===\n");
+    tf_alloc_stats_dump();
+#endif
 
 #ifdef STB_LEAKCHECK
     printf("\n=== stb_leakcheck_dumpmem output ===\n");

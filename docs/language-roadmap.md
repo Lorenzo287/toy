@@ -34,8 +34,8 @@ secondary to semantic clarity while the language is still being designed. See
 Continue auditing Joy builtins and add only words with clear stack effects and
 real value. The first vocabulary expansion now covers numeric constants,
 numeric predicates, dictionary introspection, higher-order collection words,
-error handling experiments, and external interop (`argv`, `env?`, `getenv`,
-`setenv`, `shell`). Future vocabulary work should emphasize semantic cleanup, edge-case
+error handling experiments, and external interop (`argv`, `env?`, `get-env`,
+`set-env`, `shell`). Future vocabulary work should emphasize semantic cleanup, edge-case
 tests, and consistency over breadth.
 
 Prefer Toy definitions for convenience words. Prefer C natives for direct object
@@ -86,6 +86,10 @@ cover unique growth, duplicate insertion, shared updates, membership, ordered
 removal, and the temporary-set path used by `unique`. Deque and priority-queue
 workloads cover both deque ends, ring-buffer wraparound, heap construction,
 unique/shared heap updates, peek, pop, and ordered pair projection.
+Runtime-internal workloads cover continuation scheduling, dynamic captures,
+predicate stack snapshots, and recursion schemes. Allocation-statistics builds
+provide checked allocation counts and cumulative requested bytes for identical
+workload comparisons.
 
 Future topics: dictionary lookup, allocation, list growth, hot-path
 specialization, bytecode, threaded code, and cache behavior.
@@ -102,6 +106,9 @@ then bytecode for the existing VM, then LLVM for a constrained subset.
 - Captures use `| name ... |`; vectors use `[ ... ]`, lists use `( ... )`, maps
   use `{ ... }`, and sets use `#{ ... }`.
 - Keep stack effects explicit and testable.
+- Integers are signed 64-bit values and floats use double precision. Mixed
+  comparisons must not lose integer ordering when conversion to double would
+  round values above `2^53`.
 - Overload existing words when the language concept is the same across types
   (`split` for sequence partitioning and string splitting); avoid aliases that
   only encode implementation categories.
@@ -114,9 +121,9 @@ then bytecode for the existing VM, then LLVM for a constrained subset.
 - Treat strings as byte sequences for shared sequence words. A Toy character is
   a one-byte string with an unsigned code from 0 through 255; `push-back` adds
   one character, while `concat` combines two sequences. String `contains?` and
-  `indexof` search substrings because their operand is itself a string.
+  `index-of` search substrings because their operand is itself a string.
 - Introspection words should push data rather than print directly. Word names
-  are symbols: `words` and `apropos` push vectors of symbols, while `see` and
+  are symbols: `words` and `search-words` push vectors of symbols, while `see` and
   `doc` push strings.
 - Callable equivalence applies only where a word consumes deferred code.
   Name/introspection words consume symbols as names, not single-symbol
@@ -125,6 +132,9 @@ then bytecode for the existing VM, then LLVM for a constrained subset.
   error, not by returning an unrelated sentinel value such as `[]`.
 - Ordinary words consume their declared stack inputs. Use `dup`, `keep`, `bi`,
   and related stack combinators when a caller wants preservation.
+- `pq-peek` is a deliberate state observer: it preserves the priority queue and
+  copies its next priority/value pair. Its name communicates the exception;
+  endpoint selectors such as `first` and `last` remain consuming.
 - Endpoint destructors return reconstruction inputs in constructor order:
   `pop-back` leaves `collection item` for `push-back`, while `uncons` leaves
   `item sequence` for `cons`.

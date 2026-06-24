@@ -13,4 +13,8 @@ void *tf_xrealloc(void *ptr, size_t size);
 void *tf_xcalloc(size_t nmemb, size_t size);
 char *tf_xstrdup(const char *s);
 
+#ifdef TF_ALLOC_STATS
+void tf_alloc_stats_dump(void);
+#endif
+
 #endif  // TF_ALLOC_H

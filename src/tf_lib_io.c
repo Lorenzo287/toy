@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -9,6 +10,28 @@
 #include "tf_exec.h"
 #include "tf_alloc.h"
 #include "tf_lexer.h"
+
+static int read_line_dynamic(FILE *fp, char **buf, size_t *cap,
+                             size_t *line_len) {
+    *line_len = 0;
+    int c = 0;
+    while ((c = fgetc(fp)) != EOF && c != '\n') {
+        size_t needed = *line_len + 2;
+        if (needed > *cap) {
+            size_t new_cap = *cap == 0 ? 128 : *cap;
+            while (new_cap < needed) new_cap *= 2;
+            *buf = tf_xrealloc(*buf, new_cap);
+            *cap = new_cap;
+        }
+        (*buf)[(*line_len)++] = (char)c;
+    }
+
+    if (c == EOF && ferror(fp)) return -1;
+    if (c == EOF && *line_len == 0) return 0;
+    if (*line_len > 0 && (*buf)[*line_len - 1] == '\r') (*line_len)--;
+    if (*buf) (*buf)[*line_len] = '\0';
+    return 1;
+}
 
 tf_ret tf_printf(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
@@ -61,19 +84,12 @@ tf_ret tf_printf(tf_ctx *ctx) {
     }
 
     o = tf_stack_pop(ctx);
-    tf_obj **args = NULL;
-    if (count > 0) {
-        args = tf_xmalloc(count * sizeof(tf_obj *));
-        for (size_t i = 0; i < count; i++) {
-            args[count - 1 - i] = tf_stack_pop(ctx);
-        }
-    }
-
     size_t arg_idx = 0;
     for (size_t i = 0; i < fmt_len; i++) {
         if (fmt[i] == '{') {
             if (i + 1 < fmt_len && fmt[i + 1] == '}') {
-                tf_obj_print_value(args[arg_idx++]);
+                tf_obj_print_value(tf_stack_peek(ctx, count - 1 - arg_idx));
+                arg_idx++;
                 i++;
             } else if (i + 1 < fmt_len && fmt[i + 1] == '{') {
                 putchar('{');
@@ -93,11 +109,9 @@ tf_ret tf_printf(tf_ctx *ctx) {
         }
     }
 
-    if (args) {
-        for (size_t i = 0; i < count; i++) {
-            tf_obj_release(args[i]);
-        }
-        free(args);
+    for (size_t i = 0; i < count; i++) {
+        tf_obj *arg = tf_stack_pop(ctx);
+        tf_obj_release(arg);
     }
     tf_obj_release(o);
     return TF_OK;
@@ -117,12 +131,6 @@ tf_ret tf_dot(tf_ctx *ctx) {
     tf_obj *o = tf_stack_peek(ctx, 0);
     tf_obj_print_value(o);
     printf("\n");
-    return TF_OK;
-}
-
-tf_ret tf_cr(tf_ctx *ctx) {
-    printf("\n");
-    (void)ctx;
     return TF_OK;
 }
 
@@ -175,7 +183,7 @@ tf_ret tf_clear(tf_ctx *ctx) {
 tf_ret tf_key(tf_ctx *ctx) {
     int c = getchar();
     if (c == EOF) {
-        tf_ctx_runtime_errorf(ctx, "'key' failed to read input\n");
+        tf_ctx_runtime_errorf(ctx, "'read-key' failed to read input\n");
         return TF_ERR;
     }
     unsigned char byte = (unsigned char)c;
@@ -183,15 +191,17 @@ tf_ret tf_key(tf_ctx *ctx) {
     return TF_OK;
 }
 
-#define MAX_BUF_LEN 1023
 tf_ret tf_input(tf_ctx *ctx) {
-    char buf[MAX_BUF_LEN + 1];
-    if (!fgets(buf, sizeof buf, stdin)) {
-        tf_ctx_runtime_errorf(ctx, "'input' failed to read input\n");
+    char *buf = NULL;
+    size_t cap = 0;
+    size_t len = 0;
+    int status = read_line_dynamic(stdin, &buf, &cap, &len);
+    if (status <= 0) {
+        free(buf);
+        tf_ctx_runtime_errorf(ctx, "'read-line' failed to read input\n");
         return TF_ERR;
     }
-    buf[strcspn(buf, "\n")] = '\0';
-    tf_stack_push(ctx, tf_obj_new_string(buf, strlen(buf)));
+    tf_stack_push(ctx, tf_obj_new_string_take(buf, len));
     return TF_OK;
 }
 
@@ -225,6 +235,14 @@ tf_ret tf_load(tf_ctx *ctx) {
 
     char *source = tf_xmalloc((size_t)size + 1);
     size_t n_read = fread(source, 1, (size_t)size, fp);
+    if (n_read != (size_t)size) {
+        fclose(fp);
+        free(source);
+        tf_ctx_runtime_errorf(ctx, "'load' failed to read all bytes from '%s'\n",
+                              path->str.ptr);
+        tf_obj_release(path);
+        return TF_ERR;
+    }
     source[n_read] = '\0';
     fclose(fp);
 
@@ -247,21 +265,21 @@ tf_ret tf_readf(tf_ctx *ctx) {
 
     FILE *fp = fopen(path->str.ptr, "rb");
     if (!fp) {
-        tf_ctx_runtime_errorf(ctx, "'readf' failed to open '%s'\n", path->str.ptr);
+        tf_ctx_runtime_errorf(ctx, "'read-file' failed to open '%s'\n", path->str.ptr);
         tf_obj_release(path);
         return TF_ERR;
     }
 
     if (fseek(fp, 0, SEEK_END) != 0) {
         fclose(fp);
-        tf_ctx_runtime_errorf(ctx, "'readf' failed to seek '%s'\n", path->str.ptr);
+        tf_ctx_runtime_errorf(ctx, "'read-file' failed to seek '%s'\n", path->str.ptr);
         tf_obj_release(path);
         return TF_ERR;
     }
     long size = ftell(fp);
     if (size < 0) {
         fclose(fp);
-        tf_ctx_runtime_errorf(ctx, "'readf' failed to read size for '%s'\n",
+        tf_ctx_runtime_errorf(ctx, "'read-file' failed to read size for '%s'\n",
                               path->str.ptr);
         tf_obj_release(path);
         return TF_ERR;
@@ -270,6 +288,14 @@ tf_ret tf_readf(tf_ctx *ctx) {
 
     char *buf = tf_xmalloc((size_t)size + 1);
     size_t n_read = fread(buf, 1, (size_t)size, fp);
+    if (n_read != (size_t)size) {
+        fclose(fp);
+        free(buf);
+        tf_ctx_runtime_errorf(ctx, "'read-file' failed to read all bytes from '%s'\n",
+                              path->str.ptr);
+        tf_obj_release(path);
+        return TF_ERR;
+    }
     buf[n_read] = '\0';
     fclose(fp);
 
@@ -288,7 +314,7 @@ tf_ret tf_writef(tf_ctx *ctx) {
 
     FILE *fp = fopen(path->str.ptr, "wb");
     if (!fp) {
-        tf_ctx_runtime_errorf(ctx, "'writef' failed to open '%s'\n", path->str.ptr);
+        tf_ctx_runtime_errorf(ctx, "'write-file' failed to open '%s'\n", path->str.ptr);
         tf_obj_release(content);
         tf_obj_release(path);
         return TF_ERR;
@@ -299,7 +325,7 @@ tf_ret tf_writef(tf_ctx *ctx) {
 
     tf_ret res = (n_written == content->str.len) ? TF_OK : TF_ERR;
     if (res == TF_ERR) {
-        tf_ctx_runtime_errorf(ctx, "'writef' failed to write all bytes to '%s'\n",
+        tf_ctx_runtime_errorf(ctx, "'write-file' failed to write all bytes to '%s'\n",
                               path->str.ptr);
     }
     tf_obj_release(content);
@@ -313,7 +339,7 @@ tf_ret tf_delf(tf_ctx *ctx) {
 
     int res = remove(path->str.ptr);
     if (res != 0) {
-        tf_ctx_runtime_errorf(ctx, "'delf' failed to delete '%s'\n", path->str.ptr);
+        tf_ctx_runtime_errorf(ctx, "'delete-file' failed to delete '%s'\n", path->str.ptr);
     }
     tf_obj_release(path);
     return (res == 0) ? TF_OK : TF_ERR;
@@ -325,16 +351,27 @@ tf_ret tf_readl(tf_ctx *ctx) {
 
     FILE *fp = fopen(path->str.ptr, "rb");
     if (!fp) {
-        tf_ctx_runtime_errorf(ctx, "'readl' failed to open '%s'\n", path->str.ptr);
+        tf_ctx_runtime_errorf(ctx, "'read-lines' failed to open '%s'\n", path->str.ptr);
         tf_obj_release(path);
         return TF_ERR;
     }
 
     tf_obj *lines = tf_obj_new_vector();
-    char buf[MAX_BUF_LEN + 1];
-    while (fgets(buf, sizeof buf, fp)) {
-        buf[strcspn(buf, "\r\n")] = '\0';
-        tf_vector_push(lines, tf_obj_new_string(buf, strlen(buf)));
+    char *buf = NULL;
+    size_t cap = 0;
+    size_t line_len = 0;
+    int status = 0;
+    while ((status = read_line_dynamic(fp, &buf, &cap, &line_len)) > 0) {
+        tf_vector_push(lines, tf_obj_new_string(buf, line_len));
+    }
+    free(buf);
+    if (status < 0) {
+        fclose(fp);
+        tf_ctx_runtime_errorf(ctx, "'read-lines' failed while reading '%s'\n",
+                              path->str.ptr);
+        tf_obj_release(lines);
+        tf_obj_release(path);
+        return TF_ERR;
     }
     fclose(fp);
 
@@ -347,9 +384,13 @@ tf_ret tf_exists_q(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_STR)) return TF_ERR;
     tf_obj *path = tf_stack_pop_type(ctx, TF_OBJ_TYPE_STR);
 
-    FILE *fp = fopen(path->str.ptr, "rb");
-    bool exists = (fp != NULL);
-    if (fp) fclose(fp);
+#ifdef _WIN32
+    struct _stat info;
+    bool exists = _stat(path->str.ptr, &info) == 0;
+#else
+    struct stat info;
+    bool exists = stat(path->str.ptr, &info) == 0;
+#endif
 
     tf_stack_push(ctx, tf_obj_new_bool(exists));
     tf_obj_release(path);

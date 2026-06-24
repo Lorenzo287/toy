@@ -32,7 +32,9 @@ typedef enum { TF_WORD_NATIVE, TF_WORD_USER } tf_word_kind;
  * same rules as the rest of the runtime.
  */
 typedef struct {
-    tf_obj *name;
+    const char *name;
+    size_t name_len;
+    bool owns_name;
     tf_word_kind type;
     union {
         tf_native_fn native_impl;
@@ -43,11 +45,14 @@ typedef struct {
 /*
  * Open-addressed global word dictionary.
  *
- * Entries are individually allocated so a tf_word* returned by
- * tf_dict_lookup() remains valid when the bucket array resizes.
+ * Definitions live in a dense array; buckets store one-based entry indexes.
+ * A tf_word* returned by tf_dict_lookup() is transient and must not be retained
+ * across dictionary mutation.
  */
 typedef struct {
-    tf_word **buckets;
+    tf_word *entries;
+    size_t entry_capacity;
+    size_t *buckets;
     size_t capacity;
     size_t count;
 } tf_word_table;
@@ -61,9 +66,24 @@ typedef struct {
     tf_var *vars;
     size_t len;
     size_t cap;
+    tf_var inline_var;
 } tf_var_table;
 
 typedef enum { TF_FRAME_PROGRAM, TF_FRAME_NATIVE } tf_frame_kind;
+
+typedef struct {
+    tf_obj *program;
+    size_t pc;
+    tf_var_table vars;
+} tf_program_frame;
+
+typedef struct {
+    tf_frame_step_fn step;
+    tf_frame_cleanup_fn cleanup;
+    tf_frame_error_fn on_error;
+    void *state;
+} tf_native_frame;
+
 /*
  * Execution frame.
  *
@@ -73,13 +93,10 @@ typedef enum { TF_FRAME_PROGRAM, TF_FRAME_NATIVE } tf_frame_kind;
  */
 typedef struct {
     tf_frame_kind kind;
-    tf_obj *program;
-    size_t pc;  // program counter
-    tf_var_table vars;
-    tf_frame_step_fn step;
-    tf_frame_cleanup_fn cleanup;
-    tf_frame_error_fn on_error;
-    void *state;
+    union {
+        tf_program_frame program;
+        tf_native_frame native;
+    } as;
     tf_source_span call_site;
 } tf_frame;
 
@@ -145,6 +162,7 @@ const tf_builtin_group *tf_builtin_groups(size_t *count);
 void tf_dict_set_native(tf_ctx *ctx, const char *name, tf_native_fn cb);
 void tf_dict_set_user(tf_ctx *ctx, tf_obj *name, tf_obj *uf);
 tf_word *tf_dict_lookup(tf_ctx *ctx, tf_obj *name);
+tf_word *tf_dict_lookup_name(tf_ctx *ctx, const char *name, size_t len);
 
 /* Dynamic capture lookup across active program frames. */
 tf_obj *tf_scope_lookup_var(tf_ctx *ctx, tf_obj *name);

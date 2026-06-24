@@ -1,5 +1,6 @@
 #include "tf_obj.h"
 #include <assert.h>
+#include <inttypes.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +13,38 @@
 #define TF_SET_INITIAL_BUCKET_CAP 8
 #define TF_DEQUE_INITIAL_CAP 4
 #define TF_PQUEUE_INITIAL_CAP 4
+#define TF_OBJ_CACHE_LIMIT 256
+
+struct tf_source_file {
+    int refcount;
+    char *filename;
+};
+
+typedef struct tf_obj_cache_node {
+    struct tf_obj_cache_node *next;
+} tf_obj_cache_node;
+
+static tf_obj_cache_node *obj_cache = NULL;
+static size_t obj_cache_len = 0;
+
+static tf_obj *obj_storage_acquire(void) {
+    if (!obj_cache) return tf_xmalloc(sizeof(tf_obj));
+    tf_obj_cache_node *node = obj_cache;
+    obj_cache = node->next;
+    obj_cache_len--;
+    return (tf_obj *)node;
+}
+
+static void obj_storage_release(tf_obj *o) {
+    if (obj_cache_len >= TF_OBJ_CACHE_LIMIT) {
+        free(o);
+        return;
+    }
+    tf_obj_cache_node *node = (tf_obj_cache_node *)o;
+    node->next = obj_cache;
+    obj_cache = node;
+    obj_cache_len++;
+}
 
 static void string_set_heap_capacity(tf_obj *s, size_t capacity) {
     /* Heap strings do not use inline_buf; memcpy also avoids alignment assumptions. */
@@ -27,7 +60,7 @@ static size_t string_heap_capacity(tf_obj *s) {
 /* === Object Creation === */
 
 tf_obj *tf_obj_new(int type) {
-    tf_obj *o = tf_xmalloc(sizeof(tf_obj));
+    tf_obj *o = obj_storage_acquire();
     o->type = type;
     o->refcount = 1;
     o->span = (tf_source_span){0};
@@ -93,7 +126,7 @@ tf_obj *tf_obj_new_pqueue(void) {
     return o;
 }
 
-tf_obj *tf_obj_new_int(int i) {
+tf_obj *tf_obj_new_int(int64_t i) {
     tf_obj *o = tf_obj_new(TF_OBJ_TYPE_INT);
     o->i = i;
     return o;
@@ -105,7 +138,7 @@ tf_obj *tf_obj_new_bool(bool b) {
     return o;
 }
 
-tf_obj *tf_obj_new_float(float f) {
+tf_obj *tf_obj_new_float(double f) {
     tf_obj *o = tf_obj_new(TF_OBJ_TYPE_FLOAT);
     o->f = f;
     return o;
@@ -158,11 +191,35 @@ tf_obj *tf_obj_new_string_take(char *s, size_t len) {
     return o;
 }
 
+tf_source_file *tf_source_file_new(const char *filename) {
+    tf_source_file *source = tf_xmalloc(sizeof(*source));
+    source->refcount = 1;
+    source->filename = tf_xstrdup(filename ? filename : "<unknown>");
+    return source;
+}
+
+void tf_source_file_retain(tf_source_file *source) {
+    if (source) source->refcount++;
+}
+
+void tf_source_file_release(tf_source_file *source) {
+    if (!source) return;
+    assert(source->refcount > 0);
+    source->refcount--;
+    if (source->refcount != 0) return;
+    free(source->filename);
+    free(source);
+}
+
+const char *tf_source_file_name(tf_source_file *source) {
+    return source ? source->filename : NULL;
+}
+
 void tf_obj_set_span(tf_obj *o, tf_source_span span) {
     if (!o) return;
-    if (o->span.valid && o->span.filename) { free((char *)o->span.filename); }
+    tf_source_file_retain(span.source);
+    tf_source_file_release(o->span.source);
     o->span = span;
-    if (span.valid && span.filename) { o->span.filename = tf_xstrdup(span.filename); }
 }
 
 /* === Object Utilities === */
@@ -180,6 +237,68 @@ int tf_obj_compare_string(tf_obj *a, tf_obj *b) {
     } else {
         if (cmp < 0) return -1;
         return 1;
+    }
+}
+
+int tf_obj_compare_number(tf_obj *a, tf_obj *b) {
+    if (a->type == TF_OBJ_TYPE_INT && b->type == TF_OBJ_TYPE_INT) {
+        return (a->i > b->i) - (a->i < b->i);
+    }
+    if (a->type == TF_OBJ_TYPE_FLOAT && b->type == TF_OBJ_TYPE_FLOAT) {
+        return (a->f > b->f) - (a->f < b->f);
+    }
+
+    tf_obj *int_obj = a->type == TF_OBJ_TYPE_INT ? a : b;
+    tf_obj *float_obj = a->type == TF_OBJ_TYPE_FLOAT ? a : b;
+    double value = float_obj->f;
+    if (isnan(value)) return 0;
+    int order = 0;
+    if (value >= 9223372036854775808.0) {
+        order = -1;
+    } else if (value < -9223372036854775808.0) {
+        order = 1;
+    } else {
+        double truncated = trunc(value);
+        int64_t converted = (int64_t)truncated;
+        if (int_obj->i < converted)
+            order = -1;
+        else if (int_obj->i > converted)
+            order = 1;
+        else if (value > truncated)
+            order = -1;
+        else if (value < truncated)
+            order = 1;
+    }
+    return int_obj == a ? order : -order;
+}
+
+void tf_format_double(char *buf, size_t size, double value) {
+    if (!isfinite(value)) {
+        snprintf(buf, size, "%.17g", value);
+        return;
+    }
+
+    double magnitude = fabs(value);
+    if (magnitude == 0.0 || (magnitude >= 1e-4 && magnitude < 1e16)) {
+        for (int decimals = 0; decimals <= 17; decimals++) {
+            snprintf(buf, size, "%.*f", decimals, value);
+            char *end = NULL;
+            double parsed = strtod(buf, &end);
+            if (end && *end == '\0' &&
+                memcmp(&parsed, &value, sizeof value) == 0) {
+                return;
+            }
+        }
+    }
+
+    for (int precision = 1; precision <= 17; precision++) {
+        snprintf(buf, size, "%.*g", precision, value);
+        char *end = NULL;
+        double parsed = strtod(buf, &end);
+        if (end && *end == '\0' &&
+            memcmp(&parsed, &value, sizeof value) == 0) {
+            return;
+        }
     }
 }
 
@@ -331,14 +450,14 @@ static tf_list_node *list_copy_prefix_nodes(tf_list_node *source, size_t count,
 }
 
 tf_obj *tf_list_from_vector(tf_obj *vector) {
-    tf_obj *result = tf_obj_new_list();
-    for (size_t i = vector->vector.len; i > 0; i--) {
-        tf_list_node *old_head = result->list.head;
-        result->list.head = list_node_new(vector->vector.elem[i - 1], old_head);
-        result->list.len++;
-        list_node_release(old_head);
+    tf_list_builder builder;
+    tf_list_builder_init(&builder);
+    for (size_t i = 0; i < vector->vector.len; i++) {
+        tf_obj *item = vector->vector.elem[i];
+        tf_obj_retain(item);
+        tf_list_builder_push_owned(&builder, item);
     }
-    return result;
+    return tf_list_builder_finish(&builder);
 }
 
 tf_obj *tf_list_cons_obj(tf_obj *head, tf_obj *tail) {
@@ -473,7 +592,7 @@ uint64_t tf_obj_hash(tf_obj *o) {
     case TF_OBJ_TYPE_BOOL:
         return hash_mix_u64(h, o->b ? 1 : 0);
     case TF_OBJ_TYPE_INT:
-        return hash_mix_u64(h, (uint32_t)o->i);
+        return hash_mix_u64(h, (uint64_t)o->i);
     case TF_OBJ_TYPE_STR:
     case TF_OBJ_TYPE_SYMBOL:
         return fnv1a_bytes(o->str.ptr, o->str.len, h);
@@ -861,16 +980,10 @@ tf_obj *tf_deque_pop_back(tf_obj *deque) {
     return value;
 }
 
-static double pqueue_priority_value(tf_obj *priority) {
-    return priority->type == TF_OBJ_TYPE_INT ? (double)priority->i
-                                             : (double)priority->f;
-}
-
 static bool pqueue_entry_less(tf_pqueue_entry a, tf_pqueue_entry b) {
-    double a_priority = pqueue_priority_value(a.priority);
-    double b_priority = pqueue_priority_value(b.priority);
-    if (a_priority < b_priority) return true;
-    if (a_priority > b_priority) return false;
+    int order = tf_obj_compare_number(a.priority, b.priority);
+    if (order < 0) return true;
+    if (order > 0) return false;
     return a.order < b.order;
 }
 
@@ -1081,8 +1194,7 @@ static bool obj_equal_inner(tf_obj *a, tf_obj *b, size_t depth) {
             bool left_ok = tf_pqueue_pop(left, &left_priority, &left_value);
             bool right_ok = tf_pqueue_pop(right, &right_priority, &right_value);
             bool same = left_ok && right_ok &&
-                        pqueue_priority_value(left_priority) ==
-                            pqueue_priority_value(right_priority) &&
+                        tf_obj_compare_number(left_priority, right_priority) == 0 &&
                         obj_equal_inner(left_value, right_value, depth + 1);
             if (left_priority) tf_obj_release(left_priority);
             if (right_priority) tf_obj_release(right_priority);
@@ -1118,7 +1230,7 @@ void tf_obj_release(tf_obj *o) {
 }
 
 void tf_obj_free(tf_obj *o) {
-    if (o->span.valid && o->span.filename) { free((char *)o->span.filename); }
+    tf_source_file_release(o->span.source);
     switch (o->type) {
     case TF_OBJ_TYPE_VARLIST:
     case TF_OBJ_TYPE_VECTOR:
@@ -1164,7 +1276,16 @@ void tf_obj_free(tf_obj *o) {
     default:
         break;
     }
-    free(o);
+    obj_storage_release(o);
+}
+
+void tf_obj_cache_clear(void) {
+    while (obj_cache) {
+        tf_obj_cache_node *next = obj_cache->next;
+        free(obj_cache);
+        obj_cache = next;
+    }
+    obj_cache_len = 0;
 }
 
 static void print_escaped_string(const char *s, size_t len) {
@@ -1202,11 +1323,14 @@ void tf_obj_print(tf_obj *o, size_t *count) {
     (*count)++;
     switch (o->type) {
     case TF_OBJ_TYPE_INT:
-        printf("(int:%d)", o->i);
+        printf("(int:%" PRId64 ")", o->i);
         break;
-    case TF_OBJ_TYPE_FLOAT:
-        printf("(float:%g)", o->f);
+    case TF_OBJ_TYPE_FLOAT: {
+        char buf[64];
+        tf_format_double(buf, sizeof buf, o->f);
+        printf("(float:%s)", buf);
         break;
+    }
     case TF_OBJ_TYPE_SYMBOL:
         printf("(symbol:%s%s)", o->str.quoted ? "'" : "", o->str.ptr);
         break;
@@ -1315,11 +1439,14 @@ void tf_obj_print(tf_obj *o, size_t *count) {
 void tf_obj_print_value(tf_obj *o) {
     switch (o->type) {
     case TF_OBJ_TYPE_INT:
-        printf("%d", o->i);
+        printf("%" PRId64, o->i);
         break;
-    case TF_OBJ_TYPE_FLOAT:
-        printf("%g", o->f);
+    case TF_OBJ_TYPE_FLOAT: {
+        char buf[64];
+        tf_format_double(buf, sizeof buf, o->f);
+        printf("%s", buf);
         break;
+    }
     case TF_OBJ_TYPE_SYMBOL:
         printf("%s", o->str.ptr);
         break;
@@ -1378,15 +1505,15 @@ void tf_obj_print_value(tf_obj *o) {
         printf("}");
         break;
     case TF_OBJ_TYPE_DEQUE:
-        printf("[");
+        printf("deque[");
         for (size_t i = 0; i < o->deque.len; i++) {
             if (i > 0) printf(" ");
             tf_obj_print_value(tf_deque_get(o, i));
         }
-        printf("] >deque");
+        printf("]");
         break;
     case TF_OBJ_TYPE_PQUEUE: {
-        printf("[");
+        printf("pqueue[");
         tf_obj *tmp = tf_pqueue_clone(o);
         for (size_t i = 0; tmp->pqueue.len > 0; i++) {
             tf_obj *priority = NULL;
@@ -1402,7 +1529,7 @@ void tf_obj_print_value(tf_obj *o) {
             tf_obj_release(value);
         }
         tf_obj_release(tmp);
-        printf("] >pqueue");
+        printf("]");
         break;
     }
     default:
@@ -1412,14 +1539,14 @@ void tf_obj_print_value(tf_obj *o) {
 
 // Source printer: reconstructs objects in a source-like form for words like
 // `see`
-void tf_obj_print_source(tf_obj *o) {
+static void print_source_like(tf_obj *o, bool display) {
     switch (o->type) {
     case TF_OBJ_TYPE_INT:
-        printf("%d", o->i);
+        printf("%" PRId64, o->i);
         break;
     case TF_OBJ_TYPE_FLOAT: {
         char buf[64];
-        snprintf(buf, sizeof buf, "%.9g", o->f);
+        tf_format_double(buf, sizeof buf, o->f);
         printf("%s", buf);
         if (isfinite(o->f) && !strpbrk(buf, ".eE")) printf(".0");
         break;
@@ -1442,7 +1569,7 @@ void tf_obj_print_source(tf_obj *o) {
     case TF_OBJ_TYPE_VARLIST:
         printf("|");
         for (size_t i = 0; i < o->vector.len; i++) {
-            tf_obj_print_source(o->vector.elem[i]);
+            print_source_like(o->vector.elem[i], display);
             if (i + 1 < o->vector.len) printf(" ");
         }
         printf("|");
@@ -1450,7 +1577,7 @@ void tf_obj_print_source(tf_obj *o) {
     case TF_OBJ_TYPE_VECTOR:
         printf("[");
         for (size_t i = 0; i < o->vector.len; i++) {
-            tf_obj_print_source(o->vector.elem[i]);
+            print_source_like(o->vector.elem[i], display);
             if (i + 1 < o->vector.len) printf(" ");
         }
         printf("]");
@@ -1459,7 +1586,7 @@ void tf_obj_print_source(tf_obj *o) {
         printf("(");
         tf_list_node *node = o->list.head;
         while (node) {
-            tf_obj_print_source(node->value);
+            print_source_like(node->value, display);
             node = node->next;
             if (node) printf(" ");
         }
@@ -1470,9 +1597,9 @@ void tf_obj_print_source(tf_obj *o) {
         printf("{");
         for (size_t i = 0; i < o->map.len; i++) {
             if (i > 0) printf(" ");
-            tf_obj_print_source(o->map.entries[i].key);
+            print_source_like(o->map.entries[i].key, display);
             printf(" ");
-            tf_obj_print_source(o->map.entries[i].value);
+            print_source_like(o->map.entries[i].value, display);
         }
         printf("}");
         break;
@@ -1480,20 +1607,20 @@ void tf_obj_print_source(tf_obj *o) {
         printf("#{");
         for (size_t i = 0; i < o->set.len; i++) {
             if (i > 0) printf(" ");
-            tf_obj_print_source(o->set.entries[i].item);
+            print_source_like(o->set.entries[i].item, display);
         }
         printf("}");
         break;
     case TF_OBJ_TYPE_DEQUE:
-        printf("[");
+        printf(display ? "deque[" : "[");
         for (size_t i = 0; i < o->deque.len; i++) {
             if (i > 0) printf(" ");
-            tf_obj_print_source(tf_deque_get(o, i));
+            print_source_like(tf_deque_get(o, i), display);
         }
-        printf("] >deque");
+        printf(display ? "]" : "] >deque");
         break;
     case TF_OBJ_TYPE_PQUEUE: {
-        printf("[");
+        printf(display ? "pqueue[" : "[");
         tf_obj *tmp = tf_pqueue_clone(o);
         for (size_t i = 0; tmp->pqueue.len > 0; i++) {
             tf_obj *priority = NULL;
@@ -1501,19 +1628,27 @@ void tf_obj_print_source(tf_obj *o) {
             tf_pqueue_pop(tmp, &priority, &value);
             if (i > 0) printf(" ");
             printf("[");
-            tf_obj_print_source(priority);
+            print_source_like(priority, display);
             printf(" ");
-            tf_obj_print_source(value);
+            print_source_like(value, display);
             printf("]");
             tf_obj_release(priority);
             tf_obj_release(value);
         }
         tf_obj_release(tmp);
-        printf("] >pqueue");
+        printf(display ? "]" : "] >pqueue");
         break;
     }
     default:
         printf("?");
         break;
     }
+}
+
+void tf_obj_print_display(tf_obj *o) {
+    print_source_like(o, true);
+}
+
+void tf_obj_print_source(tf_obj *o) {
+    print_source_like(o, false);
 }
