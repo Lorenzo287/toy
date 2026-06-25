@@ -1,0 +1,18 @@
+63 >char
+|qmark|
+
+"63 >char\n|qmark|\n\n\"?\"\n|self| $self\n[\n	[$qmark ==] \n	[\n		$self \n		[[ \n			[[\"\\n\" == ][\"\\\\n\" printf]]\n			[[\"\\\"\" == ][\"\\\\\\\"\" printf]] \n			[[\"\\\\\" == ][\"\\\\\\\\\" printf]] \n			[[true][printf]] \n		] cond ] each\n	] \n	[printf] ifelse\n] each\n"
+|self| $self
+[
+	[$qmark ==] 
+	[
+		$self 
+		[[ 
+			[["\n" == ]["\\n" printf]]
+			[["\"" == ]["\\\"" printf]] 
+			[["\\" == ]["\\\\" printf]] 
+			[[true][printf]] 
+		] cond ] each
+	] 
+	[printf] ifelse
+] each

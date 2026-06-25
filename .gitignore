@@ -3,6 +3,7 @@ build/
 build-prof/
 build-leak/
 build-linux/
+build-msvc/
 bin/
 obj/
 

@@ -45,19 +45,22 @@ cmake --build build
 .\build\toy.exe --debug program.toy
 ```
 
-## How Stack Syntax Works
+## Stack Syntax
 
-Most programming syntax can be seen as a way to 
-[traverse](https://en.wikipedia.org/wiki/Tree_traversal) a tree. 
-The expression `1 + (2 * 3)` has `+` at the root, `1` on the left node, `*` on the right ecc.
-Infix, Lisp-style prefix syntax, and Forth-style postfix syntax stem from different
-orders, namely in-order, pre-order, post-order.
+Every expression of a programming language is a 
+[tree](https://en.wikipedia.org/wiki/Abstract_syntax_tree) in disguise, 
+and syntax is just determined by the 
+[traversal](https://en.wikipedia.org/wiki/Tree_traversal) order. 
+Take `1 + (2 * 3)`: it has `+` at the root, `1` as the left child, 
+and `* 2 3` as the right subtree.
+Infix, prefix and postfix syntax stem from different traversals,
+namely in-order, pre-order, post-order.
 
 | Style | Traversal | Example |
 | ----- | --------- | ------- |
 | Infix | left child, operator, right child | `1 + (2 * 3)` |
-| Lisp / prefix | operator before children | `(+ 1 (* 2 3))` |
-| Forth / Toy / postfix | children before operator | `1 2 3 * +` |
+| Prefix (Lisp) | operator before children | `(+ 1 (* 2 3))` |
+| postfix (Forth/Toy) | children before operator | `1 2 3 * +` |
 
 In Toy, values are pushed as they are read. When `*` appears, it consumes
 `2 3` and leaves `6`; when `+` appears, it consumes `1 6` and leaves `7`.
@@ -243,17 +246,9 @@ predicate are not undone.
 Diagnostic display words are also observers: `.`, `.s`, and `.S` print without
 changing the data stack.
 
-Use `repr` to obtain a source-style string with bytes escaped. `print` always
-prints one value literally with a newline, while `printf` explicitly interprets
-`{}` placeholders and does not append a newline.
-
-`unix-time` returns whole seconds since 1970-01-01 00:00:00 UTC.
-`local-time` and `utc-time` return maps with `year`, `month`, `day`, `hour`,
-`minute`, and `second` fields. `cpu-time` reports process CPU seconds without
-discarding the underlying timer resolution. `monotonic-ns` returns an integer
-reading with an unspecified origin; subtract two readings to measure elapsed
-wall time. Its unit is one nanosecond, while actual resolution depends on the
-platform clock.
+Use `repr` to obtain a source-style string with bytes escaped (makes me think 
+about [quines](toy/quines/quine.toy)). `print` always prints one value literally with a newline, 
+while `printf` explicitly interprets `{}` placeholders and does not append a newline.
 
 ## Built-in Words
 
