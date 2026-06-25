@@ -1,15 +1,20 @@
 # Toy: Agent Manual
 
-Toy is a minimalist stack-based interpreter in C. It has refcounted dynamic
-objects, first-class quotations/lists, dynamic captures (`| a b |` / `$a`), a
-global word dictionary, and an iterative frame stack for user words.
+Toy is a small concatenative language/runtime in C. It has a stack-based
+execution model, first-class quotations and symbols, refcounted collection
+objects, dynamic captures (`| a b |` / `$a`), a generated builtin registry, a
+global word dictionary, and an iterative VM frame stack for user words.
 
 Roadmap work lives in `docs/language-roadmap.md`. Keep this file focused on
 navigation and development rules.
 
 ## Project Map
 
+- `builtins.json`: canonical builtin metadata used to generate registry, docs,
+  runtime help, LSP data, Tree-sitter word lists, and VS Code grammar data.
 - `src/`: interpreter implementation.
+- `src/tf_builtins.inc`, `src/tf_docs.c`, `src/tf_repl_builtins.inc`:
+  generated builtin/runtime-doc files; do not hand-edit.
 - `include/`: internal APIs; read these before engine, lexer, object, or native edits.
 - `toy/`: Toy scripts and regression tests.
 - `docs/`: build, REPL, tooling, and roadmap docs.
@@ -17,9 +22,17 @@ navigation and development rules.
   collection combinator usage.
 - `docs/data-model.md`: collection, conversion, equality, and hashing design
   plan.
+- `docs/runtime-internals.md`: VM/object/allocation implementation notes.
 - `benchmarks/`: reproducible performance workloads, runner, and recorded
   experiment results.
-- `tools/`: Tree-sitter grammar, Go LSP, VS Code extension.
+- `benchmarks/results/`: benchmark result notes and comparison templates.
+- `tools/generate-builtins.js`: builtin metadata generator and consistency
+  checker.
+- `tools/tree-sitter-toyforth/`: Tree-sitter grammar, generated parser inputs,
+  queries, and tests.
+- `tools/toyforth-lsp/`: Go LSP implementation and generated builtin docs.
+- `tools/vscode-toyforth/`: VS Code extension and generated grammar metadata.
+- `.github/workflows/`: release automation.
 - `deps/`: vendored `linenoise` and `stb_leakcheck`.
 
 ## Fast Context
