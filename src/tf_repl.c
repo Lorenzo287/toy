@@ -124,8 +124,6 @@ static void print_word_grid(const char *title, const char **names, size_t count)
     if (columns > count) columns = count;
     size_t rows = (count + columns - 1) / columns;
 
-    char form_title[strlen(title) + strlen("===  ===") + 1];
-    snprintf(form_title, sizeof(form_title), "=== %s ===", title);
     // int padding = (tf_console_width() - strlen(form_title)) / 2 + strlen(form_title);
     // printf("%s%*s%s\n", tf_console_clr(TF_CLR_PROMPT), padding, form_title,
     printf("%s%s%s\n", tf_console_clr(TF_CLR_RESET), title,

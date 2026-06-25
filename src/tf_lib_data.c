@@ -422,7 +422,7 @@ static tf_obj *set_select(tf_obj *source, tf_obj *membership,
 static bool valid_priority(tf_ctx *ctx, tf_obj *priority) {
     double value = 0;
     if (priority->type == TF_OBJ_TYPE_INT) {
-        value = priority->i;
+        value = (double)priority->i;
     } else if (priority->type == TF_OBJ_TYPE_FLOAT) {
         value = priority->f;
     } else {
@@ -1223,7 +1223,7 @@ tf_ret tf_to_pqueue(tf_ctx *ctx) {
 
         double priority = 0;
         if (priority_obj->type == TF_OBJ_TYPE_INT) {
-            priority = priority_obj->i;
+            priority = (double)priority_obj->i;
         } else if (priority_obj->type == TF_OBJ_TYPE_FLOAT) {
             priority = priority_obj->f;
         } else {

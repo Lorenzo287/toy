@@ -14,6 +14,12 @@ target_include_directories(toy PRIVATE ${PROJECT_SOURCE_DIR}/include)
 
 if(WIN32)
     target_sources(toy PRIVATE ${PROJECT_SOURCE_DIR}/deps/linenoise/linenoise_win.c)
+    if(MSVC)
+        set_source_files_properties(
+            ${PROJECT_SOURCE_DIR}/deps/linenoise/linenoise_win.c
+            PROPERTIES COMPILE_OPTIONS "/wd4267"
+        )
+    endif()
 else()
     target_sources(toy PRIVATE ${PROJECT_SOURCE_DIR}/deps/linenoise/linenoise.c)
     target_link_libraries(toy PRIVATE m)

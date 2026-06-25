@@ -345,7 +345,7 @@ const tf_builtin_group *tf_builtin_groups(size_t *count) {
 }
 
 tf_ctx *tf_ctx_new(int argc, char **argv) {
-    srand(time(NULL));
+    srand((unsigned int)time(NULL));
     tf_ctx *ctx = tf_xmalloc(sizeof(tf_ctx));
     ctx->data_stack = tf_obj_new_vector();
     size_t builtin_count = builtin_word_count();
