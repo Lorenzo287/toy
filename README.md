@@ -181,15 +181,29 @@ repeated linear `push-back`, prepend each item and reverse once:
 Toy has a number of words that cover file managment, introspection
 (you can easily find documentation inside the lang itself and the REPL),
 types utilities, system calls and many others. Explore them all
-in the table below or by typing `help` and later `'name doc print` in the REPL.
+in the table at the bottom or by typing `help` and later `'name doc print` in the REPL.
 
 
 ```toy
-"notes.txt" "hello from Toy" write-file
-"notes.txt" read-file print
+"todo.txt" "ship README\nrun tests\n" write-file
+"todo.txt" read-lines [ upper ] map ", " join print
+"todo.txt" file-exists? [ "todo.txt is on disk" print ] if
 
 'square [ dup * ] def
 'square see print
+
+[ 1 "two" 'three [ 4 ] ] [ type-of ] map print
+[ 1 + ] callable? print
+"abc" sequence? print
+
+pwd print
+"TOY_README_MODE" "examples" set-env
+"TOY_README_MODE" env? [ "TOY_README_MODE" get-env print ] if
+"echo from Toy shell" shell [ | out status | $status 0 == [ $out trim print ] if ] exec
+
+monotonic-ns
+50000 [ [ 1 2 + drop ] exec ] times
+monotonic-ns swap - 1000000 / "elapsed: {} ms\n" printf
 ```
 
 Comments use `\` to the end of a line or `/* ... */` for block comments.
