@@ -6,7 +6,7 @@
 #include <time.h>
 #include "tf_alloc.h"
 #include "tf_console.h"
-#include "tf_lib.h"
+#include "tf_lib.h"  // IWYU pragma: keep
 #include <signal.h>
 
 #define TF_CALL_STACK_INITIAL_CAP 8
@@ -363,6 +363,7 @@ tf_ctx *tf_ctx_new(int argc, char **argv) {
     ctx->error_suppression_depth = 0;
     ctx->error_reported = false;
     ctx->program_error = false;
+    ctx->suppress_repl_status = false;
     ctx->current_span = (tf_source_span){0};
     ctx->current_word = NULL;
 

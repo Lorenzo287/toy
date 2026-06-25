@@ -157,7 +157,7 @@ tf_ret tf_stack_source(tf_ctx *ctx) {
 }
 
 tf_ret tf_clear(tf_ctx *ctx) {
-    (void)ctx;
+    ctx->suppress_repl_status = true;
 #ifdef _WIN32
     HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
     CONSOLE_SCREEN_BUFFER_INFO info;

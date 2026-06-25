@@ -256,6 +256,7 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
 
         if (!input_complete(&state)) { continue; }
 
+        ctx->suppress_repl_status = false;
         tf_ret result = run_source(ctx, "<repl>", source, debug);
         if (result == TF_ERR && !trace_enabled) {
             if (ctx->program_error) {
@@ -265,7 +266,8 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
                 printf("%snot ok%s\n", tf_console_clr(TF_CLR_ERR),
                        tf_console_clr(TF_CLR_RESET));
             }
-        } else if (result == TF_INTERRUPTED || result == TF_REPL_COMMAND) {
+        } else if (result == TF_INTERRUPTED || result == TF_REPL_COMMAND ||
+                   (result == TF_OK && ctx->suppress_repl_status)) {
             fflush(stdout);
         } else {
             if (trace_enabled) {

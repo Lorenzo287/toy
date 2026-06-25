@@ -115,6 +115,7 @@ struct tf_ctx {
     size_t error_suppression_depth;
     bool error_reported;
     bool program_error;
+    bool suppress_repl_status;
     tf_source_span current_span;
     const char *current_word;
 };

@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <math.h>
-#include "tf_alloc.h"
 #include "tf_obj.h"
 
 /* Helper for binary math operations */
