@@ -176,12 +176,12 @@ repeated linear `push-back`, prepend each item and reverse once:
 ( ) [ 1 2 3 4 ] [ swap cons ] fold reverse   \ leaves (1 2 3 4)
 ```
 
-### Files and Introspection
+### Files, Introspection and more
 
 Toy has a number of words that cover file managment, introspection
-(you can easily find documentation inside the lang itself and the REPL),
-types utilities, system calls and many others. Explore them all
-in the table at the bottom or by typing `help` and later `'name doc print` in the REPL.
+(allows to easily find documentation inside the lang itself and the REPL),
+types utilities, system calls and many others. Explore them all in the table 
+at the bottom or by typing `help` and later `'name doc print` in the REPL.
 
 
 ```toy
