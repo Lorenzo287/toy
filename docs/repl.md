@@ -1,61 +1,56 @@
 # Toy REPL
 
-Toy includes an interactive REPL when started without a filename.
-
-Type `help` to display the current native words grouped by category. REPL-only
-commands appear in their own section, and definitions created during the
-session appear under `User words`. The catalog is formatted to the current
-terminal width.
-
-## Starting It
+Running `toy` without a file starts an interactive REPL. The REPL is the best
+place to learn Toy because the language can document itself: inspect the word
+catalog, ask for a word's docs, try a small expression, and immediately see the
+stack.
 
 ```powershell
 cmake --build build
 .\build\toy.exe
 ```
 
-On Unix-like systems or WSL:
+## Interactive Discovery
 
-```bash
-cmake --build build
-./build/toy
+Useful first commands:
+
+```text
+toy:: help
+toy:: 'map doc print
+toy:: 'map see print
+toy:: "priority" search-words
+toy:: words
 ```
 
-## What Persists Between Entries
+The catalog groups words by primary concept, not by implementation file. Shared
+words such as `push-back` or `pairs` are listed under their main language idea
+even when they support more than one representation.
 
-The REPL keeps one interpreter context alive across entries. This means:
+## Interactive Development Loop
 
-- user-defined words persist
-- the data stack persists
-- the global dictionary persists
+Type `trace` to toggle the automatic stack display. Type `hints` to toggle
+syntax-aware input hints.
 
-Example:
+Definitions persist for the whole REPL session.
 
-```toy
-'sq [ |n| $n $n * ] def
-5 sq print
+The data stack also persists. By default, the REPL prints the stack after each
+evaluation. Use `.s` or `.S` when you want to inspect the stack explicitly 
+(might be useful when trace toggle is off), `empty` to clear it.
+
+## Scope of Captures
+
+Captures created with `| ... |` are local to the current execution frame. They
+do not persist as REPL variables:
+
+```text
+toy:: 5 |a| $a print
+5
+toy:: 5 |a|
+toy:: $a print
+runtime error: undefined variable '$a'
 ```
 
-## What Does Not Persist
-
-Variable captures created with `| ... |` are local to the current execution,
-not to the whole REPL session.
-
-This works:
-
-```toy
-5 |a| $a print
-```
-
-This does not:
-
-```toy
-5 |a|
-$a print
-```
-
-The reason is that captured variables live in execution frames and are released
-when that top-level REPL command finishes.
+Use `def` for persistent names.
 
 ## Multiline Input
 
@@ -63,64 +58,38 @@ The REPL keeps reading until the current input is structurally complete.
 
 This applies to:
 
-- vectors/quotations: `[ ... ]`
+- quotations/vectors: `[ ... ]`
 - lists: `( ... )`
 - maps/sets: `{ ... }` / `#{ ... }`
 - capture lists: `| ... |`
 - strings: `" ... "`
 - block comments: `/* ... */`
 
-Example:
+## Editing, History, Completion
 
-```toy
-'sq [
-|n|
-$n $n *
-] def
-```
+The REPL uses `linenoise` for:
 
-## Editing, History, and Completion
+- line editing;
+- command history;
+- tab completion for known words;
+- syntax-aware hints (`hints`);
+- automatic stack display (`trace`);
+- categorized help (`help`).
 
-The REPL uses vendored `linenoise`:
+Stack display uses unambiguous value forms. Deques and priority queues are
+shown as `deque[...]` and `pqueue[...]` display forms so they read as single
+values. `repr` and `.S` still use reconstructable source forms.
 
-- in-line editing
-- command history
-- tab completion for known words
-- syntax-aware hints (type `hints` to toggle)
-- automatic stack display after successful input (type `trace` to toggle)
-- categorized word catalog (type `help`)
+## Exiting and Interrupting
 
-The catalog groups words by their primary language concept. Shared endpoint
-operations are listed together even when they support several collection
-representations.
-
-## Colors and Status
-
-The REPL uses colored output to distinguish the main categories:
-
-- prompt: light blue
-- success with stack display on: green `<n>` followed by unambiguous display
-  forms; deques and priority queues are tagged as `deque[...]` and
-  `pqueue[...]`
-- success with stack display off: green `ok`
-- parsing/runtime errors: red labels
-- interrupt: yellow `interrupt: ...`
-- contextual/fallback messages: dimmer status text
-
-## Exiting
+To exit:
 
 - Unix-like systems / WSL: `Ctrl-D`
 - Windows console: `Ctrl-Z`
-- At the prompt: press `Ctrl-C` twice in a row
-- Portable explicit exit: `exit`
+- at the prompt: press `Ctrl-C` twice in a row
+- from Toy code: `exit`
 
-## Interrupting Execution
-
-Use `Ctrl-C` to interrupt a running program, for example an infinite loop.
-
-Interrupts are reported as a dedicated outcome, not as a generic runtime
-failure. In the REPL this should produce a single interrupt message rather than
-secondary errors from words such as `while`.
-
-When no program is running, the first `Ctrl-C` clears the current REPL input and
-prints a reminder that pressing `Ctrl-C` again exits the REPL.
+Use `Ctrl-C` once to interrupt a running program such as an infinite loop. The
+REPL reports this as an interrupt rather than as a generic runtime error. When
+no program is running, the first `Ctrl-C` clears the current input and prints a
+reminder that pressing `Ctrl-C` again exits.

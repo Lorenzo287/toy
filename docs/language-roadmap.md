@@ -1,151 +1,158 @@
 # Toy Language Roadmap
 
-Toy is evolving from a Forth-like interpreter into a quotation-first
-concatenative language inspired by Joy. Quotations (`[ ... ]`) and symbols
-(`'name`) are the main units of definition, composition, and execution.
+Toy is now a quotation-first concatenative language with a small C runtime,
+first-class callable values, refcounted collections, and generated builtin
+metadata. This roadmap records what is settled, what is active, and what is
+intentionally future work.
 
-## Baseline
+## Current Baseline
+
+Implemented and treated as the current language model:
 
 - Definitions bind quoted symbols to quotations with `'name [ ... ] def`.
-- Vector quotations are first-class values; `exec`/`i` apply vectors or quoted
-  symbols. Linked lists are data sequences and are not callable.
-- User-defined words and native callable runners use the explicit frame stack.
-- Native continuations represent words that need to resume after user code,
-  including predicate sandboxes and error boundaries.
-- Builtin source of truth: `builtins.json`, with generated grouped native tables
-  included by `src/tf_exec.c`.
+- Callable values are vector quotations (`[ ... ]`) and symbols naming words.
+  Lists are data sequences, not callables.
+- Higher-order words accept quoted symbols and vector quotations where they
+  consume deferred code.
+- User-defined words and native callable runners use the explicit VM frame
+  stack; new native words should not synchronously re-enter `tf_vm_exec()`.
+- Predicate callables used by control and predicate combinators observe the
+  surrounding stack through sandboxing, then leave one boolean result.
+- Collections are boxed `tf_obj` values with explicit representation types:
+  vector, list, map, set, deque, priority queue, string, symbol, bool, int, and
+  float.
+- Builtin metadata is canonical in `builtins.json` and generates native
+  registry tables, runtime docs, README tables, LSP docs, Tree-sitter word
+  lists, and VS Code grammar metadata.
 
-## Roadmap Tracks
-
-These tracks are not a strict priority order. Prefer work that clarifies
-semantics, improves tests/examples, and keeps the interpreter educational.
+## Completed Tracks
 
 ### Callable Consistency
 
-Introduce an explicit callable abstraction so higher-order words accept both
-atomic quoted symbols (`'word`) and compound quotations (`[ ... ]`) where they
-consume deferred code. Keep symbols, vectors, and lists distinct as data types,
-and keep sequence dispatch for vectors/lists/strings separate from callable dispatch unless a
-cleaner language model replaces those distinctions. Backwards compatibility is
-secondary to semantic clarity while the language is still being designed. See
-[Callable Refactor Plan](./callables-refactor.md).
+Complete. The old callable-refactor plan has been removed.
 
-### Vocabulary and Resilience
-
-Continue auditing Joy builtins and add only words with clear stack effects and
-real value. The first vocabulary expansion now covers numeric constants,
-numeric predicates, dictionary introspection, higher-order collection words,
-error handling experiments, and external interop (`argv`, `env?`, `get-env`,
-`set-env`, `shell`). Future vocabulary work should emphasize semantic cleanup, edge-case
-tests, and consistency over breadth.
-
-Prefer Toy definitions for convenience words. Prefer C natives for direct object
-access, frame scheduling, platform I/O, or measured performance.
+- `exec`/`i` and higher-order words use the callable abstraction.
+- Quoted symbols work as atomic callables.
+- Vector quotations work as compound callables.
+- Name/introspection words still consume symbols as names, not single-symbol
+  quotations.
+- Regression coverage lives in `toy/test_callables.toy` and related
+  combinator/stack-effect tests.
 
 ### Explicit Execution Boundary
 
-Completed: native words no longer synchronously re-enter `tf_vm_exec()` to wait for
-callable results. Keep new callable-running natives on continuation-style frame
-scheduling so nested user code does not grow the C call stack. Preserve stack
-effects, predicate-inspection behavior, and error-boundary semantics.
+Complete. Callable-running native words schedule program frames or native
+continuations and return to the VM loop. This keeps nested user code off the C
+call stack and preserves error-boundary and predicate-sandbox semantics.
 
-### Data Model and Collections
+### Collection/Data Model Round
 
-Rethink collections around boxed `tf_obj` values, capabilities, and explicit
-conversion between data structures. Keep `[ ... ]` as the ordered
-vector/quotation form, use `( ... )` for linked lists, `{ ... }` for maps,
-`#{ ... }` for sets, and explicit constructor words such as `>map`, `>set`,
-`>deque`, and `>pqueue` when converting runtime data or building secondary
-structures. See
-[Data Model Plan](./data-model.md).
+The main collection audit is complete for vectors, lists, strings, maps, sets,
+deques, and priority queues. The public reference is
+[`docs/data-model.md`](./data-model.md).
+
+Settled points:
+
+- vectors are indexed arrays and the quotation representation;
+- lists are persistent front-oriented sequences;
+- strings are byte sequences with one-byte string characters;
+- maps and sets are insertion-ordered hash tables over hashable scalar keys;
+- deques expose efficient front/back endpoints;
+- priority queues expose stable minimum-priority access;
+- update-style data words return updated values and may optimize with
+  copy-on-write.
+
+### Vocabulary Cleanup
+
+The current vocabulary favors explicit names, hyphen-separated multiword names,
+and capability-oriented sharing. Examples:
+
+- `push-back`, `pop-back`, `push-front`, `pop-front`
+- `first` / `last`
+- `index-of`, `split-mid`, `type-of`
+- `read-file`, `write-file`, `delete-file`
+- `search-words`
+- `unix-time`, `local-time`, `utc-time`, `cpu-time`, `monotonic-ns`
+
+Continue adding words only when they have clear stack effects, tested behavior,
+and a real use case.
+
+### Performance Lab Foundation
+
+Complete as infrastructure; ongoing as practice. Benchmarks live in
+[`benchmarks/`](../benchmarks/README.md), with recorded experiments in
+`benchmarks/results/`. Current coverage includes dispatch, vectors, lists,
+strings, maps, sets, deques, priority queues, sequence algorithms, and runtime
+internals. `BUILD_MODE=AllocationStats` gives reproducible allocation counts for
+identical workloads.
+
+## Active / Future Tracks
 
 ### Debugger
 
-Use the frame stack to expose stepping, current word/program counter, data
-stack, and call stack. Support REPL usage first; editor integration can come
-later.
+Use the explicit frame stack to expose stepping, current word/program counter,
+data stack, and call stack. Start in the REPL before editor integration.
 
 ### Formatter
 
 Build on Tree-sitter. Define deterministic, idempotent formatting for
-quotations, captures, comments, and long pipelines. Start
-with fixtures before editor integration.
+quotations, captures, comments, and long pipelines. Start with fixtures before
+editor integration.
 
-### Performance Lab
+### Performance Work
 
-The reproducible benchmark suite lives in [`benchmarks/`](../benchmarks/README.md).
-Keep benchmarks separate from regression tests, compare optimized builds in the
-same environment, change one technique at a time, and record the commit,
-compiler, configuration, and machine with results. Initial coverage includes
-dispatch, vector growth/index/endpoint/concatenation paths, and persistent-list
-front/traversal/concatenation paths. Sequence-algorithm workloads cover sort
-crossovers and duplicate-density effects in `unique`. String workloads cover
-inline storage, byte extraction and traversal, transforms, splitting, and
-incremental flat-string growth. Map workloads cover unique growth and
-replacement, shared updates, lookup, and absent-key deletion. Set workloads
-cover unique growth, duplicate insertion, shared updates, membership, ordered
-removal, and the temporary-set path used by `unique`. Deque and priority-queue
-workloads cover both deque ends, ring-buffer wraparound, heap construction,
-unique/shared heap updates, peek, pop, and ordered pair projection.
-Runtime-internal workloads cover continuation scheduling, dynamic captures,
-predicate stack snapshots, and recursion schemes. Allocation-statistics builds
-provide checked allocation counts and cumulative requested bytes for identical
-workload comparisons.
+Keep performance changes benchmark-driven. Useful future topics:
 
-Future topics: dictionary lookup, allocation, list growth, hot-path
-specialization, bytecode, threaded code, and cache behavior.
+- dictionary lookup and word dispatch;
+- allocation and object lifetime hot spots;
+- call-frame specialization;
+- bytecode or threaded-code experiments;
+- cache behavior for list/vector/string workloads;
+- structural hashes if map/set key policy expands.
 
 ### Compiler / LLVM
 
-Treat compilation as a later learning track. Start with an IR for quotations,
-then bytecode for the existing VM, then LLVM for a constrained subset.
+Treat compilation as a later learning track. A plausible path is:
+
+1. define an IR for quotations;
+2. compile a constrained subset to bytecode for the current VM;
+3. experiment with LLVM after the bytecode semantics are stable.
 
 ## Design Rules
 
 - Semantics before syntax.
-- Prefer reusable combinators over special forms.
-- Captures use `| name ... |`; vectors use `[ ... ]`, lists use `( ... )`, maps
-  use `{ ... }`, and sets use `#{ ... }`.
+- Prefer reusable words and combinators over new syntax.
 - Keep stack effects explicit and testable.
+- Captures use `| name ... |`; vectors use `[ ... ]`, lists use `( ... )`,
+  maps use `{ ... }`, and sets use `#{ ... }`.
 - Integers are signed 64-bit values and floats use double precision. Mixed
-  comparisons must not lose integer ordering when conversion to double would
-  round values above `2^53`.
-- Overload existing words when the language concept is the same across types
-  (`split` for sequence partitioning and string splitting); avoid aliases that
-  only encode implementation categories.
+  comparisons must preserve exact integer ordering where possible.
+- Overload existing words when the language concept is the same across types;
+  avoid aliases that only encode implementation categories.
 - Shared words use representation-aware implementations. Accept intrinsic
-  complexity differences such as list versus vector `uncons`, but require
-  one-pass sequence operations to remain O(n) for every finite sequence.
-- Capability names may carry complexity contracts: indexed access and
-  persistent-list front operations are O(1). Update capabilities must document
-  both their unique-update cost and the copying required when a value is shared.
-- Treat strings as byte sequences for shared sequence words. A Toy character is
-  a one-byte string with an unsigned code from 0 through 255; `push-back` adds
-  one character, while `concat` combines two sequences. String `contains?` and
-  `index-of` search substrings because their operand is itself a string.
+  complexity differences, but keep one-pass sequence operations O(n) for every
+  finite sequence.
+- Capability names may carry complexity contracts: indexed access, persistent
+  list-front operations, and priority-queue access should document their costs.
+- Strings are byte sequences. A Toy character is a one-byte string with an
+  unsigned code from 0 through 255.
 - Introspection words should push data rather than print directly. Word names
-  are symbols: `words` and `search-words` push vectors of symbols, while `see` and
-  `doc` push strings.
+  are symbols; `see` and `doc` push strings.
 - Callable equivalence applies only where a word consumes deferred code.
-  Name/introspection words consume symbols as names, not single-symbol
-  quotations.
-- Absence should be represented explicitly with a predicate word or a runtime
-  error, not by returning an unrelated sentinel value such as `[]`.
+- Absence should be explicit: use a predicate word, a caller-provided default,
+  or a runtime error, not an unrelated sentinel value.
 - Ordinary words consume their declared stack inputs. Use `dup`, `keep`, `bi`,
-  and related stack combinators when a caller wants preservation.
-- `pq-peek` is a deliberate state observer: it preserves the priority queue and
-  copies its next priority/value pair. Its name communicates the exception;
-  endpoint selectors such as `first` and `last` remain consuming.
+  and related combinators when a caller wants preservation.
 - Endpoint destructors return reconstruction inputs in constructor order:
   `pop-back` leaves `collection item` for `push-back`, while `uncons` leaves
   `item sequence` for `cons`.
-- Predicate quotations used by control and predicate combinators observe the
-  surrounding data stack by sandboxing stack changes and reading one boolean
-  result. Side effects inside predicates are still real effects.
+- Predicate callables observe the stack through sandboxing; side effects inside
+  predicates remain real effects.
 - Diagnostic display words such as `.`, `.s`, and `.S` may observe the stack
   without consuming values.
 - `print` emits one literal value and a newline. Formatting is explicit through
   `printf`; source-style conversion is data-producing through `repr`.
-- Update-style data words such as `set-at` should return updated values rather
-  than mutating shared objects in place.
-- New native words need focused tests and lightweight tooling metadata updates.
+- Update-style data words such as `set-at`, `assoc`, `insert`, and `push-back`
+  return updated values rather than exposing shared in-place mutation.
+- New native words need focused tests and generated metadata updates through
+  `builtins.json`.

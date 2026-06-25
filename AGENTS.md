@@ -20,8 +20,8 @@ navigation and development rules.
 - `docs/`: build, REPL, tooling, and roadmap docs.
 - `docs/combinators.md`: examples for nontrivial control, recursion, and
   collection combinator usage.
-- `docs/data-model.md`: collection, conversion, equality, and hashing design
-  plan.
+- `docs/data-model.md`: collection syntax, interop, complexity, equality, and
+  hashing reference.
 - `docs/runtime-internals.md`: VM/object/allocation implementation notes.
 - `benchmarks/`: reproducible performance workloads, runner, and recorded
   experiment results.
@@ -47,7 +47,7 @@ navigation and development rules.
 - Lexer: `include/tf_lexer.h`, `src/tf_lexer.c`.
 - REPL: `include/tf_repl.h`, `src/tf_repl.c`.
 - Language plan: `docs/language-roadmap.md`.
-- Data model plan: `docs/data-model.md`.
+- Data model reference: `docs/data-model.md`.
 
 ## Workflow
 

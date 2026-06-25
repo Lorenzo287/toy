@@ -120,7 +120,13 @@ are data sequences, not callables.
     binrec
 ] def
 
-[ 3 1 4 1 5 2 ] qsort print     \ [1 1 2 3 4 5]
+'merge-sort [
+    [ len 2 < ]
+    []
+    [ split-mid ]
+    [ [ < ] merge ]
+    binrec
+] def
 ```
 
 Predicate callables used by words such as `if`, `while`, `filter`, `split`,
@@ -293,9 +299,9 @@ the committed generated files are current.
 
 ## Extra
 
-- [Combinator Examples](./docs/combinators.md)
+- [Combinator Reference](./docs/combinators.md)
 - [Benchmarks](./benchmarks/README.md)
-- [Data Model Plan](./docs/data-model.md)
+- [Data Model Reference](./docs/data-model.md)
 - [Runtime Internals](./docs/runtime-internals.md)
 - [Roadmap](./docs/language-roadmap.md)
 

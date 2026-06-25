@@ -1,489 +1,254 @@
 # Toy Data Model
 
-Toy's collection model is built around explicit representation types plus
-capability-oriented words. A word should say what it needs: callable, sequence,
-indexed, associative, membership, or priority access.
+Toy values are boxed `tf_obj` objects with reference counting. Public data
+words return values; they do not promise observable in-place mutation. The
+implementation may still reuse uniquely owned storage, share persistent tails,
+or reserve capacity when that preserves value semantics.
 
-## Core Values
+This document is the practical reference for collection syntax, interop, stack
+effects, and complexity.
 
-Runtime values are boxed `tf_obj` allocations. Collections store retained
-`tf_obj *` references, so collections can rearrange references without copying
-the values themselves.
+## Representations and Syntax
 
-Current public representation types:
+| Representation | Syntax / constructor | Main role |
+| -------------- | -------------------- | --------- |
+| bool, int, float | literals and numeric words | scalar values |
+| string | `"text"` | byte sequence; one character is a one-byte string |
+| symbol | `'name` | word names, symbolic data, atomic callables |
+| vector | `[ 1 2 3 ]` | indexed sequence and compound quotation |
+| list | `( 1 2 3 )` | persistent front-oriented sequence |
+| map | `{ 'name "Ada" 'age 36 }`, `>map` | insertion-ordered key/value lookup |
+| set | `#{ "red" "green" }`, `>set` | insertion-ordered membership |
+| deque | `>deque` | efficient front and back endpoints |
+| priority queue | `>pqueue` | minimum-priority access |
 
-- scalars: bool, int, float, string, symbol
-- primary collections: vector, list, map, set
-- secondary collections: deque, priority queue
-- internal capture forms: varlist and varfetch
+Strings are byte sequences, not Unicode strings. String literals accept `\n`,
+`\r`, `\t`, `\"`, `\\`, and `\xHH`; unknown escapes are errors.
 
-## Syntax
+Vectors are also quotations. Lists are sequence data only: `( 1 2 + )` is a
+list containing data, not executable code.
 
-The primary collection syntaxes are permanent language surface:
-
-```toy
-[ 1 2 3 ]                 \ vector
-( 1 2 3 )                 \ list
-{ 'name "Ada" 'age 36 }   \ map
-#{ 1 2 3 }                \ set
-```
-
-`[ ... ]` creates a vector. Vectors are ordered, indexed, array-backed values.
-They also serve as compound quotations when a word consumes a callable.
-
-`( ... )` creates a linked list. Lists are ordered sequence data. They are not
-callable and are not indexed by `at`, `set-at`, or `slice`.
-
-`{ ... }` creates an associative map from alternating key/value forms.
-`#{ ... }` creates a membership set with duplicate items rejected in literals.
-
-Strings are byte sequences rather than Unicode text. A language-level
-character is exactly a one-byte string. String literals accept `\n`, `\r`,
-`\t`, `\"`, `\\`, and `\xHH`; other backslash escapes are errors. `\xHH`
-uses exactly two hexadecimal digits and can construct any byte.
-
-Secondary structures are built explicitly:
+Secondary structures have no literal syntax because their constructors validate
+runtime data and establish invariants:
 
 ```toy
 [ 1 2 3 ] >deque
-( 1 2 3 ) >deque
-[ 1 2 3 ] >list
-( 1 2 3 ) >vector
 [ [ 10 "low" ] [ 1 "urgent" ] ] >pqueue
 [ [ 'name "Ada" ] [ 'age 36 ] ] >map
+[ 1 2 2 3 ] >set
 ```
-
-Constructor words are not temporary syntax. They are how Toy names conversions,
-validation, and invariants for structures that do not need literal syntax.
 
 ## Capabilities
 
-### Callable
+Words should be understood by the capability they need, not only by concrete
+type.
 
-Callable values are deferred code:
+| Capability | Accepted representations | Main words |
+| ---------- | ------------------------ | ---------- |
+| callable | vector quotation, symbol naming a word | `exec`, `i`, `dip`, `keep`, `bi`, `map`, `filter`, `if`, `while`, recursion combinators |
+| sequence | vector, list, string | `len`, `first`, `last`, `rest`, `uncons`, `concat`, `reverse`, `map`, `fold`, `filter`, `split`, `merge`, `sort`, `unique` |
+| indexed | vector, string | `at`, `set-at`, `slice` |
+| persistent front | list | `cons`, `rest`, `uncons` |
+| back stack | vector, deque | `push-back`, `pop-back`, `last` |
+| associative | map | `has?`, `get`, `get-or`, `assoc`, `dissoc`, `keys`, `values`, `pairs` |
+| membership | set, map keys | `has?`, `insert`, `remove`, `items`, set algebra |
+| priority | priority queue | `pq-push`, `pq-peek`, `pq-pop`, `pairs` |
 
-- quoted symbols naming words
-- vector quotations
+Shared vocabulary means shared semantics, not identical complexity. For
+example, list `uncons` is O(1) because it can share the tail, while vector
+`uncons` is O(n) because it returns an independent vector.
 
-Lists are intentionally excluded even though they are sequences.
+## Sequence Conventions
 
-Words: `exec`, `i`, `dip`, `keep`, `bi`, `if`, `while`, `map`, `filter`,
-`linrec`, `binrec`, `genrec`.
+Sequence-transforming words preserve the input family when the family is part
+of the input contract:
 
-### Sequence
-
-Sequences are finite ordered iteration:
-
-- vector
-- list
-- string as a byte sequence
-
-Generic sequence words preserve the input family when that is clear. Mapping a
-list returns a list, mapping a vector returns a vector, and mapping a string
-returns a string when each result is a one-byte string.
-
-Words: `len`, `first`, `last`, `rest`, `uncons`, `cons`, `push-back`, `concat`,
-`reverse`, `take`, `skip`, `contains?`, `index-of`, `unique`, `sort`, `each`,
-`map`, `fold`, `filter`, `split`, `merge`, `split-mid`.
-
-`contains?` and `index-of` use item equality for vectors and lists. For strings,
-the second argument is a substring of any length. The empty substring is found
-at byte index zero. `index-of` returns `-1` when the item or substring is absent.
-
-`join` is adjacent to sequence words but narrower: it accepts a vector or list
-of strings plus a separator and returns a string.
-
-Shared vocabulary means shared semantics, not a lowest-common-denominator
-implementation or identical complexity. One-pass words such as `each`, `map`,
-`fold`, `filter`, `some`, `all`, and predicate `split` must advance every finite
-sequence in O(n), excluding callable work. Intrinsic differences remain visible:
-list `uncons` is O(1) because it can share a tail, while vector `uncons` is O(n)
-because it returns an independent vector.
-
-### Indexed
-
-Indexed values support efficient random access by integer index:
-
-- vector
-- string
-
-Words: `at`, `set-at`, `slice`.
-
-Do not treat every sequence as indexed. A linked list, stream, tree traversal,
-or generator can be a sequence without cheap random access.
-
-### Persistent Front
-
-Lists provide constant-time front construction and decomposition with shared
-tails.
-
-Words: `cons`, `first`, `rest`, `uncons`.
-
-Repeated `push-back` on a list is quadratic because every call copies the
-existing spine. Build in reverse with `cons`, then reverse once:
-
-```toy
-( ) [ 1 2 3 4 ] [ swap cons ] fold reverse
-\ leaves (1 2 3 4)
-```
-
-### Back Stack
-
-Vectors use their last item as the stack top. `push-back` adds one item, `last`
-reads the top item, and `pop-back` returns `vector item`. This matches the
-constructor input order, so `pop-back push-back` reconstructs the original
-vector. Deques share the endpoint update words and use the same `first`/`last`
-selectors as other ordered collections.
-
-### Associative
-
-Associative values support lookup by key:
-
-- map
-
-Words: `has?`, `get`, `get-or`, `assoc`, `dissoc`, `keys`, `values`, `pairs`.
-
-Do not overload `at` for maps. Indexed lookup and associative lookup are
-separate concepts.
-
-### Membership
-
-Membership values support containment by equality/hash:
-
-- set
-- map keys
-
-Words: `has?`, `insert`, `remove`, `items`, `union`, `intersection`,
-`difference`, `symmetric-difference`, `subset?`, `proper-subset?`, `superset?`,
-`proper-superset?`, `disjoint?`.
-
-This capability is separate from sequence search. Use `contains?` for
-vector/list item search or string substring search; use `has?` for map keys and
-set items.
-
-Mapping over a set should be explicit through projection:
-
-```toy
-myset items [ square ] map >set
-```
-
-### Priority
-
-Priority queues expose access by minimum priority.
-
-Words: `pq-push`, `pq-peek`, `pq-pop`, `pairs`.
-
-The heap layout is not public. `pairs` projects priority/value pairs in priority
-order.
-
-## Result Families
+| Word | Result family |
+| ---- | ------------- |
+| `map`, `filter`, predicate `split`, `merge` | same as input sequence |
+| `take`, `skip`, `concat`, `reverse`, `unique`, `sort` | same as input sequence |
+| `set-at` | vector or string, matching the input |
 
 Projection words return vectors as the default interchange sequence:
 
 - `range`
-- string `split`
+- string separator `split`
 - `keys`, `values`, `pairs`
 - `items`
 - `read-lines`
 - `argv`
-- `words`
+- `words`, `search-words`
 
-Sequence-transforming words preserve family when the family is part of the
-input contract:
-
-| Word           | Input                              | Result                                     |
-| -------------- | ---------------------------------- | ------------------------------------------ |
-| `map`          | vector/list/string + callable      | same family                                |
-| `filter`       | vector/list/string + predicate     | same family                                |
-| `split`        | vector/list/string + predicate     | two values of the same family              |
-| `merge`        | two sequences of the same family   | same family                                |
-| `take`/`skip` | vector/list/string                  | same family                                |
-| `concat`       | two vectors, two lists, two strings | same family                                |
-| `reverse`      | vector/list/string                 | same family                                |
-| `unique`       | vector/list/string                 | same family                                |
-| `sort`         | vector/list/string                 | same family                                |
-
-Indexed update words preserve indexed families:
-
-- vector `set-at` returns a vector
-- string `set-at` returns a string
-
-## Conversion Rules
-
-Conversions that change observable semantics must be explicit. Observable
-changes include representation type, order, duplicate policy, lookup behavior,
-stack effect, and error behavior.
-
-Examples:
+Endpoint destructors return values in constructor order so the matching
+constructor can rebuild the original value:
 
 ```toy
-[ 1 2 3 ] >list       \ choose linked-list sequence behavior
-( 1 2 3 ) >vector     \ choose indexed vector behavior
-[ "a" "b" "c" ] >string \ validate and combine characters
-[ 1 2 2 3 ] >set       \ duplicates intentionally collapse
-( 1 2 3 ) >deque       \ choose front/back discipline
-m keys                 \ choose key projection
-m values               \ choose value projection
-m pairs                \ choose pair projection
-pairs >map             \ build associative structure
-pq pairs               \ choose priority order and preserve priorities
-63 >char               \ construct the one-byte string "?"
-"?" char-code          \ inspect its unsigned code
+[ 1 2 3 ] pop-back push-back       \ leaves [1 2 3]
+( 1 2 3 ) uncons cons              \ leaves (1 2 3)
+[ 1 2 3 ] >deque pop-front push-front
 ```
+
+Selectors such as `first`, `last`, and endpoint operations consume their
+inputs unless the word explicitly says otherwise. Use `dup`, `keep`, or `bi`
+when the original collection should remain available. `pq-peek` is the named
+observer exception: it preserves the priority queue and returns the next
+priority/value pair.
+
+## Conversion and Interop
+
+Conversions that change observable behavior are explicit:
+
+```toy
+[ 1 2 3 ] >list          \ choose linked-list behavior
+( 1 2 3 ) >vector        \ choose indexed vector behavior
+[ "a" "b" "c" ] >string  \ validate one-byte strings and join
+[ 1 2 2 3 ] >set         \ intentionally collapse duplicates
+( 1 2 3 ) >deque         \ choose front/back endpoint behavior
+[ [ 10 "low" ] [ 1 "urgent" ] ] >pqueue pairs
+[ [ 10 "low" ] [ 1 "urgent" ] ] >pqueue pairs >pqueue
+```
+
+`contains?` and `index-of` use item equality for vectors and lists. For strings,
+the second argument is a substring; the empty substring is found at byte index
+zero, and `index-of` returns `-1` when absent.
 
 `>char` accepts integer codes from 0 through 255. `char-code` is its inverse,
-and `read-key` returns the same one-byte string representation. `repr` returns a
-source-style string and uses canonical escapes for control and non-ASCII bytes.
+and `read-key` returns the same one-byte string representation.
 
-Internal layout optimizations may be transparent when observable semantics do
-not change: vector capacity growth, hash-table resize, cached hashes,
-small-vector storage, copy-on-write, and persistent sharing.
-
-## Equality and Hashing
+## Equality, Hashing, Sorting
 
 Structural equality exists for vectors, lists, maps, sets, deques, and priority
-queues where the representation semantics define equality. Vector and list are
-different representation types, so `[ 1 2 ]` and `( 1 2 )` are not equal even
-though they contain the same items.
+queues. Representation matters: `[ 1 2 ]` and `( 1 2 )` are not equal.
 
-Initial hash-key policy is conservative:
+Hashable values, and therefore valid map keys and set items, are currently:
 
-```text
-hashable: bool, int, string, symbol
-defer: float, vector, list, map, set, deque, pqueue
-```
+- bool
+- int
+- string
+- symbol
 
-Floats need a policy for `nan`, `-0`, and `0`. Structural keys can be added
-after update semantics and cached hash invalidation are settled.
+Floats and structural values compare for equality but are not hash keys yet.
+This avoids unresolved policy questions around NaN, signed zero, and cached
+structural hashes.
 
-## Lists
+Natural `sort` is stable. Numeric sequences may mix integers and floats, but
+NaN is rejected because it cannot participate in a total order. Strings sort by
+byte value. `unique` preserves first occurrence; it is expected O(n) for
+hashable scalar values and falls back to equality scanning for unhashable
+values.
 
-Lists are immutable singly linked values. The list wrapper caches its length,
-and independently refcounted nodes allow multiple lists to share a suffix.
+## Complexity Summary
 
-| Operation | Complexity | Storage behavior |
-| --- | ---: | --- |
-| `len`, `empty?`, `first` | O(1) | no node copy |
-| `cons` | O(1) | one new node; shares the old list |
-| `rest`, `uncons` | O(1) | new wrapper; shares the suffix |
-| `last` | O(n) | traverses the spine |
-| `take`, `reverse`, `push-back` | O(n) | copies the required nodes |
-| `skip` | O(n) | traverses n nodes, then shares the suffix |
-| `concat` | O(length(left)) | copies the left spine and shares the right |
-| `split-mid` | O(n) | copies the left half and shares the right half |
-| sequence traversal words | O(n) | advance directly by node |
-| `sort` | O(n log n) | stable pointer sort, then rebuilds the list |
-| `unique` | expected O(n) for hashable scalars | O(n²) equality fallback for unhashable values |
+### Vectors and Strings
 
-Converting an existing list with `>list`, or an existing vector with `>vector`,
-is an identity operation.
+Vectors are array-backed and optimized for indexing and back-stack behavior.
+Strings are flat byte arrays with the same indexed/read conventions.
 
-## Sorting and Uniqueness
+| Operation | Typical cost |
+| --------- | ------------ |
+| `len`, `empty?`, `at` | O(1) |
+| `first`, `last` | O(1) |
+| `push-back`, `pop-back` on a unique chain | O(1) / amortized O(1) |
+| `push-back`, `pop-back`, `set-at` on a shared value | O(n) copy |
+| `concat` | O(length(right)) when reusing a unique left value, otherwise O(n+m) |
+| `slice`, `take`, `skip`, `reverse` | O(n) over the produced range |
+| vector `uncons`, string front `cons` | O(n) |
 
-Natural `sort` is stable. Numeric vectors/lists may mix integers and floats;
-string elements compare lexicographically. NaN is rejected because it does not
-participate in a total numeric order. The current implementation uses stable
-insertion sort for runs of at most 16 elements and bottom-up stable merge sort
-above that, giving O(n log n) worst-case comparisons and O(n) auxiliary pointer
-storage. Strings use insertion sort through 64 bytes and byte-counting sort for
-larger inputs.
+Removing from the back does not shrink vector/string capacity; this keeps
+repeated stack-style use amortized efficient.
 
-`unique` preserves the first occurrence. Strings use a 256-entry byte table.
-Vectors and lists scan directly while small, then use a temporary set after 16
-distinct hashable values. Bool, int, string, and symbol collections therefore
-have expected O(n) behavior. Floats and structural values retain the general
-O(n²) equality fallback until their hashing policy is defined. These cutoffs are
-implementation details selected by [`sequence-algorithms.toy`](../benchmarks/sequence-algorithms.toy).
+### Lists
 
-## Mutability
+Lists are immutable singly linked values. Wrappers cache length, and nodes are
+independently refcounted so tails can be shared.
 
-Toy data words return updated values rather than exposing in-place mutation as a
-language guarantee:
+| Operation | Typical cost |
+| --------- | ------------ |
+| `len`, `empty?`, `first` | O(1) |
+| `cons` | O(1), shares the old list |
+| `rest`, `uncons` | O(1), shares the suffix |
+| `last`, `push-back`, `take`, `reverse` | O(n) |
+| `skip` | O(n) traversal, then shares the suffix |
+| `concat` | O(length(left)), shares the right |
+| `sort` | O(n log n) |
+
+Build lists in forward order by prepending and reversing once:
 
 ```toy
-vector idx value set-at
-vector item push-back
-map key value assoc
-map key dissoc
-set item insert
-set item remove
-deque item push-front
+( ) [ 1 2 3 4 ] [ swap cons ] fold reverse
 ```
 
-When an endpoint removal returns both state and an item, it returns them in the
-constructor's input order. `vector pop-back` leaves `vector item`, while deque
-`pop-front` leaves `deque item`. This makes the corresponding pop/push pair an
-identity. `uncons` already follows the same rule because `cons` accepts an item
-followed by a sequence.
+### Maps and Sets
 
-The implementation may optimize by mutating uniquely owned values, using
-copy-on-write, or using persistent sharing. User code must not observe aliasing
-surprises. Vectors currently keep two items inline and use copy-on-write for
-`set-at`, `push-back`, `pop-back`, and `concat`. A vector `concat` reuses the
-left vector only when it is uniquely owned; otherwise it allocates a result
-after reserving for the exact output length, so an alias never observes the
-update. Exact-size vector producers reserve their final element count before
-filling, while selective or delimiter-driven producers keep geometric growth
-rather than retaining a loose upper bound. Indexed reads are O(1); endpoint
-updates are O(1) or amortized O(1) on a unique update chain and O(n) when a
-shared vector must be copied. Removing the back item does not shrink vector
-capacity.
+Maps and sets are insertion-ordered hash tables. The deterministic order is
+intentional: it makes examples, tests, display, and interop stable.
 
-Strings are immutable flat byte sequences. Short strings and symbols keep their
-bytes inside `tf_obj` (up to 22 bytes on 64-bit targets and 10 bytes on 32-bit
-targets) without increasing the object size; longer values use one separate
-allocation. Exact-size producers fill the final string storage directly, while
-dynamic byte buffers transfer their allocation into the result. Indexed byte
-reads remain O(1), but they return a newly allocated one-byte string. Heap
-strings reuse their otherwise-idle inline bytes to track capacity. `set-at`,
-`push-back`, and `concat` may update a uniquely owned string; geometric reserve
-makes repeated `push-back` and fixed-chunk `concat` amortized linear in the total
-output length. Shared strings are copied before updates, preserving value
-semantics. Slices always copy their output, and repeated front `cons` remains
-O(n²) because existing bytes must shift even when capacity is available.
+| Operation | Typical cost |
+| --------- | ------------ |
+| `has?`, `get`, absent `dissoc`/`remove` | expected O(1) |
+| `assoc`, `insert` on a unique value | expected amortized O(1) |
+| update on a shared value | O(n) copy before update |
+| present `dissoc`, present `remove` | O(n), because order is compacted |
+| `keys`, `values`, `pairs`, `items` | O(n) |
+| set algebra | expected O(n+m) |
 
-## Maps
+`insert` and `remove` are set-specific membership updates, not positional
+sequence operations. Mapping a set is explicit:
 
-Maps are insertion-ordered associative structures.
+```toy
+#{ 1 2 3 } items [ square ] map >set
+```
 
-Rules:
+### Deques
 
-- literal syntax is `{ key value ... }`
-- constructor input is a vector or list of two-item vector/list pairs
-- keys must be hashable
-- duplicate keys are an error
-- `get` on a missing key is an error
-- `has?` checks expected absence
-- `get-or` returns a caller-supplied default when a key is absent
-- `assoc` and `dissoc` return updated maps
-- `keys`, `values`, and `pairs` return vectors
+Deques use a circular buffer.
 
-Insertion order costs memory but makes examples, printing, tests, and interop
-deterministic.
+| Operation | Typical cost |
+| --------- | ------------ |
+| `push-front`, `push-back`, `pop-front`, `pop-back` on a unique chain | amortized O(1) |
+| `first`, `last`, `len`, `empty?` | O(1) |
+| endpoint update on a shared deque | O(n) copy before update |
+| `items` | O(n) |
 
-Maps keep insertion-ordered entries in a dense array and store entry indexes in
-an open-addressed hash table. Empty maps allocate no backing storage; the first
-insertion allocates four entry slots and eight buckets, and known-size producers
-reserve before filling. Lookup and unique-owner `assoc` are expected O(1), with
-geometric growth making insertion amortized O(1). Updating a shared map copies
-its entries and buckets first, preserving value semantics at O(n). Ordered
-`dissoc` is O(n) when a key is present because later entries shift and bucket
-indexes must be rebuilt; an absent key is an expected-O(1) no-op. Projection
-through `keys`, `values`, or `pairs` is O(n).
+Ordinary output shows deques as display-only `deque[...]`; `repr` and `.S` use
+the reconstructable `[...] >deque` form.
 
-## Sets
+### Priority Queues
 
-Sets reuse the same hashing and equality policy as maps.
+Priority queues are stable min-heaps: lower priorities are returned first, and
+equal priorities keep insertion order.
 
-Rules:
+| Operation | Typical cost |
+| --------- | ------------ |
+| `pq-peek` | O(1) |
+| `pq-push`, `pq-pop` on a unique queue | O(log n) |
+| update on a shared queue | O(n) copy before heap update |
+| `>pqueue` | O(n) bottom-up heap construction |
+| `pairs` | O(n log n), because it emits full priority order |
 
-- literal syntax is `#{ item ... }`
-- constructor input is a vector, list, or string
-- items must be hashable
-- duplicate literal items are an error
-- duplicates collapse intentionally in `>set`
-- `items` returns a deterministic vector in insertion order
-- mapping a set is explicit through `items`
+`pq-pop` returns `pqueue priority value`, matching `pq-push` input order. A
+single `pq-pop pq-push` may move an equal-priority item behind its peers because
+reinsertion is intentionally stable.
 
-Sets use the same dense insertion-order array and open-addressed index strategy
-as maps. Empty sets allocate no backing storage; the first insertion allocates
-four entry slots and eight buckets. Literals reserve their known final size,
-while `>set` grows geometrically because duplicate collapsing makes its output
-size unknown. Membership and unique-owner `insert` are expected O(1), with
-geometric growth making insertion amortized O(1). Inserting an existing item is
-an expected-O(1) no-op even for a shared set. Inserting into a shared set copies
-its entries and buckets first at O(n). Ordered `remove` is O(n) for a present
-item and an expected-O(1) no-op for an absent item. `items` is O(n), and structural
-set equality is insertion-order independent.
-
-`insert` and `remove` are set-specific membership updates rather than positional
-sequence operations. Inserting an existing item does not move it to the end;
-removing and later inserting it does.
-
-Set algebra preserves deterministic order:
-
-- `union` returns left items followed by previously unseen right items
-- `intersection` and `difference` preserve the relative order of left items
-- `symmetric-difference` returns left-only items followed by right-only items
-
-`subset?` and `superset?` include equality; their `proper-` forms require
-strict inequality. `disjoint?` checks that there is no shared item. Algebraic
-operations take expected O(n+m) time. Subset checks take expected O(n) in the
-left operand, while `disjoint?` scans the smaller set. Result construction may
-reuse a uniquely owned left set when doing so preserves order and value
-semantics.
-
-## Deques
-
-Deques are secondary ordered collections for efficient operations at both ends.
-They have no literal syntax.
-
-Rules:
-
-- `>deque` accepts vectors, lists, and strings
-- conversion preserves front-to-back order
-- `push-front` and `push-back` return updated deques
-- `pop-front` and `pop-back` return `deque item`, matching the corresponding
-  constructor input order
-- `first` and `last` consume a non-empty deque and return one end; use
-  `dup first` or `dup last` when the deque should be preserved
-- `items` projects a deque to a vector
-- `len` and `empty?` treat deques as finite collections
-
-Deques use a circular buffer. Empty deques allocate no backing storage; the
-first insertion allocates four slots, while `>deque` reserves its known final
-length. Pushes at either end are amortized O(1), pops and `first`/`last` are
-O(1), and `items` is O(n). Endpoint updates reuse uniquely owned deques and copy
-shared deques before modification. Pops retain capacity instead of reallocating.
-
-Ordinary value and REPL stack output use the display-only form `deque[...]` so
-the deque reads as one value. `repr` and `.S` retain the reconstructable
-`[...] >deque` source form.
-
-## Priority Queues
-
-Priority queues are backed by a heap internally. The heap layout is not public.
-
-Rules:
-
-- `>pqueue` accepts a vector or list of two-item vector/list pairs
-- pair shape is `[ priority value ]` or `( priority value )`
-- priorities must be finite numbers
-- lower priorities are returned first
-- equal priorities are returned in insertion order
-- `pq-push` returns an updated priority queue
-- `pq-peek` leaves the queue followed by its next `priority value` pair
-- `pq-pop` returns `pqueue priority value`, matching `pq-push` input order
-- `pairs` returns `[ priority value ]` vectors in priority order
-- `len` and `empty?` treat priority queues as finite collections
-
-Priority objects retain their original integer or float representation. The
-whole-queue projection is invertible: `pq pairs >pqueue` reconstructs an equal
-queue, including equal-priority order. A single `pq-pop pq-push` is not an exact
-inverse when equal-priority entries remain, because reinsertion intentionally
-places the returned entry after them.
-
-The binary heap gives O(1) peek and O(log n) unique-owner push/pop. A shared
-update first copies O(n) heap entries to preserve value semantics. `>pqueue`
-reserves once and uses bottom-up O(n) heap construction. `pairs` takes
-O(n log n) time because it emits the complete priority order.
-
-Ordinary value and REPL stack output use the display-only form
-`pqueue[[priority value] ...]`. `repr` and `.S` retain the reconstructable
-`[[priority value] ...] >pqueue` source form.
+Ordinary output shows priority queues as display-only
+`pqueue[[priority value] ...]`; `repr` and `.S` use the reconstructable
+`[[priority value] ...] >pqueue` form.
 
 ## Implementation Notes
 
-The current implementation uses explicit type switches. That is acceptable
-while the set of structures is still small. Introduce shared capability helpers
-or operation tables only when repeated switches start obscuring the word
-contracts.
+The most important implementation rule is that optimizations must preserve
+value semantics. Current performance techniques include:
 
-Useful future experiments:
+- copy-on-write updates for uniquely owned vectors, strings, maps, sets,
+  deques, and priority queues;
+- inline storage for short vectors and short strings;
+- geometric reserve for repeated growth;
+- exact-size reserve for known-size producers;
+- persistent sharing for list tails;
+- deterministic insertion order for maps and sets;
+- bottom-up heap construction for `>pqueue`;
+- temporary hash sets for large `unique` workloads over hashable scalars.
 
-- small-vector optimization for short quotations
-- chunked or unrolled linked lists for better cache locality
-- persistent vector/list implementations
-- cached structural hashes
-- copy-on-write for uniquely owned values
-- map probing and insertion-order storage strategies
+Lower-level VM and allocation details live in
+[`runtime-internals.md`](./runtime-internals.md). Benchmark workloads and
+recorded experiments live in [`benchmarks/`](../benchmarks/README.md).
