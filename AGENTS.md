@@ -69,17 +69,29 @@ navigation and development rules.
 - Native callable runners should schedule frames or native continuations and
   return to the VM loop. Do not add synchronous `tf_vm_exec()` re-entry for new
   native words.
-- Language direction: prefer quotation-first words and combinators over new
-  syntax. Follow `docs/language-roadmap.md` for definition policy.
+- Language direction: settle semantics before adding syntax. Prefer
+  quotation-first words and combinators over new syntax.
+- Vocabulary: overload an existing word when the language concept is the same
+  across types. Avoid aliases that expose only implementation categories. New
+  words need clear stack effects, focused tests, and a real use case.
 - Stack effects: ordinary words consume their declared inputs. Predicate
   quotations in control/predicate combinators restore the surrounding data stack
   after reading a boolean result; side effects inside them are not undone.
-- Sequence words should be uniform across lists and strings when the result type
-  is clear. Strings are byte sequences; a string item is a one-byte string.
+- Data behavior: represent absence with a predicate, caller-provided default,
+  or runtime error rather than an unrelated sentinel. Update-style words return
+  values and must not expose shared in-place mutation.
+- Sequence words should be uniform across vectors, lists, and strings when the
+  result type is clear. Keep one-pass operations O(n) for every finite sequence
+  and document capability-specific complexity differences. Strings are byte
+  sequences; a string item is a one-byte string.
+- Numeric behavior: integers are signed 64-bit values and floats are doubles.
+  Mixed comparisons must preserve exact integer ordering where possible.
 - Tooling: builtin metadata is generated from `builtins.json`; do not hand-edit
   generated registry, runtime-doc, LSP, Tree-sitter word-list, VS Code grammar,
   or README table outputs. Regenerate the Tree-sitter parser after generated
   word-list changes when the CLI is available.
-- Docs: README is public-facing; AGENTS is for agent rules; roadmap is the
-  implementation plan.
+- Docs: README and its focused references describe current user-visible
+  behavior; AGENTS contains repository navigation and durable development
+  rules; the roadmap contains only current status, sequencing, and future work.
+  Use Git history rather than the roadmap as a changelog.
 - Shell: assume Windows PowerShell; do not output bash syntax.

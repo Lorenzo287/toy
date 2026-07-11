@@ -176,13 +176,12 @@ repeated linear `push-back`, prepend each item and reverse once:
 ( ) [ 1 2 3 4 ] [ swap cons ] fold reverse   \ leaves (1 2 3 4)
 ```
 
-### Files, Introspection and more
+### Files, Introspection, and More
 
-Toy has a number of words that cover file managment, introspection
-(allows to easily find documentation inside the lang itself and the REPL),
-types utilities, system calls and many others. Explore them all in the table 
-at the bottom or by typing `help` and later `'name doc print` in the REPL.
-
+Toy includes words for file management, introspection, type inspection, system
+calls, and other practical tasks. Introspection words produce data: `see` and
+`doc` push strings rather than printing directly. Explore the vocabulary in the
+table below, or enter `help` followed by `'name doc print` in the REPL.
 
 ```toy
 "todo.txt" "ship README\nrun tests\n" write-file
@@ -259,6 +258,10 @@ predicate are not undone.
 
 Diagnostic display words are also observers: `.`, `.s`, and `.S` print without
 changing the data stack.
+
+Integers are signed 64-bit values and floats use double precision. Mixed
+numeric comparisons preserve exact integer ordering where possible, including
+when an integer cannot be represented exactly as a double.
 
 Use `repr` to obtain a source-style string with bytes escaped (makes me think 
 about [quines](toy/quines/quine.toy)). `print` always prints one value literally with a newline, 
