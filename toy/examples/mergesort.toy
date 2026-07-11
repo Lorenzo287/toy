@@ -1,0 +1,16 @@
+\ Merge sort using binrec and the native merge primitive.
+
+'small [ len 2 < ] def
+
+'mergesort [
+    [ small ]
+    []
+    [ split-mid ]
+    [ [ < ] merge ]
+    binrec
+] def
+
+20 [ rand 100 % ] replicate
+"Original: " printf dup print
+mergesort
+"Sorted:   " printf print

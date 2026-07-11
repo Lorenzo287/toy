@@ -1,0 +1,18 @@
+"testlib.toy" load
+
+[ 1 2 3 4 5 ] 1 4 slice [ 2 3 4 ] == check
+"ToyLanguage" 0 3 slice "Toy" == check
+[ 1 2 3 4 5 ] 2 skip [ 3 4 5 ] == check
+"ToyLanguage" 3 skip "Language" == check
+[ 1 2 3 4 5 ] 2 take [ 1 2 ] == check
+"ToyLanguage" 3 take "Toy" == check
+
+[ 1 2 3 4 5 6 ] [ 2 % 0 == ] filter [ 2 4 6 ] == check
+"toy" [ upper ] map "TOY" == check
+"toy" [ "o" != ] filter "ty" == check
+
+[ 1 2 3 ] [ 2 > ] some true == check
+[ 1 2 3 ] [ 0 > ] all true == check
+[ 1 2 3 ] [ 5 > ] all false == check
+"toy" [ "o" == ] some true == check
+"toy" [ string? ] all true == check

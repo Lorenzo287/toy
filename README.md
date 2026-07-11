@@ -33,6 +33,7 @@ Go LSP, and VS Code extension.
 
 - [Build instructions](./docs/build.md)
 - [REPL guide](./docs/repl.md)
+- [Examples](./toy/examples/README.md)
 - [Pre-built release binaries](https://github.com/Lorenzo287/toy/releases)
 
 ```powershell
@@ -263,9 +264,10 @@ Integers are signed 64-bit values and floats use double precision. Mixed
 numeric comparisons preserve exact integer ordering where possible, including
 when an integer cannot be represented exactly as a double.
 
-Use `repr` to obtain a source-style string with bytes escaped (makes me think 
-about [quines](toy/quines/quine.toy)). `print` always prints one value literally with a newline, 
-while `printf` explicitly interprets `{}` placeholders and does not append a newline.
+Use `repr` to obtain a source-style string with bytes escaped (makes me think
+about [quines](toy/examples/quines/quine.toy)). `print` always prints one value
+literally with a newline, while `printf` explicitly interprets `{}`
+placeholders and does not append a newline.
 
 ## Built-in Words
 
@@ -307,6 +309,7 @@ the committed generated files are current.
 - [REPL](./docs/repl.md)
 - [Tree-sitter](./docs/tree-sitter.md)
 - [LSP](./docs/lsp.md)
+- [Formatter](./docs/formatter.md)
 - [VS Code](./docs/vscode.md)
 
 ## Extra
@@ -315,6 +318,7 @@ the committed generated files are current.
 - [Benchmarks](./benchmarks/README.md)
 - [Data Model Reference](./docs/data-model.md)
 - [Runtime Internals](./docs/runtime-internals.md)
+- [Testing](./docs/testing.md)
 - [Roadmap](./docs/language-roadmap.md)
 
 ## License

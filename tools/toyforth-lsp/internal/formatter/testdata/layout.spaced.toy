@@ -1,0 +1,9 @@
+'example [
+    [ 1 2 3 ]
+    [ dup * ]
+    \ keep [ comment ]
+    { 'a "text [ ]" }
+    #{ 1 2 }
+    ( 1 2 )
+    | x y |
+] def

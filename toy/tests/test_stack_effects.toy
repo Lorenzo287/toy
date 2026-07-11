@@ -1,0 +1,179 @@
+"testlib.toy" load
+
+\ Stack-effect convention regression tests.
+
+[ 1 error ] [ "non-string-error" ] try "non-string-error" == check
+
+words 'push-back contains? true == check
+words 'append contains? false == check
+words 'get-or contains? true == check
+words 'insert contains? true == check
+words 'adjoin contains? false == check
+words 'union contains? true == check
+words 'pq-push contains? true == check
+words 'pq-peek contains? true == check
+words 'pq-pop contains? true == check
+words 'pqueue-push contains? false == check
+words 'pqueue-peek contains? false == check
+words 'pqueue-pop contains? false == check
+words 'pqueue-drain contains? false == check
+words 'last contains? true == check
+words 'front contains? false == check
+words 'back contains? false == check
+
+"abc" len 3 == check
+"abc" first "a" == check
+"abc" last "c" == check
+"abc" rest "bc" == check
+"" rest "" == check
+"abc" uncons "bc" == check
+"a" == check
+"a" "bc" cons "abc" == check
+"ab" "c" push-back "abc" == check
+"ab" "cd" concat "abcd" == check
+"a" "b" < true == check
+"b" "a" > true == check
+"abcdef" split-mid "def" == check
+"abc" == check
+10 int? true == check
+[ 1 2 3 ] first 1 == check
+[ 1 2 3 ] rest [ 2 3 ] == check
+[ 1 2 ] 3 push-back [ 1 2 3 ] == check
+[ 1 2 3 ] last 3 == check
+[ 1 2 3 ] pop-back 3 == check
+[ 1 2 ] == check
+[ 1 2 3 ] pop-back push-back [ 1 2 3 ] == check
+[ 1 2 ] dup 3 push-back [ 1 2 3 ] == check
+[ 1 2 ] == check
+[ 1 2 3 ] dup pop-back 3 == check
+[ 1 2 ] == check
+[ 1 2 3 ] == check
+0 40 range pop-back 39 == check
+len 39 == check
+[ [ ] pop-back ] [ "empty-vector" ] try "empty-vector" == check
+[ 1 2 ] [ 3 4 ] concat [ 1 2 3 4 ] == check
+0 2 range [ 2 3 ] concat [ 0 1 2 3 ] == check
+[ 1 2 ] dup [ 3 4 ] concat [ 1 2 3 4 ] == check
+[ 1 2 ] == check
+[] empty? true == check
+[ 1 2 3 ] vector? true == check
+[ 1 2 3 ] list? false == check
+[ 1 2 3 ] type-of "vector" == check
+( 1 2 3 ) vector? false == check
+( 1 2 3 ) list? true == check
+( 1 2 3 ) type-of "list" == check
+( 1 2 3 ) first 1 == check
+( 1 2 3 ) last 3 == check
+( 1 2 3 ) rest ( 2 3 ) == check
+( 1 2 ) 3 push-back ( 1 2 3 ) == check
+0 ( 1 2 3 ) cons ( 0 1 2 3 ) == check
+( 1 2 ) ( 3 4 ) concat ( 1 2 3 4 ) == check
+( 1 2 3 ) [ 1 + ] map ( 2 3 4 ) == check
+( 1 2 3 4 ) [ 2 % 0 == ] filter ( 2 4 ) == check
+( 1 2 3 ) uncons ( 2 3 ) == check
+1 == check
+"" empty? true == check
+( ) empty? true == check
+[ 1 2 3 ] 1 99 set-at [ 1 99 3 ] == check
+0 5 range 1 99 set-at [ 0 99 2 3 4 ] == check
+[ 1 2 3 ] dup 1 99 set-at [ 1 99 3 ] == check
+[ 1 2 3 ] == check
+"abc" 1 "x" set-at "axc" == check
+[ 1 2 3 ] 1 at 2 == check
+"abc" 1 at "b" == check
+( 1 2 3 ) >vector [ 1 2 3 ] == check
+[ 1 2 3 ] >list ( 1 2 3 ) == check
+"abc" >vector [ "a" "b" "c" ] == check
+"abc" >list ( "a" "b" "c" ) == check
+[ "a" "b" "c" ] >string "abc" == check
+( "a" "b" "c" ) >string "abc" == check
+"abc" >string "abc" == check
+[ 1 2 3 ] 2 contains? true == check
+( 1 2 3 ) 4 contains? false == check
+"abc" "b" contains? true == check
+"abc" "bc" contains? true == check
+"abc" "" contains? true == check
+[ "a" "bc" ] "bc" contains? true == check
+[ "a" "b" "a" ] "a" index-of 0 == check
+( 1 2 3 ) 3 index-of 2 == check
+"abc" "x" index-of -1 == check
+"abcabc" "bc" index-of 1 == check
+"abc" "" index-of 0 == check
+[ 1 2 1 3 ] unique [ 1 2 3 ] == check
+( 1 2 1 3 ) unique ( 1 2 3 ) == check
+"banana" unique "ban" == check
+[ 3 1 2 ] sort [ 1 2 3 ] == check
+( "b" "a" "c" ) sort ( "a" "b" "c" ) == check
+"cba" sort "abc" == check
+"abc" 0 1 neg slice "" == check
+
+[ "x" square ] [ "square-error" ] try "square-error" == check
+[ "x" cube ] [ "cube-error" ] try "cube-error" == check
+[ 9223372036854775807 1 + ] [ "add-overflow" ] try "add-overflow" == check
+[ -9223372036854775808 1 - ] [ "sub-overflow" ] try "sub-overflow" == check
+[ 9223372036854775807 2 * ] [ "mul-overflow" ] try "mul-overflow" == check
+[ 3037000500 square ] [ "square-overflow" ] try "square-overflow" == check
+[ 2097152 cube ] [ "cube-overflow" ] try "cube-overflow" == check
+[ -9223372036854775808 neg ] [ "neg-overflow" ] try "neg-overflow" == check
+[ -9223372036854775808 abs ] [ "abs-overflow" ] try "abs-overflow" == check
+[ -9223372036854775808 pred ] [ "pred-overflow" ] try "pred-overflow" == check
+[ 9223372036854775807 succ ] [ "succ-overflow" ] try "succ-overflow" == check
+[ -9223372036854775808 -1 / ] [ "div-overflow" ] try "div-overflow" == check
+
+16777216 16777217 == false == check
+16777216 16777217 < true == check
+16777217 16777216 > true == check
+9223372036854775806 9223372036854775807 < true == check
+16777216 16777216.0 == true == check
+9007199254740993 9007199254740992.0 == false == check
+9007199254740993 9007199254740992.0 > true == check
+9007199254740993 9007199254740992.0 max 9007199254740993 == check
+
+-10 3 % -1 == check
+-10 3 mod 2 == check
+10 -3 mod 1 == check
+-10 -3 mod 2 == check
+-9223372036854775808 -1 mod 0 == check
+
+"abc" dup len 3 == check
+"abc" == check
+
+5 [ 0 > ] [ ] if
+5 == check
+
+[ 1 2 3 ] [ len 3 == ] [ ] if
+[ 1 2 3 ] == check
+
+[ 1 2 3 4 ] [ 2 % 0 == ] filter [ 2 4 ] == check
+"abc" [ upper ] map "ABC" == check
+"abc" [ "b" != ] filter "ac" == check
+"abc" [ "b" == ] some true == check
+"abc" [ string? ] all true == check
+"" [ upper ] map "" == check
+"" [ "x" == ] filter "" == check
+"" [ "x" == ] some false == check
+"" [ "x" == ] all true == check
+0 "abc" [ drop 1 + ] fold 3 == check
+"" "abc" [ concat ] each "abc" == check
+
+3 [ 1 2 3 4 ] [ > ] split
+[ 3 4 ] == check
+[ 1 2 ] == check
+3 == check
+
+3 ( 1 2 3 4 ) [ > ] split
+( 3 4 ) == check
+( 1 2 ) == check
+3 == check
+
+99 [ 1 3 ] [ 2 4 ] [ < ] merge [ 1 2 3 4 ] == check
+99 == check
+
+99 ( 1 3 ) ( 2 4 ) [ < ] merge ( 1 2 3 4 ) == check
+99 == check
+
+"abc" [ "b" == ] split
+"ac" == check
+"b" == check
+
+"bd" "ac" [ < ] merge "abcd" == check

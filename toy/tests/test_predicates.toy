@@ -1,0 +1,16 @@
+"testlib.toy" load
+
+'dup word? true == check
+'nonexistent word? false == check
+"dup" word? false == check
+
+'dup var? false == check
+[ | x | 'x var? ] 123 swap exec true == check
+'x var? false == check
+
+10 number? true == check
+10.5 number? true == check
+"hello" number? false == check
+inf inf? true == check
+nan nan? true == check
+10.0 nan? false == check

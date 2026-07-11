@@ -1,0 +1,4 @@
+1 2 "{} + {} = 3\n" printf
+"World" "Hello, {}!\n" printf
+"{{ }}" printf "\n" printf
+123 "Value: {}" print drop

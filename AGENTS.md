@@ -16,7 +16,10 @@ navigation and development rules.
 - `src/tf_builtins.inc`, `src/tf_docs.c`, `src/tf_repl_builtins.inc`:
   generated builtin/runtime-doc files; do not hand-edit.
 - `include/`: internal APIs; read these before engine, lexer, object, or native edits.
-- `toy/`: Toy scripts and regression tests.
+- `toy/examples/`: curated user-facing Toy programs; formatting-sensitive
+  quines live under `toy/examples/quines/`.
+- `toy/tests/`: flat automated and manual Toy cases. Prefixes declare behavior:
+  `test_`, `fail_`, `output_`, and `manual_`.
 - `docs/`: build, REPL, tooling, and roadmap docs.
 - `docs/combinators.md`: examples for nontrivial control, recursion, and
   collection combinator usage.
@@ -31,8 +34,11 @@ navigation and development rules.
 - `tools/tree-sitter-toyforth/`: Tree-sitter grammar, generated parser inputs,
   queries, and tests.
 - `tools/toyforth-lsp/`: Go LSP implementation and generated builtin docs.
+- `tools/toyforth-lsp/internal/formatter/`: shared formatter used by the CLI
+  and LSP formatting method.
 - `tools/vscode-toyforth/`: VS Code extension and generated grammar metadata.
-- `.github/workflows/`: release automation.
+- `cmake/RunToyCase.cmake`: isolated CTest process runner for Toy cases.
+- `.github/workflows/`: CI and release automation.
 - `deps/`: vendored `linenoise` and `stb_leakcheck`.
 
 ## Fast Context
@@ -48,6 +54,8 @@ navigation and development rules.
 - REPL: `include/tf_repl.h`, `src/tf_repl.c`.
 - Language plan: `docs/language-roadmap.md`.
 - Data model reference: `docs/data-model.md`.
+- Test conventions: `docs/testing.md`.
+- Formatter behavior and configuration: `docs/formatter.md`.
 
 ## Workflow
 
@@ -56,8 +64,9 @@ navigation and development rules.
 - For roadmap work, read `docs/language-roadmap.md` first. For collection or
   data-structure work, read `docs/data-model.md` too.
 - For native word changes, update `builtins.json`, declarations, and focused
-  `toy/` tests, then regenerate and commit all generated metadata.
-- Build with `cmake --build build`; run relevant scripts. Use `build-leak` for
+  `toy/tests/` cases, then regenerate and commit all generated metadata.
+- Build with `cmake --build build`; run relevant scripts and
+  `ctest --test-dir build -C Release --output-on-failure`. Use `build-leak` for
   ownership, stack-effect, or execution-flow changes.
 
 ## Development Rules
@@ -89,7 +98,9 @@ navigation and development rules.
 - Tooling: builtin metadata is generated from `builtins.json`; do not hand-edit
   generated registry, runtime-doc, LSP, Tree-sitter word-list, VS Code grammar,
   or README table outputs. Regenerate the Tree-sitter parser after generated
-  word-list changes when the CLI is available.
+  word-list changes when the CLI is available. Use `npm run generate` from
+  `tools/tree-sitter-toyforth`; it also synchronizes `parser.c` into the Go
+  parser package so normal Go cache invalidation remains correct.
 - Docs: README and its focused references describe current user-visible
   behavior; AGENTS contains repository navigation and durable development
   rules; the roadmap contains only current status, sequencing, and future work.

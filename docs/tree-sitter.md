@@ -17,7 +17,10 @@ The easiest way to set up Tree-sitter and the LSP in Neovim is to use the automa
 - **Windows**: `.\tools\install-nvim.ps1`
 - **Linux/macOS**: `bash tools/install-nvim.sh`
 
-The script builds the LSP, generates the Tree-sitter parser with ABI 15, installs the local grammar files, removes stale generated Neovim parser/query artifacts, and prints the Neovim configuration snippet to add to your config.
+The script generates the Tree-sitter parser with ABI 15, builds the LSP and
+formatter, installs the local tools and grammar files, removes stale generated
+Neovim parser/query artifacts, and prints the Neovim configuration snippet to
+add to your config.
 
 Alternatively, you can register the parser manually:
 
@@ -57,7 +60,9 @@ vim.treesitter.language.register("toyforth", "toy")
 After adding the configuration, restart Neovim and run `:TSInstall! toyforth`.
 
 > [!NOTE]
-> The configuration above uses a local path and requires generated parser code. Run `tree-sitter generate --abi 15` inside `tools/tree-sitter-toyforth` before installing manually.
+> The configuration above uses a local path and requires generated parser
+> code. Run `npm run generate` inside `tools/tree-sitter-toyforth` before
+> installing manually.
 >
 > `queries = "queries/toyforth"` lets `nvim-treesitter` install the Toy query files into its site query directory. You do not need to append the grammar folder to `runtimepath`.
 
@@ -83,11 +88,15 @@ Requires the [tree-sitter CLI](https://github.com/tree-sitter/tree-sitter/blob/m
 From `tools/tree-sitter-toyforth`:
 
 ```powershell
-# Generate the parser from grammar.js
-tree-sitter generate --abi 15
+# Install the pinned local CLI
+npm ci --ignore-scripts
+npm rebuild tree-sitter-cli
+
+# Generate the parser and synchronize the Go binding
+npm run generate
 
 # Run the test suite
-tree-sitter test
+npm test
 
 # Open the interactive playground
 npm run start

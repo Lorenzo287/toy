@@ -1,0 +1,8 @@
+"testlib.toy" load
+
+0 [ 1 2 3 4 ] [ + ] fold 10 == check
+99 10 [ 1 2 3 ] [ + ] fold 16 == check 99 == check
+[ 1 2 ] 3 push-back [ 1 2 3 ] == check
+0 5 range [ 0 1 2 3 4 ] == check
+3 3 range [] == check
+1 9 range [ 1 2 3 4 5 6 7 8 ] == check

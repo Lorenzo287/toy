@@ -1,0 +1,14 @@
+"testlib.toy" load
+
+true true and true == check
+true false and false == check
+false true or true == check
+false false or false == check
+true not false == check
+
+5 3 and 1 == check
+5 2 or 7 == check
+5 3 xor 6 == check
+5 not -6 == check
+1 3 shl 8 == check
+8 2 shr 2 == check

@@ -28,18 +28,24 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Configure CMake (single-config)
         if: runner.os != 'Windows'
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
 
       - name: Configure CMake (multi-config)
         if: runner.os == 'Windows'
-        run: cmake -S . -B build
+        run: cmake -S . -B build -DBUILD_TESTING=ON
 
       - name: Build
         run: cmake --build build --config Release
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Check generated builtin metadata
+        run: node tools/generate-builtins.js --check
 
       - name: Package (Unix)
         if: runner.os != 'Windows'

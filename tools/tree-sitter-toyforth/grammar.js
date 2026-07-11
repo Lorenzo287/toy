@@ -18,6 +18,11 @@ export default grammar({
     )),
 
     _expression: $ => choice(
+      $._non_capture_expression,
+      $.var_list,
+    ),
+
+    _non_capture_expression: $ => choice(
       $.number,
       $.boolean,
       $.string,
@@ -27,7 +32,6 @@ export default grammar({
       $.list_literal,
       $.map_literal,
       $.set_literal,
-      $.var_list,
       $.control_word,
       $.operator,
       $.builtin_word,
@@ -90,7 +94,7 @@ export default grammar({
     // Captures bind names from the data stack inside the current frame.
     var_list: $ => seq(
       '|',
-      repeat1($.word),
+      repeat(choice($._non_capture_expression, $._comment)),
       '|',
     ),
     word: $ => /[a-zA-Z_+\-*%<>=!.?][a-zA-Z0-9_+\-*%<>=!.?]*/,

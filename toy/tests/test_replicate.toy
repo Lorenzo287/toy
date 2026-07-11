@@ -1,0 +1,11 @@
+"testlib.toy" load
+
+5 [ 0 ] replicate [ 0 0 0 0 0 ] == check
+10 [ rand 100 % ] replicate len 10 == check
+
+99 3 [ 1 ] replicate
+[ 1 1 1 ] == check
+99 == check
+
+3 [ 3 [ 1 ] replicate ] replicate
+[ [ 1 1 1 ] [ 1 1 1 ] [ 1 1 1 ] ] == check

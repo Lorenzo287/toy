@@ -55,13 +55,14 @@ type serverInfo struct {
 }
 
 type serverCapabilities struct {
-	PositionEncoding       string `json:"positionEncoding,omitempty"`
-	TextDocumentSync       int    `json:"textDocumentSync"`
-	DocumentSymbolProvider bool   `json:"documentSymbolProvider"`
-	DefinitionProvider     bool   `json:"definitionProvider"`
-	HoverProvider          bool   `json:"hoverProvider"`
-	ReferencesProvider     bool   `json:"referencesProvider"`
-	RenameProvider         bool   `json:"renameProvider"`
+	PositionEncoding           string `json:"positionEncoding,omitempty"`
+	TextDocumentSync           int    `json:"textDocumentSync"`
+	DocumentSymbolProvider     bool   `json:"documentSymbolProvider"`
+	DefinitionProvider         bool   `json:"definitionProvider"`
+	HoverProvider              bool   `json:"hoverProvider"`
+	ReferencesProvider         bool   `json:"referencesProvider"`
+	RenameProvider             bool   `json:"renameProvider"`
+	DocumentFormattingProvider bool   `json:"documentFormattingProvider"`
 }
 
 type textDocumentItem struct {
@@ -125,6 +126,16 @@ type renameParams struct {
 	TextDocument textDocumentIdentifier `json:"textDocument"`
 	Position     lspPosition            `json:"position"`
 	NewName      string                 `json:"newName"`
+}
+
+type formattingOptions struct {
+	TabSize      int  `json:"tabSize"`
+	InsertSpaces bool `json:"insertSpaces"`
+}
+
+type documentFormattingParams struct {
+	TextDocument textDocumentIdentifier `json:"textDocument"`
+	Options      formattingOptions      `json:"options"`
 }
 
 type documentSymbol struct {

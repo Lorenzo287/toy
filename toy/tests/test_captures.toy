@@ -1,0 +1,24 @@
+"testlib.toy" load
+
+10 | x |
+$x $x + 20 == check
+
+'my-swap [ | a b | $b $a ] def
+1 2 my-swap
+1 == check
+2 == check
+
+100 | outer |
+[ $outer ] exec 100 == check
+
+10 | shadow |
+[ 20 | shadow | $shadow ] exec 20 == check
+$shadow 10 == check
+
+\ Both comment forms are accepted between executable tokens.
+1
+\ line comment
+2
+/* block
+   comment */
++ 3 == check

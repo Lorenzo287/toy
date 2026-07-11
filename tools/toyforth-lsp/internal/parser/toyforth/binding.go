@@ -2,7 +2,8 @@ package toyforth
 
 /*
 #cgo CFLAGS: -I../../../../tree-sitter-toyforth/src
-#include "../../../../tree-sitter-toyforth/src/parser.c"
+#include "tree_sitter/parser.h"
+const TSLanguage *tree_sitter_toyforth(void);
 */
 import "C"
 

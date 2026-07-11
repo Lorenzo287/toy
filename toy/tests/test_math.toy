@@ -1,0 +1,36 @@
+"testlib.toy" load
+
+1 2 + 3 == check
+1.5 2.0 + 3.5 == check
+5 neg abs 5 == check
+5.5 neg abs 5.5 == check
+0 abs 0 == check
+
+10 20 max 20 == check
+20 10 max 20 == check
+10.5 20.2 max 20.2 == check
+10 20.5 max 20.5 == check
+10 20 min 10 == check
+20 10 min 10 == check
+10.5 20.2 min 10.5 == check
+10 20.5 min 10.0 == check
+10 3 % 1 == check
+10 3 mod 1 == check
+
+16 sqrt 4.0 == check
+2 10 pow 1024.0 == check
+1 exp e - abs 0.000000000001 < check
+100 log10 2.0 - abs 0.000000000001 < check
+pi 2 / sin 1.0 - abs 0.000000000001 < check
+pi cos 1.0 + abs 0.000000000001 < check
+tau pi 2 * - abs 0.000000000001 < check
+
+2.7 floor 2.0 == check
+2.7 ceil 3.0 == check
+2.7 round 3.0 == check
+2.3 round 2.0 == check
+
+5 neg -5 == check
+0 6.9 - -6.9 == check
+'subtract [ | a | | b | $b $a neg + ] def
+10 5 subtract 5 == check

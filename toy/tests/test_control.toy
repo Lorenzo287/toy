@@ -1,0 +1,14 @@
+"testlib.toy" load
+
+5 [ 0 > ] [ 1 + ] if 6 == check
+5 [ 0 < ] [ 1 + ] if 5 == check
+5 [ 0 > ] [ 1 + ] [ 1 - ] ifelse 6 == check
+5 neg [ 0 > ] [ 1 + ] [ 1 - ] ifelse -6 == check
+
+10 [
+    [ [ 0 < ] [ "negative" ] ]
+    [ [ 0 == ] [ "zero" ] ]
+    [ [ true ] [ "positive" ] ]
+] cond
+"positive" == check
+10 == check

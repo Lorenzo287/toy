@@ -1,3 +1,0 @@
-'square [ dup * ] def
-'square see
-5 square print

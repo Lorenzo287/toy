@@ -1,0 +1,8 @@
+"testlib.toy" load
+
+'square [ dup * ] def
+5 square 25 == check
+'square word? true == check
+'square body [ dup * ] == check
+'square see "'square [ dup * ] def" == check
+'square doc "'square [ dup * ] def" == check

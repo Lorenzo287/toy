@@ -8,6 +8,7 @@ Basic expressions
 { 'a 1 'b 2 }
 #{ 1 2 3 }
 | x y |
+||
 get-or
 symmetric-difference
 pq-peek
@@ -49,6 +50,7 @@ pq-peek
   (var_list
     (word)
     (word))
+  (var_list)
   (builtin_word)
   (builtin_word)
   (builtin_word))
@@ -67,3 +69,15 @@ String escapes
     (escape_sequence)
     (escape_sequence)
     (escape_sequence)))
+
+==================
+Empty capture in a quotation
+==================
+
+[ || ]
+
+---
+
+(source_file
+  (block
+    (var_list)))

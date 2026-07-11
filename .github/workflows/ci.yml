@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime:
+    name: Runtime (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+  tooling:
+    name: Tooling
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: tools/tree-sitter-toyforth/package-lock.json
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: tools/toyforth-lsp/go.mod
+          cache-dependency-path: tools/toyforth-lsp/go.sum
+
+      - name: Check generated builtin metadata
+        run: node tools/generate-builtins.js --check
+
+      - name: Install Tree-sitter dependencies
+        working-directory: tools/tree-sitter-toyforth
+        run: |
+          npm ci --ignore-scripts
+          npm rebuild tree-sitter-cli
+
+      - name: Generate and test the Tree-sitter parser
+        working-directory: tools/tree-sitter-toyforth
+        run: |
+          npm run generate
+          npm test
+
+      - name: Test the LSP and formatter
+        working-directory: tools/toyforth-lsp
+        run: go test -count=1 ./...

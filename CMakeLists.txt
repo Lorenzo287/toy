@@ -26,6 +26,73 @@ else()
 endif()
 target_include_directories(toy PRIVATE ${PROJECT_SOURCE_DIR}/deps/linenoise)
 
+# Tests
+
+include(CTest)
+
+if(BUILD_TESTING)
+    set(TOY_TEST_TIMEOUT 10 CACHE STRING "Timeout in seconds for each Toy test")
+    set(TOY_TEST_DIR "${PROJECT_SOURCE_DIR}/toy/tests")
+    set(TOY_TEST_RUNNER "${PROJECT_SOURCE_DIR}/cmake/RunToyCase.cmake")
+
+    if(EXISTS "${TOY_TEST_DIR}/testlib.toy")
+        set(TOY_TESTLIB "${TOY_TEST_DIR}/testlib.toy")
+    else()
+        set(TOY_TESTLIB "")
+    endif()
+
+    function(add_toy_test_case TEST_SOURCE CASE_KIND CASE_LABEL)
+        get_filename_component(TEST_FILENAME "${TEST_SOURCE}" NAME)
+        get_filename_component(TEST_NAME "${TEST_SOURCE}" NAME_WE)
+        set(EXPECTED_FILE "")
+
+        if(CASE_KIND STREQUAL "fail")
+            set(EXPECTED_FILE "${TOY_TEST_DIR}/${TEST_NAME}.stderr")
+            if(NOT EXISTS "${EXPECTED_FILE}")
+                message(FATAL_ERROR
+                    "Negative test ${TEST_FILENAME} requires ${TEST_NAME}.stderr")
+            endif()
+        elseif(CASE_KIND STREQUAL "output")
+            set(EXPECTED_FILE "${TOY_TEST_DIR}/${TEST_NAME}.stdout")
+            if(NOT EXISTS "${EXPECTED_FILE}")
+                message(FATAL_ERROR
+                    "Output test ${TEST_FILENAME} requires ${TEST_NAME}.stdout")
+            endif()
+        endif()
+
+        add_test(
+            NAME "${TEST_NAME}"
+            COMMAND "${CMAKE_COMMAND}"
+                "-DTOY_EXECUTABLE=$<TARGET_FILE:toy>"
+                "-DTEST_SOURCE=${TEST_SOURCE}"
+                "-DTESTLIB_SOURCE=${TOY_TESTLIB}"
+                "-DEXPECTED_FILE=${EXPECTED_FILE}"
+                "-DCASE_KIND=${CASE_KIND}"
+                "-DWORK_ROOT=${CMAKE_CURRENT_BINARY_DIR}/test-work"
+                "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/test-work/$<CONFIG>/${TEST_NAME}"
+                -P "${TOY_TEST_RUNNER}"
+        )
+        set_tests_properties("${TEST_NAME}" PROPERTIES
+            LABELS "toy;${CASE_LABEL}"
+            TIMEOUT "${TOY_TEST_TIMEOUT}"
+        )
+    endfunction()
+
+    file(GLOB TOY_POSITIVE_TESTS CONFIGURE_DEPENDS "${TOY_TEST_DIR}/test_*.toy")
+    file(GLOB TOY_NEGATIVE_TESTS CONFIGURE_DEPENDS "${TOY_TEST_DIR}/fail_*.toy")
+    file(GLOB TOY_OUTPUT_TESTS CONFIGURE_DEPENDS "${TOY_TEST_DIR}/output_*.toy")
+
+    foreach(TEST_SOURCE IN LISTS TOY_POSITIVE_TESTS)
+        add_toy_test_case("${TEST_SOURCE}" "test" "positive")
+    endforeach()
+    foreach(TEST_SOURCE IN LISTS TOY_NEGATIVE_TESTS)
+        add_toy_test_case("${TEST_SOURCE}" "fail" "negative")
+    endforeach()
+    foreach(TEST_SOURCE IN LISTS TOY_OUTPUT_TESTS)
+        add_toy_test_case("${TEST_SOURCE}" "output" "output")
+    endforeach()
+endif()
+
 # ── Baseline warnings ─────────────────────────────────────────────────────────
 
 if(MSVC)

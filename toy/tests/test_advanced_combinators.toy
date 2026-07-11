@@ -1,0 +1,17 @@
+"testlib.toy" load
+
+[ 1 2 3 ] [ 1 + ] infra [ 1 2 4 ] == check
+[ 1 2 3 ] [ 4 ] infra [ 1 2 3 4 ] == check
+
+10 20 [ 100 ] [ 200 ] infra
+[ 100 200 ] == check
+20 == check
+10 == check
+
+5 [ [ 1 + ] [ 2 * ] [ dup * ] ] cleave
+25 == check
+10 == check
+6 == check
+
+5 [ [ 1 + ] [ 2 * ] [ dup * ] ] construct [ 6 10 25 ] == check
+5 [ [ drop 1 2 3 ] [ drop ] [ 1 + ] ] construct [ 1 2 3 6 ] == check

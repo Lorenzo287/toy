@@ -1,0 +1,5 @@
+# Reformatting source-sensitive quines would change the text they reproduce.
+disable = true
+indent_width = 4
+indent_style = "tab"
+delimiter_spacing = "spaced"

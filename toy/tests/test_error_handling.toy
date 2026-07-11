@@ -1,0 +1,18 @@
+"testlib.toy" load
+
+\ A handler runs against the restored surrounding stack.
+0 [ "intentional error" error ] [ 1 + ] try 1 == check
+0 [ 1 0 / ] [ 1 + ] try 1 == check
+
+\ An inner handler can recover without invoking the outer handler.
+0 [
+    [ "inner error" error ] [ 1 + ] try
+    1 +
+] [ 100 + ] try
+2 == check
+
+\ A handler error propagates to the next enclosing handler.
+0 [
+    [ "inner error" error ] [ "propagated error" error ] try
+] [ 10 + ] try
+10 == check

@@ -1,0 +1,11 @@
+\ Shared assertions for the automated Toy test suite.
+
+'assert [ | condition message |
+    $condition [ ] [ $message error ] ifelse
+] def
+
+'assert-equal [ | actual expected message |
+    $actual $expected == $message assert
+] def
+
+'check [ "test assertion failed" assert ] def

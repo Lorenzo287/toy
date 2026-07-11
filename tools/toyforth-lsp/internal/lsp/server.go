@@ -93,6 +93,8 @@ func (s *Server) handle(w io.Writer, req request) error {
 		return s.handleReferences(w, req)
 	case "textDocument/rename":
 		return s.handleRename(w, req)
+	case "textDocument/formatting":
+		return s.handleFormatting(w, req)
 	default:
 		if len(req.ID) == 0 {
 			return nil
@@ -114,13 +116,14 @@ func (s *Server) handleInitialize(w io.Writer, req request) error {
 		ID:      decodeID(req.ID),
 		Result: newResult(initializeResult{
 			Capabilities: serverCapabilities{
-				PositionEncoding:       "utf-16",
-				TextDocumentSync:       1,
-				DocumentSymbolProvider: true,
-				DefinitionProvider:     true,
-				HoverProvider:          true,
-				ReferencesProvider:     true,
-				RenameProvider:         true,
+				PositionEncoding:           "utf-16",
+				TextDocumentSync:           1,
+				DocumentSymbolProvider:     true,
+				DefinitionProvider:         true,
+				HoverProvider:              true,
+				ReferencesProvider:         true,
+				RenameProvider:             true,
+				DocumentFormattingProvider: true,
 			},
 			ServerInfo: serverInfo{
 				Name:    "toyls",

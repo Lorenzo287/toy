@@ -1,0 +1,10 @@
+"testlib.toy" load
+
+5 type-of "int" == check
+3.14 type-of "float" == check
+"toy" type-of "string" == check
+[ 1 2 ] type-of "vector" == check
+
+5 int? true == check
+3.14 float? true == check
+pwd string? true == check

@@ -1,0 +1,8 @@
+"testlib.toy" load
+
+0 [ 1 2 3 ] [ + ] each 6 == check
+0 5 [ 1 + ] times 5 == check
+3 [ 0 > ] [ 1 - ] while 0 == check
+
+\ Nested iteration preserves the surrounding accumulator.
+0 2 [ 2 [ 1 + ] times ] times 4 == check

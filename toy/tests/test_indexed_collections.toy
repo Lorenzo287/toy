@@ -1,0 +1,14 @@
+"testlib.toy" load
+
+[ 10 20 30 ] 0 at 10 == check
+[ 10 20 30 ] 1 at 20 == check
+[ 10 20 30 ] 2 at 30 == check
+"Toy" 1 at "o" == check
+
+[ 10 20 30 ] dup 1 99 set-at
+[ 10 99 30 ] == check
+[ 10 20 30 ] == check
+
+"Toy" dup 0 "J" set-at
+"Joy" == check
+"Toy" == check

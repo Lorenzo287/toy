@@ -10,6 +10,8 @@ It uses the Tree-sitter parser for indexing and providing IDE features.
 - **Navigation**: `textDocument/definition`, `textDocument/references`.
 - **Introspection**: `textDocument/hover` (shows builtin docs and stack effects), `textDocument/documentSymbol`.
 - **Refactoring**: `textDocument/rename` (works for both top-level words and locals).
+- **Formatting**: `textDocument/formatting`, backed by the same formatter as
+  the `toyfmt` CLI.
 - **Lifecycle**: `initialize`, `shutdown`, `exit`, `didOpen`, `didChange`, `didClose`.
 
 ### Analysis Scope
@@ -21,9 +23,9 @@ It uses the Tree-sitter parser for indexing and providing IDE features.
 ## Getting Started
 
 > [!IMPORTANT]
-> The LSP relies on the Tree-sitter parser for code analysis. You **must** generate the parser in 
-> `tools/tree-sitter-toyforth` by running `tree-sitter generate --abi 15` before running or building the LSP.
-> Without the generated `parser.c`, the Go Tree-sitter bindings will fail to compile or function.
+> The LSP relies on the Tree-sitter parser for code analysis. Generate and
+> synchronize it from `tools/tree-sitter-toyforth` with `npm run generate`
+> before running or building the LSP.
 
 ### Run from Source
 
@@ -46,7 +48,9 @@ go build -o toyforth-lsp.exe ./cmd/toyforth-lsp
 
 ### Neovim
 
-You can use the automated installation script to build the LSP, generate the Tree-sitter parser, install both to a central location, and remove stale generated Neovim parser/query artifacts:
+You can use the automated installation script to generate the Tree-sitter
+parser, build and install the LSP and `toyfmt`, install the local grammar, and
+remove stale generated Neovim parser/query artifacts:
 
 - **Windows**: `.\tools\install-nvim.ps1`
 - **Linux/macOS**: `bash tools/install-nvim.sh`
@@ -65,6 +69,16 @@ vim.lsp.config('toyls', {
 vim.lsp.enable('toyls')
 ```
 
+With the server attached, format the current buffer through Neovim's built-in
+LSP client:
+
+```lua
+vim.lsp.buf.format({ async = false })
+```
+
+Formatting behavior and `.toyfmt` configuration are documented in the
+[formatter guide](formatter.md).
+
 ## Development
 
 ### Verification
@@ -72,8 +86,8 @@ vim.lsp.enable('toyls')
 From `tools/toyforth-lsp`:
 
 ```powershell
-gofmt -w .
-go test ./...
+go fmt ./...
+go test -count=1 ./...
 ```
 
 ### Example Fixture

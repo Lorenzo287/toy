@@ -45,9 +45,9 @@
     }
   },
   "scripts": {
-    "install": "node-gyp-build",
+    "generate": "tree-sitter generate --abi 15 && node ../../tools/sync-tree-sitter-parser.js",
     "prestart": "tree-sitter build --wasm",
     "start": "tree-sitter playground",
-    "test": "node --test bindings/node/*_test.js"
+    "test": "tree-sitter test"
   }
 }

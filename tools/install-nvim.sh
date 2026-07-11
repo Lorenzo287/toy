@@ -20,21 +20,8 @@ echo -e "\033[0;90mTarget Installation Directory: ${INSTALL_DIR}\033[0m"
 # 1. Create Target Directory
 mkdir -p "${INSTALL_DIR}"
 
-# 2. Build the LSP
-echo -e "\n\033[0;33m[1/4] Building Toy LSP...\033[0m"
-if ! command -v go &> /dev/null; then
-    echo "Error: Go is not installed. Please install Go to build the LSP."
-    exit 1
-fi
-
-pushd "${LSP_SRC_DIR}" > /dev/null
-    go build -o toyforth-lsp ./cmd/toyforth-lsp
-    cp toyforth-lsp "${INSTALL_DIR}/"
-    echo -e "\033[0;32mLSP installed to: ${INSTALL_DIR}/toyforth-lsp\033[0m"
-popd > /dev/null
-
-# 3. Generate and Copy Tree-sitter files
-echo -e "\n\033[0;33m[2/4] Generating Tree-sitter Parser...\033[0m"
+# 2. Generate and Copy Tree-sitter files
+echo -e "\n\033[0;33m[1/4] Generating Tree-sitter Parser...\033[0m"
 if ! command -v npm &> /dev/null; then
     echo "Error: npm is not installed. Please install Node.js/npm."
     exit 1
@@ -48,13 +35,10 @@ pushd "${TS_SRC_DIR}" > /dev/null
         echo "Running npm install..."
         npm install --silent --ignore-scripts
     fi
+    npm rebuild tree-sitter-cli --silent
     
-    echo "Generating parser.c..."
-    if command -v tree-sitter &> /dev/null; then
-        tree-sitter generate --abi 15
-    else
-        npx tree-sitter generate --abi 15
-    fi
+    echo "Generating parser.c and syncing the Go binding..."
+    npm run generate --silent
 
     INSTALL_ROOT="$(cd "${INSTALL_DIR}" && pwd)"
     TS_DEST="${INSTALL_ROOT}/tree-sitter-toyforth"
@@ -63,6 +47,24 @@ pushd "${TS_SRC_DIR}" > /dev/null
     
     cp -r src queries grammar.js tree-sitter.json "${TS_DEST}/"
     echo -e "\033[0;32mTree-sitter files installed to: ${TS_DEST}\033[0m"
+popd > /dev/null
+
+# 3. Build the LSP and formatter CLI after parser.c exists
+echo -e "\n\033[0;33m[2/4] Building Toy LSP and formatter...\033[0m"
+if ! command -v go &> /dev/null; then
+    echo "Error: Go is not installed. Please install Go to build the LSP."
+    exit 1
+fi
+
+pushd "${LSP_SRC_DIR}" > /dev/null
+    echo "Building toyforth-lsp..."
+    go build -o toyforth-lsp ./cmd/toyforth-lsp
+    echo "Building toyfmt..."
+    go build -o toyfmt ./cmd/toyfmt
+    cp toyforth-lsp "${INSTALL_DIR}/"
+    cp toyfmt "${INSTALL_DIR}/"
+    echo -e "\033[0;32mLSP installed to: ${INSTALL_DIR}/toyforth-lsp\033[0m"
+    echo -e "\033[0;32mFormatter installed to: ${INSTALL_DIR}/toyfmt\033[0m"
 popd > /dev/null
 
 # 4. Cleanup old generated Tree-sitter artifacts

@@ -1,0 +1,9 @@
+"testlib.toy" load
+
+5 [ 0 == ] [ drop 1 ] [ dup pred ] [ * ] genrec 120 == check
+
+[ 1 [ 2 3 ] 4 ]
+[ ]
+[ 0 swap [ + ] fold ]
+treerec
+10 == check

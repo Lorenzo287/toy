@@ -1,8 +1,0 @@
-65 print
-unix-time print
-cpu-time print
-5 [ "hello\n" printf ] times
-unix-time print
-cpu-time print
-exit
-"not reached" print

@@ -1,8 +1,7 @@
 # Toy Language Roadmap
 
-This roadmap records the current development priorities for Toy and the order
-in which larger changes should be approached. It is not a language reference,
-an agent manual, or a changelog:
+This roadmap records Toy's current development status and larger active or
+future tracks. It is not a language reference, an agent manual, or a changelog.
 
 ## Status Labels
 
@@ -42,22 +41,16 @@ has focused regression scripts, a Tree-sitter grammar, a Go LSP, editor support,
 benchmark workloads, and allocation-counting builds. These foundations may be
 extended by the active tracks below.
 
+### Validation and Formatting Foundation
+
+**Status: Completed**
+
+Portable CTest cases distinguish value regressions, expected failures, exact
+output contracts, and manual host interaction. User examples live separately.
+The shared Go formatter provides a CLI and standard LSP document formatting
+while preserving author-selected line layout.
+
 ## Work in Progress
-
-### Validation and Release Confidence
-
-**Status: In progress**
-
-Create one repeatable validation path from the existing language and tooling
-checks. Completion means:
-
-- self-checking `toy/test_*.toy` scripts have a runner;
-- interactive, environment-dependent, and output-only examples are separated
-  from portable regressions;
-- `tools/generate-builtins.js --check` is part of validation;
-- LSP and Tree-sitter tests run when their toolchains are available;
-- release builds depend on the portable correctness checks;
-- leak-sensitive runtime changes have a documented validation path.
 
 ### Performance Work
 
@@ -81,14 +74,6 @@ Keep optimization work benchmark-driven and record durable experiments under
 Use the explicit frame stack to expose stepping, the current word and program
 counter, the data stack, and the call stack. Start in the REPL before adding
 editor integration.
-
-### Formatter
-
-**Status: Future**
-
-Build on Tree-sitter. Define deterministic, idempotent formatting for
-quotations, captures, comments, and long pipelines. Start with fixtures before
-adding editor integration.
 
 ### Runtime API and Foreign Function Interface
 

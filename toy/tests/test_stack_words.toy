@@ -1,0 +1,27 @@
+"testlib.toy" load
+
+1 2 nip 2 == check
+
+1 2 3 rot
+1 == check
+3 == check
+2 == check
+
+1 2 tuck
+2 == check
+1 == check
+2 == check
+
+10 20 30 1 pick
+20 == check
+30 == check
+20 == check
+10 == check
+
+10 20 30 2 roll
+10 == check
+30 == check
+20 == check
+
+\ `empty` must remove every item, making `pick` fail in the body.
+[ 1 2 3 empty 0 pick false ] [ true ] try true == check

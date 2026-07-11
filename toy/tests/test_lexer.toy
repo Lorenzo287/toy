@@ -1,0 +1,40 @@
+"testlib.toy" load
+
+\ Regression tests for boundary-aware lexing.
+
+[1 2+] [ 1 2 + ] == check
+3[1 2]cons [ 3 1 2 ] == check
+
+10|x|$x 1+ 11 == check
+10 20| a b |$a$b + 30 == check
+
+[-1 -2.5 +3 +4.5] [ -1 -2.5 3 4.5 ] == check
+-9223372036854775808 9223372036854775807 + -1 == check
+[ 1e3 -2.5E-2 +4e+1 ] [ 1000.0 -0.025 40.0 ] == check
+10000000000000000.0 repr "1e+16" == check
+
+"a,b,c"","split [ "a" "b" "c" ] == check
+"abc"["b"!=]filter "ac" == check
+"\x3f" "?" == check
+"\x00" char-code 0 == check
+
+( outer ( inner ) still outer )
+true check
+
+/* Block comments ignore [ ( { | : ; and
+   continue until the closing delimiter. */
+true check
+
+1/* tight block comment */2 + 3 == check
+1/* sign boundary */-2 + -1 == check
+7 dup/* word boundary comment */+ 14 == check
+[ 1 /* comment inside vector */ 2 ] [ 1 2 ] == check
+
+10 [1-2] exec
+2 == check
+9 == check
+
+'foo/bar [ 42 ] def
+foo/bar 42 == check
+7 | value/name | $value/name 7 == check
+||

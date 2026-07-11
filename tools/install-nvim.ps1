@@ -2,6 +2,18 @@
 # This script builds Toy tools and installs them to a local directory for Neovim.
 
 $ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
+
+function Assert-NativeExitCode {
+    param(
+        [string]$Description,
+        [int]$ExitCode
+    )
+
+    if ($ExitCode -ne 0) {
+        throw "$Description failed with exit code $ExitCode"
+    }
+}
 
 # Change this path if you prefer a different location
 $InstallDir = "C:\toy"
@@ -19,22 +31,8 @@ if (-not (Test-Path $InstallDir)) {
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 }
 
-# 2. Build the LSP
-Write-Host "`n[1/4] Building Toy LSP..." -ForegroundColor Yellow
-Push-Location $LspSrcDir
-try {
-    if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
-        Write-Error "Go is not installed. Please install Go to build the LSP."
-    }
-    go build -o toyforth-lsp.exe ./cmd/toyforth-lsp
-    Copy-Item "toyforth-lsp.exe" -Destination $InstallDir -Force
-    Write-Host "LSP installed to: $(Join-Path $InstallDir 'toyforth-lsp.exe')" -ForegroundColor Green
-} finally {
-    Pop-Location
-}
-
-# 3. Generate and Copy Tree-sitter files
-Write-Host "`n[2/4] Generating Tree-sitter Parser..." -ForegroundColor Yellow
+# 2. Generate and Copy Tree-sitter files
+Write-Host "`n[1/4] Generating Tree-sitter Parser..." -ForegroundColor Yellow
 Push-Location $TsSrcDir
 try {
     if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
@@ -44,17 +42,18 @@ try {
     if (Test-Path -LiteralPath "package-lock.json") {
         Write-Host "Running npm ci..."
         npm ci --silent --ignore-scripts
+        Assert-NativeExitCode "npm ci" $LASTEXITCODE
     } else {
         Write-Host "Running npm install..."
         npm install --silent --ignore-scripts
+        Assert-NativeExitCode "npm install" $LASTEXITCODE
     }
+    npm rebuild tree-sitter-cli --silent
+    Assert-NativeExitCode "npm rebuild tree-sitter-cli" $LASTEXITCODE
     
-    Write-Host "Generating parser.c..."
-    if (Get-Command tree-sitter -ErrorAction SilentlyContinue) {
-        tree-sitter generate --abi 15
-    } else {
-        npx tree-sitter generate --abi 15
-    }
+    Write-Host "Generating parser.c and syncing the Go binding..."
+    npm run generate --silent
+    Assert-NativeExitCode "Tree-sitter parser generation" $LASTEXITCODE
 
     # Copy the TS folder to the install directory
     # We copy the whole folder because Neovim needs 'src/parser.c' and the 'queries/' directory.
@@ -76,6 +75,27 @@ try {
     Copy-Item -LiteralPath "tree-sitter.json" -Destination $TsDest
     
     Write-Host "Tree-sitter files installed to: $TsDest" -ForegroundColor Green
+} finally {
+    Pop-Location
+}
+
+# 3. Build the LSP and formatter CLI after parser.c exists
+Write-Host "`n[2/4] Building Toy LSP and formatter..." -ForegroundColor Yellow
+Push-Location $LspSrcDir
+try {
+    if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
+        Write-Error "Go is not installed. Please install Go to build the LSP."
+    }
+    Write-Host "Building toyforth-lsp..."
+    go build -o toyforth-lsp.exe ./cmd/toyforth-lsp
+    Assert-NativeExitCode "toyforth-lsp build" $LASTEXITCODE
+    Write-Host "Building toyfmt..."
+    go build -o toyfmt.exe ./cmd/toyfmt
+    Assert-NativeExitCode "toyfmt build" $LASTEXITCODE
+    Copy-Item "toyforth-lsp.exe" -Destination $InstallDir -Force
+    Copy-Item "toyfmt.exe" -Destination $InstallDir -Force
+    Write-Host "LSP installed to: $(Join-Path $InstallDir 'toyforth-lsp.exe')" -ForegroundColor Green
+    Write-Host "Formatter installed to: $(Join-Path $InstallDir 'toyfmt.exe')" -ForegroundColor Green
 } finally {
     Pop-Location
 }

@@ -1,0 +1,3 @@
+"before exit" print
+exit
+"not reached" print
