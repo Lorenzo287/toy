@@ -9,7 +9,7 @@ The core idea is that code is data: values go onto the stack, then words transfo
 them, and most importantly programs can be values too. `[ 1 2 + ]` holds a
 small program without running it; `exec` can run it later. From this, Toy gets
 higher-order words, control flow, and recursion without a separate layer of
-special syntax, but simply by **concatenation**".
+special syntax, but simply by **concatenation**.
 
 Toy began as an extension of Salvatore Sanfilippo's
 [toyforth](https://github.com/antirez/toyforth), written for his C programming
