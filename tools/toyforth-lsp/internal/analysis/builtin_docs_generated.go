@@ -228,11 +228,11 @@ var builtinDocs = map[string]builtinDoc{
 	},
 	"exec": {
 		StackEffect: "callable -- ...",
-		Description: "Execute a quoted symbol or quotation.",
+		Description: "Execute a symbol, call node, or quotation.",
 	},
 	"i": {
 		StackEffect: "callable -- ...",
-		Description: "Alias for exec. Execute a quoted symbol or quotation.",
+		Description: "Alias for exec. Execute a symbol, call node, or quotation.",
 	},
 	"if": {
 		StackEffect: "bool|callable callable --",
@@ -638,6 +638,10 @@ var builtinDocs = map[string]builtinDoc{
 		StackEffect: "x -- bool",
 		Description: "Check whether the input is a symbol.",
 	},
+	"call?": {
+		StackEffect: "x -- bool",
+		Description: "Check whether the input is an executable call node.",
+	},
 	"vector?": {
 		StackEffect: "x -- bool",
 		Description: "Check whether the input is a vector.",
@@ -672,11 +676,11 @@ var builtinDocs = map[string]builtinDoc{
 	},
 	"callable?": {
 		StackEffect: "x -- bool",
-		Description: "Check whether the input can be executed now: a vector quotation or a symbol naming a defined word.",
+		Description: "Check whether the input can be executed now: a vector quotation, symbol, or call naming a defined word.",
 	},
 	"def": {
 		StackEffect: "'name block --",
-		Description: "Bind a quoted symbol to a block definition.",
+		Description: "Bind a symbol to a block definition.",
 	},
 	"word?": {
 		StackEffect: "symbol -- bool",
@@ -690,9 +694,13 @@ var builtinDocs = map[string]builtinDoc{
 		StackEffect: "'name -- quot",
 		Description: "Push the quotation body for a user-defined word.",
 	},
-	"intern": {
-		StackEffect: "string -- symbol",
-		Description: "Convert a string to a symbol.",
+	">symbol": {
+		StackEffect: "string|call -- symbol",
+		Description: "Convert a string or call node to a symbol.",
+	},
+	">call": {
+		StackEffect: "symbol -- call",
+		Description: "Convert a symbol to an executable call node for runtime quotation construction.",
 	},
 	"name": {
 		StackEffect: "symbol -- string",
@@ -712,7 +720,7 @@ var builtinDocs = map[string]builtinDoc{
 	},
 	"search-words": {
 		StackEffect: "query -- vector",
-		Description: "Push a sorted vector of quoted symbols whose names or docs match query.",
+		Description: "Push a sorted vector of symbols whose names or docs match query.",
 	},
 	"repr": {
 		StackEffect: "x -- string",

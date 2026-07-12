@@ -1,9 +1,10 @@
 # Toy: Agent Manual
 
 Toy is a small concatenative language/runtime in C. It has a stack-based
-execution model, first-class quotations and symbols, refcounted collection
-objects, dynamic captures (`| a b |` / `$a`), a generated builtin registry, a
-global word dictionary, and an iterative VM frame stack for user words.
+execution model, first-class quotations and symbols, explicit call nodes,
+refcounted collection objects, dynamic captures (`| a b |` / `$a`), a generated
+builtin registry, a global word dictionary, and an iterative VM frame stack for
+user words.
 
 Roadmap work lives in `docs/language-roadmap.md`. Keep this file focused on
 navigation and development rules.

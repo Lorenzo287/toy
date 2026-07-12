@@ -324,7 +324,7 @@ func indexDefDefinition(root *tree_sitter.Node, i uint, doc string, src []byte) 
 	return Symbol{
 		Name:   nameNode.Utf8Text(src),
 		Kind:   symbolKindFunction,
-		Detail: "quoted symbol def",
+		Detail: "symbol definition",
 		Range: Range{
 			Start: nodeRange(quoted).Start,
 			End:   nodeRange(defWord).End,

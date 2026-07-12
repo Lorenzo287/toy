@@ -1,3 +1,5 @@
 "line\nquote\"slash\\" repr print
 [ 1 "x" ] repr print
 'dup repr print
+[ dup ] first repr print
+[ 'dup ] repr print

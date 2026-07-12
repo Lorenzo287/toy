@@ -119,6 +119,8 @@ dup 500 has? true == check
 drop
 
 [ [ [ 1 ] ] >set ] [ "unhashable" ] try "unhashable" == check
+[ [] [ dup ] first push-back >set ] [ "unhashable-call" ] try
+"unhashable-call" == check
 
 { 'a 1 'b 2 } { 'b 2 'a 1 } == check
 #{ 1 2 3 } #{ 3 2 1 } == check

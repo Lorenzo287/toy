@@ -11,6 +11,7 @@ typedef enum {
     TF_OBJ_TYPE_FLOAT,
     TF_OBJ_TYPE_STR,
     TF_OBJ_TYPE_SYMBOL,
+    TF_OBJ_TYPE_CALL,
     TF_OBJ_TYPE_VECTOR,
     TF_OBJ_TYPE_LIST,
     TF_OBJ_TYPE_MAP,
@@ -35,9 +36,8 @@ typedef struct {
  * Refcounted runtime value.
  *
  * Vectors back indexed data and executable quotations. Lists are persistent
- * cons-style sequences. Symbols use the same string storage as strings, plus a
- * quoted flag that preserves source/eval mode for parsed programs and source
- * printing.
+ * cons-style sequences. Symbols are inert names; calls use the same string
+ * storage but execute their named word when encountered in a program.
  */
 typedef struct tf_obj tf_obj;
 
@@ -87,7 +87,6 @@ struct tf_obj {
         struct {
             char *ptr;
             size_t len;
-            bool quoted;
             char inline_buf[TF_STRING_INLINE_CAP + 1];
         } str;
         struct {
@@ -154,7 +153,7 @@ tf_obj *tf_obj_new_int(int64_t i);
 tf_obj *tf_obj_new_bool(bool b);
 tf_obj *tf_obj_new_float(double f);
 tf_obj *tf_obj_new_symbol(const char *s, size_t len);
-tf_obj *tf_obj_new_quoted_symbol(const char *s, size_t len);
+tf_obj *tf_obj_new_call(const char *s, size_t len);
 tf_obj *tf_obj_new_string(const char *s, size_t len);
 tf_obj *tf_obj_new_string_uninitialized(size_t len);
 /* Takes a heap buffer of at least len + 1 bytes and always consumes it. */
@@ -165,7 +164,7 @@ void tf_source_file_release(tf_source_file *source);
 const char *tf_source_file_name(tf_source_file *source);
 void tf_obj_set_span(tf_obj *o, tf_source_span span);
 
-/* String/symbol comparison and vector storage helpers. */
+/* String/symbol/call comparison and vector storage helpers. */
 int tf_obj_compare_string(tf_obj *a, tf_obj *b);
 int tf_obj_compare_number(tf_obj *a, tf_obj *b);
 void tf_format_double(char *buf, size_t size, double value);

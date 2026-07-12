@@ -26,7 +26,7 @@ else()
 endif()
 target_include_directories(toy PRIVATE ${PROJECT_SOURCE_DIR}/deps/linenoise)
 
-# Tests
+# ── Tests ─────────────────────────────────────────────────────────
 
 include(CTest)
 

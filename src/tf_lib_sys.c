@@ -255,7 +255,7 @@ static tf_ret current_calendar_time(tf_ctx *ctx, bool utc) {
     tf_obj *result = tf_obj_new_map();
     tf_map_reserve(result, sizeof(fields) / sizeof(fields[0]));
     for (size_t i = 0; i < sizeof(fields) / sizeof(fields[0]); i++) {
-        tf_obj *key = tf_obj_new_quoted_symbol(fields[i].name, fields[i].len);
+        tf_obj *key = tf_obj_new_symbol(fields[i].name, fields[i].len);
         tf_obj *value = tf_obj_new_int(values[i]);
         tf_map_set(result, key, value);
         tf_obj_release(key);

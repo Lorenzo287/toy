@@ -4,7 +4,14 @@
 3.14 type-of "float" == check
 "toy" type-of "string" == check
 [ 1 2 ] type-of "vector" == check
+'dup type-of "symbol" == check
+[ dup ] first type-of "call" == check
 
 5 int? true == check
 3.14 float? true == check
 pwd string? true == check
+'dup symbol? true == check
+'dup call? false == check
+[ dup ] first call? true == check
+'dup [ dup ] first == false == check
+[ dup ] first [ dup ] first == true == check

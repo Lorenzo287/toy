@@ -11,9 +11,22 @@ $x $x + 20 == check
 100 | outer |
 [ $outer ] exec 100 == check
 
+'read-outer [ $outer ] def
+read-outer 100 == check
+
 10 | shadow |
 [ 20 | shadow | $shadow ] exec 20 == check
 $shadow 10 == check
+
+1 | rebound |
+2 | rebound |
+$rebound 2 == check
+
+true [ 30 | branch-only | ] if
+'branch-only var? false == check
+
+'make-reader [ 40 | held | [ $held ] ] def
+[ make-reader exec ] [ "no-closure" ] try "no-closure" == check
 
 \ Both comment forms are accepted between executable tokens.
 1

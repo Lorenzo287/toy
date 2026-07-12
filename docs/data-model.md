@@ -15,6 +15,7 @@ effects, and complexity.
 | bool, int, float | literals and numeric words | scalar values |
 | string | `"text"` | byte sequence; one character is a one-byte string |
 | symbol | `'name` | word names, symbolic data, atomic callables |
+| call | bare `name` inside code, `>call` | executable word-reference node |
 | vector | `[ 1 2 3 ]` | indexed sequence and compound quotation |
 | list | `( 1 2 3 )` | persistent front-oriented sequence |
 | map | `{ 'name "Ada" 'age 36 }`, `>map` | insertion-ordered key/value lookup |
@@ -27,6 +28,12 @@ Strings are byte sequences, not Unicode strings. String literals accept `\n`,
 
 Vectors are also quotations. Lists are sequence data only: `( 1 2 + )` is a
 list containing data, not executable code.
+
+Apostrophe creates a symbol value; it is not an alternative spelling for a
+vector quotation. Parsing `[ dup ]` produces a vector containing a call node,
+while `[ 'dup ]` contains an inert symbol. Extracted call nodes are visible as
+ordinary code data and can be converted with `>symbol`; `>call` converts a
+symbol back to a call node for runtime quotation construction.
 
 Secondary structures have no literal syntax because their constructors validate
 runtime data and establish invariants:
@@ -45,7 +52,7 @@ type.
 
 | Capability | Accepted representations | Main words |
 | ---------- | ------------------------ | ---------- |
-| callable | vector quotation, symbol naming a word | `exec`, `i`, `dip`, `keep`, `bi`, `map`, `filter`, `if`, `while`, recursion combinators |
+| callable | vector quotation, symbol or call naming a word | `exec`, `i`, `dip`, `keep`, `bi`, `map`, `filter`, `if`, `while`, recursion combinators |
 | sequence | vector, list, string | `len`, `first`, `last`, `rest`, `uncons`, `concat`, `reverse`, `map`, `fold`, `filter`, `split`, `merge`, `sort`, `unique` |
 | indexed | vector, string | `at`, `set-at`, `slice` |
 | persistent front | list | `cons`, `rest`, `uncons` |
@@ -127,7 +134,9 @@ Hashable values, and therefore valid map keys and set items, are currently:
 - string
 - symbol
 
-Floats and structural values compare for equality but are not hash keys yet.
+Call nodes are deliberately not hashable; convert one with `>symbol` when its
+name is intended as a key. Floats and structural values compare for equality
+but are not hash keys yet.
 This avoids unresolved policy questions around NaN, signed zero, and cached
 structural hashes.
 

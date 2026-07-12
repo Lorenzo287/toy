@@ -5,6 +5,12 @@
 "abc" 'upper exec "ABC" == check
 "abc" [ upper ] exec "ABC" == check
 [ 42 ] i 42 == check
+[ dup ] first callable? true == check
+[ missing-word ] first callable? false == check
+
+1 [] 'dup >call push-back exec + 2 == check
+[] 'dup push-back exec 'dup == check
+[ dup ] first >symbol 'dup == check
 
 "abc" 'upper map "ABC" == check
 [ 1 2 3 ] 'succ map [ 2 3 4 ] == check

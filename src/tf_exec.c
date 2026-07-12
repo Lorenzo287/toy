@@ -180,6 +180,8 @@ const char *tf_type_name(tf_type type) {
         return "string";
     case TF_OBJ_TYPE_SYMBOL:
         return "symbol";
+    case TF_OBJ_TYPE_CALL:
+        return "call";
     case TF_OBJ_TYPE_VECTOR:
         return "vector";
     case TF_OBJ_TYPE_LIST:
@@ -451,7 +453,10 @@ void tf_dict_set_user(tf_ctx *ctx, tf_obj *name, tf_obj *uf) {
 }
 
 tf_word *tf_dict_lookup(tf_ctx *ctx, tf_obj *name) {
-    if (!name || name->type != TF_OBJ_TYPE_SYMBOL) return NULL;
+    if (!name || (name->type != TF_OBJ_TYPE_SYMBOL &&
+                  name->type != TF_OBJ_TYPE_CALL)) {
+        return NULL;
+    }
     return tf_dict_lookup_name(ctx, name->str.ptr, name->str.len);
 }
 
@@ -601,46 +606,42 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
             f->as.program.program->vector.elem[f->as.program.pc++];
         ctx->current_span = o->span;
         switch (o->type) {
-        case TF_OBJ_TYPE_SYMBOL:
-            if (o->str.quoted) {
-                tf_stack_push(ctx, o);
-                tf_obj_retain(o);
-            } else {
-                ctx->current_word = o->str.ptr;
-                tf_word *word = tf_dict_lookup(ctx, o);
-                if (!word) {
-                    if (ctx->error_suppression_depth == 0) {
-                        tf_ctx_runtime_errorf(ctx, "undefined word '%s'\n",
-                                              o->str.ptr);
-                    }
-                    if (frame_handle_error(ctx, entry_depth, TF_ERR)) {
-                        continue;
-                    }
-                    return TF_ERR;
+        case TF_OBJ_TYPE_CALL: {
+            ctx->current_word = o->str.ptr;
+            tf_word *word = tf_dict_lookup(ctx, o);
+            if (!word) {
+                if (ctx->error_suppression_depth == 0) {
+                    tf_ctx_runtime_errorf(ctx, "undefined word '%s'\n",
+                                          o->str.ptr);
                 }
-                tf_ret call_res = dict_call_resolved(ctx, word);
-                if (call_res == TF_INTERRUPTED) {
-                    frame_unwind_to(ctx, entry_depth, TF_INTERRUPTED);
-                    return TF_INTERRUPTED;
+                if (frame_handle_error(ctx, entry_depth, TF_ERR)) {
+                    continue;
                 }
-                if (call_res == TF_REPL_COMMAND) {
-                    frame_unwind_to(ctx, entry_depth, TF_REPL_COMMAND);
-                    return TF_REPL_COMMAND;
+                return TF_ERR;
+            }
+            tf_ret call_res = dict_call_resolved(ctx, word);
+            if (call_res == TF_INTERRUPTED) {
+                frame_unwind_to(ctx, entry_depth, TF_INTERRUPTED);
+                return TF_INTERRUPTED;
+            }
+            if (call_res == TF_REPL_COMMAND) {
+                frame_unwind_to(ctx, entry_depth, TF_REPL_COMMAND);
+                return TF_REPL_COMMAND;
+            }
+            if (call_res == TF_ERR) {
+                if (ctx->error_suppression_depth == 0 &&
+                    !ctx->error_reported) {
+                    tf_ctx_runtime_errorf(ctx, "execution of word '%s' failed\n",
+                                          o->str.ptr);
                 }
-                if (call_res == TF_ERR) {
-                    if (ctx->error_suppression_depth == 0 &&
-                        !ctx->error_reported) {
-                        tf_ctx_runtime_errorf(ctx, "execution of word '%s' failed\n",
-                                              o->str.ptr);
-                    }
-                    // unwind remaining frames
-                    if (frame_handle_error(ctx, entry_depth, TF_ERR)) {
-                        continue;
-                    }
-                    return TF_ERR;
+                // unwind remaining frames
+                if (frame_handle_error(ctx, entry_depth, TF_ERR)) {
+                    continue;
                 }
+                return TF_ERR;
             }
             break;
+        }
         case TF_OBJ_TYPE_VARLIST:
             for (int i = (int)o->vector.len - 1; i >= 0; i--) {
                 tf_obj *val = tf_stack_pop(ctx);
@@ -684,7 +685,9 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
 }
 
 bool tf_obj_is_callable(tf_obj *o) {
-    return o && (o->type == TF_OBJ_TYPE_VECTOR || o->type == TF_OBJ_TYPE_SYMBOL);
+    return o && (o->type == TF_OBJ_TYPE_VECTOR ||
+                 o->type == TF_OBJ_TYPE_SYMBOL ||
+                 o->type == TF_OBJ_TYPE_CALL);
 }
 
 tf_ret tf_vm_call_callable(tf_ctx *ctx, tf_obj *callable) {
@@ -692,7 +695,8 @@ tf_ret tf_vm_call_callable(tf_ctx *ctx, tf_obj *callable) {
         tf_frame_push_program(ctx, callable);
         return TF_OK;
     }
-    if (callable->type == TF_OBJ_TYPE_SYMBOL) {
+    if (callable->type == TF_OBJ_TYPE_SYMBOL ||
+        callable->type == TF_OBJ_TYPE_CALL) {
         tf_word *word = tf_dict_lookup(ctx, callable);
         if (!word) {
             tf_ctx_runtime_errorf(ctx, "undefined word '%s'\n",

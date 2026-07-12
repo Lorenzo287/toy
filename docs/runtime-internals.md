@@ -10,6 +10,8 @@ explicit call stack; the main VM loop executes those frames until the stack is
 empty.
 
 - Program frames point at vector quotations and keep a program counter.
+- Program traversal dispatches explicit call nodes; symbols are always pushed
+  as inert name values unless a word such as `exec` invokes them explicitly.
 - Native continuation frames resume C native words after a callable has run.
 - New native words that execute user code should schedule frames or
   continuations, not call `tf_vm_exec()` recursively.
@@ -30,7 +32,7 @@ Important object-level optimizations:
 
 - vectors keep two elements inline inside the object before allocating an
   external element array;
-- short strings and symbols store bytes inline inside the object;
+- short strings, symbols, and call nodes store bytes inline inside the object;
 - heap strings reuse otherwise idle inline bytes to remember capacity;
 - released `tf_obj` records can be reused through a bounded object cache;
 - many update-style words mutate only when `refcount == 1`, otherwise they

@@ -34,7 +34,8 @@ tf_ret tf_callable_q(tf_ctx *ctx) {
     tf_obj *o = tf_stack_pop(ctx);
     bool result =
         o->type == TF_OBJ_TYPE_VECTOR ||
-        (o->type == TF_OBJ_TYPE_SYMBOL && tf_dict_lookup(ctx, o) != NULL);
+        ((o->type == TF_OBJ_TYPE_SYMBOL || o->type == TF_OBJ_TYPE_CALL) &&
+         tf_dict_lookup(ctx, o) != NULL);
     tf_stack_push(ctx, tf_obj_new_bool(result));
     tf_obj_release(o);
     return TF_OK;
@@ -105,12 +106,33 @@ tf_ret tf_body(tf_ctx *ctx) {
     return TF_OK;
 }
 
-tf_ret tf_intern(tf_ctx *ctx) {
-    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_STR)) return TF_ERR;
-    tf_obj *str = tf_stack_pop_type(ctx, TF_OBJ_TYPE_STR);
+tf_ret tf_to_symbol(tf_ctx *ctx) {
+    if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
+    tf_obj *value = tf_stack_peek(ctx, 0);
+    if (value->type != TF_OBJ_TYPE_STR && value->type != TF_OBJ_TYPE_CALL) {
+        tf_ctx_runtime_errorf(ctx,
+                              "'%s' expected string or call at stack depth 0, "
+                              "found %s\n",
+                              ctx->current_word, tf_obj_type_name(value));
+        return TF_ERR;
+    }
+    value = tf_stack_pop(ctx);
 
-    tf_stack_push(ctx, tf_obj_new_quoted_symbol(str->str.ptr, str->str.len));
-    tf_obj_release(str);
+    tf_obj *symbol = tf_obj_new_symbol(value->str.ptr, value->str.len);
+    tf_obj_set_span(symbol, value->span);
+    tf_stack_push(ctx, symbol);
+    tf_obj_release(value);
+    return TF_OK;
+}
+
+tf_ret tf_to_call(tf_ctx *ctx) {
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_SYMBOL)) return TF_ERR;
+    tf_obj *symbol = tf_stack_pop_type(ctx, TF_OBJ_TYPE_SYMBOL);
+
+    tf_obj *call = tf_obj_new_call(symbol->str.ptr, symbol->str.len);
+    tf_obj_set_span(call, symbol->span);
+    tf_stack_push(ctx, call);
+    tf_obj_release(symbol);
     return TF_OK;
 }
 
@@ -145,6 +167,9 @@ tf_ret tf_string_q(tf_ctx *ctx) {
 }
 tf_ret tf_symbol_q(tf_ctx *ctx) {
     return type_check(ctx, TF_OBJ_TYPE_SYMBOL);
+}
+tf_ret tf_call_q(tf_ctx *ctx) {
+    return type_check(ctx, TF_OBJ_TYPE_CALL);
 }
 tf_ret tf_vector_q(tf_ctx *ctx) {
     return type_check(ctx, TF_OBJ_TYPE_VECTOR);
@@ -184,6 +209,9 @@ tf_ret tf_typeof(tf_ctx *ctx) {
         break;
     case TF_OBJ_TYPE_SYMBOL:
         type_str = "symbol";
+        break;
+    case TF_OBJ_TYPE_CALL:
+        type_str = "call";
         break;
     case TF_OBJ_TYPE_VECTOR:
         type_str = "vector";
@@ -319,7 +347,10 @@ static void strbuf_append_source_obj(strbuf *buf, tf_obj *o) {
         strbuf_append_char(buf, '"');
         break;
     case TF_OBJ_TYPE_SYMBOL:
-        if (o->str.quoted) strbuf_append_char(buf, '\'');
+        strbuf_append_char(buf, '\'');
+        strbuf_append_mem(buf, o->str.ptr, o->str.len);
+        break;
+    case TF_OBJ_TYPE_CALL:
         strbuf_append_mem(buf, o->str.ptr, o->str.len);
         break;
     case TF_OBJ_TYPE_VARFETCH:
@@ -330,7 +361,8 @@ static void strbuf_append_source_obj(strbuf *buf, tf_obj *o) {
         strbuf_append_char(buf, '|');
         for (size_t i = 0; i < o->vector.len; i++) {
             if (i > 0) strbuf_append_char(buf, ' ');
-            strbuf_append_source_obj(buf, o->vector.elem[i]);
+            strbuf_append_mem(buf, o->vector.elem[i]->str.ptr,
+                              o->vector.elem[i]->str.len);
         }
         strbuf_append_char(buf, '|');
         break;
@@ -490,8 +522,7 @@ tf_ret tf_words(tf_ctx *ctx) {
     qsort(words, j, sizeof(tf_word *), word_name_cmp);
     for (size_t i = 0; i < j; i++) {
         tf_vector_push(result,
-                       tf_obj_new_quoted_symbol(words[i]->name,
-                                                words[i]->name_len));
+                       tf_obj_new_symbol(words[i]->name, words[i]->name_len));
     }
     free(words);
     tf_stack_push(ctx, result);
@@ -584,9 +615,9 @@ tf_ret tf_apropos(tf_ctx *ctx) {
 
     tf_obj *result = tf_obj_new_vector_with_capacity(match_count);
     for (size_t i = 0; i < match_count; i++) {
-        tf_vector_push(
-            result, tf_obj_new_quoted_symbol(matches[i]->name,
-                                             matches[i]->name_len));
+        tf_vector_push(result,
+                       tf_obj_new_symbol(matches[i]->name,
+                                         matches[i]->name_len));
     }
 
     free(matches);

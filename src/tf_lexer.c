@@ -76,11 +76,13 @@ int tf_lexer_is_symbol_char(int c) {
 
 static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator);
 static tf_obj *lexer_tokenize_number(tf_lexer *lexer);
-static tf_obj *lexer_tokenize_single_char_symbol(tf_lexer *lexer);
-static tf_obj *lexer_tokenize_symbol(tf_lexer *lexer);
+static tf_obj *lexer_tokenize_single_char_call(tf_lexer *lexer);
+static tf_obj *lexer_tokenize_name(tf_lexer *lexer);
+static tf_obj *lexer_tokenize_bare_token(tf_lexer *lexer);
 static tf_obj *lexer_tokenize_string(tf_lexer *lexer);
 static tf_obj *lexer_vector_to_map(tf_lexer *lexer, tf_obj *items);
 static tf_obj *lexer_vector_to_set(tf_lexer *lexer, tf_obj *items);
+static int lexer_normalize_capture_names(tf_lexer *lexer, tf_obj *names);
 static int lexer_starts_signed_number(tf_lexer *lexer);
 static int lexer_at_token_boundary(tf_lexer *lexer);
 static int lexer_is_structural_char(int c);
@@ -199,32 +201,31 @@ static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
             lexer_advance(lexer);
             o = lexer_tokenize_until(lexer, '|');
             if (o) {
-                o->type = TF_OBJ_TYPE_VARLIST;
-                lexer_finish_span(lexer, &span);
-                tf_obj_set_span(o, span);
+                if (!lexer_normalize_capture_names(lexer, o)) {
+                    tf_obj_release(o);
+                    o = NULL;
+                } else {
+                    o->type = TF_OBJ_TYPE_VARLIST;
+                    lexer_finish_span(lexer, &span);
+                    tf_obj_set_span(o, span);
+                }
             }
         } else if (lexer->pos[0] == '$') {
             tf_source_span span = lexer_mark(lexer);
             lexer_advance(lexer);
-            o = lexer_tokenize_symbol(lexer);
+            o = lexer_tokenize_name(lexer);
             if (o) {
-                if (o->type == TF_OBJ_TYPE_SYMBOL) {
-                    o->type = TF_OBJ_TYPE_VARFETCH;
-                    lexer_finish_span(lexer, &span);
-                    tf_obj_set_span(o, span);
-                } else {
-                    tf_obj_release(o);
-                    o = NULL;
-                }
+                o->type = TF_OBJ_TYPE_VARFETCH;
+                lexer_finish_span(lexer, &span);
+                tf_obj_set_span(o, span);
             } else if (!lexer->error) {
                 lexer_errorf(lexer, "expected variable name after '$'\n");
             }
         } else if (lexer->pos[0] == '\'') {
             tf_source_span span = lexer_mark(lexer);
             lexer_advance(lexer);
-            o = lexer_tokenize_symbol(lexer);
-            if (o && o->type == TF_OBJ_TYPE_SYMBOL) {
-                o->str.quoted = true;
+            o = lexer_tokenize_name(lexer);
+            if (o) {
                 lexer_finish_span(lexer, &span);
                 tf_obj_set_span(o, span);
             }
@@ -235,9 +236,12 @@ static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
                    (isdigit((unsigned char)lexer->pos[1]) ||
                     (lexer->pos[1] == '.' &&
                      isdigit((unsigned char)lexer->pos[2])))) {
-            o = lexer_tokenize_single_char_symbol(lexer);
+            o = lexer_tokenize_single_char_call(lexer);
         } else if (tf_lexer_is_symbol_char(lexer->pos[0])) {
-            o = lexer_tokenize_symbol(lexer);
+            o = lexer_tokenize_bare_token(lexer);
+            if (o && o->type == TF_OBJ_TYPE_SYMBOL) {
+                o->type = TF_OBJ_TYPE_CALL;
+            }
         } else if (lexer->pos[0] == '"') {
             o = lexer_tokenize_string(lexer);
         }
@@ -261,6 +265,31 @@ static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
     lexer_finish_span(lexer, &vector_span);
     tf_obj_set_span(prg, vector_span);
     return prg;
+}
+
+static int lexer_normalize_capture_names(tf_lexer *lexer, tf_obj *names) {
+    for (size_t i = 0; i < names->vector.len; i++) {
+        tf_obj *name = names->vector.elem[i];
+        if (name->type != TF_OBJ_TYPE_CALL) {
+            lexer_errorf(lexer,
+                         "capture list entries must be bare variable names\n");
+            return 0;
+        }
+
+        for (size_t j = 0; j < i; j++) {
+            tf_obj *previous = names->vector.elem[j];
+            if (previous->str.len == name->str.len &&
+                memcmp(previous->str.ptr, name->str.ptr, name->str.len) == 0) {
+                lexer_errorf(lexer, "duplicate capture name '%s'\n",
+                             name->str.ptr);
+                return 0;
+            }
+        }
+    }
+    for (size_t i = 0; i < names->vector.len; i++) {
+        names->vector.elem[i]->type = TF_OBJ_TYPE_SYMBOL;
+    }
+    return 1;
 }
 
 #define MAX_NUM_LEN 128
@@ -341,16 +370,16 @@ static tf_obj *lexer_tokenize_number(tf_lexer *lexer) {
     return o;
 }
 
-static tf_obj *lexer_tokenize_single_char_symbol(tf_lexer *lexer) {
+static tf_obj *lexer_tokenize_single_char_call(tf_lexer *lexer) {
     tf_source_span span = lexer_mark(lexer);
-    tf_obj *o = tf_obj_new_symbol(lexer->pos, 1);
+    tf_obj *o = tf_obj_new_call(lexer->pos, 1);
     lexer_advance(lexer);
     lexer_finish_span(lexer, &span);
     tf_obj_set_span(o, span);
     return o;
 }
 
-static tf_obj *lexer_tokenize_symbol(tf_lexer *lexer) {
+static tf_obj *lexer_tokenize_name(tf_lexer *lexer) {
     tf_source_span span = lexer_mark(lexer);
     char *start = lexer->pos;
     while (tf_lexer_is_symbol_char(lexer->pos[0])) {
@@ -359,16 +388,25 @@ static tf_obj *lexer_tokenize_symbol(tf_lexer *lexer) {
     }
     size_t sym_len = (size_t)(lexer->pos - start);
     if (sym_len == 0) return NULL;
-    tf_obj *o = NULL;
-    if (sym_len == 4 && !strncmp(start, "true", 4))
-        o = tf_obj_new_bool(1);
-    else if (sym_len == 5 && !strncmp(start, "false", 5))
-        o = tf_obj_new_bool(0);
-    else
-        o = tf_obj_new_symbol(start, sym_len);
+    tf_obj *o = tf_obj_new_symbol(start, sym_len);
     lexer_finish_span(lexer, &span);
     tf_obj_set_span(o, span);
     return o;
+}
+
+static tf_obj *lexer_tokenize_bare_token(tf_lexer *lexer) {
+    tf_obj *name = lexer_tokenize_name(lexer);
+    if (!name) return NULL;
+
+    bool is_true = name->str.len == 4 && !strncmp(name->str.ptr, "true", 4);
+    bool is_false =
+        name->str.len == 5 && !strncmp(name->str.ptr, "false", 5);
+    if (!is_true && !is_false) return name;
+
+    tf_obj *value = tf_obj_new_bool(is_true);
+    tf_obj_set_span(value, name->span);
+    tf_obj_release(name);
+    return value;
 }
 
 static tf_obj *lexer_vector_to_map(tf_lexer *lexer, tf_obj *items) {

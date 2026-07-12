@@ -482,7 +482,7 @@
           "cFunction": "tf_exec",
           "stackEffect": "callable -- ...",
           "syntax": "",
-          "description": "Execute a quoted symbol or quotation.",
+          "description": "Execute a symbol, call node, or quotation.",
           "syntaxClass": "control"
         },
         {
@@ -490,7 +490,7 @@
           "cFunction": "tf_exec",
           "stackEffect": "callable -- ...",
           "syntax": "",
-          "description": "Alias for exec. Execute a quoted symbol or quotation.",
+          "description": "Alias for exec. Execute a symbol, call node, or quotation.",
           "syntaxClass": "control"
         },
         {
@@ -1362,6 +1362,14 @@
           "syntaxClass": "builtin"
         },
         {
+          "name": "call?",
+          "cFunction": "tf_call_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is an executable call node.",
+          "syntaxClass": "builtin"
+        },
+        {
           "name": "vector?",
           "cFunction": "tf_vector_q",
           "stackEffect": "x -- bool",
@@ -1430,7 +1438,7 @@
           "cFunction": "tf_callable_q",
           "stackEffect": "x -- bool",
           "syntax": "",
-          "description": "Check whether the input can be executed now: a vector quotation or a symbol naming a defined word.",
+          "description": "Check whether the input can be executed now: a vector quotation, symbol, or call naming a defined word.",
           "syntaxClass": "builtin"
         }
       ]
@@ -1444,7 +1452,7 @@
           "cFunction": "tf_def",
           "stackEffect": "'name block --",
           "syntax": "",
-          "description": "Bind a quoted symbol to a block definition.",
+          "description": "Bind a symbol to a block definition.",
           "syntaxClass": "builtin"
         },
         {
@@ -1472,11 +1480,19 @@
           "syntaxClass": "builtin"
         },
         {
-          "name": "intern",
-          "cFunction": "tf_intern",
-          "stackEffect": "string -- symbol",
+          "name": ">symbol",
+          "cFunction": "tf_to_symbol",
+          "stackEffect": "string|call -- symbol",
           "syntax": "",
-          "description": "Convert a string to a symbol.",
+          "description": "Convert a string or call node to a symbol.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": ">call",
+          "cFunction": "tf_to_call",
+          "stackEffect": "symbol -- call",
+          "syntax": "",
+          "description": "Convert a symbol to an executable call node for runtime quotation construction.",
           "syntaxClass": "builtin"
         },
         {
@@ -1516,7 +1532,7 @@
           "cFunction": "tf_apropos",
           "stackEffect": "query -- vector",
           "syntax": "",
-          "description": "Push a sorted vector of quoted symbols whose names or docs match query.",
+          "description": "Push a sorted vector of symbols whose names or docs match query.",
           "syntaxClass": "builtin"
         },
         {
@@ -1799,4 +1815,3 @@
     }
   ]
 }
-

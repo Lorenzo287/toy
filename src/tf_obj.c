@@ -150,9 +150,9 @@ tf_obj *tf_obj_new_symbol(const char *s, size_t len) {
     return o;
 }
 
-tf_obj *tf_obj_new_quoted_symbol(const char *s, size_t len) {
-    tf_obj *o = tf_obj_new_symbol(s, len);
-    o->str.quoted = true;
+tf_obj *tf_obj_new_call(const char *s, size_t len) {
+    tf_obj *o = tf_obj_new_string(s, len);
+    o->type = TF_OBJ_TYPE_CALL;
     return o;
 }
 
@@ -165,7 +165,6 @@ tf_obj *tf_obj_new_string(const char *s, size_t len) {
 tf_obj *tf_obj_new_string_uninitialized(size_t len) {
     tf_obj *o = tf_obj_new(TF_OBJ_TYPE_STR);
     o->str.len = len;
-    o->str.quoted = false;
     o->str.ptr = len <= TF_STRING_INLINE_CAP
                      ? o->str.inline_buf
                      : tf_xmalloc(len + 1);
@@ -177,7 +176,6 @@ tf_obj *tf_obj_new_string_uninitialized(size_t len) {
 tf_obj *tf_obj_new_string_take(char *s, size_t len) {
     tf_obj *o = tf_obj_new(TF_OBJ_TYPE_STR);
     o->str.len = len;
-    o->str.quoted = false;
     if (len <= TF_STRING_INLINE_CAP) {
         o->str.ptr = o->str.inline_buf;
         if (len > 0) memcpy(o->str.ptr, s, len);
@@ -1132,6 +1130,7 @@ static bool obj_equal_inner(tf_obj *a, tf_obj *b, size_t depth) {
         return a->f == b->f;
     case TF_OBJ_TYPE_STR:
     case TF_OBJ_TYPE_SYMBOL:
+    case TF_OBJ_TYPE_CALL:
     case TF_OBJ_TYPE_VARFETCH:
         return tf_obj_compare_string(a, b) == 0;
     case TF_OBJ_TYPE_VECTOR:
@@ -1270,6 +1269,7 @@ void tf_obj_free(tf_obj *o) {
         break;
     case TF_OBJ_TYPE_VARFETCH:
     case TF_OBJ_TYPE_SYMBOL:
+    case TF_OBJ_TYPE_CALL:
     case TF_OBJ_TYPE_STR:
         if (o->str.ptr != o->str.inline_buf) free(o->str.ptr);
         break;
@@ -1332,7 +1332,10 @@ void tf_obj_print(tf_obj *o, size_t *count) {
         break;
     }
     case TF_OBJ_TYPE_SYMBOL:
-        printf("(symbol:%s%s)", o->str.quoted ? "'" : "", o->str.ptr);
+        printf("(symbol:%s)", o->str.ptr);
+        break;
+    case TF_OBJ_TYPE_CALL:
+        printf("(call:%s)", o->str.ptr);
         break;
     case TF_OBJ_TYPE_STR:
         printf("(string:\"");
@@ -1448,6 +1451,7 @@ void tf_obj_print_value(tf_obj *o) {
         break;
     }
     case TF_OBJ_TYPE_SYMBOL:
+    case TF_OBJ_TYPE_CALL:
         printf("%s", o->str.ptr);
         break;
     case TF_OBJ_TYPE_STR:
@@ -1552,7 +1556,10 @@ static void print_source_like(tf_obj *o, bool display) {
         break;
     }
     case TF_OBJ_TYPE_SYMBOL:
-        if (o->str.quoted) printf("'");
+        printf("'");
+        printf("%s", o->str.ptr);
+        break;
+    case TF_OBJ_TYPE_CALL:
         printf("%s", o->str.ptr);
         break;
     case TF_OBJ_TYPE_STR:
@@ -1569,7 +1576,7 @@ static void print_source_like(tf_obj *o, bool display) {
     case TF_OBJ_TYPE_VARLIST:
         printf("|");
         for (size_t i = 0; i < o->vector.len; i++) {
-            print_source_like(o->vector.elem[i], display);
+            printf("%s", o->vector.elem[i]->str.ptr);
             if (i + 1 < o->vector.len) printf(" ");
         }
         printf("|");

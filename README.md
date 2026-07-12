@@ -4,9 +4,10 @@ Toy is a minimalist, stack-based language written in C. It started from a
 traditional Forth shape, but is evolving into a quotation-first concatenative
 language inspired by Joy, the language designed by Manfred von Thun.
 
-The core idea is that code is data. Quotations `[ ... ]` and quoted symbols
-`'name` are callable values, so they can be stored, passed to other words,
-composed, inspected, and executed.
+The core idea is that code is data. Vectors `[ ... ]` are compound quotations,
+while symbols such as `'name` are inert names and atomic named callables. Bare
+words inside programs are explicit call nodes, so code can be stored, passed,
+composed, inspected, and executed without hiding evaluation state in symbols.
 
 Based on the original [toyforth](https://github.com/antirez/toyforth) project by
 **Salvatore Sanfilippo (antirez)**.
@@ -86,13 +87,22 @@ That is the whole syntax: data first, then the word that transforms it.
 3 4 hypot2 print     \ 25
 ```
 
+Capture lists contain unique bare names. A capture binds in the current word
+or quotation frame, while `$name` searches active program frames from inner to
+outer. Inner captures shadow outer captures; they do not update them, and
+quotations do not retain captured environments after their frame returns.
+
 ### Code Is Data
 
 ```toy
-\ Quotations and quoted symbols are first-class callable values.
+\ Quotations and symbols naming words are first-class callable values.
 [ 1 2 + ] exec       \ leaves 3
 [ 1 2 + ] i          \ same
 'dup                 \ leaves the symbol 'dup as data
+
+\ A bare word in code is a call node; apostrophe creates symbol data.
+[ dup ] first type-of print    \ call
+[ 'dup ] first type-of print   \ symbol
 
 \ Combinators apply callables in different stack contexts.
 1 2 4 [ + ] dip      \ leaves 3 4
@@ -100,13 +110,20 @@ That is the whole syntax: data first, then the word that transforms it.
 5 'succ 'square bi   \ leaves 6 25
 ```
 
-Words that consume deferred code accept both kinds of quotations,
-meaning that `'` and `[]` are functionally equivalent (even though the second is
-a collection and can contain more than one object).
-Dictionary introspection words such as `see`, `doc`, `body`, `word?`, `var?`,
-and `name` consume symbols as names, so use `'` rather than `[]` for those positions.
-Vectors are the compound quotation type; linked lists created with `( ... )`
-are data sequences, not callables.
+Words that consume deferred code accept compound vector quotations, symbols
+naming words, and extracted or generated call nodes. These representations
+share the callable capability but remain different data: `'dup` is the name
+`dup`, while `[ dup ]` contains a call instruction. Dictionary introspection
+words such as `see`, `doc`, `body`, `word?`, `var?`, and `name` consume symbols
+as names. Vectors are the compound quotation type; linked lists created with
+`( ... )` are data sequences, not callables.
+
+`>symbol` converts text or an extracted call node to a symbol. `>call` performs
+the inverse symbol-to-call conversion when constructing a quotation at runtime:
+
+```toy
+1 [] "dup" >symbol >call push-back exec + print   \ 2
+```
 
 ### Control Is Built from Words
 
@@ -211,7 +228,7 @@ Comments use `\` to the end of a line or `/* ... */` for block comments.
 ## What It Supports
 
 - Runtime values: 64-bit integers, double-precision floats, booleans, strings,
-  symbols, vectors, lists, maps, sets, deques, and priority queues.
+  symbols, call nodes, vectors, lists, maps, sets, deques, and priority queues.
 - Literal syntax: `[ ... ]` for vectors/quotations, `( ... )` for lists,
   `{ key value ... }` for maps, and `#{ ... }` for sets.
 - Explicit constructors for secondary structures such as `>deque` and
@@ -224,8 +241,8 @@ Comments use `\` to the end of a line or `/* ... */` for block comments.
   `split`, and `merge`.
 - Shared sequence words for vectors, lists, and strings when the result type is
   clear.
-- Representation predicates such as `vector?`, `list?`, and `symbol?`, plus
-  capability predicates such as `sequence?` and `callable?`.
+- Representation predicates such as `vector?`, `list?`, `symbol?`, and
+  `call?`, plus capability predicates such as `sequence?` and `callable?`.
 - Local captures with `| name |` and `$name`.
 - File I/O, string manipulation, dictionary introspection, process helpers,
   time words, and an interactive REPL with history/completion.
@@ -288,8 +305,8 @@ placeholders and does not append a newline.
 | Maps / Sets                 | `>map`, `>set`, `has?`, `get`, `get-or`, `assoc`, `dissoc`, `keys`, `values`, `pairs`, `items`, `insert`, `remove` |
 | Set Algebra                 | `union`, `intersection`, `difference`, `symmetric-difference`, `subset?`, `proper-subset?`, `superset?`, `proper-superset?`, `disjoint?` |
 | Priority Queues             | `>pqueue`, `pq-push`, `pq-peek`, `pq-pop` |
-| Types                       | `type-of`, `bool?`, `int?`, `float?`, `string?`, `symbol?`, `vector?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `number?`, `sequence?`, `callable?` |
-| Definitions / Introspection | `def`, `word?`, `var?`, `body`, `intern`, `name`, `words`, `see`, `doc`, `search-words`, `repr` |
+| Types                       | `type-of`, `bool?`, `int?`, `float?`, `string?`, `symbol?`, `call?`, `vector?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `number?`, `sequence?`, `callable?` |
+| Definitions / Introspection | `def`, `word?`, `var?`, `body`, `>symbol`, `>call`, `name`, `words`, `see`, `doc`, `search-words`, `repr` |
 | Console                     | `printf`, `print`, `.`, `.s`, `.S`, `read-key`, `read-line`, `clear` |
 | Files                       | `load`, `read-file`, `write-file`, `delete-file`, `read-lines`, `file-exists?` |
 | Environment / Processes     | `argc`, `argv`, `env?`, `get-env`, `set-env`, `pwd`, `shell`, `exit` |

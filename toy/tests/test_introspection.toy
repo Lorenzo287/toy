@@ -11,7 +11,7 @@
 'proper-subset? doc "strict subset" contains? true == check
 'proper-superset? doc "strict superset" contains? true == check
 'twice doc "'twice [ dup + ] def" == check
-":" intern word? false == check
+":" >symbol word? false == check
 "priority" search-words dup 'pq-push contains? true == check drop
 'see search-words 'see contains? true == check
 "twice" search-words 'twice contains? true == check
@@ -34,7 +34,8 @@
 'clock word? false == check
 words vector? true == check
 words [ symbol? ] all true == check
-"X" intern dup symbol? true == check name "X" == check
+"X" >symbol dup symbol? true == check name "X" == check
+'true dup symbol? true == check name "true" == check
 
 [ 1 2 3 ] sequence? true == check
 ( 1 2 3 ) sequence? true == check

@@ -18,7 +18,7 @@ func TestDocumentSymbols(t *testing.T) {
 		t.Fatalf("expected 3 symbols, got %d", len(symbols))
 	}
 
-	if symbols[0].Name != "sqr" || symbols[0].Detail != "quoted symbol def" {
+	if symbols[0].Name != "sqr" || symbols[0].Detail != "symbol definition" {
 		t.Fatalf("unexpected first symbol: %+v", symbols[0])
 	}
 	if symbols[0].Doc != "top-level definitions" {
@@ -31,7 +31,7 @@ func TestDocumentSymbols(t *testing.T) {
 		t.Fatalf("unexpected sqr selection range: %+v", symbols[0].SelectionRange)
 	}
 
-	if symbols[1].Name != "pow3" || symbols[1].Detail != "quoted symbol def" {
+	if symbols[1].Name != "pow3" || symbols[1].Detail != "symbol definition" {
 		t.Fatalf("unexpected second symbol: %+v", symbols[1])
 	}
 	if symbols[1].Doc != "definition comment" {
@@ -41,7 +41,7 @@ func TestDocumentSymbols(t *testing.T) {
 		t.Fatalf("unexpected pow3 selection range: %+v", symbols[1].SelectionRange)
 	}
 
-	if symbols[2].Name != "shadow-demo" || symbols[2].Detail != "quoted symbol def" {
+	if symbols[2].Name != "shadow-demo" || symbols[2].Detail != "symbol definition" {
 		t.Fatalf("unexpected third symbol: %+v", symbols[2])
 	}
 }

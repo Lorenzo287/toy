@@ -1,9 +1,9 @@
 # Combinator Reference
 
 Toy programs become expressive when deferred code is treated as a value. A
-callable is either a quoted symbol such as `'upper` or a vector quotation such
-as `[ upper ]`. Words documented as consuming a callable accept both forms when
-their stack effects are equivalent.
+callable can be a symbol naming a word such as `'upper`, a call node extracted
+from code, or a vector quotation such as `[ upper ]`. These are different data
+representations with the same execution capability.
 
 Ordinary words consume their declared inputs. Predicate callables used by
 control and predicate combinators are the main exception: they run in a stack
