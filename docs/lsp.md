@@ -24,24 +24,24 @@ It uses the Tree-sitter parser for indexing and providing IDE features.
 
 > [!IMPORTANT]
 > The LSP relies on the Tree-sitter parser for code analysis. Generate and
-> synchronize it from `tools/tree-sitter-toyforth` with `npm run generate`
+> synchronize it from `tools/tree-sitter-toy` with `npm run generate`
 > before running or building the LSP.
 
 ### Run from Source
 
-From `tools/toyforth-lsp`:
+From `tools/toy-lsp`:
 
 ```powershell
-go run ./cmd/toyforth-lsp
+go run ./cmd/toy-lsp
 ```
 
 ### Build Executable
 
-From `tools/toyforth-lsp`:
+From `tools/toy-lsp`:
 
 ```powershell
-go build -o toyforth-lsp.exe ./cmd/toyforth-lsp
-./toyforth-lsp.exe
+go build -o toy-lsp.exe ./cmd/toy-lsp
+./toy-lsp.exe
 ```
 
 ## Editor Setup
@@ -55,13 +55,13 @@ remove stale generated Neovim parser/query artifacts:
 - **Windows**: `.\tools\install-nvim.ps1`
 - **Linux/macOS**: `bash tools/install-nvim.sh`
 
-Follow the instructions printed by the script to update your Neovim config. After adding the printed Tree-sitter snippet, restart Neovim and run `:TSInstall! toyforth`. See [Toy Tree-sitter](tree-sitter.md) for the manual parser setup.
+Follow the instructions printed by the script to update your Neovim config. After adding the printed Tree-sitter snippet, restart Neovim and run `:TSInstall! toy`. See [Toy Tree-sitter](tree-sitter.md) for the manual parser setup.
 
 Alternatively, register the LSP manually:
 
 ```lua
 vim.lsp.config('toyls', {
-  cmd = { 'path/to/toyforth-lsp.exe' },
+  cmd = { 'path/to/toy-lsp.exe' },
   filetypes = { 'toy' },
   root_markers = { '.git', 'README.md' },
 })
@@ -83,7 +83,7 @@ Formatting behavior and `.toyfmt` configuration are documented in the
 
 ### Verification
 
-From `tools/toyforth-lsp`:
+From `tools/toy-lsp`:
 
 ```powershell
 go fmt ./...
@@ -92,4 +92,4 @@ go test -count=1 ./...
 
 ### Example Fixture
 
-The sample file in `tools/toyforth-lsp/testdata/symbols.toy` exercises the current server behavior.
+The sample file in `tools/toy-lsp/testdata/symbols.toy` exercises the current server behavior.

@@ -1,0 +1,53 @@
+{
+  "name": "tree-sitter-toy",
+  "version": "0.1.0",
+  "description": "Toy grammar for tree-sitter",
+  "type": "module",
+  "license": "MIT",
+  "author": {
+    "name": "Lorenzo287",
+    "url": ""
+  },
+  "main": "bindings/node",
+  "types": "bindings/node",
+  "keywords": [
+    "incremental",
+    "parsing",
+    "tree-sitter",
+    "toy"
+  ],
+  "files": [
+    "grammar.js",
+    "builtin-words.js",
+    "tree-sitter.json",
+    "binding.gyp",
+    "prebuilds/**",
+    "bindings/node/*",
+    "queries/**",
+    "src/**",
+    "*.wasm"
+  ],
+  "dependencies": {
+    "node-addon-api": "^8.5.0",
+    "node-gyp-build": "^4.8.4"
+  },
+  "devDependencies": {
+    "prebuildify": "^6.0.1",
+    "tree-sitter": "^0.25.0",
+    "tree-sitter-cli": "^0.26.5"
+  },
+  "peerDependencies": {
+    "tree-sitter": "^0.25.0"
+  },
+  "peerDependenciesMeta": {
+    "tree-sitter": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "generate": "tree-sitter generate --abi 15 && node ../../tools/sync-tree-sitter-parser.js",
+    "prestart": "tree-sitter build --wasm",
+    "start": "tree-sitter playground",
+    "test": "tree-sitter test"
+  }
+}

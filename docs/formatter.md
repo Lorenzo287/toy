@@ -50,9 +50,9 @@ quine's source would change what it reproduces.
 ## Command Line
 
 The formatter uses the same generated Tree-sitter parser as the LSP. Generate
-`tools/tree-sitter-toyforth/src/parser.c` first by following the
+`tools/tree-sitter-toy/src/parser.c` first by following the
 [Tree-sitter build instructions](tree-sitter.md#build--test), then build from
-`tools/toyforth-lsp`:
+`tools/toy-lsp`:
 
 ```powershell
 go build -o toyfmt.exe ./cmd/toyfmt

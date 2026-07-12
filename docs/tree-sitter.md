@@ -25,9 +25,9 @@ add to your config.
 Alternatively, you can register the parser manually:
 
 ```lua
-local toy_path = "C:/toy/tree-sitter-toyforth"
+local toy_path = "C:/toy/tree-sitter-toy"
 -- Linux/macOS example:
--- local toy_path = vim.fn.expand("~/.local/share/toy/tree-sitter-toyforth")
+-- local toy_path = vim.fn.expand("~/.local/share/toy/tree-sitter-toy")
 
 -- Register filetypes
 vim.filetype.add({
@@ -39,43 +39,43 @@ vim.filetype.add({
 })
 
 -- Register the local parser for nvim-treesitter main
-local function add_toyforth_parser()
-    require("nvim-treesitter.parsers").toyforth = {
+local function add_toy_parser()
+    require("nvim-treesitter.parsers").toy = {
         install_info = {
             path = toy_path,
-            queries = "queries/toyforth",
+            queries = "queries/toy",
         },
     }
 end
 
-add_toyforth_parser()
+add_toy_parser()
 vim.api.nvim_create_autocmd("User", {
     pattern = "TSUpdate",
-    callback = add_toyforth_parser,
+    callback = add_toy_parser,
 })
 
-vim.treesitter.language.register("toyforth", "toy")
+vim.treesitter.language.register("toy", "toy")
 ```
 
-After adding the configuration, restart Neovim and run `:TSInstall! toyforth`.
+After adding the configuration, restart Neovim and run `:TSInstall! toy`.
 
 > [!NOTE]
 > The configuration above uses a local path and requires generated parser
-> code. Run `npm run generate` inside `tools/tree-sitter-toyforth` before
+> code. Run `npm run generate` inside `tools/tree-sitter-toy` before
 > installing manually.
 >
-> `queries = "queries/toyforth"` lets `nvim-treesitter` install the Toy query files into its site query directory. You do not need to append the grammar folder to `runtimepath`.
+> `queries = "queries/toy"` lets `nvim-treesitter` install the Toy query files into its site query directory. You do not need to append the grammar folder to `runtimepath`.
 
 > [!IMPORTANT]
 > On Windows, `TSInstall` and `TSUpdate` can fail with `Access is denied` if
-> Neovim has already loaded `toyforth.so`.
+> Neovim has already loaded `toy.so`.
 >
 > The automated installation script (`tools/install-nvim.ps1`) handles this by attempting to delete stale parser/query artifacts. If you are installing manually:
 >
 > - close all Neovim instances
 > - delete stale Toy parsers from `%LOCALAPPDATA%\nvim-data\site\parser\` and `%LOCALAPPDATA%\nvim-data\lazy\nvim-treesitter\parser\`
-> - delete `%LOCALAPPDATA%\nvim-data\site\queries\toyforth` if it exists
-> - restart Neovim and run `:TSInstall! toyforth`
+> - delete `%LOCALAPPDATA%\nvim-data\site\queries\toy` if it exists
+> - restart Neovim and run `:TSInstall! toy`
 >
 > This is a Windows file-locking issue, not a Toy grammar issue.
 
@@ -85,7 +85,7 @@ Requires the [tree-sitter CLI](https://github.com/tree-sitter/tree-sitter/blob/m
 
 ### Build & Test
 
-From `tools/tree-sitter-toyforth`:
+From `tools/tree-sitter-toy`:
 
 ```powershell
 # Install the pinned local CLI

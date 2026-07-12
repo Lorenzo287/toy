@@ -32,12 +32,12 @@ navigation and development rules.
 - `benchmarks/results/`: benchmark result notes and comparison templates.
 - `tools/generate-builtins.js`: builtin metadata generator and consistency
   checker.
-- `tools/tree-sitter-toyforth/`: Tree-sitter grammar, generated parser inputs,
+- `tools/tree-sitter-toy/`: Tree-sitter grammar, generated parser inputs,
   queries, and tests.
-- `tools/toyforth-lsp/`: Go LSP implementation and generated builtin docs.
-- `tools/toyforth-lsp/internal/formatter/`: shared formatter used by the CLI
+- `tools/toy-lsp/`: Go LSP implementation and generated builtin docs.
+- `tools/toy-lsp/internal/formatter/`: shared formatter used by the CLI
   and LSP formatting method.
-- `tools/vscode-toyforth/`: VS Code extension and generated grammar metadata.
+- `tools/vscode-toy/`: VS Code extension and generated grammar metadata.
 - `cmake/RunToyCase.cmake`: isolated CTest process runner for Toy cases.
 - `.github/workflows/`: CI and release automation.
 - `deps/`: vendored `linenoise` and `stb_leakcheck`.
@@ -100,7 +100,7 @@ navigation and development rules.
   generated registry, runtime-doc, LSP, Tree-sitter word-list, VS Code grammar,
   or README table outputs. Regenerate the Tree-sitter parser after generated
   word-list changes when the CLI is available. Use `npm run generate` from
-  `tools/tree-sitter-toyforth`; it also synchronizes `parser.c` into the Go
+  `tools/tree-sitter-toy`; it also synchronizes `parser.c` into the Go
   parser package so normal Go cache invalidation remains correct.
 - Docs: README and its focused references describe current user-visible
   behavior; AGENTS contains repository navigation and durable development

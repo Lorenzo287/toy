@@ -5,7 +5,7 @@ Visual Studio Code extension for Toy, providing syntax highlighting and integrat
 ## Features
 
 - **Syntax Highlighting**: Comprehensive TextMate-based highlighting for words, symbols, variables, and control flow.
-- **LSP Client**: Seamless integration with `toyforth-lsp` for definitions, hovers, and symbols.
+- **LSP Client**: Seamless integration with `toy-lsp` for definitions, hovers, and symbols.
 - **Language Configuration**: Support for comments, brackets, and auto-closing pairs.
 
 ## Setup & Installation
@@ -15,24 +15,24 @@ Visual Studio Code extension for Toy, providing syntax highlighting and integrat
 > underlying **LSP depends on Tree-sitter** for code analysis. Generate and
 > synchronize the parser before building the LSP binary.
 
-The extension expects the LSP executable to be located in a `bin/` subdirectory within the extension folder (`tools/vscode-toyforth/bin/`).
+The extension expects the LSP executable to be located in a `bin/` subdirectory within the extension folder (`tools/vscode-toy/bin/`).
 
 ### 1. Prepare the LSP Binary
-First, ensure the Tree-sitter parser is generated in `tools/tree-sitter-toyforth`:
+First, ensure the Tree-sitter parser is generated in `tools/tree-sitter-toy`:
 ```powershell
-cd tools/tree-sitter-toyforth
+cd tools/tree-sitter-toy
 npm run generate
 cd ../..
 ```
 
 Then, build the LSP and copy it to the extension's `bin` folder:
 ```powershell
-cd tools/toyforth-lsp
-go build -o ../vscode-toyforth/bin/toyforth-lsp.exe ./cmd/toyforth-lsp
+cd tools/toy-lsp
+go build -o ../vscode-toy/bin/toy-lsp.exe ./cmd/toy-lsp
 ```
 
 ### 2. Package & Install
-From `tools/vscode-toyforth`:
+From `tools/vscode-toy`:
 
 1. Package the extension (requires `npm install -g @vscode/vsce`):
    ```powershell
@@ -41,13 +41,13 @@ From `tools/vscode-toyforth`:
 2. Install the generated `.vsix` file:
    - Open VS Code Command Palette (`Ctrl+Shift+P`).
    - Search for **Extensions: Install from VSIX...**.
-   - Select the `vscode-toyforth-0.2.0.vsix` file.
+   - Select the `vscode-toy-0.2.0.vsix` file.
 
 ## Development
 
-The extension source is in `tools/vscode-toyforth/extension.js`. 
+The extension source is in `tools/vscode-toy/extension.js`.
 
-To set up the development environment, run from `tools/vscode-toyforth`:
+To set up the development environment, run from `tools/vscode-toy`:
 ```powershell
 npm install
 ```

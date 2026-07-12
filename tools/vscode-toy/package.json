@@ -1,0 +1,44 @@
+{
+    "name": "vscode-toy",
+    "displayName": "Toy Support",
+    "description": "Tree-sitter based syntax highlighting and LSP for Toy",
+    "version": "0.2.0",
+    "publisher": "Lorenzo287",
+    "engines": {
+        "vscode": "^1.75.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "activationEvents": [
+        "onLanguage:toy"
+    ],
+    "main": "./extension.js",
+    "contributes": {
+        "languages": [
+            {
+                "id": "toy",
+                "aliases": [
+                    "Toy",
+                    "toy"
+                ],
+                "extensions": [
+                    ".toy",
+                    ".tf",
+                    ".fth"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "toy",
+                "scopeName": "source.toy",
+                "path": "./syntaxes/toy.tmLanguage.json"
+            }
+        ]
+    },
+    "dependencies": {
+        "vscode-languageclient": "^9.0.0"
+    }
+}

@@ -5,17 +5,17 @@ const repoRoot = path.resolve(__dirname, "..");
 const source = path.join(
     repoRoot,
     "tools",
-    "tree-sitter-toyforth",
+    "tree-sitter-toy",
     "src",
     "parser.c"
 );
 const destination = path.join(
     repoRoot,
     "tools",
-    "toyforth-lsp",
+    "toy-lsp",
     "internal",
     "parser",
-    "toyforth",
+    "toy",
     "parser.c"
 );
 

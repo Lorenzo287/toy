@@ -19,8 +19,8 @@ function Assert-NativeExitCode {
 $InstallDir = "C:\toy"
 
 $RepoRoot = (Get-Item $PSScriptRoot).Parent.FullName
-$LspSrcDir = Join-Path $RepoRoot "tools\toyforth-lsp"
-$TsSrcDir = Join-Path $RepoRoot "tools\tree-sitter-toyforth"
+$LspSrcDir = Join-Path $RepoRoot "tools\toy-lsp"
+$TsSrcDir = Join-Path $RepoRoot "tools\tree-sitter-toy"
 
 Write-Host "--- Toy Local Installation ---" -ForegroundColor Cyan
 Write-Host "Target Installation Directory: $InstallDir" -ForegroundColor Gray
@@ -57,7 +57,7 @@ try {
 
     # Copy the TS folder to the install directory
     # We copy the whole folder because Neovim needs 'src/parser.c' and the 'queries/' directory.
-    $TsDest = Join-Path $InstallDir "tree-sitter-toyforth"
+    $TsDest = Join-Path $InstallDir "tree-sitter-toy"
     if (Test-Path -LiteralPath $TsDest) {
         $InstallRoot = [System.IO.Path]::GetFullPath($InstallDir.TrimEnd('\') + '\')
         $TsDestFull = [System.IO.Path]::GetFullPath($TsDest)
@@ -86,15 +86,15 @@ try {
     if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
         Write-Error "Go is not installed. Please install Go to build the LSP."
     }
-    Write-Host "Building toyforth-lsp..."
-    go build -o toyforth-lsp.exe ./cmd/toyforth-lsp
-    Assert-NativeExitCode "toyforth-lsp build" $LASTEXITCODE
+    Write-Host "Building toy-lsp..."
+    go build -o toy-lsp.exe ./cmd/toy-lsp
+    Assert-NativeExitCode "toy-lsp build" $LASTEXITCODE
     Write-Host "Building toyfmt..."
     go build -o toyfmt.exe ./cmd/toyfmt
     Assert-NativeExitCode "toyfmt build" $LASTEXITCODE
-    Copy-Item "toyforth-lsp.exe" -Destination $InstallDir -Force
+    Copy-Item "toy-lsp.exe" -Destination $InstallDir -Force
     Copy-Item "toyfmt.exe" -Destination $InstallDir -Force
-    Write-Host "LSP installed to: $(Join-Path $InstallDir 'toyforth-lsp.exe')" -ForegroundColor Green
+    Write-Host "LSP installed to: $(Join-Path $InstallDir 'toy-lsp.exe')" -ForegroundColor Green
     Write-Host "Formatter installed to: $(Join-Path $InstallDir 'toyfmt.exe')" -ForegroundColor Green
 } finally {
     Pop-Location
@@ -103,6 +103,7 @@ try {
 # 4. Cleanup old generated Tree-sitter artifacts
 Write-Host "`n[3/4] Cleaning up old Tree-sitter artifacts..." -ForegroundColor Yellow
 $NvimDataDir = Join-Path $Env:LOCALAPPDATA "nvim-data"
+# Remove both pre-rename `toyforth` artifacts and current `toy` artifacts.
 $TsParserPaths = @(
     Join-Path $NvimDataDir "site\parser\toyforth.so"
     Join-Path $NvimDataDir "site\parser\toy.so"
@@ -126,6 +127,7 @@ foreach ($Path in $TsParserPaths) {
 $TsQueryRoot = Join-Path $NvimDataDir "site\queries"
 $TsQueryPaths = @(
     Join-Path $TsQueryRoot "toyforth"
+    Join-Path $TsQueryRoot "toy"
 )
 $TsQueryRootFull = [System.IO.Path]::GetFullPath($TsQueryRoot.TrimEnd('\') + '\')
 
@@ -145,8 +147,8 @@ foreach ($Path in $TsQueryPaths) {
 }
 
 # 5. Output Neovim Configuration
-$LspPathEscaped = (Join-Path $InstallDir "toyforth-lsp.exe").Replace('\', '\\')
-$TsPathEscaped = (Join-Path $InstallDir "tree-sitter-toyforth").Replace('\', '/')
+$LspPathEscaped = (Join-Path $InstallDir "toy-lsp.exe").Replace('\', '\\')
+$TsPathEscaped = (Join-Path $InstallDir "tree-sitter-toy").Replace('\', '/')
 
 Write-Host "`n[4/4] --- Neovim Configuration Snippet ---" -ForegroundColor Cyan
 Write-Host "Add the following to your init.lua:" -ForegroundColor Gray
@@ -170,25 +172,25 @@ vim.filetype.add({
 })
 
 -- Toy Tree-sitter Configuration
-local function add_toyforth_parser()
-    require("nvim-treesitter.parsers").toyforth = {
+local function add_toy_parser()
+    require("nvim-treesitter.parsers").toy = {
         install_info = {
             path = "$TsPathEscaped",
-            queries = "queries/toyforth",
+            queries = "queries/toy",
         },
     }
 end
 
-add_toyforth_parser()
+add_toy_parser()
 vim.api.nvim_create_autocmd("User", {
     pattern = "TSUpdate",
-    callback = add_toyforth_parser,
+    callback = add_toy_parser,
 })
 
-vim.treesitter.language.register("toyforth", "toy")
+vim.treesitter.language.register("toy", "toy")
 "@
 
 Write-Host "`n$ConfigSnippet" -ForegroundColor White
-Write-Host "`nAfter updating your config, restart Neovim and run :TSInstall! toyforth" -ForegroundColor Yellow
+Write-Host "`nAfter updating your config, restart Neovim and run :TSInstall! toy" -ForegroundColor Yellow
 Write-Host "Note: This script attempted to remove any old parser binaries to avoid 'Access is denied' errors." -ForegroundColor Gray
 Write-Host "If the error persists, ensure ALL Neovim instances are closed and try again." -ForegroundColor Gray

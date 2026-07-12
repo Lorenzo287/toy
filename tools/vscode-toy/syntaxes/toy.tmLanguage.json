@@ -1,0 +1,107 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "Toy",
+    "scopeName": "source.toy",
+    "patterns": [
+        {
+            "include": "#comments"
+        },
+        {
+            "include": "#strings"
+        },
+        {
+            "include": "#functions"
+        },
+        {
+            "include": "#keywords"
+        },
+        {
+            "include": "#numbers"
+        },
+        {
+            "include": "#words"
+        }
+    ],
+    "repository": {
+        "comments": {
+            "patterns": [
+                {
+                    "name": "comment.block.toy",
+                    "begin": "/\\*",
+                    "end": "\\*/"
+                },
+                {
+                    "name": "comment.line.backslash.toy",
+                    "match": "\\\\.*$"
+                }
+            ]
+        },
+        "strings": {
+            "patterns": [
+                {
+                    "name": "string.quoted.double.toy",
+                    "begin": "\"",
+                    "end": "\"",
+                    "patterns": [
+                        {
+                            "name": "constant.character.escape.toy",
+                            "match": "\\\\(?:[nrt\"\\\\]|x[0-9a-fA-F]{2})"
+                        },
+                        {
+                            "name": "invalid.illegal.escape.toy",
+                            "match": "\\\\."
+                        }
+                    ]
+                }
+            ]
+        },
+        "functions": {
+            "patterns": [
+                {
+                    "name": "entity.name.function.toy",
+                    "match": "'[a-zA-Z0-9_+\\-*/%<>=!.?]+"
+                },
+                {
+                    "name": "entity.name.function.toy",
+                    "match": "(?<=\\s|^)(dup|drop|swap|over|rot|swapd|nip|tuck|pick|roll|empty|pi|e|tau|inf|nan|inf\\?|nan\\?|rand|>vector|>list|>string|>deque|at|set-at|slice|take|skip|len|concat|reverse|split-mid|range|empty\\?|first|last|rest|uncons|cons|push-front|push-back|pop-front|pop-back|contains\\?|index-of|unique|sort|join|trim|upper|lower|char\\?|>char|char-code|letter\\?|digit\\?|alnum\\?|space\\?|upper\\?|lower\\?|punct\\?|>map|>set|has\\?|get|get-or|assoc|dissoc|keys|values|pairs|items|insert|remove|union|intersection|difference|symmetric-difference|subset\\?|proper-subset\\?|superset\\?|proper-superset\\?|disjoint\\?|>pqueue|pq-push|pq-peek|pq-pop|type-of|bool\\?|int\\?|float\\?|string\\?|symbol\\?|call\\?|vector\\?|list\\?|map\\?|set\\?|deque\\?|pqueue\\?|number\\?|sequence\\?|callable\\?|def|word\\?|var\\?|body|>symbol|>call|name|words|see|doc|search-words|repr|printf|print|\\.|\\.s|\\.S|read-key|read-line|clear|load|read-file|write-file|delete-file|read-lines|file-exists\\?|argc|argv|env\\?|get-env|set-env|pwd|shell|exit|sleep|unix-time|local-time|utc-time|cpu-time|monotonic-ns)(?=\\s|$)"
+                }
+            ]
+        },
+        "keywords": {
+            "patterns": [
+                {
+                    "name": "keyword.control.toy",
+                    "match": "\\b(exec|i|if|ifelse|while|cond|try|error|app2|infra|cleave|construct|replicate|times|dip|keep|bi|linrec|binrec|genrec|treerec|each|map|fold|filter|some|all|split|merge)\\b"
+                },
+                {
+                    "name": "storage.type.toy",
+                    "match": "(?<=\\s|^)(def|\\|)(?=\\s|$)"
+                },
+                {
+                    "name": "keyword.operator.toy",
+                    "match": "(?<=\\s|^)(\\+|-|\\*|/|%|mod|neg|abs|max|min|sqrt|pow|exp|log|log10|sin|cos|tan|floor|ceil|round|pred|succ|square|cube|and|or|xor|not|shl|shr|==|!=|<|>|<=|>=)(?=\\s|$)"
+                }
+            ]
+        },
+        "numbers": {
+            "patterns": [
+                {
+                    "name": "constant.numeric.toy",
+                    "match": "(?<![a-zA-Z0-9_])[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?(?![a-zA-Z0-9_.])"
+                }
+            ]
+        },
+        "words": {
+            "patterns": [
+                {
+                    "name": "constant.language.toy",
+                    "match": "\\b(nil|true|false|pi|e|tau|inf|nan)\\b"
+                },
+                {
+                    "name": "variable.other.toy",
+                    "match": "\\b\\w+\\b"
+                }
+            ]
+        }
+    }
+}

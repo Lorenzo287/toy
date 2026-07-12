@@ -11,8 +11,8 @@ INSTALL_DIR="${HOME}/.local/share/toy"
 
 # Get absolute path of the repository root
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LSP_SRC_DIR="${REPO_ROOT}/tools/toyforth-lsp"
-TS_SRC_DIR="${REPO_ROOT}/tools/tree-sitter-toyforth"
+LSP_SRC_DIR="${REPO_ROOT}/tools/toy-lsp"
+TS_SRC_DIR="${REPO_ROOT}/tools/tree-sitter-toy"
 
 echo -e "\033[0;36m--- Toy Local Installation (Linux/macOS) ---\033[0m"
 echo -e "\033[0;90mTarget Installation Directory: ${INSTALL_DIR}\033[0m"
@@ -41,7 +41,7 @@ pushd "${TS_SRC_DIR}" > /dev/null
     npm run generate --silent
 
     INSTALL_ROOT="$(cd "${INSTALL_DIR}" && pwd)"
-    TS_DEST="${INSTALL_ROOT}/tree-sitter-toyforth"
+    TS_DEST="${INSTALL_ROOT}/tree-sitter-toy"
     rm -rf -- "${TS_DEST}"
     mkdir -p "${TS_DEST}"
     
@@ -57,13 +57,13 @@ if ! command -v go &> /dev/null; then
 fi
 
 pushd "${LSP_SRC_DIR}" > /dev/null
-    echo "Building toyforth-lsp..."
-    go build -o toyforth-lsp ./cmd/toyforth-lsp
+    echo "Building toy-lsp..."
+    go build -o toy-lsp ./cmd/toy-lsp
     echo "Building toyfmt..."
     go build -o toyfmt ./cmd/toyfmt
-    cp toyforth-lsp "${INSTALL_DIR}/"
+    cp toy-lsp "${INSTALL_DIR}/"
     cp toyfmt "${INSTALL_DIR}/"
-    echo -e "\033[0;32mLSP installed to: ${INSTALL_DIR}/toyforth-lsp\033[0m"
+    echo -e "\033[0;32mLSP installed to: ${INSTALL_DIR}/toy-lsp\033[0m"
     echo -e "\033[0;32mFormatter installed to: ${INSTALL_DIR}/toyfmt\033[0m"
 popd > /dev/null
 
@@ -71,6 +71,7 @@ popd > /dev/null
 echo -e "\n\033[0;33m[3/4] Cleaning up old Tree-sitter artifacts...\033[0m"
 NVIM_DATA_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}/nvim"
 
+# Remove both pre-rename `toyforth` artifacts and current `toy` artifacts.
 for parser_path in \
     "${NVIM_DATA_DIR}/site/parser/toyforth.so" \
     "${NVIM_DATA_DIR}/site/parser/toy.so" \
@@ -85,23 +86,25 @@ for parser_path in \
 done
 
 QUERY_ROOT="${NVIM_DATA_DIR}/site/queries"
-QUERY_PATH="${QUERY_ROOT}/toyforth"
-if [ -e "${QUERY_PATH}" ]; then
-    QUERY_ROOT_REAL="$(cd "${QUERY_ROOT}" 2>/dev/null && pwd || true)"
-    QUERY_DIR_REAL="$(cd "$(dirname "${QUERY_PATH}")" 2>/dev/null && pwd || true)"
-    QUERY_PATH_REAL="${QUERY_DIR_REAL}/$(basename "${QUERY_PATH}")"
-    if [ -n "${QUERY_ROOT_REAL}" ] && [ "${QUERY_PATH_REAL#${QUERY_ROOT_REAL}/}" != "${QUERY_PATH_REAL}" ]; then
-        rm -rf -- "${QUERY_PATH}"
-        echo -e "\033[0;32mRemoved old queries: ${QUERY_PATH_REAL}\033[0m"
-    else
-        echo "Refusing to remove unexpected query path: ${QUERY_PATH}"
-        exit 1
+for query_name in toyforth toy; do
+    QUERY_PATH="${QUERY_ROOT}/${query_name}"
+    if [ -e "${QUERY_PATH}" ]; then
+        QUERY_ROOT_REAL="$(cd "${QUERY_ROOT}" 2>/dev/null && pwd || true)"
+        QUERY_DIR_REAL="$(cd "$(dirname "${QUERY_PATH}")" 2>/dev/null && pwd || true)"
+        QUERY_PATH_REAL="${QUERY_DIR_REAL}/$(basename "${QUERY_PATH}")"
+        if [ -n "${QUERY_ROOT_REAL}" ] && [ "${QUERY_PATH_REAL#${QUERY_ROOT_REAL}/}" != "${QUERY_PATH_REAL}" ]; then
+            rm -rf -- "${QUERY_PATH}"
+            echo -e "\033[0;32mRemoved old queries: ${QUERY_PATH_REAL}\033[0m"
+        else
+            echo "Refusing to remove unexpected query path: ${QUERY_PATH}"
+            exit 1
+        fi
     fi
-fi
+done
 
 # 5. Output Neovim Configuration
-LSP_PATH="${INSTALL_DIR}/toyforth-lsp"
-TS_PATH="${INSTALL_DIR}/tree-sitter-toyforth"
+LSP_PATH="${INSTALL_DIR}/toy-lsp"
+TS_PATH="${INSTALL_DIR}/tree-sitter-toy"
 
 echo -e "\n\033[0;36m[4/4] --- Neovim Configuration Snippet ---\033[0m"
 echo -e "\033[0;90mAdd the following to your init.lua:\033[0m"
@@ -126,22 +129,22 @@ vim.filetype.add({
 })
 
 -- Toy Tree-sitter Configuration
-local function add_toyforth_parser()
-    require("nvim-treesitter.parsers").toyforth = {
+local function add_toy_parser()
+    require("nvim-treesitter.parsers").toy = {
         install_info = {
             path = "$TS_PATH",
-            queries = "queries/toyforth",
+            queries = "queries/toy",
         },
     }
 end
 
-add_toyforth_parser()
+add_toy_parser()
 vim.api.nvim_create_autocmd("User", {
     pattern = "TSUpdate",
-    callback = add_toyforth_parser,
+    callback = add_toy_parser,
 })
 
-vim.treesitter.language.register("toyforth", "toy")
+vim.treesitter.language.register("toy", "toy")
 EOF
 
-echo -e "\n\033[0;33mAfter updating your config, restart Neovim and run :TSInstall! toyforth\033[0m"
+echo -e "\n\033[0;33mAfter updating your config, restart Neovim and run :TSInstall! toy\033[0m"

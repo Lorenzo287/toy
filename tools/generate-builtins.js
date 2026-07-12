@@ -203,8 +203,8 @@ function renderVsCodeGrammar(manifest) {
   const operatorPattern = `(?<=\\s|^)(${byClass('operator').join('|')})(?=\\s|$)`;
   const grammar = {
     $schema: 'https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json',
-    name: 'Toy Forth',
-    scopeName: 'source.toyforth',
+    name: 'Toy',
+    scopeName: 'source.toy',
     patterns: [
       { include: '#comments' },
       { include: '#strings' },
@@ -216,44 +216,44 @@ function renderVsCodeGrammar(manifest) {
     repository: {
       comments: {
         patterns: [
-          { name: 'comment.block.toyforth', begin: '/\\*', end: '\\*/' },
-          { name: 'comment.line.backslash.toyforth', match: '\\\\.*$' },
+          { name: 'comment.block.toy', begin: '/\\*', end: '\\*/' },
+          { name: 'comment.line.backslash.toy', match: '\\\\.*$' },
         ],
       },
       strings: {
         patterns: [{
-          name: 'string.quoted.double.toyforth',
+          name: 'string.quoted.double.toy',
           begin: '"',
           end: '"',
           patterns: [
-            { name: 'constant.character.escape.toyforth', match: '\\\\(?:[nrt"\\\\]|x[0-9a-fA-F]{2})' },
-            { name: 'invalid.illegal.escape.toyforth', match: '\\\\.' },
+            { name: 'constant.character.escape.toy', match: '\\\\(?:[nrt"\\\\]|x[0-9a-fA-F]{2})' },
+            { name: 'invalid.illegal.escape.toy', match: '\\\\.' },
           ],
         }],
       },
       functions: {
         patterns: [
-          { name: 'entity.name.function.toyforth', match: "'[a-zA-Z0-9_+\\-*/%<>=!.?]+" },
-          { name: 'entity.name.function.toyforth', match: builtinPattern },
+          { name: 'entity.name.function.toy', match: "'[a-zA-Z0-9_+\\-*/%<>=!.?]+" },
+          { name: 'entity.name.function.toy', match: builtinPattern },
         ],
       },
       keywords: {
         patterns: [
-          { name: 'keyword.control.toyforth', match: controlPattern },
-          { name: 'storage.type.toyforth', match: '(?<=\\s|^)(def|\\|)(?=\\s|$)' },
-          { name: 'keyword.operator.toyforth', match: operatorPattern },
+          { name: 'keyword.control.toy', match: controlPattern },
+          { name: 'storage.type.toy', match: '(?<=\\s|^)(def|\\|)(?=\\s|$)' },
+          { name: 'keyword.operator.toy', match: operatorPattern },
         ],
       },
       numbers: {
         patterns: [{
-          name: 'constant.numeric.toyforth',
+          name: 'constant.numeric.toy',
           match: '(?<![a-zA-Z0-9_])[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?(?![a-zA-Z0-9_.])',
         }],
       },
       words: {
         patterns: [
-          { name: 'constant.language.toyforth', match: '\\b(nil|true|false|pi|e|tau|inf|nan)\\b' },
-          { name: 'variable.other.toyforth', match: '\\b\\w+\\b' },
+          { name: 'constant.language.toy', match: '\\b(nil|true|false|pi|e|tau|inf|nan)\\b' },
+          { name: 'variable.other.toy', match: '\\b\\w+\\b' },
         ],
       },
     },
@@ -291,9 +291,9 @@ function main() {
     ['src/tf_builtins.inc', renderCRegistry(manifest)],
     ['src/tf_repl_builtins.inc', renderReplRegistry(manifest)],
     ['src/tf_docs.c', renderRuntimeDocs(manifest)],
-    ['tools/toyforth-lsp/internal/analysis/builtin_docs_generated.go', renderLspDocs(manifest)],
-    ['tools/tree-sitter-toyforth/builtin-words.js', renderTreeSitterWords(manifest)],
-    ['tools/vscode-toyforth/syntaxes/toyforth.tmLanguage.json', renderVsCodeGrammar(manifest)],
+    ['tools/toy-lsp/internal/analysis/builtin_docs_generated.go', renderLspDocs(manifest)],
+    ['tools/tree-sitter-toy/builtin-words.js', renderTreeSitterWords(manifest)],
+    ['tools/vscode-toy/syntaxes/toy.tmLanguage.json', renderVsCodeGrammar(manifest)],
     ['README.md', renderReadme(manifest, fs.readFileSync(readmePath, 'utf8'))],
   ]);
 

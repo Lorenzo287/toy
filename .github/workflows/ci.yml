@@ -42,29 +42,29 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: tools/tree-sitter-toyforth/package-lock.json
+          cache-dependency-path: tools/tree-sitter-toy/package-lock.json
 
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: tools/toyforth-lsp/go.mod
-          cache-dependency-path: tools/toyforth-lsp/go.sum
+          go-version-file: tools/toy-lsp/go.mod
+          cache-dependency-path: tools/toy-lsp/go.sum
 
       - name: Check generated builtin metadata
         run: node tools/generate-builtins.js --check
 
       - name: Install Tree-sitter dependencies
-        working-directory: tools/tree-sitter-toyforth
+        working-directory: tools/tree-sitter-toy
         run: |
           npm ci --ignore-scripts
           npm rebuild tree-sitter-cli
 
       - name: Generate and test the Tree-sitter parser
-        working-directory: tools/tree-sitter-toyforth
+        working-directory: tools/tree-sitter-toy
         run: |
           npm run generate
           npm test
 
       - name: Test the LSP and formatter
-        working-directory: tools/toyforth-lsp
+        working-directory: tools/toy-lsp
         run: go test -count=1 ./...
