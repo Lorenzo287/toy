@@ -1,0 +1,10 @@
+\ Manual tdb smoke case.
+\
+\ Run directly from the repository root with:
+\   .\build\toy.exe --tdb toy\tests\manual_tdb.toy
+\
+\ Use `stack` and `bt` while entering `tdb-inc` and the quotation scheduled by
+\ `times`. The same file can be stepped into from a REPL `load` call.
+
+'tdb-inc [ 1 + ] def
+0 2 [ tdb-inc ] times

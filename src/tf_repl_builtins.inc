@@ -3,5 +3,6 @@ static const tf_builtin_word repl_words[] = {
     {"help", help_show},
     {"hints", hints_toggle},
     {"trace", trace_toggle},
+    {"tdb", tdb_toggle},
     {NULL, NULL},
 };

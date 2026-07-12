@@ -13,4 +13,7 @@ tf_ret tf_run_string(tf_ctx *ctx, const char *source, bool debug);
 /* Start the interactive REPL loop. */
 tf_ret tf_run_repl(tf_ctx *ctx, bool debug);
 
+/* Enable or disable the terminal debugger (tdb) frontend on a context. */
+void tf_tdb_set_enabled(tf_ctx *ctx, bool enabled);
+
 #endif  // TF_REPL_H

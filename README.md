@@ -45,6 +45,7 @@ cmake --build build
 .\build\toy.exe program.toy
 .\build\toy.exe --eval "1 2 + print"
 .\build\toy.exe --debug program.toy
+.\build\toy.exe --tdb program.toy
 ```
 
 See the [build instructions](./docs/build.md) for other build modes, the

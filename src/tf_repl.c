@@ -31,13 +31,15 @@ static void reset_state(repl_state *state);
 static void feed_state(repl_state *state, const char *text);
 static bool input_complete(const repl_state *state);
 static void init_repl_ui(tf_ctx *ctx);
-static void free_repl_ui(void);
+static void free_repl_ui(tf_ctx *ctx);
 static void save_history_atexit(void);
 
 static tf_ctx *completion_ctx = NULL;
 static char *history_path = NULL;
 static bool hints_enabled = true;
 static bool trace_enabled = true;
+static bool debugger_enabled = false;
+static bool debugger_continuing = false;
 static int hints_color = 90;  // Bright black / Gray
 static int history_atexit_registered = 0;
 
@@ -53,6 +55,11 @@ static char *doc_stack_hint(const tf_doc_entry *doc);
 static tf_ret help_show(tf_ctx *ctx);
 static tf_ret hints_toggle(tf_ctx *ctx);
 static tf_ret trace_toggle(tf_ctx *ctx);
+static tf_ret tdb_toggle(tf_ctx *ctx);
+static tf_native_fn repl_command_for_source(tf_ctx *ctx, const char *source);
+static tf_debug_action repl_debug_hook(tf_ctx *ctx,
+                                        const tf_debug_event *event,
+                                        void *userdata);
 
 #include "tf_repl_builtins.inc"
 
@@ -93,6 +100,145 @@ static tf_ret trace_toggle(tf_ctx *ctx) {
     return TF_REPL_COMMAND;
 }
 
+void tf_tdb_set_enabled(tf_ctx *ctx, bool enabled) {
+    debugger_enabled = enabled;
+    debugger_continuing = false;
+    tf_debug_set_hook(ctx, debugger_enabled ? repl_debug_hook : NULL, NULL);
+}
+
+static tf_ret tdb_toggle(tf_ctx *ctx) {
+    tf_tdb_set_enabled(ctx, !debugger_enabled);
+    return TF_REPL_COMMAND;
+}
+
+static const char *repl_source_basename(const char *path) {
+    if (!path) return "<unknown>";
+    const char *name = path;
+    for (const char *p = path; *p != '\0'; p++) {
+        if (*p == '/' || *p == '\\') name = p + 1;
+    }
+    return name;
+}
+
+static void debug_print_span(tf_source_span span) {
+    if (!span.source) {
+        printf("<unknown>");
+        return;
+    }
+    printf("%s:%zu:%zu",
+           repl_source_basename(tf_source_file_name(span.source)),
+           (size_t)span.line, (size_t)span.col);
+}
+
+static void debug_print_stack(tf_ctx *ctx) {
+    size_t len = tf_stack_len(ctx);
+    printf("%sstack <%zu>%s", tf_console_clr(TF_CLR_INFO), len,
+           tf_console_clr(TF_CLR_RESET));
+    if (len > 0) printf(" ");
+    for (size_t i = 0; i < len; i++) {
+        tf_obj_print_display_colored(tf_stack_peek(ctx, len - 1 - i));
+        if (i + 1 < len) printf(" ");
+    }
+    printf("\n");
+}
+
+static void debug_print_backtrace(tf_ctx *ctx,
+                                  const tf_debug_event *event) {
+    size_t count = tf_debug_frame_count(ctx);
+    for (size_t depth = 0; depth < count; depth++) {
+        tf_debug_frame_info frame;
+        if (!tf_debug_get_frame(ctx, depth, &frame)) continue;
+        printf("  #%zu ", depth);
+        if (frame.kind == TF_FRAME_PROGRAM) {
+            printf("%s pc %zu/%zu at ",
+                   frame.word_name ? frame.word_name : "<program>", frame.pc,
+                   frame.program_len);
+        } else {
+            printf("<native continuation> at ");
+        }
+        debug_print_span(depth == 0 ? event->span : frame.location);
+        printf("\n");
+    }
+}
+
+static void debug_print_pause(tf_ctx *ctx, const tf_debug_event *event) {
+    tf_debug_frame_info frame;
+    const char *word_name = "<program>";
+    size_t program_len = 0;
+    if (tf_debug_get_frame(ctx, 0, &frame) && frame.word_name) {
+        word_name = frame.word_name;
+        program_len = frame.program_len;
+    }
+    printf("%spaused:%s ", tf_console_clr(TF_CLR_INFO),
+           tf_console_clr(TF_CLR_RESET));
+    debug_print_span(event->span);
+    printf(" in %s (pc %zu/%zu, depth %zu)\n", word_name, event->pc,
+           program_len, event->frame_depth);
+    printf("  => ");
+    tf_obj_print_source_colored(event->instruction);
+    printf("\n");
+}
+
+static tf_debug_action repl_debug_hook(tf_ctx *ctx,
+                                        const tf_debug_event *event,
+                                        void *userdata) {
+    (void)userdata;
+    if (debugger_continuing) return TF_DEBUG_CONTINUE;
+    debug_print_pause(ctx, event);
+
+    while (true) {
+        errno = 0;
+        char *line = linenoise(TF_CLR_RESET "(tdb) " TF_CLR_RESET);
+        if (!line) {
+            if (errno == EAGAIN) printf("^C\n");
+            return TF_DEBUG_ABORT;
+        }
+
+        char *command = line;
+        while (isspace((unsigned char)*command)) command++;
+        char *end = command + strlen(command);
+        while (end > command && isspace((unsigned char)end[-1])) end--;
+        *end = '\0';
+
+        if (*command == '\0' || strcmp(command, "s") == 0 ||
+            strcmp(command, "step") == 0) {
+            linenoiseFree(line);
+            return TF_DEBUG_STEP;
+        }
+        if (strcmp(command, "c") == 0 || strcmp(command, "continue") == 0) {
+            debugger_continuing = true;
+            linenoiseFree(line);
+            return TF_DEBUG_CONTINUE;
+        }
+        if (strcmp(command, "p") == 0 || strcmp(command, "stack") == 0) {
+            debug_print_stack(ctx);
+        } else if (strcmp(command, "bt") == 0 ||
+                   strcmp(command, "backtrace") == 0) {
+            debug_print_backtrace(ctx, event);
+        } else if (strcmp(command, "off") == 0) {
+            tf_tdb_set_enabled(ctx, false);
+            linenoiseFree(line);
+            return TF_DEBUG_CONTINUE;
+        } else if (strcmp(command, "q") == 0 ||
+                   strcmp(command, "abort") == 0) {
+            linenoiseFree(line);
+            return TF_DEBUG_ABORT;
+        } else if (strcmp(command, "h") == 0 || strcmp(command, "help") == 0 ||
+                   strcmp(command, "?") == 0) {
+            printf("  Enter, s, step       execute the next instruction\n"
+                   "  c, continue          run the rest of this input\n"
+                   "  p, stack             show the data stack\n"
+                   "  bt, backtrace        show VM frames\n"
+                   "  off                  disable tdb and continue\n"
+                   "  q, abort             abort the current input\n"
+                   "  h, help, ?           show this summary\n");
+        } else {
+            printf("unknown tdb command '%s'; use 'help'\n", command);
+        }
+        linenoiseFree(line);
+    }
+}
+
 static int name_ptr_cmp(const void *a, const void *b) {
     const char *const *left = a;
     const char *const *right = b;
@@ -103,6 +249,23 @@ static bool native_word_is_active(tf_ctx *ctx, const tf_builtin_word *builtin) {
     tf_word *word =
         tf_dict_lookup_name(ctx, builtin->name, strlen(builtin->name));
     return word && word->type == TF_WORD_NATIVE && word->native_impl == builtin->cb;
+}
+
+static tf_native_fn repl_command_for_source(tf_ctx *ctx, const char *source) {
+    while (isspace((unsigned char)*source)) source++;
+    const char *end = source + strlen(source);
+    while (end > source && isspace((unsigned char)end[-1])) end--;
+    size_t len = (size_t)(end - source);
+
+    for (size_t i = 0; repl_words[i].name; i++) {
+        const tf_builtin_word *builtin = &repl_words[i];
+        if (strlen(builtin->name) == len &&
+            memcmp(source, builtin->name, len) == 0 &&
+            native_word_is_active(ctx, builtin)) {
+            return builtin->cb;
+        }
+    }
+    return NULL;
 }
 
 static void print_word_grid(const char *title, const char **names, size_t count) {
@@ -199,8 +362,8 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
     printf("%sToy REPL%s\n", tf_console_clr(TF_CLR_RESET),
            tf_console_clr(TF_CLR_RESET));
     printf(
-        "%sType 'help' for words, 'hints' to toggle hints, or 'trace' to "
-        "toggle stack display.%s\n",
+        "%sType 'help' for words; 'hints', 'trace', and 'tdb' toggle REPL "
+        "features.%s\n",
         tf_console_clr(TF_CLR_INFO), tf_console_clr(TF_CLR_RESET));
 #ifdef _WIN32
     printf("%sPress Ctrl-Z to exit.%s\n", tf_console_clr(TF_CLR_INFO),
@@ -257,7 +420,10 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
         if (!input_complete(&state)) { continue; }
 
         ctx->suppress_repl_status = false;
-        tf_ret result = run_source(ctx, "<repl>", source, debug);
+        debugger_continuing = false;
+        tf_native_fn repl_command = repl_command_for_source(ctx, source);
+        tf_ret result = repl_command ? repl_command(ctx)
+                                     : run_source(ctx, "<repl>", source, debug);
         if (result == TF_ERR && !trace_enabled) {
             if (ctx->program_error) {
                 printf("%snot ok%s\n", tf_console_clr(TF_CLR_PROGRAM_ERR),
@@ -302,7 +468,7 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
         reset_state(&state);
     }
 
-    free_repl_ui();
+    free_repl_ui(ctx);
     free(source);
     return TF_OK;
 }
@@ -440,8 +606,12 @@ static void repl_free_hints(void *ptr) {
 
 static char *read_repl_line(bool complete) {
     errno = 0;
-    return linenoise(complete ? TF_CLR_RESET "toy> " TF_CLR_RESET
-                              : TF_CLR_RESET "...> " TF_CLR_RESET);
+    if (!complete) {
+        return linenoise(TF_CLR_RESET "...> " TF_CLR_RESET);
+    }
+    return linenoise(debugger_enabled
+                         ? TF_CLR_RESET "toy[tdb]> " TF_CLR_RESET
+                         : TF_CLR_RESET "toy> " TF_CLR_RESET);
 }
 
 static bool append_text(char **buf, size_t *len, size_t *cap, const char *text) {
@@ -554,6 +724,8 @@ static bool input_complete(const repl_state *state) {
 static void init_repl_ui(tf_ctx *ctx) {
     completion_ctx = ctx;
     history_path = get_history_path();
+    debugger_continuing = false;
+    tf_debug_set_hook(ctx, debugger_enabled ? repl_debug_hook : NULL, NULL);
 
     if (!history_atexit_registered) {
         atexit(save_history_atexit);
@@ -577,7 +749,10 @@ static void init_repl_ui(tf_ctx *ctx) {
     }
 }
 
-static void free_repl_ui(void) {
+static void free_repl_ui(tf_ctx *ctx) {
+    debugger_enabled = false;
+    debugger_continuing = false;
+    tf_debug_set_hook(ctx, NULL, NULL);
     if (history_path) {
         if (linenoiseHistorySave(history_path) == -1) {
             tf_console_contextf("failed to save REPL history\n");

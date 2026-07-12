@@ -13,7 +13,7 @@ typedef struct {
     char *eval;
     int script_argc;
     char **script_argv;
-    bool debug, help, interactive;
+    bool debug, tdb, help, interactive;
 } cli_config;
 
 static int parse_args(int argc, char **argv, cli_config *config);
@@ -22,21 +22,24 @@ int main(int argc, char **argv) {
     signal(SIGINT, tf_vm_handle_sigint);
     tf_console_init();
 
-    cli_config config = {NULL, NULL, 0, NULL, false, false, false};
+    cli_config config = {NULL, NULL, 0, NULL, false, false, false, false};
     tf_ret ret = parse_args(argc, argv, &config);
     if (ret == TF_ERR || config.help) {
         fprintf(stderr, "=== Toy Interpreter ===\n");
         fprintf(stderr,
-                "Usage: %s [--debug|-d] [--eval|-e code] [filename] [args...]\n",
+                "Usage: %s [--debug|-d] [--tdb] [--eval|-e code] "
+                "[filename] [args...]\n",
                 argv[0]);
         fprintf(stderr, "\nRunning without filename starts the REPL\n");
         fprintf(stderr, "--debug shows parsed tokens and stack after execution\n");
+        fprintf(stderr, "--tdb steps through file, eval, or REPL input\n");
         fprintf(stderr, "--eval executes program passed as argument\n");
         return ret;
     }
 
     tf_ctx *ctx = tf_ctx_new(config.script_argc, config.script_argv);
     if (!ctx) { return TF_ERR; }
+    tf_tdb_set_enabled(ctx, config.tdb);
 
     tf_ret result = TF_OK;
 
@@ -50,6 +53,7 @@ int main(int argc, char **argv) {
             result = tf_run_file(ctx, config.filename, config.debug);
         }
     }
+    tf_tdb_set_enabled(ctx, false);
     tf_ctx_free(ctx);
     tf_control_state_cache_clear();
     tf_obj_cache_clear();
@@ -69,6 +73,8 @@ static int parse_args(int argc, char **argv, cli_config *config) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--debug") == 0 || strcmp(argv[i], "-d") == 0) {
             config->debug = true;
+        } else if (strcmp(argv[i], "--tdb") == 0) {
+            config->tdb = true;
         } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             config->help = true;
         } else if (strcmp(argv[i], "--eval") == 0 || strcmp(argv[i], "-e") == 0) {

@@ -52,6 +52,69 @@ runtime error: undefined variable '$a'
 
 Use `def` for persistent names.
 
+## tdb Instruction Debugger
+
+Type `tdb` to toggle the terminal debugger for subsequent REPL input. The VM
+pauses before each Toy instruction and opens a distinct `(tdb)` prompt:
+
+```text
+toy> 'inc [ 1 + ] def
+toy> tdb
+toy[tdb]> 3 inc
+paused: <repl>:1:1 in <program> (pc 0/2, depth 1)
+  => 3
+(tdb) step
+paused: <repl>:1:3 in <program> (pc 1/2, depth 1)
+  => inc
+(tdb) step
+paused: <repl>:1:8 in inc (pc 0/2, depth 2)
+  => 1
+```
+
+The three prompts make debugger state explicit:
+
+- `toy>` is the normal REPL;
+- `toy[tdb]>` means tdb is enabled and waiting for an evaluation;
+- `(tdb)` means an evaluation is currently paused.
+
+Debugger commands are:
+
+- `Enter`, `s`, or `step`: execute the displayed instruction and pause again;
+- `c` or `continue`: run the rest of the current REPL input;
+- `p` or `stack`: display the data stack without advancing;
+- `bt` or `backtrace`: display program and native-continuation frames;
+- `off`: disable tdb and continue;
+- `q` or `abort`: unwind the current input as an interruption;
+- `h`, `help`, or `?`: show the command summary.
+
+Native words are single instructions. If a native combinator schedules Toy
+code, stepping enters the scheduled quotation on the next pause. `continue`
+also applies to nested file execution started by the current input. The
+debugger remains enabled for the next REPL input unless `off` or `tdb` turns it
+off. Standalone REPL controls such as `tdb`, `trace`, `hints`, and `help` are
+handled outside VM evaluation, so toggling tdb does not stop to debug the
+toggle itself.
+
+The pause line describes only the current frame. Its `depth` field tells you
+how many VM frames are active. `bt` is most useful when depth is greater than
+one: it shows the complete chain of user words, quotations, native
+continuations, and the root program.
+
+To debug a file or an evaluated source string directly from PowerShell:
+
+```powershell
+.\build\toy.exe --tdb program.toy
+.\build\toy.exe --tdb --eval "1 2 + print"
+```
+
+The process exits when file or `--eval` execution finishes. Running
+`.\build\toy.exe --tdb` without a file starts the REPL with tdb already armed.
+Inside an existing REPL, `tdb` followed by stepping into a `load` call also
+debugs the loaded file in the same context.
+
+tdb is separate from the CLI `--debug` option, which prints the parsed program
+and final stack without interactive stepping.
+
 ## Multiline Input
 
 The REPL keeps reading until the current input is structurally complete.

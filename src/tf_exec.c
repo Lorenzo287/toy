@@ -57,9 +57,14 @@ static void ensure_call_stack_slot(tf_ctx *ctx) {
         tf_xrealloc(ctx->call_stack, sizeof(tf_frame) * ctx->call_stack_cap);
 }
 
-void tf_frame_push_program(tf_ctx *ctx, tf_obj *program) {
+static bool frame_is_program(tf_frame_kind kind) {
+    return kind != TF_FRAME_NATIVE;
+}
+
+static void frame_push_program_kind(tf_ctx *ctx, tf_obj *program,
+                                    tf_frame_kind kind) {
     ensure_call_stack_slot(ctx);
-    ctx->call_stack[ctx->call_stack_len].kind = TF_FRAME_PROGRAM;
+    ctx->call_stack[ctx->call_stack_len].kind = kind;
     ctx->call_stack[ctx->call_stack_len].as.program.program = program;
     ctx->call_stack[ctx->call_stack_len].as.program.pc = 0;
     ctx->call_stack[ctx->call_stack_len].as.program.vars.vars = NULL;
@@ -68,6 +73,10 @@ void tf_frame_push_program(tf_ctx *ctx, tf_obj *program) {
     ctx->call_stack[ctx->call_stack_len].call_site = ctx->current_span;
     tf_obj_retain(program);
     ctx->call_stack_len++;
+}
+
+void tf_frame_push_program(tf_ctx *ctx, tf_obj *program) {
+    frame_push_program_kind(ctx, program, TF_FRAME_PROGRAM);
 }
 
 void tf_frame_push_native_handler(tf_ctx *ctx, tf_frame_step_fn step,
@@ -92,7 +101,7 @@ void tf_frame_pop(tf_ctx *ctx, tf_ret status) {
     if (ctx->call_stack_len == 0) return;
     tf_frame *f = &ctx->call_stack[ctx->call_stack_len - 1];
 
-    if (f->kind == TF_FRAME_PROGRAM) {
+    if (frame_is_program(f->kind)) {
         tf_var *vars = f->as.program.vars.vars
                            ? f->as.program.vars.vars
                            : &f->as.program.vars.inline_var;
@@ -372,6 +381,8 @@ tf_ctx *tf_ctx_new(int argc, char **argv) {
     ctx->suppress_repl_status = false;
     ctx->current_span = (tf_source_span){0};
     ctx->current_word = NULL;
+    ctx->debug_hook = NULL;
+    ctx->debug_userdata = NULL;
 
     size_t group_count = 0;
     const tf_builtin_group *groups = tf_builtin_groups(&group_count);
@@ -509,7 +520,7 @@ tf_word *tf_dict_lookup_name(tf_ctx *ctx, const char *name, size_t len) {
 static void scope_bind_var(tf_ctx *ctx, tf_obj *name, tf_obj *val) {
     if (ctx->call_stack_len == 0) return;
     tf_frame *f = &ctx->call_stack[ctx->call_stack_len - 1];
-    if (f->kind != TF_FRAME_PROGRAM) return;
+    if (!frame_is_program(f->kind)) return;
 
     // check if variable already exists in current frame and update it
     tf_var_table *vars = &f->as.program.vars;
@@ -544,7 +555,7 @@ static void scope_bind_var(tf_ctx *ctx, tf_obj *name, tf_obj *val) {
 tf_obj *tf_scope_lookup_var(tf_ctx *ctx, tf_obj *name) {
     for (int i = (int)ctx->call_stack_len - 1; i >= 0; i--) {
         tf_frame *f = &ctx->call_stack[i];
-        if (f->kind != TF_FRAME_PROGRAM) continue;
+        if (!frame_is_program(f->kind)) continue;
         tf_var_table *vars = &f->as.program.vars;
         tf_var *bindings = vars->vars ? vars->vars : &vars->inline_var;
         for (int j = (int)vars->len - 1; j >= 0; j--) {
@@ -570,7 +581,7 @@ void tf_vm_handle_sigint(int sig) {
  */
 static tf_ret dict_call_resolved(tf_ctx *ctx, tf_word *word) {
     if (word->type == TF_WORD_USER) {
-        tf_frame_push_program(ctx, word->user_impl);
+        frame_push_program_kind(ctx, word->user_impl, TF_FRAME_PROGRAM_USER);
         return TF_OK;
     }
     return word->native_impl(ctx);
@@ -594,9 +605,10 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
      * that need to resume after user code use TF_FRAME_NATIVE continuations
      * instead of re-entering tf_vm_exec(). */
     size_t entry_depth = ctx->call_stack_len;
+    bool debug_continuing = false;
     ctx->error_reported = false;
     ctx->program_error = false;
-    tf_frame_push_program(ctx, program);
+    frame_push_program_kind(ctx, program, TF_FRAME_PROGRAM_ROOT);
 
     while (ctx->call_stack_len > entry_depth) {
         if (interrupted) {
@@ -630,9 +642,21 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
             continue;
         }
 
-        tf_obj *o =
-            f->as.program.program->vector.elem[f->as.program.pc++];
+        size_t pc = f->as.program.pc;
+        tf_obj *o = f->as.program.program->vector.elem[pc];
         ctx->current_span = o->span;
+        if (!debug_continuing && ctx->debug_hook) {
+            tf_debug_event event = {o, o->span, pc, ctx->call_stack_len};
+            tf_debug_action action =
+                ctx->debug_hook(ctx, &event, ctx->debug_userdata);
+            if (action == TF_DEBUG_ABORT) {
+                frame_unwind_to(ctx, entry_depth, TF_INTERRUPTED);
+                interrupted = 0;
+                return TF_INTERRUPTED;
+            }
+            if (action == TF_DEBUG_CONTINUE) debug_continuing = true;
+        }
+        f->as.program.pc++;
         switch (o->type) {
         case TF_OBJ_TYPE_CALL: {
             ctx->current_word = o->str.ptr;
@@ -734,4 +758,68 @@ tf_ret tf_vm_call_callable(tf_ctx *ctx, tf_obj *callable) {
         return dict_call_resolved(ctx, word);
     }
     return TF_ERR;
+}
+
+void tf_debug_set_hook(tf_ctx *ctx, tf_debug_hook_fn hook, void *userdata) {
+    ctx->debug_hook = hook;
+    ctx->debug_userdata = userdata;
+}
+
+size_t tf_debug_frame_count(tf_ctx *ctx) {
+    return ctx->call_stack_len;
+}
+
+static const char *debug_user_word_name(tf_ctx *ctx, size_t frame_index,
+                                        tf_frame *frame) {
+    if (frame_index > 0) {
+        tf_frame *caller = &ctx->call_stack[frame_index - 1];
+        if (frame_is_program(caller->kind) && caller->as.program.pc > 0) {
+            tf_obj *instruction = caller->as.program.program->vector.elem[
+                caller->as.program.pc - 1];
+            if (instruction->type == TF_OBJ_TYPE_CALL) {
+                return instruction->str.ptr;
+            }
+        }
+    }
+    for (size_t i = 0; i < ctx->words.count; i++) {
+        tf_word *word = &ctx->words.entries[i];
+        if (word->type == TF_WORD_USER &&
+            word->user_impl == frame->as.program.program) {
+            return word->name;
+        }
+    }
+    return "<user word>";
+}
+
+bool tf_debug_get_frame(tf_ctx *ctx, size_t depth,
+                        tf_debug_frame_info *info) {
+    if (!info || depth >= ctx->call_stack_len) return false;
+    size_t frame_index = ctx->call_stack_len - 1 - depth;
+    tf_frame *frame = &ctx->call_stack[frame_index];
+    info->kind = frame_is_program(frame->kind) ? TF_FRAME_PROGRAM
+                                               : TF_FRAME_NATIVE;
+    info->call_site = frame->call_site;
+    info->location = frame->call_site;
+    info->word_name = NULL;
+    info->pc = 0;
+    info->program_len = 0;
+    if (frame_is_program(frame->kind)) {
+        if (frame->kind == TF_FRAME_PROGRAM_ROOT) {
+            info->word_name = "<program>";
+        } else if (frame->kind == TF_FRAME_PROGRAM_USER) {
+            info->word_name = debug_user_word_name(ctx, frame_index, frame);
+        } else {
+            info->word_name = "<quotation>";
+        }
+        info->pc = frame->as.program.pc;
+        info->program_len = frame->as.program.program->vector.len;
+        if (depth == 0 && info->pc < info->program_len) {
+            info->location =
+                frame->as.program.program->vector.elem[info->pc]->span;
+        } else if (info->pc > 0) {
+            info->location =
+                frame->as.program.program->vector.elem[info->pc - 1]->span;
+        }
+    }
+    return true;
 }

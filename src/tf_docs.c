@@ -215,6 +215,7 @@ static const tf_doc_entry builtin_docs[] = {
     {"help", "--", "", "Show the categorized REPL word catalog."},
     {"hints", "--", "", "Toggle REPL inline stack-effect hints."},
     {"trace", "--", "", "Toggle REPL stack display after successful input."},
+    {"tdb", "--", "", "Toggle the terminal debugger for subsequent REPL input."},
 };
 
 const tf_doc_entry *tf_doc_entries(size_t *count) {

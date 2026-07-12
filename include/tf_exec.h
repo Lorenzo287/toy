@@ -12,6 +12,19 @@ typedef void (*tf_frame_cleanup_fn)(tf_ctx *ctx, void *state, tf_ret status);
 typedef tf_ret (*tf_frame_error_fn)(tf_ctx *ctx, void *state, tf_ret status,
                                     bool *handled);
 
+typedef enum { TF_DEBUG_STEP, TF_DEBUG_CONTINUE, TF_DEBUG_ABORT } tf_debug_action;
+
+typedef struct {
+    tf_obj *instruction;
+    tf_source_span span;
+    size_t pc;
+    size_t frame_depth;
+} tf_debug_event;
+
+typedef tf_debug_action (*tf_debug_hook_fn)(tf_ctx *ctx,
+                                             const tf_debug_event *event,
+                                             void *userdata);
+
 /* Native registration metadata shared with interactive tooling. */
 typedef struct {
     const char *name;
@@ -78,7 +91,12 @@ typedef struct {
     tf_var inline_var;
 } tf_var_table;
 
-typedef enum { TF_FRAME_PROGRAM, TF_FRAME_NATIVE } tf_frame_kind;
+typedef enum {
+    TF_FRAME_PROGRAM,
+    TF_FRAME_PROGRAM_ROOT,
+    TF_FRAME_PROGRAM_USER,
+    TF_FRAME_NATIVE
+} tf_frame_kind;
 
 typedef struct {
     tf_obj *program;
@@ -109,6 +127,15 @@ typedef struct {
     tf_source_span call_site;
 } tf_frame;
 
+typedef struct {
+    tf_frame_kind kind;
+    const char *word_name;
+    tf_source_span call_site;
+    tf_source_span location;
+    size_t pc;
+    size_t program_len;
+} tf_debug_frame_info;
+
 /*
  * Interpreter state shared by the VM and native words.
  */
@@ -127,6 +154,8 @@ struct tf_ctx {
     bool suppress_repl_status;
     tf_source_span current_span;
     const char *current_word;
+    tf_debug_hook_fn debug_hook;
+    void *debug_userdata;
 };
 
 /* Data stack API used by native word implementations. */
@@ -182,6 +211,12 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program);
 bool tf_obj_is_callable(tf_obj *o);
 tf_ret tf_vm_call_callable(tf_ctx *ctx, tf_obj *callable);
 void tf_vm_handle_sigint(int sig);
+
+/* Frontend-neutral debugger hook and read-only frame inspection. */
+void tf_debug_set_hook(tf_ctx *ctx, tf_debug_hook_fn hook, void *userdata);
+size_t tf_debug_frame_count(tf_ctx *ctx);
+bool tf_debug_get_frame(tf_ctx *ctx, size_t depth,
+                        tf_debug_frame_info *info);
 
 /* Context-aware diagnostics used by the VM and native words. */
 void tf_ctx_runtime_errorf(tf_ctx *ctx, const char *fmt, ...);

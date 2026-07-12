@@ -15,6 +15,9 @@ It records that work in *frames* on an explicit VM stack instead of relying on
 the C call stack. The main loop keeps processing frames until no work remains.
 
 - Program frames point at vector quotations and keep a program counter.
+- Program frame kinds distinguish roots, quotations, and user words without
+  increasing frame size. Debugger frame views recover direct-call names from
+  callers and otherwise resolve user bodies through the dictionary.
 - Program traversal dispatches call instructions. Symbols are pushed as name
   values; a word such as `exec` may later use a symbol to choose code to run.
 - Resolved call and symbol objects use a 64-entry direct-mapped lookup cache.
@@ -31,6 +34,26 @@ the C call stack. The main loop keeps processing frames until no work remains.
 
 This model keeps Toy-level recursion and higher-order combinators independent
 from the C call stack.
+
+## Debugger Hooks
+
+The VM can install a frontend-neutral debug hook on a context. Before each Toy
+instruction, the hook receives the instruction, source span, program counter,
+and frame depth. It returns one of three actions:
+
+- step executes that instruction and pauses before the next Toy instruction;
+- continue suppresses further pauses for the current VM invocation;
+- abort unwinds the invocation with interruption cleanup.
+
+Native words remain atomic at this boundary. Native continuations are visible
+in read-only frame views, and any Toy quotations they schedule produce normal
+instruction events. Frame views expose stable word labels, PCs, program lengths,
+call sites, and current locations without giving frontends mutable VM access.
+
+The first frontend is the terminal debugger, tdb, available from the REPL and
+through `--tdb` for files and evaluated source. Editor integration can use the
+same hook and frame-view API after stepping and breakpoint semantics are
+settled.
 
 ## Object Layout
 

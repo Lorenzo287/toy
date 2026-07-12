@@ -64,15 +64,16 @@ Keep optimization work benchmark-driven and record durable experiments under
 - cache behavior for list, vector, and string workloads;
 - structural hashes if map/set key policy expands.
 
-## Future Work
-
 ### Debugger
 
-**Status: Future**
+**Status: In progress**
 
-Use the explicit frame stack to expose stepping, the current word and program
-counter, the data stack, and the call stack. Start in the REPL before adding
-editor integration.
+The first tdb slice provides instruction stepping and continuing, data-stack
+inspection, named program-frame backtraces, native-continuation visibility, and
+source locations through a frontend-neutral VM hook. Settle breakpoints and
+debug-session control in tdb before adding editor integration.
+
+## Future Work
 
 ### Runtime API and Foreign Function Interface
 

@@ -1812,6 +1812,12 @@
       "cFunction": "trace_toggle",
       "stackEffect": "--",
       "description": "Toggle REPL stack display after successful input."
+    },
+    {
+      "name": "tdb",
+      "cFunction": "tdb_toggle",
+      "stackEffect": "--",
+      "description": "Toggle the terminal debugger for subsequent REPL input."
     }
   ]
 }
