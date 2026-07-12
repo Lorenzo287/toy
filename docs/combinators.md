@@ -1,14 +1,13 @@
 # Combinator Reference
 
-Toy programs become expressive when deferred code is treated as a value. A
-callable can be a symbol naming a word such as `'upper`, a call node extracted
-from code, or a vector quotation such as `[ upper ]`. These are different data
-representations with the same execution capability.
+Many Toy words take code as an input. Write `[ upper ]` when the code is a
+quotation, or `'upper` when an existing word already does what you need. Code
+that inspects a quotation may also extract one of its call instructions and
+pass that directly, though most programs never need to do this. This guide uses
+*callable* as a short name for any of these values because each one can be run.
 
-Ordinary words consume their declared inputs. Predicate callables used by
-control and predicate combinators are the main exception: they run in a stack
-sandbox, leave one boolean result, and then the surrounding data stack is
-restored. Side effects inside the predicate still happen.
+Combinators that run a predicate follow Toy's observer rule: after reading its
+boolean answer, Toy restores the surrounding stack. Side effects still happen.
 
 ## Direct Execution
 
@@ -49,8 +48,8 @@ Use these when a callable should run with a specific view of the stack.
 [ 2 3 4 ] [ + * ] infra              \ leaves [14]
 ```
 
-`cleave`, `construct`, and `cond` use a vector as a structural container for
-branches. The container itself is not the callable; its items are.
+`cleave`, `construct`, and `cond` use a vector to hold several pieces of code.
+The outer vector organizes them; the inner items are what the word runs.
 
 ## Sequence Combinators
 

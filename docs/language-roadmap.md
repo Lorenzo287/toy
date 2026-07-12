@@ -16,11 +16,10 @@ future tracks. It is not a language reference, an agent manual, or a changelog.
 
 **Status: Completed**
 
-Toy has a quotation-first language model with first-class callable quotations
-and symbols, dynamic captures, higher-order combinators, predicate stack
-sandboxing, and an iterative VM frame stack. Current behavior is documented in
-the [README](../README.md), [combinator reference](./combinators.md), and
-[runtime internals](./runtime-internals.md).
+The current language and execution model is the foundation for later work. Its
+behavior belongs in the [README](../README.md), [combinator
+reference](./combinators.md), and [runtime internals](./runtime-internals.md),
+not in this roadmap.
 
 ### Collection and Value Model
 
@@ -122,20 +121,3 @@ Compilation must preserve runtime `def`, first-class quotations and symbols,
 dynamic captures, predicate stack sandboxing, error behavior, and value
 ownership. Early native compilation should target an explicit subset rather
 than silently changing those semantics.
-
-### Design Comparisons
-
-**Status: Future**
-
-Use other small stack languages as focused experiments, not as specifications
-Toy must copy.
-
-- [Aocla](https://github.com/antirez/aocla/) is a useful comparison for
-  readable captures, code-as-data, copy-on-write values, and an understandable
-  C interpreter.
-- [Porth](https://gitlab.com/tsoding/porth) is a useful comparison for direct
-  native lowering, compile-time stack reasoning, system interfaces, examples,
-  and test workflow.
-
-Port representative small programs and record what each comparison teaches
-about Toy's semantics, implementation size, compiler boundary, or vocabulary.

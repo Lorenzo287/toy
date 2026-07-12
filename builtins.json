@@ -482,7 +482,7 @@
           "cFunction": "tf_exec",
           "stackEffect": "callable -- ...",
           "syntax": "",
-          "description": "Execute a symbol, call node, or quotation.",
+          "description": "Run a quotation or a defined word named by a symbol or call instruction.",
           "syntaxClass": "control"
         },
         {
@@ -490,7 +490,7 @@
           "cFunction": "tf_exec",
           "stackEffect": "callable -- ...",
           "syntax": "",
-          "description": "Alias for exec. Execute a symbol, call node, or quotation.",
+          "description": "Alias for exec. Run a quotation or a defined word named by a symbol or call instruction.",
           "syntaxClass": "control"
         },
         {
@@ -718,7 +718,7 @@
           "cFunction": "tf_merge",
           "stackEffect": "seq seq callable -- seq",
           "syntax": "",
-          "description": "Merge two sorted sequences of the same type. The predicate callable runs in a stack sandbox and must leave a boolean on top.",
+          "description": "Merge two sorted sequences of the same type. The ordering predicate leaves a boolean; after reading it, Toy restores the surrounding stack.",
           "syntaxClass": "control"
         }
       ]
@@ -1366,7 +1366,7 @@
           "cFunction": "tf_call_q",
           "stackEffect": "x -- bool",
           "syntax": "",
-          "description": "Check whether the input is an executable call node.",
+          "description": "Check whether the input is a call instruction, the value stored for a bare word inside a quotation.",
           "syntaxClass": "builtin"
         },
         {
@@ -1484,7 +1484,7 @@
           "cFunction": "tf_to_symbol",
           "stackEffect": "string|call -- symbol",
           "syntax": "",
-          "description": "Convert a string or call node to a symbol.",
+          "description": "Convert text or a call instruction to a symbol.",
           "syntaxClass": "builtin"
         },
         {
@@ -1492,7 +1492,7 @@
           "cFunction": "tf_to_call",
           "stackEffect": "symbol -- call",
           "syntax": "",
-          "description": "Convert a symbol to an executable call node for runtime quotation construction.",
+          "description": "Convert a symbol to a call instruction that can be inserted into a quotation.",
           "syntaxClass": "builtin"
         },
         {

@@ -5,13 +5,18 @@ specialized layouts to avoid unnecessary allocation, copying, and C recursion.
 
 ## Execution Model
 
-The VM is iterative. User words and native callable runners push frames onto an
-explicit call stack; the main VM loop executes those frames until the stack is
-empty.
+Parsed Toy code is a vector. The VM reads that vector from left to right. A
+literal value is pushed onto the data stack; a call instruction looks up and
+runs a word; a nested vector is pushed as data until `exec` or another
+combinator asks to run it.
+
+The runtime must remember where to continue whenever one word calls another.
+It records that work in *frames* on an explicit VM stack instead of relying on
+the C call stack. The main loop keeps processing frames until no work remains.
 
 - Program frames point at vector quotations and keep a program counter.
-- Program traversal dispatches explicit call nodes; symbols are always pushed
-  as inert name values unless a word such as `exec` invokes them explicitly.
+- Program traversal dispatches call instructions. Symbols are pushed as name
+  values; a word such as `exec` may later use a symbol to choose code to run.
 - Native continuation frames resume C native words after a callable has run.
 - New native words that execute user code should schedule frames or
   continuations, not call `tf_vm_exec()` recursively.
@@ -53,12 +58,12 @@ Back pops reduce length but do not shrink capacity. That keeps vector-as-stack
 workloads amortized O(1) instead of paying reallocation costs on alternating
 push/pop patterns.
 
-### Strings and Symbols
+### Strings, Symbols, and Calls
 
-Strings are flat byte arrays. Short values are inline; longer values use one
-heap allocation. Exact-size producers allocate the final string once, while
-dynamic producers grow geometrically and transfer their buffer into the final
-object.
+Strings, symbols, and call instructions all store byte sequences. Short values
+fit inside the object itself; longer values use one heap allocation. Exact-size
+producers allocate the final storage once, while dynamic string producers grow
+geometrically and transfer their buffer into the final object.
 
 Indexed byte reads are O(1), but they return a new one-byte string because a
 Toy character is itself a string value.

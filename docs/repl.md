@@ -39,8 +39,8 @@ evaluation. Use `.s` or `.S` when you want to inspect the stack explicitly
 
 ## Scope of Captures
 
-Captures created with `| ... |` are local to the current execution frame. They
-do not persist as REPL variables:
+Captures created with `| ... |` live only while the word or quotation that
+created them is running. They do not become persistent REPL variables:
 
 ```text
 toy:: 5 |a| $a print

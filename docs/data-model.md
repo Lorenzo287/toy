@@ -1,12 +1,11 @@
 # Toy Data Model
 
-Toy values are boxed `tf_obj` objects with reference counting. Public data
-words return values; they do not promise observable in-place mutation. The
-implementation may still reuse uniquely owned storage, share persistent tails,
-or reserve capacity when that preserves value semantics.
+This document explains what Toy's values mean, which words work across several
+collection types, and what performance to expect from each representation.
 
-This document is the practical reference for collection syntax, interop, stack
-effects, and complexity.
+At the language level, updating a collection produces a value; a program cannot
+observe whether the runtime reused storage or made a copy. The implementation
+details that make this efficient are collected at the end of the guide.
 
 ## Representations and Syntax
 
@@ -14,9 +13,9 @@ effects, and complexity.
 | -------------- | -------------------- | --------- |
 | bool, int, float | literals and numeric words | scalar values |
 | string | `"text"` | byte sequence; one character is a one-byte string |
-| symbol | `'name` | word names, symbolic data, atomic callables |
-| call | bare `name` inside code, `>call` | executable word-reference node |
-| vector | `[ 1 2 3 ]` | indexed sequence and compound quotation |
+| symbol | `'name` | word names and symbolic data; can name code to run |
+| call | bare `name` inside code, `>call` | instruction to run a named word |
+| vector | `[ 1 2 3 ]` | indexed sequence; can also be run as a program |
 | list | `( 1 2 3 )` | persistent front-oriented sequence |
 | map | `{ 'name "Ada" 'age 36 }`, `>map` | insertion-ordered key/value lookup |
 | set | `#{ "red" "green" }`, `>set` | insertion-ordered membership |
@@ -29,11 +28,26 @@ Strings are byte sequences, not Unicode strings. String literals accept `\n`,
 Vectors are also quotations. Lists are sequence data only: `( 1 2 + )` is a
 list containing data, not executable code.
 
-Apostrophe creates a symbol value; it is not an alternative spelling for a
-vector quotation. Parsing `[ dup ]` produces a vector containing a call node,
-while `[ 'dup ]` contains an inert symbol. Extracted call nodes are visible as
-ordinary code data and can be converted with `>symbol`; `>call` converts a
-symbol back to a call node for runtime quotation construction.
+### Names and Code
+
+Toy keeps a name separate from an instruction that calls the named word:
+
+| Form | What Toy does |
+| ---- | ------------- |
+| `dup` | calls `dup` immediately |
+| `'dup` | pushes the name `dup` |
+| `[ dup ]` | pushes a quotation containing an instruction to call `dup` |
+| `[ 'dup ]` | pushes a quotation containing the name `dup` as data |
+
+This distinction is usually invisible because a quotation simply runs its call
+instructions. It becomes visible when code is inspected or assembled at
+runtime: `[ dup ] first` returns a value whose type is `call`, whereas
+`[ 'dup ] first` returns a `symbol`.
+
+`>symbol` converts text or a call into a symbol. `>call` converts a symbol into
+an instruction that can be inserted into a quotation. The conversion is
+explicit so that moving ordinary names through a program never makes them run
+by accident.
 
 Secondary structures have no literal syntax because their constructors validate
 runtime data and establish invariants:
@@ -45,14 +59,17 @@ runtime data and establish invariants:
 [ 1 2 2 3 ] >set
 ```
 
-## Capabilities
+## Shared Operations
 
-Words should be understood by the capability they need, not only by concrete
-type.
+Toy uses the same word when several types support the same idea. For example,
+`len` works on vectors, lists, and strings, while `exec` can run a quotation or
+the name of a defined word. This guide calls each shared kind of operation a
+*capability*; predicates such as `sequence?` and `callable?` let a program ask
+whether a value supports one.
 
 | Capability | Accepted representations | Main words |
 | ---------- | ------------------------ | ---------- |
-| callable | vector quotation, symbol or call naming a word | `exec`, `i`, `dip`, `keep`, `bi`, `map`, `filter`, `if`, `while`, recursion combinators |
+| callable | vector quotation, or a symbol/call naming a word | `exec`, `i`, `dip`, `keep`, `bi`, `map`, `filter`, `if`, `while`, recursion combinators |
 | sequence | vector, list, string | `len`, `first`, `last`, `rest`, `uncons`, `concat`, `reverse`, `map`, `fold`, `filter`, `split`, `merge`, `sort`, `unique` |
 | indexed | vector, string | `at`, `set-at`, `slice` |
 | persistent front | list | `cons`, `rest`, `uncons` |
@@ -134,9 +151,9 @@ Hashable values, and therefore valid map keys and set items, are currently:
 - string
 - symbol
 
-Call nodes are deliberately not hashable; convert one with `>symbol` when its
-name is intended as a key. Floats and structural values compare for equality
-but are not hash keys yet.
+Call instructions are deliberately not hashable; convert one with `>symbol`
+when its name is intended as a key. Floats and structural values compare for
+equality but are not hash keys yet.
 This avoids unresolved policy questions around NaN, signed zero, and cached
 structural hashes.
 
@@ -245,8 +262,13 @@ Ordinary output shows priority queues as display-only
 
 ## Implementation Notes
 
-The most important implementation rule is that optimizations must preserve
-value semantics. Current performance techniques include:
+Every runtime value is a reference-counted `tf_obj`. Collections retain
+references to their items, which lets the runtime share existing values instead
+of copying whole structures unnecessarily. These details must remain invisible
+to Toy programs: every optimization still preserves the value behavior
+described above.
+
+Current performance techniques include:
 
 - copy-on-write updates for uniquely owned vectors, strings, maps, sets,
   deques, and priority queues;

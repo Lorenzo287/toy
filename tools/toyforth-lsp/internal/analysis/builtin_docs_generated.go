@@ -228,11 +228,11 @@ var builtinDocs = map[string]builtinDoc{
 	},
 	"exec": {
 		StackEffect: "callable -- ...",
-		Description: "Execute a symbol, call node, or quotation.",
+		Description: "Run a quotation or a defined word named by a symbol or call instruction.",
 	},
 	"i": {
 		StackEffect: "callable -- ...",
-		Description: "Alias for exec. Execute a symbol, call node, or quotation.",
+		Description: "Alias for exec. Run a quotation or a defined word named by a symbol or call instruction.",
 	},
 	"if": {
 		StackEffect: "bool|callable callable --",
@@ -340,7 +340,7 @@ var builtinDocs = map[string]builtinDoc{
 	},
 	"merge": {
 		StackEffect: "seq seq callable -- seq",
-		Description: "Merge two sorted sequences of the same type. The predicate callable runs in a stack sandbox and must leave a boolean on top.",
+		Description: "Merge two sorted sequences of the same type. The ordering predicate leaves a boolean; after reading it, Toy restores the surrounding stack.",
 	},
 	">vector": {
 		StackEffect: "vector|list|string -- vector",
@@ -640,7 +640,7 @@ var builtinDocs = map[string]builtinDoc{
 	},
 	"call?": {
 		StackEffect: "x -- bool",
-		Description: "Check whether the input is an executable call node.",
+		Description: "Check whether the input is a call instruction, the value stored for a bare word inside a quotation.",
 	},
 	"vector?": {
 		StackEffect: "x -- bool",
@@ -696,11 +696,11 @@ var builtinDocs = map[string]builtinDoc{
 	},
 	">symbol": {
 		StackEffect: "string|call -- symbol",
-		Description: "Convert a string or call node to a symbol.",
+		Description: "Convert text or a call instruction to a symbol.",
 	},
 	">call": {
 		StackEffect: "symbol -- call",
-		Description: "Convert a symbol to an executable call node for runtime quotation construction.",
+		Description: "Convert a symbol to a call instruction that can be inserted into a quotation.",
 	},
 	"name": {
 		StackEffect: "symbol -- string",

@@ -1,26 +1,29 @@
 # Toy
 
-Toy is a minimalist, stack-based language written in C. It started from a
-traditional Forth shape, but is evolving into a quotation-first concatenative
-language inspired by Joy, the language designed by Manfred von Thun.
+Toy is a minimalist, stack-based language and runtime written in C. It began
+with a traditional Forth shape, but has grown into a quotation-first
+concatenative language inspired by 
+[Joy](https://en.wikipedia.org/wiki/Joy_(programming_language)).
 
-The core idea is that code is data. Vectors `[ ... ]` are compound quotations,
-while symbols such as `'name` are inert names and atomic named callables. Bare
-words inside programs are explicit call nodes, so code can be stored, passed,
-composed, inspected, and executed without hiding evaluation state in symbols.
+The core idea is that code is data: values go onto the stack, then words transform
+them, and most importantly programs can be values too. `[ 1 2 + ]` holds a
+small program without running it; `exec` can run it later. From this, Toy gets
+higher-order words, control flow, and recursion without a separate layer of
+special syntax, but simply by **concatenation**".
 
-Based on the original [toyforth](https://github.com/antirez/toyforth) project by
-**Salvatore Sanfilippo (antirez)**.
-It has since grown into its own language with first-class quotations,
-refcounted types and data structures, higher-order combinators, an iterative VM,
-a persistent REPL (built with **antirez**'s `linenoise`), Tree-sitter grammar,
-Go LSP, and VS Code extension.
+Toy began as an extension of Salvatore Sanfilippo's
+[toyforth](https://github.com/antirez/toyforth), written for his C programming
+course. Only recently I found Toy's close relative: [Aocla](https://github.com/antirez/aocla).
+The capture and quoting ideas antirez briefly mentioned in the course seem to come from there, 
+but I ended up with an implementation that is quite different, since at the time I had not 
+discovered it yet. Toy's REPL also uses antirez's
+[`linenoise`](https://github.com/antirez/linenoise) library.
 
 ## A Quick Look
 
 ```toy
-\ A quotation is code-as-data. This word keeps the even numbers,
-\ squares them, and folds the result into one value.
+\ Words can receive other programs as values. This one keeps the even
+\ numbers, squares them, and folds the result into a single value.
 'evens-squared-sum [
     [ 2 % 0 == ] filter
     [ square ] map
@@ -32,10 +35,7 @@ Go LSP, and VS Code extension.
 
 ## Getting Started
 
-- [Build instructions](./docs/build.md)
-- [REPL guide](./docs/repl.md)
-- [Examples](./toy/examples/README.md)
-- [Pre-built release binaries](https://github.com/Lorenzo287/toy/releases)
+Build Toy with CMake, then start the REPL or run a source file:
 
 ```powershell
 cmake -S . -B build
@@ -47,22 +47,24 @@ cmake --build build
 .\build\toy.exe --debug program.toy
 ```
 
-## Stack Syntax
+See the [build instructions](./docs/build.md) for other build modes, the
+[REPL guide](./docs/repl.md) for interactive use, and the curated
+[examples](./toy/examples/README.md) for complete programs. Release 
+binaries are also available from the
+[releases page](https://github.com/Lorenzo287/toy/releases).
 
-Every expression of a programming language is a 
-[tree](https://en.wikipedia.org/wiki/Abstract_syntax_tree) in disguise, 
-and syntax is just determined by the 
-[traversal](https://en.wikipedia.org/wiki/Tree_traversal) order. 
-Take `1 + (2 * 3)`: it has `+` at the root, `1` as the left child, 
-and `* 2 3` as the right subtree.
-Infix, prefix and postfix syntax stem from different traversals,
-namely in-order, pre-order, post-order.
+## Why Postfix?
+
+An expression can be viewed as a
+[tree](https://en.wikipedia.org/wiki/Abstract_syntax_tree). Infix, prefix, and
+postfix notations mainly differ in when they visit the operator relative to its
+children. For `1 + (2 * 3)`, the three common orders are:
 
 | Style | Traversal | Example |
 | ----- | --------- | ------- |
 | Infix | left child, operator, right child | `1 + (2 * 3)` |
 | Prefix (Lisp) | operator before children | `(+ 1 (* 2 3))` |
-| postfix (Forth/Toy) | children before operator | `1 2 3 * +` |
+| Postfix (Forth/Toy) | children before operator | `1 2 3 * +` |
 
 In Toy, values are pushed as they are read. When `*` appears, it consumes
 `2 3` and leaves `6`; when `+` appears, it consumes `1 6` and leaves `7`.
@@ -70,60 +72,77 @@ That is the whole syntax: data first, then the word that transforms it.
 
 ## Language Tour
 
-### Words Transform the Stack
+### Words Consume and Produce Values
 
 ```toy
 2 3 + print          \ 5
+```
 
-\ Define words by binding symbols to quotations.
+Words consume their inputs unless their documentation says otherwise. Use
+ordinary stack words such as `dup`, or combinators such as `keep`, when an input
+must remain available:
+
+```toy
+"hello" len              \ leaves 5
+"hello" dup len          \ leaves "hello" 5
+[ 1 2 3 ] [ len ] keep   \ leaves [1 2 3] 3
+```
+
+### Quotations Carry Code
+
+A vector is also a quotation: a program that can be stored, passed, and run
+later. `dup` runs immediately, `[ dup ]` delays that call, and `'dup` pushes the
+name `dup` as data. Words that expect code can use either a quotation such as
+`[ square ]` or the name of an existing word such as `'square`.
+
+```toy
+[ 1 2 + ] exec       \ leaves 3
+[ 1 2 + ] i          \ same
+
+\ Give a quotation a name to define a new word.
 'square [ dup * ] def
 'cube [ dup square * ] def
 
 5 square print       \ 25
 3 cube print         \ 27
 
-\ Local captures give names to stack values when pure stack code gets dense.
+\ A named word can be passed without wrapping it in a one-item quotation.
+5 'succ 'square bi   \ leaves 6 25
+1 2 4 [ + ] dip      \ leaves 3 4
+5 [ 1 + ] keep       \ leaves 5 6
+```
+
+Names remain data unless a word explicitly treats them as code. Consequently,
+`[ dup ]` is a quotation that calls `dup`, while `[ 'dup ]` is a quotation that
+contains its name. Toy preserves that difference when programs inspect other
+programs:
+
+```toy
+[ dup ] first type-of print    \ call
+[ 'dup ] first type-of print   \ symbol
+```
+
+The first value is a call instruction; the second is a symbol. Most programs do
+not need to construct calls directly, but `>call` makes runtime program
+generation possible when they do. The
+[data-model reference](./docs/data-model.md#names-and-code) describes the exact
+representations and conversions.
+
+### Captures Name Stack Values
+
+Captures offer names when a sequence of stack operations would be harder to
+read:
+
+```toy
 'hypot2 [ | x y | $x $x * $y $y * + ] def
 3 4 hypot2 print     \ 25
 ```
 
-Capture lists contain unique bare names. A capture binds in the current word
-or quotation frame, while `$name` searches active program frames from inner to
-outer. Inner captures shadow outer captures; they do not update them, and
-quotations do not retain captured environments after their frame returns.
-
-### Code Is Data
-
-```toy
-\ Quotations and symbols naming words are first-class callable values.
-[ 1 2 + ] exec       \ leaves 3
-[ 1 2 + ] i          \ same
-'dup                 \ leaves the symbol 'dup as data
-
-\ A bare word in code is a call node; apostrophe creates symbol data.
-[ dup ] first type-of print    \ call
-[ 'dup ] first type-of print   \ symbol
-
-\ Combinators apply callables in different stack contexts.
-1 2 4 [ + ] dip      \ leaves 3 4
-5 [ 1 + ] keep       \ leaves 5 6
-5 'succ 'square bi   \ leaves 6 25
-```
-
-Words that consume deferred code accept compound vector quotations, symbols
-naming words, and extracted or generated call nodes. These representations
-share the callable capability but remain different data: `'dup` is the name
-`dup`, while `[ dup ]` contains a call instruction. Dictionary introspection
-words such as `see`, `doc`, `body`, `word?`, `var?`, and `name` consume symbols
-as names. Vectors are the compound quotation type; linked lists created with
-`( ... )` are data sequences, not callables.
-
-`>symbol` converts text or an extracted call node to a symbol. `>call` performs
-the inverse symbol-to-call conversion when constructing a quotation at runtime:
-
-```toy
-1 [] "dup" >symbol >call push-back exec + print   \ 2
-```
+A capture lives only while its word or quotation is running, although code
+called from inside may read it with `$name`. An inner capture may hide an outer
+one, but it cannot update it, and a returned quotation does not keep captures
+alive like a closure would. Captures clarify the stack; they are not imperative
+variables.
 
 ### Control Is Built from Words
 
@@ -150,12 +169,13 @@ the inverse symbol-to-call conversion when constructing a quotation at runtime:
 ] def
 ```
 
-Predicate callables used by words such as `if`, `while`, `filter`, `split`,
-and `merge` run in a stack sandbox: the boolean result is read, then the
-surrounding stack is restored (for example code inside the conditions does not
-consume the stack). Side effects inside the predicate still happen.
+Predicates used by words such as `if`, `while`, `filter`, `split`, and `merge`
+observe the surrounding stack. For example, `[ 0 > ]` can test the top value
+without consuming it: Toy reads the boolean result and then restores the stack
+that existed before the predicate ran. Output, file writes, and other side
+effects performed by a predicate are not undone.
 
-### Collections Are Native Values
+### Collections Have Different Strengths
 
 ```toy
 \ Vectors are ordered arrays and also the quotation representation.
@@ -166,13 +186,9 @@ consume the stack). Side effects inside the predicate still happen.
 ( 1 2 3 ) uncons            \ leaves 1 (2 3)
 0 ( 1 2 3 ) cons            \ leaves (0 1 2 3)
 
-\ Strings are byte sequences; one string item is a one-byte string.
+\ Strings participate in the same sequence vocabulary.
 "abc" first                 \ leaves "a"
-"abc" last                  \ leaves "c"
 "ab" "c" push-back          \ leaves "abc"
-"abcabc" "bc" index-of      \ leaves 1
-"abc" "bc" contains?        \ leaves true
-63 >char char-code          \ leaves 63
 
 "  alpha,beta,gamma  " trim "," split [ upper ] map "-" join print
 
@@ -183,23 +199,23 @@ consume the stack). Side effects inside the predicate still happen.
 [ [ 10 "low" ] [ 1 "urgent" ] ] >pqueue pairs print
 ```
 
-Vector are indexed and optimized for the back, which makes the perfect
-to represent Toy's data stack itself.
+Vectors provide indexing and efficient operations at the back; lists provide
+cheap operations at the front and can share their tails. Strings are byte
+sequences rather than Unicode strings, so one string item is a one-byte string.
+Maps and sets preserve insertion order, deques support both endpoints, and
+priority queues return the lowest priority first.
 
-Lists are optimized for the front. `cons`, `rest`, and `uncons` are
-constant-time and may share tails. To build a list in forward order without
-repeated linear `push-back`, prepend each item and reverse once:
+Integers are signed 64-bit values and floats use double precision. Mixed
+comparisons preserve exact integer ordering where possible, even when a large
+integer cannot be represented exactly as a double. The
+[data-model reference](./docs/data-model.md) gives the full collection
+contracts and complexity guarantees.
 
-```toy
-( ) [ 1 2 3 4 ] [ swap cons ] fold reverse   \ leaves (1 2 3 4)
-```
+### A Practical Runtime
 
-### Files, Introspection, and More
-
-Toy includes words for file management, introspection, type inspection, system
-calls, and other practical tasks. Introspection words produce data: `see` and
-`doc` push strings rather than printing directly. Explore the vocabulary in the
-table below, or enter `help` followed by `'name doc print` in the REPL.
+Toy includes file and process operations, clocks, environment access, and
+introspection. These words still follow the language's value-oriented style:
+`see` and `doc` return strings instead of deciding how to display them.
 
 ```toy
 "todo.txt" "ship README\nrun tests\n" write-file
@@ -214,77 +230,36 @@ table below, or enter `help` followed by `'name doc print` in the REPL.
 "abc" sequence? print
 
 pwd print
-"TOY_README_MODE" "examples" set-env
-"TOY_README_MODE" env? [ "TOY_README_MODE" get-env print ] if
 "echo from Toy shell" shell [ | out status | $status 0 == [ $out trim print ] if ] exec
-
-monotonic-ns
-50000 [ [ 1 2 + drop ] exec ] times
-monotonic-ns swap - 1000000 / "elapsed: {} ms\n" printf
 ```
 
-Comments use `\` to the end of a line or `/* ... */` for block comments.
+The display words `.`, `.s`, and `.S` are observers: they print without
+changing the stack. `repr` returns an escaped, source-like string
+(makes me think of [quines](toy/examples/quines/quine.toy)).
+`print` writes one value literally with a newline; `printf` interprets `{}` 
+placeholders and adds no newline. Comments use `\` to the end of a line 
+or `/* ... */` for a block.
 
-## What It Supports
+## Documentation and Tooling
 
-- Runtime values: 64-bit integers, double-precision floats, booleans, strings,
-  symbols, call nodes, vectors, lists, maps, sets, deques, and priority queues.
-- Literal syntax: `[ ... ]` for vectors/quotations, `( ... )` for lists,
-  `{ key value ... }` for maps, and `#{ ... }` for sets.
-- Explicit constructors for secondary structures such as `>deque` and
-  `>pqueue`.
-- First-class quotations and symbols for deferred execution, higher-order code,
-  and dictionary introspection.
-- Stack combinators such as `dip`, `keep`, `bi`, `app2`, `linrec`, `binrec`,
-  `genrec`, and `treerec`.
-- Sequence combinators such as `each`, `map`, `fold`, `filter`, `some`, `all`,
-  `split`, and `merge`.
-- Shared sequence words for vectors, lists, and strings when the result type is
-  clear.
-- Representation predicates such as `vector?`, `list?`, `symbol?`, and
-  `call?`, plus capability predicates such as `sequence?` and `callable?`.
-- Local captures with `| name |` and `$name`.
-- File I/O, string manipulation, dictionary introspection, process helpers,
-  time words, and an interactive REPL with history/completion.
-- Numeric literals include 64-bit integers and double-precision floats; decimal
-  float literals also accept exponent notation such as `1e6` and `2.5e-3`.
-- Strings are byte sequences, not Unicode strings. A Toy character is exactly
-  a one-byte string.
+Language references:
 
-## Stack Effects
+- [Combinators](./docs/combinators.md)
+- [Data model](./docs/data-model.md)
 
-Toy words consume their declared inputs by default:
+Editor support:
 
-```toy
-"hello" len          \ leaves 5
-[ 1 2 3 ] first      \ leaves 1
-10 int?              \ leaves true
-```
+- [Tree-sitter](./docs/tree-sitter.md)
+- [LSP](./docs/lsp.md)
+- [Formatter](./docs/formatter.md)
+- [VS Code](./docs/vscode.md)
 
-Use stack words or combinators when a value should be preserved:
+Project development:
 
-```toy
-"hello" dup len      \ leaves "hello" 5
-[ 1 2 3 ] [ len ] keep
-```
-
-Predicate callables used by control and predicate combinators are the main
-exception. Words such as `if`, `while`, `linrec`, `filter`, `split`, and
-`merge` run predicates in a stack sandbox: they read the boolean result and
-restore the surrounding data stack afterward. Side effects performed inside the
-predicate are not undone.
-
-Diagnostic display words are also observers: `.`, `.s`, and `.S` print without
-changing the data stack.
-
-Integers are signed 64-bit values and floats use double precision. Mixed
-numeric comparisons preserve exact integer ordering where possible, including
-when an integer cannot be represented exactly as a double.
-
-Use `repr` to obtain a source-style string with bytes escaped (makes me think
-about [quines](toy/examples/quines/quine.toy)). `print` always prints one value
-literally with a newline, while `printf` explicitly interprets `{}`
-placeholders and does not append a newline.
+- [Benchmarks](./benchmarks/README.md)
+- [Runtime Internals](./docs/runtime-internals.md)
+- [Testing](./docs/testing.md)
+- [Roadmap](./docs/language-roadmap.md)
 
 ## Built-in Words
 
@@ -313,30 +288,9 @@ placeholders and does not append a newline.
 | Time                        | `sleep`, `unix-time`, `local-time`, `utc-time`, `cpu-time`, `monotonic-ns` |
 <!-- END GENERATED BUILTIN TABLE -->
 
-Words are listed under their primary concept even when they support more than
-one representation. For example, `push-back` works on sequences and deques,
-while `pairs` works on maps and priority queues.
-
-Builtin registration and metadata are canonical in `builtins.json`. After
-editing it, run `node tools/generate-builtins.js`; use `--check` to verify that
-the committed generated files are current.
-
-## Tooling
-
-- [REPL](./docs/repl.md)
-- [Tree-sitter](./docs/tree-sitter.md)
-- [LSP](./docs/lsp.md)
-- [Formatter](./docs/formatter.md)
-- [VS Code](./docs/vscode.md)
-
-## Extra
-
-- [Combinator Reference](./docs/combinators.md)
-- [Benchmarks](./benchmarks/README.md)
-- [Data Model Reference](./docs/data-model.md)
-- [Runtime Internals](./docs/runtime-internals.md)
-- [Testing](./docs/testing.md)
-- [Roadmap](./docs/language-roadmap.md)
+Words appear under their main idea even when they work on more than one type.
+For example, `push-back` works on sequences and deques, while `pairs` works on
+maps and priority queues.
 
 ## License
 
