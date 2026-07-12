@@ -79,8 +79,8 @@ try {
     Pop-Location
 }
 
-# 3. Build the LSP and formatter CLI after parser.c exists
-Write-Host "`n[2/4] Building Toy LSP and formatter..." -ForegroundColor Yellow
+# 3. Build the LSP, DAP, and formatter CLIs after parser.c exists
+Write-Host "`n[2/4] Building Toy LSP, DAP, and formatter..." -ForegroundColor Yellow
 Push-Location $LspSrcDir
 try {
     if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
@@ -89,12 +89,17 @@ try {
     Write-Host "Building toy-lsp..."
     go build -o toy-lsp.exe ./cmd/toy-lsp
     Assert-NativeExitCode "toy-lsp build" $LASTEXITCODE
+    Write-Host "Building toy-dap..."
+    go build -o toy-dap.exe ./cmd/toy-dap
+    Assert-NativeExitCode "toy-dap build" $LASTEXITCODE
     Write-Host "Building toyfmt..."
     go build -o toyfmt.exe ./cmd/toyfmt
     Assert-NativeExitCode "toyfmt build" $LASTEXITCODE
     Copy-Item "toy-lsp.exe" -Destination $InstallDir -Force
+    Copy-Item "toy-dap.exe" -Destination $InstallDir -Force
     Copy-Item "toyfmt.exe" -Destination $InstallDir -Force
     Write-Host "LSP installed to: $(Join-Path $InstallDir 'toy-lsp.exe')" -ForegroundColor Green
+    Write-Host "DAP installed to: $(Join-Path $InstallDir 'toy-dap.exe')" -ForegroundColor Green
     Write-Host "Formatter installed to: $(Join-Path $InstallDir 'toyfmt.exe')" -ForegroundColor Green
 } finally {
     Pop-Location
@@ -148,7 +153,13 @@ foreach ($Path in $TsQueryPaths) {
 
 # 5. Output Neovim Configuration
 $LspPathEscaped = (Join-Path $InstallDir "toy-lsp.exe").Replace('\', '\\')
+$DapPathEscaped = (Join-Path $InstallDir "toy-dap.exe").Replace('\', '\\')
 $TsPathEscaped = (Join-Path $InstallDir "tree-sitter-toy").Replace('\', '/')
+$ToyRuntimePath = Join-Path $RepoRoot "build\toy.exe"
+$ToyRuntimePathEscaped = $ToyRuntimePath.Replace('\', '\\')
+if (-not (Test-Path -LiteralPath $ToyRuntimePath)) {
+    Write-Host "Warning: Build Toy before using DAP: $ToyRuntimePath" -ForegroundColor Yellow
+}
 
 Write-Host "`n[4/4] --- Neovim Configuration Snippet ---" -ForegroundColor Cyan
 Write-Host "Add the following to your init.lua:" -ForegroundColor Gray
@@ -188,6 +199,26 @@ vim.api.nvim_create_autocmd("User", {
 })
 
 vim.treesitter.language.register("toy", "toy")
+
+-- Toy Debug Adapter Configuration (requires nvim-dap)
+local dap = require("dap")
+dap.adapters.toy = {
+    type = "executable",
+    command = "$DapPathEscaped",
+    options = { detached = false },
+}
+dap.configurations.toy = {
+    {
+        type = "toy",
+        request = "launch",
+        name = "Debug current Toy file",
+        program = "`${file}",
+        cwd = "`${workspaceFolder}",
+        runtimeExecutable = "$ToyRuntimePathEscaped",
+        stopOnEntry = true,
+        args = {},
+    },
+}
 "@
 
 Write-Host "`n$ConfigSnippet" -ForegroundColor White

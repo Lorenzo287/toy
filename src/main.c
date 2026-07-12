@@ -4,6 +4,7 @@
 #include <signal.h>
 #include "tf_alloc.h"
 #include "tf_console.h"
+#include "tf_debug_protocol.h"
 #include "tf_exec.h"
 #include "tf_lib.h"
 #include "tf_repl.h"
@@ -13,16 +14,15 @@ typedef struct {
     char *eval;
     int script_argc;
     char **script_argv;
-    bool debug, tdb, help, interactive;
+    bool debug, tdb, debug_protocol, help, interactive;
 } cli_config;
 
 static int parse_args(int argc, char **argv, cli_config *config);
 
 int main(int argc, char **argv) {
     signal(SIGINT, tf_vm_handle_sigint);
-    tf_console_init();
 
-    cli_config config = {NULL, NULL, 0, NULL, false, false, false, false};
+    cli_config config = {0};
     tf_ret ret = parse_args(argc, argv, &config);
     if (ret == TF_ERR || config.help) {
         fprintf(stderr, "=== Toy Interpreter ===\n");
@@ -37,9 +37,30 @@ int main(int argc, char **argv) {
         return ret;
     }
 
+    FILE *protocol_output = NULL;
+    if (config.debug_protocol) {
+        protocol_output = tf_debug_protocol_open_output();
+        if (!protocol_output) {
+            fprintf(stderr, "failed to open debug protocol output\n");
+            return TF_ERR;
+        }
+    }
+    tf_console_init();
+
     tf_ctx *ctx = tf_ctx_new(config.script_argc, config.script_argv);
-    if (!ctx) { return TF_ERR; }
-    tf_tdb_set_enabled(ctx, config.tdb);
+    if (!ctx) return TF_ERR;
+
+    tf_debug_protocol *protocol = NULL;
+    if (config.debug_protocol) {
+        protocol = tf_debug_protocol_new(protocol_output, config.filename);
+        if (!protocol) {
+            tf_ctx_free(ctx);
+            return TF_ERR;
+        }
+        tf_debug_protocol_install(ctx, protocol);
+    } else {
+        tf_tdb_set_enabled(ctx, config.tdb);
+    }
 
     tf_ret result = TF_OK;
 
@@ -53,7 +74,13 @@ int main(int argc, char **argv) {
             result = tf_run_file(ctx, config.filename, config.debug);
         }
     }
-    tf_tdb_set_enabled(ctx, false);
+    if (protocol) {
+        tf_debug_protocol_install(ctx, NULL);
+        tf_debug_protocol_finish(protocol, result);
+        tf_debug_protocol_free(protocol);
+    } else {
+        tf_tdb_set_enabled(ctx, false);
+    }
     tf_ctx_free(ctx);
     tf_control_state_cache_clear();
     tf_obj_cache_clear();
@@ -75,6 +102,8 @@ static int parse_args(int argc, char **argv, cli_config *config) {
             config->debug = true;
         } else if (strcmp(argv[i], "--tdb") == 0) {
             config->tdb = true;
+        } else if (strcmp(argv[i], "--debug-protocol") == 0) {
+            config->debug_protocol = true;
         } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             config->help = true;
         } else if (strcmp(argv[i], "--eval") == 0 || strcmp(argv[i], "-e") == 0) {
@@ -93,5 +122,12 @@ static int parse_args(int argc, char **argv, cli_config *config) {
         }
     }
     config->interactive = (config->filename == NULL && config->eval == NULL);
+    if (config->debug_protocol &&
+        (config->interactive || config->eval || config->tdb || config->debug)) {
+        fprintf(stderr,
+                "--debug-protocol requires a file and cannot be combined with "
+                "--debug, --tdb, or --eval\n");
+        return TF_ERR;
+    }
     return TF_OK;
 }

@@ -68,10 +68,12 @@ Keep optimization work benchmark-driven and record durable experiments under
 
 **Status: In progress**
 
-The first tdb slice provides instruction stepping and continuing, data-stack
-inspection, named program-frame backtraces, native-continuation visibility, and
-source locations through a frontend-neutral VM hook. Settle breakpoints and
-debug-session control in tdb before adding editor integration.
+The debugger provides tdb instruction stepping and a first DAP adapter for
+launching files, source breakpoints, step-in/over/out, data-stack inspection,
+named program-frame backtraces, native-continuation visibility, output, and
+source locations. Continue refining shared session semantics, collection
+inspection, breakpoint resolution, and lifecycle control before expanding into
+evaluation, watches, or a standalone graphical frontend.
 
 ## Future Work
 

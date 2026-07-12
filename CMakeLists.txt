@@ -91,6 +91,21 @@ if(BUILD_TESTING)
     foreach(TEST_SOURCE IN LISTS TOY_OUTPUT_TESTS)
         add_toy_test_case("${TEST_SOURCE}" "output" "output")
     endforeach()
+
+    set(DEBUG_PROTOCOL_SOURCE "${TOY_TEST_DIR}/test_debug_protocol.toy")
+    add_test(
+        NAME test_debug_protocol_transport
+        COMMAND "${CMAKE_COMMAND}"
+            "-DTOY_EXECUTABLE=$<TARGET_FILE:toy>"
+            "-DTEST_SOURCE=${DEBUG_PROTOCOL_SOURCE}"
+            "-DTEST_SOURCE_DIR=${TOY_TEST_DIR}"
+            "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/test-work/$<CONFIG>/debug-protocol"
+            -P "${PROJECT_SOURCE_DIR}/cmake/RunDebugProtocol.cmake"
+    )
+    set_tests_properties(test_debug_protocol_transport PROPERTIES
+        LABELS "toy;positive"
+        TIMEOUT "${TOY_TEST_TIMEOUT}"
+    )
 endif()
 
 # ── Baseline warnings ─────────────────────────────────────────────────────────

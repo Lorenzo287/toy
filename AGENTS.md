@@ -35,6 +35,8 @@ navigation and development rules.
 - `tools/tree-sitter-toy/`: Tree-sitter grammar, generated parser inputs,
   queries, and tests.
 - `tools/toy-lsp/`: Go LSP implementation and generated builtin docs.
+- `tools/toy-lsp/internal/dap/`, `tools/toy-lsp/cmd/toy-dap/`: DAP adapter
+  and executable entry point.
 - `tools/toy-lsp/internal/formatter/`: shared formatter used by the CLI
   and LSP formatting method.
 - `tools/vscode-toy/`: VS Code extension and generated grammar metadata.

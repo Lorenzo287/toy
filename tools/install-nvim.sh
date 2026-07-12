@@ -49,8 +49,8 @@ pushd "${TS_SRC_DIR}" > /dev/null
     echo -e "\033[0;32mTree-sitter files installed to: ${TS_DEST}\033[0m"
 popd > /dev/null
 
-# 3. Build the LSP and formatter CLI after parser.c exists
-echo -e "\n\033[0;33m[2/4] Building Toy LSP and formatter...\033[0m"
+# 3. Build the LSP, DAP, and formatter CLIs after parser.c exists
+echo -e "\n\033[0;33m[2/4] Building Toy LSP, DAP, and formatter...\033[0m"
 if ! command -v go &> /dev/null; then
     echo "Error: Go is not installed. Please install Go to build the LSP."
     exit 1
@@ -59,11 +59,15 @@ fi
 pushd "${LSP_SRC_DIR}" > /dev/null
     echo "Building toy-lsp..."
     go build -o toy-lsp ./cmd/toy-lsp
+    echo "Building toy-dap..."
+    go build -o toy-dap ./cmd/toy-dap
     echo "Building toyfmt..."
     go build -o toyfmt ./cmd/toyfmt
     cp toy-lsp "${INSTALL_DIR}/"
+    cp toy-dap "${INSTALL_DIR}/"
     cp toyfmt "${INSTALL_DIR}/"
     echo -e "\033[0;32mLSP installed to: ${INSTALL_DIR}/toy-lsp\033[0m"
+    echo -e "\033[0;32mDAP installed to: ${INSTALL_DIR}/toy-dap\033[0m"
     echo -e "\033[0;32mFormatter installed to: ${INSTALL_DIR}/toyfmt\033[0m"
 popd > /dev/null
 
@@ -104,7 +108,12 @@ done
 
 # 5. Output Neovim Configuration
 LSP_PATH="${INSTALL_DIR}/toy-lsp"
+DAP_PATH="${INSTALL_DIR}/toy-dap"
 TS_PATH="${INSTALL_DIR}/tree-sitter-toy"
+TOY_RUNTIME_PATH="${REPO_ROOT}/build/toy"
+if [ ! -x "${TOY_RUNTIME_PATH}" ]; then
+    echo -e "\033[0;33mWarning: Build Toy before using DAP: ${TOY_RUNTIME_PATH}\033[0m"
+fi
 
 echo -e "\n\033[0;36m[4/4] --- Neovim Configuration Snippet ---\033[0m"
 echo -e "\033[0;90mAdd the following to your init.lua:\033[0m"
@@ -145,6 +154,25 @@ vim.api.nvim_create_autocmd("User", {
 })
 
 vim.treesitter.language.register("toy", "toy")
+
+-- Toy Debug Adapter Configuration (requires nvim-dap)
+local dap = require("dap")
+dap.adapters.toy = {
+    type = "executable",
+    command = "$DAP_PATH",
+}
+dap.configurations.toy = {
+    {
+        type = "toy",
+        request = "launch",
+        name = "Debug current Toy file",
+        program = "\${file}",
+        cwd = "\${workspaceFolder}",
+        runtimeExecutable = "$TOY_RUNTIME_PATH",
+        stopOnEntry = true,
+        args = {},
+    },
+}
 EOF
 
 echo -e "\n\033[0;33mAfter updating your config, restart Neovim and run :TSInstall! toy\033[0m"

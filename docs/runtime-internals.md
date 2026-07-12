@@ -51,9 +51,11 @@ instruction events. Frame views expose stable word labels, PCs, program lengths,
 call sites, and current locations without giving frontends mutable VM access.
 
 The first frontend is the terminal debugger, tdb, available from the REPL and
-through `--tdb` for files and evaluated source. Editor integration can use the
-same hook and frame-view API after stepping and breakpoint semantics are
-settled.
+through `--tdb` for files and evaluated source. A machine frontend uses the
+same hook for `toy-dap`. Its private record-separated stream multiplexes paused
+snapshots with ordinary Toy output; the Go adapter translates those records to
+DAP without parsing tdb's human-oriented text. The machine session currently
+owns source-breakpoint filtering and step-in/over/out depth control.
 
 ## Object Layout
 

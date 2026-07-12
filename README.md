@@ -252,6 +252,7 @@ Editor support:
 
 - [Tree-sitter](./docs/tree-sitter.md)
 - [LSP](./docs/lsp.md)
+- [Debugger adapter](./docs/dap.md)
 - [Formatter](./docs/formatter.md)
 - [VS Code](./docs/vscode.md)
 
