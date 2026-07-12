@@ -15,11 +15,11 @@ cmake --build build
 Useful first commands:
 
 ```text
-toy:: help
-toy:: 'map doc print
-toy:: 'map see print
-toy:: "priority" search-words
-toy:: words
+toy> help
+toy> 'map doc print
+toy> 'map see print
+toy> "priority" search-words
+toy> words
 ```
 
 The catalog groups words by primary concept, not by implementation file. Shared
@@ -43,10 +43,10 @@ Captures created with `| ... |` live only while the word or quotation that
 created them is running. They do not become persistent REPL variables:
 
 ```text
-toy:: 5 |a| $a print
+toy> 5 |a| $a print
 5
-toy:: 5 |a|
-toy:: $a print
+toy> 5 |a|
+toy> $a print
 runtime error: undefined variable '$a'
 ```
 

@@ -138,7 +138,7 @@ tf_ret tf_stack(tf_ctx *ctx) {
     size_t len = tf_stack_len(ctx);
     printf("<%zu> ", len);
     for (size_t i = 0; i < len; i++) {
-        tf_obj_print_value(tf_stack_peek(ctx, len - 1 - i));
+        tf_obj_print_value_colored(tf_stack_peek(ctx, len - 1 - i));
         printf(" ");
     }
     printf("\n");
@@ -149,7 +149,7 @@ tf_ret tf_stack_source(tf_ctx *ctx) {
     size_t len = tf_stack_len(ctx);
     printf("<%zu> ", len);
     for (size_t i = 0; i < len; i++) {
-        tf_obj_print_source(tf_stack_peek(ctx, len - 1 - i));
+        tf_obj_print_source_colored(tf_stack_peek(ctx, len - 1 - i));
         printf(" ");
     }
     printf("\n");

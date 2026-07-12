@@ -196,7 +196,7 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
 
     reset_state(&state);
     init_repl_ui(ctx);
-    printf("%s=== Toy REPL ===%s\n", tf_console_clr(TF_CLR_PROMPT),
+    printf("%sToy REPL%s\n", tf_console_clr(TF_CLR_RESET),
            tf_console_clr(TF_CLR_RESET));
     printf(
         "%sType 'help' for words, 'hints' to toggle hints, or 'trace' to "
@@ -285,7 +285,7 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
                 }
                 if (stack_len > 0) printf(" ");
                 for (size_t i = 0; i < stack_len; i++) {
-                    tf_obj_print_display(tf_stack_peek(ctx, stack_len - 1 - i));
+                    tf_obj_print_display_colored(tf_stack_peek(ctx, stack_len - 1 - i));
                     if (i < stack_len - 1) printf(" ");
                 }
                 printf("\n");
@@ -440,8 +440,8 @@ static void repl_free_hints(void *ptr) {
 
 static char *read_repl_line(bool complete) {
     errno = 0;
-    return linenoise(complete ? TF_CLR_PROMPT "toy:: " TF_CLR_RESET
-                              : TF_CLR_PROMPT "...:: " TF_CLR_RESET);
+    return linenoise(complete ? TF_CLR_RESET "toy> " TF_CLR_RESET
+                              : TF_CLR_RESET "...> " TF_CLR_RESET);
 }
 
 static bool append_text(char **buf, size_t *len, size_t *cap, const char *text) {

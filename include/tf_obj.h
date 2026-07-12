@@ -231,5 +231,8 @@ void tf_obj_print(tf_obj *o, size_t *count);
 void tf_obj_print_value(tf_obj *o);
 void tf_obj_print_display(tf_obj *o);
 void tf_obj_print_source(tf_obj *o);
+void tf_obj_print_value_colored(tf_obj *o);
+void tf_obj_print_display_colored(tf_obj *o);
+void tf_obj_print_source_colored(tf_obj *o);
 
 #endif  // TF_OBJ_H
