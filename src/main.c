@@ -60,7 +60,6 @@ int main(int argc, char **argv) {
 #endif
 
 #ifdef STB_LEAKCHECK
-    printf("\n=== stb_leakcheck_dumpmem output ===\n");
     stb_leakcheck_dumpmem();
 #endif
     return result;

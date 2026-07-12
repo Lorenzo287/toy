@@ -6,3 +6,20 @@
 'square body [ dup * ] == check
 'square see "'square [ dup * ] def" == check
 'square doc "'square [ dup * ] def" == check
+
+\ Repeated execution resolves the same call object through the lookup cache.
+'cache-target [ 1 ] def
+'cache-run [ cache-target ] def
+10 [ cache-run 1 == check ] times
+
+\ Redefinition keeps the dictionary entry index but changes its implementation.
+'cache-target [ 2 ] def
+10 [ cache-run 2 == check ] times
+
+\ Dynamically created call objects may reuse released object-cache addresses.
+'cache-one [ 1 ] def
+'cache-two [ 2 ] def
+100 [
+    'cache-one >call exec 1 == check
+    'cache-two >call exec 2 == check
+] times

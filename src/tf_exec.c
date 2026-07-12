@@ -12,6 +12,9 @@
 #define TF_CALL_STACK_INITIAL_CAP 8
 #define TF_CAPTURE_INITIAL_CAP 4
 
+_Static_assert((TF_WORD_LOOKUP_CACHE_CAP & (TF_WORD_LOOKUP_CACHE_CAP - 1)) == 0,
+               "word lookup cache capacity must be a power of two");
+
 /* === Data Stack === */
 
 size_t tf_stack_len(tf_ctx *ctx) {
@@ -357,6 +360,7 @@ tf_ctx *tf_ctx_new(int argc, char **argv) {
     ctx->words.capacity = word_table_capacity_for(builtin_count);
     ctx->words.count = 0;
     ctx->words.buckets = tf_xcalloc(ctx->words.capacity, sizeof(size_t));
+    memset(ctx->words.lookup_cache, 0, sizeof(ctx->words.lookup_cache));
     ctx->call_stack = NULL;
     ctx->call_stack_len = 0;
     ctx->call_stack_cap = 0;
@@ -457,7 +461,31 @@ tf_word *tf_dict_lookup(tf_ctx *ctx, tf_obj *name) {
                   name->type != TF_OBJ_TYPE_CALL)) {
         return NULL;
     }
-    return tf_dict_lookup_name(ctx, name->str.ptr, name->str.len);
+
+    uintptr_t object_key = (uintptr_t)name;
+    uintptr_t mixed_key = object_key >> 4;
+    mixed_key ^= mixed_key >> 7;
+    mixed_key ^= mixed_key >> 13;
+    size_t slot = mixed_key & (TF_WORD_LOOKUP_CACHE_CAP - 1);
+    uintptr_t cached_key = ctx->words.lookup_cache[slot].key;
+    size_t entry_index = ctx->words.lookup_cache[slot].entry_index;
+    if (cached_key == object_key && entry_index < ctx->words.count) {
+        tf_word *word = &ctx->words.entries[entry_index];
+        if (word->name_len == name->str.len &&
+            memcmp(word->name, name->str.ptr, name->str.len) == 0) {
+            return word;
+        }
+    }
+
+    tf_word *word = tf_dict_lookup_name(ctx, name->str.ptr, name->str.len);
+    if (word) {
+        ctx->words.lookup_cache[slot].key = object_key;
+        ctx->words.lookup_cache[slot].entry_index =
+            (size_t)(word - ctx->words.entries);
+    } else {
+        ctx->words.lookup_cache[slot].key = 0;
+    }
+    return word;
 }
 
 tf_word *tf_dict_lookup_name(tf_ctx *ctx, const char *name, size_t len) {

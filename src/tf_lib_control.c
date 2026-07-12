@@ -7,6 +7,7 @@
 
 #define TF_CONTROL_STATE_BLOCK_SIZE 512
 #define TF_CONTROL_STATE_CACHE_LIMIT 128
+#define TF_FILTER_VECTOR_RESERVE_CAP 64
 
 typedef struct control_state_cache_node {
     struct control_state_cache_node *next;
@@ -1158,6 +1159,14 @@ static tf_ret filter_step(tf_ctx *ctx, void *state, bool *done) {
             } else if (s->list_result) {
                 tf_list_builder_push_owned(&s->list_builder, s->current);
             } else {
+                /* Keep tiny sparse results inline and cap speculative reserve. */
+                if (s->vector_result->vector.len == TF_VECTOR_INLINE_CAP) {
+                    size_t reserve = sequence_len(s->seq);
+                    if (reserve > TF_FILTER_VECTOR_RESERVE_CAP) {
+                        reserve = TF_FILTER_VECTOR_RESERVE_CAP;
+                    }
+                    tf_vector_reserve(s->vector_result, reserve);
+                }
                 tf_vector_push(s->vector_result, s->current);
             }
         } else {

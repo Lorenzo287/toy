@@ -24,6 +24,8 @@ typedef struct {
 } tf_builtin_group;
 
 typedef enum { TF_WORD_NATIVE, TF_WORD_USER } tf_word_kind;
+#define TF_WORD_LOOKUP_CACHE_CAP 64
+
 /*
  * Global dictionary entry.
  *
@@ -46,6 +48,9 @@ typedef struct {
  * Open-addressed global word dictionary.
  *
  * Definitions live in a dense array; buckets store one-based entry indexes.
+ * The direct-mapped lookup cache also stores entry indexes because the dense
+ * array may move during dictionary mutation. Cache keys are non-owning object
+ * addresses stored as integers so released objects are never dereferenced.
  * A tf_word* returned by tf_dict_lookup() is transient and must not be retained
  * across dictionary mutation.
  */
@@ -55,6 +60,10 @@ typedef struct {
     size_t *buckets;
     size_t capacity;
     size_t count;
+    struct {
+        uintptr_t key;
+        size_t entry_index;
+    } lookup_cache[TF_WORD_LOOKUP_CACHE_CAP];
 } tf_word_table;
 
 typedef struct {

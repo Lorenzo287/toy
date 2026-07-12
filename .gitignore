@@ -1,5 +1,6 @@
 # Build directories
 build/
+build-alloc/
 build-prof/
 build-leak/
 build-linux/

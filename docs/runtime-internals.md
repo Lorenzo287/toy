@@ -17,6 +17,11 @@ the C call stack. The main loop keeps processing frames until no work remains.
 - Program frames point at vector quotations and keep a program counter.
 - Program traversal dispatches call instructions. Symbols are pushed as name
   values; a word such as `exec` may later use a symbol to choose code to run.
+- Resolved call and symbol objects use a 64-entry direct-mapped lookup cache.
+  Cache entries store stable dense dictionary indexes rather than pointers into
+  the movable entry array. Hits verify the current name bytes because released
+  objects may later reuse the same address; redefining a word updates its
+  existing indexed entry and remains visible through the cache.
 - Native continuation frames resume C native words after a callable has run.
 - New native words that execute user code should schedule frames or
   continuations, not call `tf_vm_exec()` recursively.
@@ -42,6 +47,9 @@ Important object-level optimizations:
 - released `tf_obj` records can be reused through a bounded object cache;
 - many update-style words mutate only when `refcount == 1`, otherwise they
   clone first to preserve value semantics.
+- vector `filter` results keep up to two matches inline, then reserve at most
+  64 slots based on input length to avoid repeated geometric growth without
+  retaining unbounded excess capacity for sparse results.
 
 These choices are intentionally invisible to Toy code.
 
