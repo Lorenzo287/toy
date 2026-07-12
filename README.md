@@ -17,7 +17,7 @@ course. Only recently I found Toy's close relative: [Aocla](https://github.com/a
 The capture and quoting ideas antirez briefly mentioned in the course seem to come from there, 
 but I ended up with an implementation that is quite different, since at the time I had not 
 discovered it yet. Toy's REPL also uses antirez's
-[`linenoise`](https://github.com/antirez/linenoise) library.
+[linenoise](https://github.com/antirez/linenoise) library.
 
 ## A Quick Look
 
