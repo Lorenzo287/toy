@@ -146,11 +146,11 @@ static const char *source_basename(const char *path) {
     return name;
 }
 
-static void ctx_print_error_stack(tf_ctx *ctx) {
+static void ctx_print_error_stack(tf_ctx *ctx, const char *color) {
     size_t len = tf_stack_len(ctx);
     size_t start = len > TF_ERROR_STACK_LIMIT ? len - TF_ERROR_STACK_LIMIT : 0;
 
-    fprintf(stderr, "  stack %s<%zu>%s", tf_console_clr(TF_CLR_ERR), len, 
+    fprintf(stderr, "  stack %s<%zu>%s", tf_console_clr(color), len, 
 			tf_console_clr(TF_CLR_RESET));
     if (start > 0) fprintf(stderr, " ...");
     for (size_t i = start; i < len; i++) {
@@ -206,8 +206,8 @@ static void ctx_print_error_frames(tf_ctx *ctx) {
     }
 }
 
-static void ctx_print_error_context(tf_ctx *ctx) {
-    ctx_print_error_stack(ctx);
+static void ctx_print_error_context(tf_ctx *ctx, const char* color) {
+    ctx_print_error_stack(ctx, color);
     ctx_print_error_frames(ctx);
 }
 
@@ -227,7 +227,7 @@ static void ctx_diagnostic_vf(tf_ctx *ctx, const char *label, const char *color,
                 source_basename(tf_source_file_name(span.source)),
                 (size_t)span.line, (size_t)span.col);
     }
-    ctx_print_error_context(ctx);
+    ctx_print_error_context(ctx, color);
 }
 
 void tf_ctx_runtime_errorf(tf_ctx *ctx, const char *fmt, ...) {
