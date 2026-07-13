@@ -682,6 +682,10 @@ var builtinDocs = map[string]builtinDoc{
 		StackEffect: "'name block --",
 		Description: "Bind a symbol to a block definition.",
 	},
+	"export": {
+		StackEffect: "'name --",
+		Description: "Make a word from the current module visible through its qualified name.",
+	},
 	"word?": {
 		StackEffect: "symbol -- bool",
 		Description: "Check whether a symbol names a dictionary word.",
@@ -760,7 +764,15 @@ var builtinDocs = map[string]builtinDoc{
 	},
 	"load": {
 		StackEffect: "path --",
-		Description: "Load and execute a Toy source file in the current context.",
+		Description: "Load and execute a Toy source file in the current context, resolving relative paths beside the loading source first.",
+	},
+	"require": {
+		StackEffect: "module --",
+		Description: "Load a named Toy module once and make its exports available through qualified names.",
+	},
+	"require-as": {
+		StackEffect: "module 'alias --",
+		Description: "Load a named Toy module once and bind a qualified-name alias in the current module.",
 	},
 	"read-file": {
 		StackEffect: "path -- string",

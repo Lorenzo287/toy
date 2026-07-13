@@ -7,7 +7,7 @@ import (
 
 // sourceLexer mirrors the token-boundary rules in src/tf_lexer.c. Tree-sitter
 // remains the formatter's structural parser, but its lexical choices are not
-// lossless for adjacency such as 1-2 or foo/bar. Rendering from these spans
+// lossless for adjacency such as 1-2 or foo::bar. Rendering from these spans
 // ensures that inserting whitespace cannot split or merge runtime tokens.
 type sourceLexer struct {
 	source          []byte
@@ -104,6 +104,9 @@ func (lexer *sourceLexer) scanUntil(terminator byte) (int, error) {
 			err = lexer.scanPrefixedSymbol('$')
 		case current == '\'':
 			err = lexer.scanPrefixedSymbol('\'')
+		case current == '/':
+			lexer.appendAtom(lexer.pos, lexer.pos+1)
+			lexer.pos++
 		case (current == '-' || current == '+') &&
 			(isASCIIDigit(lexer.peek(1)) ||
 				(lexer.peek(1) == '.' && isASCIIDigit(lexer.peek(2)))):
@@ -205,13 +208,13 @@ func (lexer *sourceLexer) scanNumber() error {
 func (lexer *sourceLexer) scanSymbol() error {
 	start := lexer.pos
 	for isSymbolByte(lexer.peek(0)) {
-		if lexer.peek(0) == '/' && lexer.peek(1) == '*' {
-			break
-		}
 		lexer.pos++
 	}
 	if lexer.pos == start {
 		return lexer.errorAt(start, "expected symbol")
+	}
+	if err := lexer.validateNamespaceName(start, lexer.pos); err != nil {
+		return err
 	}
 	lexer.appendAtom(start, lexer.pos)
 	return nil
@@ -221,22 +224,47 @@ func (lexer *sourceLexer) scanPrefixedSymbol(prefix byte) error {
 	start := lexer.pos
 	lexer.pos++
 	symbolStart := lexer.pos
-	for isSymbolByte(lexer.peek(0)) {
-		if lexer.peek(0) == '/' && lexer.peek(1) == '*' {
-			break
-		}
+	if lexer.peek(0) == '/' {
 		lexer.pos++
+	} else {
+		for isSymbolByte(lexer.peek(0)) {
+			lexer.pos++
+		}
 	}
 	if lexer.pos == symbolStart {
 		return lexer.errorAt(start, fmt.Sprintf("expected symbol name after %q", prefix))
+	}
+	if err := lexer.validateNamespaceName(symbolStart, lexer.pos); err != nil {
+		return err
 	}
 	if prefix == '$' {
 		name := string(lexer.source[symbolStart:lexer.pos])
 		if name == "true" || name == "false" {
 			return lexer.errorAt(start, "expected variable name after '$'")
 		}
+		if name == "/" || bytes.Contains(lexer.source[symbolStart:lexer.pos], []byte("::")) {
+			return lexer.errorAt(start, "capture names cannot be namespace-qualified")
+		}
 	}
 	lexer.appendAtom(start, lexer.pos)
+	return nil
+}
+
+func (lexer *sourceLexer) validateNamespaceName(start, end int) error {
+	name := lexer.source[start:end]
+	if len(name) == 1 && name[0] == '/' {
+		return nil
+	}
+	for index := 0; index < len(name); index++ {
+		if name[index] != ':' {
+			continue
+		}
+		if index == 0 || index+1 >= len(name) || name[index+1] != ':' ||
+			index+2 >= len(name) || name[index+2] == ':' {
+			return lexer.errorAt(start+index, "namespace separators must be written as '::' between names")
+		}
+		index++
+	}
 	return nil
 }
 
@@ -394,7 +422,7 @@ func isASCIIHex(value byte) bool {
 
 func isSymbolByte(value byte) bool {
 	return isASCIIAlpha(value) || isASCIIDigit(value) || value == '_' ||
-		value == '+' || value == '-' || value == '*' || value == '/' ||
+		value == '+' || value == '-' || value == '*' || value == ':' ||
 		value == '%' || value == '<' || value == '>' || value == '=' ||
 		value == '!' || value == '.' || value == '?'
 }

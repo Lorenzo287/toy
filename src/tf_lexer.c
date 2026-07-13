@@ -70,7 +70,7 @@ static void lexer_errorf(tf_lexer *lexer, const char *fmt, ...) {
 int tf_lexer_is_symbol_char(int c) {
     if (c == '\0') return 0;
     unsigned char uc = (unsigned char)c;
-    const char *sym_chars = "+-*/%<>=!.?";
+    const char *sym_chars = "+-*%<>=!.?:";
     return isalpha(uc) || isdigit(uc) || c == '_' || strchr(sym_chars, uc) != NULL;
 }
 
@@ -87,6 +87,7 @@ static int lexer_starts_signed_number(tf_lexer *lexer);
 static int lexer_at_token_boundary(tf_lexer *lexer);
 static int lexer_is_structural_char(int c);
 static int lexer_skip_block_comment(tf_lexer *lexer);
+static int lexer_name_is_valid(tf_lexer *lexer, const char *name, size_t len);
 
 static int hex_value(int c) {
     if (c >= '0' && c <= '9') return c - '0';
@@ -215,9 +216,17 @@ static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
             lexer_advance(lexer);
             o = lexer_tokenize_name(lexer);
             if (o) {
-                o->type = TF_OBJ_TYPE_VARFETCH;
-                lexer_finish_span(lexer, &span);
-                tf_obj_set_span(o, span);
+                if (memchr(o->str.ptr, ':', o->str.len) ||
+                    (o->str.len == 1 && o->str.ptr[0] == '/')) {
+                    lexer_errorf(lexer,
+                                 "capture names cannot be namespace-qualified\n");
+                    tf_obj_release(o);
+                    o = NULL;
+                } else {
+                    o->type = TF_OBJ_TYPE_VARFETCH;
+                    lexer_finish_span(lexer, &span);
+                    tf_obj_set_span(o, span);
+                }
             } else if (!lexer->error) {
                 lexer_errorf(lexer, "expected variable name after '$'\n");
             }
@@ -236,6 +245,8 @@ static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
                    (isdigit((unsigned char)lexer->pos[1]) ||
                     (lexer->pos[1] == '.' &&
                      isdigit((unsigned char)lexer->pos[2])))) {
+            o = lexer_tokenize_single_char_call(lexer);
+        } else if (lexer->pos[0] == '/') {
             o = lexer_tokenize_single_char_call(lexer);
         } else if (tf_lexer_is_symbol_char(lexer->pos[0])) {
             o = lexer_tokenize_bare_token(lexer);
@@ -284,6 +295,12 @@ static int lexer_normalize_capture_names(tf_lexer *lexer, tf_obj *names) {
                              name->str.ptr);
                 return 0;
             }
+        }
+        if (memchr(name->str.ptr, ':', name->str.len) ||
+            (name->str.len == 1 && name->str.ptr[0] == '/')) {
+            lexer_errorf(lexer,
+                         "capture names cannot be namespace-qualified\n");
+            return 0;
         }
     }
     for (size_t i = 0; i < names->vector.len; i++) {
@@ -382,16 +399,33 @@ static tf_obj *lexer_tokenize_single_char_call(tf_lexer *lexer) {
 static tf_obj *lexer_tokenize_name(tf_lexer *lexer) {
     tf_source_span span = lexer_mark(lexer);
     const char *start = lexer->pos;
-    while (tf_lexer_is_symbol_char(lexer->pos[0])) {
-        if (lexer->pos[0] == '/' && lexer->pos[1] == '*') break;
+    if (lexer->pos[0] == '/') {
         lexer_advance(lexer);
+    } else {
+        while (tf_lexer_is_symbol_char(lexer->pos[0])) lexer_advance(lexer);
     }
     size_t sym_len = (size_t)(lexer->pos - start);
     if (sym_len == 0) return NULL;
+    if (!lexer_name_is_valid(lexer, start, sym_len)) return NULL;
     tf_obj *o = tf_obj_new_symbol(start, sym_len);
     lexer_finish_span(lexer, &span);
     tf_obj_set_span(o, span);
     return o;
+}
+
+static int lexer_name_is_valid(tf_lexer *lexer, const char *name, size_t len) {
+    if (len == 1 && name[0] == '/') return 1;
+    for (size_t i = 0; i < len; i++) {
+        if (name[i] != ':') continue;
+        if (i == 0 || i + 1 >= len || name[i + 1] != ':' ||
+            i + 2 >= len || name[i + 2] == ':') {
+            lexer_errorf(lexer,
+                         "namespace separators must be written as '::' between names\n");
+            return 0;
+        }
+        i++;
+    }
+    return 1;
 }
 
 static tf_obj *lexer_tokenize_bare_token(tf_lexer *lexer) {

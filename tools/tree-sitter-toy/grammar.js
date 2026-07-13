@@ -65,7 +65,7 @@ export default grammar({
     )),
     quoted_symbol: $ => seq(
       "'",
-      alias(choice('/', /[a-zA-Z0-9_+\-*%<>=!.?]+/), $.symbol_name)
+      alias(choice('/', /[a-zA-Z0-9_+\-*%<>=!.?]+(?:::[a-zA-Z0-9_+\-*%<>=!.?]+)*/), $.symbol_name)
     ),
     var_fetch: $ => seq(
       '$',
@@ -97,6 +97,6 @@ export default grammar({
       repeat(choice($._non_capture_expression, $._comment)),
       '|',
     ),
-    word: $ => /[a-zA-Z_+\-*%<>=!.?][a-zA-Z0-9_+\-*%<>=!.?]*/,
+    word: $ => /[a-zA-Z_+\-*%<>=!.?][a-zA-Z0-9_+\-*%<>=!.?]*(?:::[a-zA-Z_+\-*%<>=!.?][a-zA-Z0-9_+\-*%<>=!.?]*)*/,
   }
 });

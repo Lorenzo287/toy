@@ -3,7 +3,7 @@
 Toy builds a static `toy_runtime` library alongside the `toy` command-line
 executable. The experimental version-zero API in `include/toy.h` lets a C host
 create an interpreter state, evaluate source, call Toy words, inspect primitive
-stack values, and register synchronous native words.
+stack values, and register synchronous native words or modules.
 
 The API is intentionally small and does not yet promise source or binary
 compatibility between releases.
@@ -57,6 +57,42 @@ The main statuses are:
 - `TOY_EXIT_REQUESTED`: Toy executed `exit`; the host decides whether its
   process should terminate.
 
+## Native Modules
+
+A descriptor groups local C word names under one Toy module:
+
+```c
+static const toy_native_word host_words[] = {
+    {"log", host_log},
+    {"double", host_double},
+};
+
+static const toy_native_module host_module = {
+    "host",
+    host_words,
+    sizeof(host_words) / sizeof(host_words[0]),
+};
+
+toy_register_native_module(state, &host_module);
+```
+
+Registration copies the names, validates the entire descriptor before making
+changes, exports every word, and marks the module loaded. Toy can therefore use
+the ordinary module vocabulary without a `host.toy` file:
+
+```toy
+"host" require
+21 host::double
+
+"host" 'h require-as
+"ready" h::log
+```
+
+Module names and namespace ownership cannot collide with source modules or
+previously registered qualified words. The callback functions themselves must
+remain valid for the lifetime of the state. `toy_register_native()` remains
+available for standalone words that do not need module identity.
+
 ## Stack and Ownership
 
 Depth zero addresses the top of the data stack. Getters borrow a value without
@@ -90,7 +126,7 @@ host inspects or repairs its stack.
 - the normal filesystem, environment, process, and shell builtins are enabled;
 - the runtime uses bounded process-global allocation caches;
 - only primitive public stack access is available;
-- there is no shared-library ABI, native module loader, foreign resource type,
-  or dynamic FFI yet.
+- there is no shared-library ABI or loader, foreign resource type, or dynamic
+  FFI yet.
 
 The focused C regression is `tests/c/test_embed_api.c`.

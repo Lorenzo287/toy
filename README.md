@@ -125,7 +125,7 @@ programs:
 The first value is a call instruction; the second is a symbol. Most programs do
 not need to construct calls directly, but `>call` makes runtime program
 generation possible when they do (see
-[homoiconicity](https://en.wikipedia.org/wiki/Homoiconicity). The
+[homoiconicity](https://en.wikipedia.org/wiki/Homoiconicity)). The
 [data-model reference](./docs/data-model.md#names-and-code) describes the exact
 representations and conversions.
 
@@ -244,19 +244,49 @@ changing the stack. `repr` returns an escaped, source-like string
 placeholders and adds no newline. Comments use `\` to the end of a line 
 or `/* ... */` for a block.
 
+## Modules
+
+`require` loads a Toy source module once. Definitions are private by default;
+`export` makes selected words available through `::` qualified names:
+
+```toy
+\ math.toy
+'double [ 2 * ] def
+'helper [ 1 + ] def
+'double export
+
+\ app.toy
+"math" require
+21 math::double print   \ 42
+
+\ An alias is local to this importing file/module.
+"math" 'm require-as
+21 m::double print      \ 42
+```
+
+The module name maps to its source path, so `"util::math" require` looks for
+`util/math.toy`, first beside the importing file and then from the current
+working directory. Code inside a module uses its own words without a prefix,
+and quotations keep that module context when passed elsewhere. Cyclic imports
+and access to private words are errors. `load` remains available when a file
+should simply execute in the caller's context without module isolation or
+load-once behavior; its relative paths use the same source-directory-first
+resolution. This also makes `tdb` followed by `"program.toy" load` useful for
+repeated edit–reload–debug sessions in the REPL.
+
 ## Embedding and Native Interop
 
 Toy can be embedded as a static C runtime. The API currently lets
 a host create interpreter states, evaluate Toy source, call Toy words,
-exchange primitive stack values, and register C functions as native words. The
+exchange primitive stack values, and register C functions individually or as
+native modules. The
 [embedding guide](./docs/embedding.md) defines the execution and ownership
 rules, while [`examples/c/embed.c`](./examples/c/embed.c) shows both call
 directions in a complete host.
 
 This boundary is the foundation for handwritten library bindings, such as a
-Raylib integration, and possible later work on native modules and dynamic FFI.
-Those additional layers are not implemented yet and their design remains
-exploratory.
+Raylib integration. Native modules now share source-module naming, `require`,
+and aliases; dynamic library loading and general FFI remain exploratory.
 
 ## Built-in Words
 
@@ -278,9 +308,9 @@ exploratory.
 | Set Algebra                 | `union`, `intersection`, `difference`, `symmetric-difference`, `subset?`, `proper-subset?`, `superset?`, `proper-superset?`, `disjoint?` |
 | Priority Queues             | `>pqueue`, `pq-push`, `pq-peek`, `pq-pop` |
 | Types                       | `type-of`, `bool?`, `int?`, `float?`, `string?`, `symbol?`, `call?`, `vector?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `number?`, `sequence?`, `callable?` |
-| Definitions / Introspection | `def`, `word?`, `var?`, `body`, `>symbol`, `>call`, `name`, `words`, `see`, `doc`, `search-words`, `repr` |
+| Definitions / Introspection | `def`, `export`, `word?`, `var?`, `body`, `>symbol`, `>call`, `name`, `words`, `see`, `doc`, `search-words`, `repr` |
 | Console                     | `printf`, `print`, `.`, `.s`, `.S`, `read-key`, `read-line`, `clear` |
-| Files                       | `load`, `read-file`, `write-file`, `delete-file`, `read-lines`, `file-exists?` |
+| Files                       | `load`, `require`, `require-as`, `read-file`, `write-file`, `delete-file`, `read-lines`, `file-exists?` |
 | Environment / Processes     | `argc`, `argv`, `env?`, `get-env`, `set-env`, `pwd`, `shell`, `exit` |
 | Time                        | `sleep`, `unix-time`, `local-time`, `utc-time`, `cpu-time`, `monotonic-ns` |
 <!-- END GENERATED BUILTIN TABLE -->

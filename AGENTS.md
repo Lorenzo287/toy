@@ -2,9 +2,9 @@
 
 Toy is a small concatenative language/runtime in C. It has a stack-based
 execution model, first-class quotations and symbols, explicit call nodes,
-refcounted collection objects, dynamic captures (`| a b |` / `$a`), a generated
-builtin registry, a global word dictionary, and an iterative VM frame stack for
-user words.
+refcounted collection objects, dynamic captures (`| a b |` / `$a`), source
+modules with `::` qualified exports, a generated builtin registry, a scoped
+word dictionary, and an iterative VM frame stack for user words.
 
 Roadmap work lives in `docs/language-roadmap.md`. Keep this file focused on
 navigation and development rules.
@@ -52,8 +52,11 @@ navigation and development rules.
 - Native word registry: generated grouped tables in `src/tf_builtins.inc`,
   included by `src/tf_exec.c` and registered by `tf_ctx_new()`.
 - Native declarations: `include/tf_lib.h`.
-- Experimental public C API: `include/toy.h`, implemented by `src/toy.c`.
+- Experimental public C and native-module API: `include/toy.h`, implemented by
+  `src/toy.c`.
 - Execution engine: `include/tf_exec.h`, `src/tf_exec.c`.
+- Module registry and scoped lookup: `include/tf_exec.h`, `src/tf_exec.c`;
+  module loading and path resolution: `src/tf_lib_io.c`.
 - Shared debugger run control: `include/tf_debug_control.h`,
   `src/tf_debug_control.c`.
 - Read-only debugger frame, capture, and word views: `include/tf_exec.h`,

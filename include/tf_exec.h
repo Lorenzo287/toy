@@ -44,6 +44,39 @@ typedef struct {
 
 typedef enum { TF_WORD_NATIVE, TF_WORD_USER } tf_word_kind;
 #define TF_WORD_LOOKUP_CACHE_CAP 64
+#define TF_ROOT_MODULE 0
+
+typedef enum {
+    TF_MODULE_LOADING,
+    TF_MODULE_LOADED,
+    TF_MODULE_FAILED
+} tf_module_state;
+
+typedef struct {
+    char *name;
+    size_t name_len;
+    char *path;
+    tf_module_state state;
+} tf_module;
+
+typedef struct {
+    tf_module *entries;
+    size_t len;
+    size_t cap;
+} tf_module_table;
+
+typedef struct {
+    char *name;
+    size_t name_len;
+    size_t owner_module_index;
+    size_t target_module_index;
+} tf_module_alias;
+
+typedef struct {
+    tf_module_alias *entries;
+    size_t len;
+    size_t cap;
+} tf_module_alias_table;
 
 /*
  * Global dictionary entry.
@@ -56,6 +89,8 @@ typedef struct {
     const char *name;
     size_t name_len;
     bool owns_name;
+    size_t module_index;
+    bool exported;
     tf_word_kind type;
     union {
         tf_native_fn native_impl;
@@ -81,6 +116,7 @@ typedef struct {
     size_t count;
     struct {
         uintptr_t key;
+        size_t module_index;
         size_t entry_index;
     } lookup_cache[TF_WORD_LOOKUP_CACHE_CAP];
 } tf_word_table;
@@ -107,6 +143,7 @@ typedef enum {
 typedef struct {
     tf_obj *program;
     size_t pc;
+    size_t module_index;
     tf_var_table vars;
 } tf_program_frame;
 
@@ -162,6 +199,8 @@ struct tf_ctx {
     tf_frame *call_stack;  // explicit execution stack
     size_t call_stack_len;
     size_t call_stack_cap;
+    tf_module_table modules;
+    tf_module_alias_table module_aliases;
 
     int argc;
     char **argv;
@@ -202,6 +241,8 @@ bool tf_ctx_require_callable(tf_ctx *ctx, size_t depth);
 
 /* Execution frame scheduling. Native words schedule work here, then return. */
 void tf_frame_push_program(tf_ctx *ctx, tf_obj *program);
+void tf_frame_push_program_module(tf_ctx *ctx, tf_obj *program,
+                                  size_t module_index);
 void tf_frame_push_native(tf_ctx *ctx, tf_frame_step_fn step,
                           tf_frame_cleanup_fn cleanup, void *state);
 void tf_frame_push_native_handler(tf_ctx *ctx, tf_frame_step_fn step,
@@ -222,9 +263,35 @@ const tf_builtin_group *tf_builtin_groups(size_t *count);
 
 /* Global word dictionary. */
 void tf_dict_set_native(tf_ctx *ctx, const char *name, tf_native_fn cb);
-void tf_dict_set_user(tf_ctx *ctx, tf_obj *name, tf_obj *uf);
+void tf_dict_set_native_copy(tf_ctx *ctx, const char *name, tf_native_fn cb);
+void tf_dict_add_native_scoped(tf_ctx *ctx, const char *name, size_t name_len,
+                               size_t module_index, tf_native_fn cb);
+bool tf_dict_set_user(tf_ctx *ctx, tf_obj *name, tf_obj *uf);
+bool tf_dict_export(tf_ctx *ctx, tf_obj *name);
 tf_word *tf_dict_lookup(tf_ctx *ctx, tf_obj *name);
 tf_word *tf_dict_lookup_name(tf_ctx *ctx, const char *name, size_t len);
+tf_word *tf_dict_namespace_conflict(tf_ctx *ctx, const char *module_name,
+                                    size_t module_name_len);
+bool tf_dict_word_visible(tf_ctx *ctx, tf_word *word);
+
+/* Module registry and active lexical module. */
+size_t tf_current_module_index(tf_ctx *ctx);
+bool tf_module_name_valid(const char *name, size_t name_len);
+bool tf_module_word_name_valid(const char *name, size_t name_len);
+size_t tf_module_find(tf_ctx *ctx, const char *name, size_t name_len);
+size_t tf_module_begin(tf_ctx *ctx, const char *name, size_t name_len,
+                       const char *path);
+size_t tf_module_add_native(tf_ctx *ctx, const char *name, size_t name_len);
+void tf_module_finish(tf_ctx *ctx, size_t module_index, tf_ret status);
+const tf_module *tf_module_get(tf_ctx *ctx, size_t module_index);
+size_t tf_module_alias_find(tf_ctx *ctx, size_t owner_module_index,
+                            const char *name, size_t name_len);
+bool tf_module_alias_add(tf_ctx *ctx, size_t owner_module_index,
+                         const char *name, size_t name_len,
+                         size_t target_module_index);
+void tf_module_alias_remove(tf_ctx *ctx, size_t owner_module_index,
+                            const char *name, size_t name_len,
+                            size_t target_module_index);
 
 /* Dynamic capture lookup across active program frames. */
 tf_obj *tf_scope_lookup_var(tf_ctx *ctx, tf_obj *name);

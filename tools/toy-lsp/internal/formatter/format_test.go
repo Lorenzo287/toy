@@ -106,14 +106,14 @@ func TestFormatUsesRuntimeLexerTokenBoundaries(t *testing.T) {
 			want:   "10 [ 1 - 2 ] exec 1 + 2\n",
 		},
 		{
-			name:   "slash remains part of symbols",
-			source: "foo/bar 'foo/bar | foo/bar | $foo/bar",
-			want:   "foo/bar 'foo/bar | foo/bar | $foo/bar\n",
+			name:   "namespace remains part of symbols",
+			source: "foo::bar 'foo::bar",
+			want:   "foo::bar 'foo::bar\n",
 		},
 		{
-			name:   "symbol suffix remains attached",
-			source: "1/2 1*2",
-			want:   "1 /2 1 *2\n",
+			name:   "slash is always an operator",
+			source: "1/2 foo/bar 1*2",
+			want:   "1 / 2 foo / bar 1 *2\n",
 		},
 		{
 			name:   "comments terminate symbols",
@@ -161,6 +161,17 @@ func TestFormatRejectsRuntimeMalformedTokenAdjacency(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), "malformed number literal") {
 				t.Fatalf("Format(%q) error = %q, want malformed-number diagnostic", source, err)
+			}
+		})
+	}
+}
+
+func TestFormatRejectsMalformedNamespaceNames(t *testing.T) {
+	for _, source := range []string{"foo:bar", "$foo::bar"} {
+		t.Run(source, func(t *testing.T) {
+			_, err := Format([]byte(source), DefaultOptions())
+			if err == nil {
+				t.Fatalf("Format(%q) unexpectedly succeeded", source)
 			}
 		})
 	}

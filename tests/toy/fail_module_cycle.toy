@@ -1,0 +1,3 @@
+"a.toy" "\"b\" require" write-file
+"b.toy" "\"a\" require" write-file
+"a" require

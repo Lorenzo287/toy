@@ -19,6 +19,7 @@
 struct tf_source_file {
     int refcount;
     char *filename;
+    size_t module_index;
 };
 
 typedef struct tf_obj_cache_node {
@@ -194,6 +195,7 @@ tf_source_file *tf_source_file_new(const char *filename) {
     tf_source_file *source = tf_xmalloc(sizeof(*source));
     source->refcount = 1;
     source->filename = tf_xstrdup(filename ? filename : "<unknown>");
+    source->module_index = 0;
     return source;
 }
 
@@ -212,6 +214,14 @@ void tf_source_file_release(tf_source_file *source) {
 
 const char *tf_source_file_name(tf_source_file *source) {
     return source ? source->filename : NULL;
+}
+
+void tf_source_file_set_module(tf_source_file *source, size_t module_index) {
+    if (source) source->module_index = module_index;
+}
+
+size_t tf_source_file_module(tf_source_file *source) {
+    return source ? source->module_index : 0;
 }
 
 void tf_obj_set_span(tf_obj *o, tf_source_span span) {
@@ -366,6 +376,8 @@ tf_obj *tf_vector_pop(tf_obj *v) {
 
 tf_obj *tf_vector_clone(tf_obj *src) {
     tf_obj *result = tf_obj_new_vector_with_capacity(src->vector.len);
+    /* A quotation's source file is also its lexical module identity. */
+    tf_obj_set_span(result, src->span);
     for (size_t i = 0; i < src->vector.len; i++) {
         tf_obj *elem = src->vector.elem[i];
         tf_obj_retain(elem);

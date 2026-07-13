@@ -18,6 +18,17 @@ history rather than this roadmap.
 
 ## Work in Progress
 
+### Modules and Namespaces
+
+**Status: In progress**
+
+Source modules now provide load-once `require`, private definitions, explicit
+exports, relative dependency loading, module-scoped aliases, and `::` qualified
+names. Keep the model small while real programs establish whether configurable
+search paths or additional module metadata are worthwhile. Native modules
+should reuse this namespace and load-state machinery rather than introduce a
+parallel system.
+
 ### Performance Work
 
 **Status: In progress**
@@ -39,7 +50,9 @@ Treat the [foreign function interface](https://en.wikipedia.org/wiki/Foreign_fun
 as an exploratory interoperability track, not a single general-purpose
 `call-c` word. The CLI now links a reusable static runtime, and experimental API
 version zero exposes opaque states, primitive stack access, host-to-Toy calls,
-and synchronous native-word registration. The API is not stable yet.
+and synchronous native-word or native-module registration. Native module
+descriptors reuse source-module names, exports, load state, and aliases. The API
+is not stable yet.
 
 Current follow-up candidates are:
 
@@ -47,8 +60,8 @@ Current follow-up candidates are:
 2. add opaque foreign resources with explicit type, lifetime, and destructor
    rules;
 3. prove the bidirectional boundary with a small handwritten Raylib host;
-4. define a versioned native-module interface if separately distributed
-   extensions become useful;
+4. define a versioned shared-library ABI and loader if separately distributed
+   native modules become useful;
 5. use [libffi](https://github.com/libffi/libffi) to experiment with explicit
    scalar and string signatures resolved at runtime;
 6. consider foreign pointers, output parameters, structs, variadic functions,

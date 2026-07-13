@@ -1,7 +1,11 @@
 #include "toy.h"
 
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
+#include "tf_alloc.h"
 #include "tf_exec.h"
 #include "tf_lib.h"
 #include "tf_obj.h"
@@ -12,6 +16,49 @@ static bool state_is_idle(toy_state *state) {
     if (state->call_stack_len == 0) return true;
     tf_ctx_set_error(state, "the Toy state is already executing");
     return false;
+}
+
+static toy_status api_errorf(toy_state *state, const char *format, ...) {
+    if (!state) return TOY_ERROR;
+
+    va_list args;
+    va_start(args, format);
+    va_list count_args;
+    va_copy(count_args, args);
+    int length = vsnprintf(NULL, 0, format, count_args);
+    va_end(count_args);
+    if (length < 0) {
+        va_end(args);
+        tf_ctx_set_error(state, "native module registration failed");
+        return TOY_ERROR;
+    }
+
+    char *message = tf_xmalloc((size_t)length + 1);
+    vsnprintf(message, (size_t)length + 1, format, args);
+    va_end(args);
+    tf_ctx_set_error(state, message);
+    free(message);
+    return TOY_ERROR;
+}
+
+static void free_native_names(char **names, size_t count) {
+    if (!names) return;
+    for (size_t i = 0; i < count; i++) free(names[i]);
+    free(names);
+}
+
+static const tf_module *qualified_word_owner(toy_state *state,
+                                             const char *name,
+                                             size_t name_len) {
+    for (size_t i = 1; i < state->modules.len; i++) {
+        const tf_module *module = &state->modules.entries[i];
+        if (name_len <= module->name_len + 2) continue;
+        if (memcmp(name, module->name, module->name_len) == 0 &&
+            memcmp(name + module->name_len, "::", 2) == 0) {
+            return module;
+        }
+    }
+    return NULL;
 }
 
 toy_state *toy_state_new(void) {
@@ -47,7 +94,99 @@ toy_status toy_register_native(toy_state *state, const char *name,
                                toy_native_fn function) {
     if (!state || !name || name[0] == '\0' || !function) return TOY_ERROR;
     if (!state_is_idle(state)) return TOY_ERROR;
-    tf_dict_set_native(state, name, function);
+    const tf_module *owner = qualified_word_owner(state, name, strlen(name));
+    if (owner) {
+        return api_errorf(state, "word '%s' belongs to registered module '%s'",
+                          name, owner->name);
+    }
+    tf_dict_set_native_copy(state, name, function);
+    return TOY_OK;
+}
+
+toy_status toy_register_native_module(toy_state *state,
+                                      const toy_native_module *module) {
+    if (!state) return TOY_ERROR;
+    if (!state_is_idle(state)) return TOY_ERROR;
+    if (!module || !module->name || module->name[0] == '\0') {
+        return api_errorf(state, "native module descriptor is invalid");
+    }
+
+    size_t module_name_len = strlen(module->name);
+    if (!tf_module_name_valid(module->name, module_name_len)) {
+        return api_errorf(state, "invalid native module name '%s'",
+                          module->name);
+    }
+    if (!module->words || module->word_count == 0) {
+        return api_errorf(state, "native module '%s' has no words",
+                          module->name);
+    }
+    if (tf_module_find(state, module->name, module_name_len) != (size_t)-1) {
+        return api_errorf(state, "module '%s' is already registered",
+                          module->name);
+    }
+    tf_word *namespace_conflict =
+        tf_dict_namespace_conflict(state, module->name, module_name_len);
+    if (namespace_conflict) {
+        return api_errorf(state,
+                          "native module '%s' conflicts with existing word '%s'",
+                          module->name, namespace_conflict->name);
+    }
+
+    char **qualified_names =
+        tf_xcalloc(module->word_count, sizeof(char *));
+    for (size_t i = 0; i < module->word_count; i++) {
+        const toy_native_word *word = &module->words[i];
+        if (!word->name || !word->callback) {
+            free_native_names(qualified_names, module->word_count);
+            return api_errorf(state,
+                              "native module '%s' has an invalid word descriptor",
+                              module->name);
+        }
+
+        size_t word_name_len = strlen(word->name);
+        if (!tf_module_word_name_valid(word->name, word_name_len)) {
+            free_native_names(qualified_names, module->word_count);
+            return api_errorf(state, "invalid native word name '%s' in module '%s'",
+                              word->name, module->name);
+        }
+        if (module_name_len > SIZE_MAX - 3 ||
+            word_name_len > SIZE_MAX - module_name_len - 3) {
+            free_native_names(qualified_names, module->word_count);
+            return api_errorf(state, "native module word name is too long");
+        }
+
+        size_t qualified_len = module_name_len + 2 + word_name_len;
+        char *qualified = tf_xmalloc(qualified_len + 1);
+        memcpy(qualified, module->name, module_name_len);
+        memcpy(qualified + module_name_len, "::", 2);
+        memcpy(qualified + module_name_len + 2, word->name,
+               word_name_len + 1);
+        qualified_names[i] = qualified;
+
+        for (size_t j = 0; j < i; j++) {
+            if (strcmp(qualified_names[j], qualified) == 0) {
+                toy_status status = api_errorf(
+                    state, "native module word '%s' is duplicated", qualified);
+                free_native_names(qualified_names, module->word_count);
+                return status;
+            }
+        }
+        if (tf_dict_lookup_name(state, qualified, qualified_len)) {
+            toy_status status =
+                api_errorf(state, "word '%s' is already defined", qualified);
+            free_native_names(qualified_names, module->word_count);
+            return status;
+        }
+    }
+
+    size_t module_index =
+        tf_module_add_native(state, module->name, module_name_len);
+    for (size_t i = 0; i < module->word_count; i++) {
+        tf_dict_add_native_scoped(state, qualified_names[i],
+                                  strlen(qualified_names[i]), module_index,
+                                  module->words[i].callback);
+    }
+    free_native_names(qualified_names, module->word_count);
     return TOY_OK;
 }
 

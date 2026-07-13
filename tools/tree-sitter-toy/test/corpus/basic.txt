@@ -12,6 +12,9 @@ Basic expressions
 get-or
 symmetric-difference
 pq-peek
+math::answer
+'math::answer
+require-as
 
 ---
 
@@ -53,6 +56,10 @@ pq-peek
   (var_list)
   (builtin_word)
   (builtin_word)
+  (builtin_word)
+  (word)
+  (quoted_symbol
+    (symbol_name))
   (builtin_word))
 
 ==================

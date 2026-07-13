@@ -1456,6 +1456,14 @@
           "syntaxClass": "builtin"
         },
         {
+          "name": "export",
+          "cFunction": "tf_export",
+          "stackEffect": "'name --",
+          "syntax": "",
+          "description": "Make a word from the current module visible through its qualified name.",
+          "syntaxClass": "builtin"
+        },
+        {
           "name": "word?",
           "cFunction": "tf_word_q",
           "stackEffect": "symbol -- bool",
@@ -1624,7 +1632,23 @@
           "cFunction": "tf_load",
           "stackEffect": "path --",
           "syntax": "",
-          "description": "Load and execute a Toy source file in the current context.",
+          "description": "Load and execute a Toy source file in the current context, resolving relative paths beside the loading source first.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "require",
+          "cFunction": "tf_require",
+          "stackEffect": "module --",
+          "syntax": "",
+          "description": "Load a named Toy module once and make its exports available through qualified names.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "require-as",
+          "cFunction": "tf_require_as",
+          "stackEffect": "module 'alias --",
+          "syntax": "",
+          "description": "Load a named Toy module once and bind a qualified-name alias in the current module.",
           "syntaxClass": "builtin"
         },
         {

@@ -163,6 +163,8 @@ tf_source_file *tf_source_file_new(const char *filename);
 void tf_source_file_retain(tf_source_file *source);
 void tf_source_file_release(tf_source_file *source);
 const char *tf_source_file_name(tf_source_file *source);
+void tf_source_file_set_module(tf_source_file *source, size_t module_index);
+size_t tf_source_file_module(tf_source_file *source);
 void tf_obj_set_span(tf_obj *o, tf_source_span span);
 
 /* String/symbol/call comparison and vector storage helpers. */

@@ -231,6 +231,7 @@ static const tf_builtin_word native_type_words[] = {
 
 static const tf_builtin_word native_dictionary_words[] = {
     {"def", tf_def},
+    {"export", tf_export},
     {"word?", tf_word_q},
     {"var?", tf_var_q},
     {"body", tf_body},
@@ -259,6 +260,8 @@ static const tf_builtin_word native_console_words[] = {
 
 static const tf_builtin_word native_file_words[] = {
     {"load", tf_load},
+    {"require", tf_require},
+    {"require-as", tf_require_as},
     {"read-file", tf_readf},
     {"write-file", tf_writef},
     {"delete-file", tf_delf},

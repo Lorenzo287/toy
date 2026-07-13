@@ -39,6 +39,18 @@ typedef enum {
 
 typedef toy_status (*toy_native_fn)(toy_state *state);
 
+/* Native module and word names are copied during successful registration. */
+typedef struct {
+    const char *name;
+    toy_native_fn callback;
+} toy_native_word;
+
+typedef struct {
+    const char *name;
+    const toy_native_word *words;
+    size_t word_count;
+} toy_native_module;
+
 /* State lifecycle. Version zero states are not safe for concurrent use. */
 toy_state *toy_state_new(void);
 void toy_state_free(toy_state *state);
@@ -49,6 +61,9 @@ toy_status toy_eval(toy_state *state, const char *source_name,
 toy_status toy_call(toy_state *state, const char *word);
 toy_status toy_register_native(toy_state *state, const char *name,
                                toy_native_fn function);
+/* Registers every word atomically and marks the module loaded. */
+toy_status toy_register_native_module(toy_state *state,
+                                      const toy_native_module *module);
 
 /* Data-stack access. Depth zero addresses the top value. */
 size_t toy_stack_size(toy_state *state);

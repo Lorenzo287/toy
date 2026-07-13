@@ -34,7 +34,6 @@ true check
 2 == check
 9 == check
 
-'foo/bar [ 42 ] def
-foo/bar 42 == check
-7 | value/name | $value/name 7 == check
+'foo::bar word? not check
+7 | value_name | $value_name 7 == check
 ||

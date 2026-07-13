@@ -35,6 +35,27 @@ the C call stack. The main loop keeps processing frames until no work remains.
 This model keeps Toy-level recursion and higher-order combinators independent
 from the C call stack.
 
+## Module Lookup
+
+`require` records source modules in a per-context registry and schedules their
+programs on the existing VM frame stack. A registry entry is marked loading,
+loaded, or failed, which provides load-once behavior and detects cyclic
+dependencies without recursively entering the VM.
+
+The dictionary remains one hash table. Module definitions are stored under
+canonical `module::word` keys, while each program frame carries its lexical
+module. Unqualified lookup checks that module first and then the root native
+words; qualified lookup exposes only explicitly exported words from loaded
+modules. A separate alias table maps a short prefix to a module index within one
+importing module, so aliases do not copy or rename dictionary entries.
+Quotations retain their shared source-file record, allowing an escaped
+quotation to recover its lexical module when it is executed later. Raw `load`
+marks the parsed source with the caller's module. Relative `load` and `require`
+paths try that source file's directory before the process working directory.
+Descriptor-registered native modules enter the same registry already marked as
+loaded, and their exported native words use the same scoped dictionary entries
+as source-module exports.
+
 ## Embedding Boundary
 
 The core sources build as the static `toy_runtime` library. The `toy`
@@ -44,7 +65,8 @@ runtime target.
 
 `include/toy.h` is the experimental public boundary. It treats the interpreter
 state as opaque and exposes evaluation, host-to-Toy word calls, synchronous
-native registration, primitive stack access, diagnostics, and interruption.
+native word/module registration, primitive stack access, diagnostics, and
+interruption.
 Internal headers continue to expose implementation structures only to the
 runtime and bundled frontends. See the [embedding guide](./embedding.md) for
 the current ownership and execution contracts.

@@ -516,7 +516,7 @@ tf_ret tf_words(tf_ctx *ctx) {
     for (size_t i = 0; i < ctx->words.capacity; i++) {
         size_t entry = ctx->words.buckets[i];
         tf_word *word = entry ? &ctx->words.entries[entry - 1] : NULL;
-        if (word != NULL) words[j++] = word;
+        if (tf_dict_word_visible(ctx, word)) words[j++] = word;
     }
 
     qsort(words, j, sizeof(tf_word *), word_name_cmp);
@@ -605,7 +605,7 @@ tf_ret tf_apropos(tf_ctx *ctx) {
         for (size_t i = 0; i < ctx->words.capacity; i++) {
             size_t entry = ctx->words.buckets[i];
             tf_word *word = entry ? &ctx->words.entries[entry - 1] : NULL;
-            if (!word) continue;
+            if (!tf_dict_word_visible(ctx, word)) continue;
             if (word_matches_query(word, query->str.ptr, query->str.len)) {
                 matches[match_count++] = word;
             }
@@ -643,9 +643,17 @@ tf_ret tf_def(tf_ctx *ctx) {
 
     body = tf_stack_pop(ctx);
     word_name = tf_stack_pop(ctx);
-    tf_dict_set_user(ctx, word_name, body);
+    bool defined = tf_dict_set_user(ctx, word_name, body);
 
     tf_obj_release(body);
     tf_obj_release(word_name);
-    return TF_OK;
+    return defined ? TF_OK : TF_ERR;
+}
+
+tf_ret tf_export(tf_ctx *ctx) {
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_SYMBOL)) return TF_ERR;
+    tf_obj *name = tf_stack_pop_type(ctx, TF_OBJ_TYPE_SYMBOL);
+    bool exported = tf_dict_export(ctx, name);
+    tf_obj_release(name);
+    return exported ? TF_OK : TF_ERR;
 }

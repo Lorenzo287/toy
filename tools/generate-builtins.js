@@ -196,6 +196,9 @@ function regexEscape(value) {
 
 function renderVsCodeGrammar(manifest) {
   const words = nativeWords(manifest);
+  const nameSegment = '[a-zA-Z0-9_+\\-*%<>=!.?]+';
+  const qualifiedName = `${nameSegment}(?:::${nameSegment})*`;
+  const qualifiedCall = `[a-zA-Z_+\\-*%<>=!.?][a-zA-Z0-9_+\\-*%<>=!.?]*(?:::[a-zA-Z_+\\-*%<>=!.?][a-zA-Z0-9_+\\-*%<>=!.?]*)+`;
   const byClass = (syntaxClass) =>
     words.filter((word) => word.syntaxClass === syntaxClass).map((word) => regexEscape(word.name));
   const builtinPattern = `(?<=\\s|^)(${byClass('builtin').join('|')})(?=\\s|$)`;
@@ -233,7 +236,7 @@ function renderVsCodeGrammar(manifest) {
       },
       functions: {
         patterns: [
-          { name: 'entity.name.function.toy', match: "'[a-zA-Z0-9_+\\-*/%<>=!.?]+" },
+          { name: 'entity.name.function.toy', match: `'(?:/|${qualifiedName})` },
           { name: 'entity.name.function.toy', match: builtinPattern },
         ],
       },
@@ -253,6 +256,7 @@ function renderVsCodeGrammar(manifest) {
       words: {
         patterns: [
           { name: 'constant.language.toy', match: '\\b(nil|true|false|pi|e|tau|inf|nan)\\b' },
+          { name: 'support.function.toy', match: qualifiedCall },
           { name: 'variable.other.toy', match: '\\b\\w+\\b' },
         ],
       },

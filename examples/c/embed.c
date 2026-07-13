@@ -7,7 +7,7 @@ static toy_status host_log(toy_state *state) {
     const char *message = NULL;
     size_t length = 0;
     if (!toy_get_string(state, 0, &message, &length)) {
-        return toy_error(state, "host/log expected a string");
+        return toy_error(state, "host::log expected a string");
     }
 
     fputs("Toy says: ", stdout);
@@ -15,10 +15,20 @@ static toy_status host_log(toy_state *state) {
     fputc('\n', stdout);
 
     if (!toy_pop(state, 1)) {
-        return toy_error(state, "host/log failed to pop its input");
+        return toy_error(state, "host::log failed to pop its input");
     }
     return TOY_OK;
 }
+
+static const toy_native_word host_words[] = {
+    {"log", host_log},
+};
+
+static const toy_native_module host_module = {
+    "host",
+    host_words,
+    sizeof(host_words) / sizeof(host_words[0]),
+};
 
 static int report_error(toy_state *state, const char *operation,
                         toy_status status) {
@@ -35,7 +45,7 @@ int main(void) {
         return 1;
     }
 
-    toy_status status = toy_register_native(state, "host/log", host_log);
+    toy_status status = toy_register_native_module(state, &host_module);
     if (status != TOY_OK) {
         int result = report_error(state, "native registration", status);
         toy_state_free(state);
@@ -44,7 +54,8 @@ int main(void) {
 
     const char *program =
         "'score [ 2 * 10 + ] def\n"
-        "\"runtime initialized\" host/log";
+        "\"host\" 'h require-as\n"
+        "\"runtime initialized\" h::log";
     status = toy_eval(state, "embed.toy", program);
     if (status != TOY_OK) {
         int result = report_error(state, "Toy evaluation", status);

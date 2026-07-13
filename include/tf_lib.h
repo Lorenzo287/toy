@@ -76,6 +76,8 @@ tf_ret tf_stack_source(tf_ctx *ctx);
 tf_ret tf_key(tf_ctx *ctx);
 tf_ret tf_input(tf_ctx *ctx);
 tf_ret tf_load(tf_ctx *ctx);
+tf_ret tf_require(tf_ctx *ctx);
+tf_ret tf_require_as(tf_ctx *ctx);
 tf_ret tf_readf(tf_ctx *ctx);
 tf_ret tf_writef(tf_ctx *ctx);
 tf_ret tf_delf(tf_ctx *ctx);
@@ -116,6 +118,7 @@ tf_ret tf_doc(tf_ctx *ctx);
 tf_ret tf_apropos(tf_ctx *ctx);
 tf_ret tf_repr(tf_ctx *ctx);
 tf_ret tf_def(tf_ctx *ctx);
+tf_ret tf_export(tf_ctx *ctx);
 
 // Quotation execution, control flow, and recursion
 tf_ret tf_exec(tf_ctx *ctx);

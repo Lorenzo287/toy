@@ -1,0 +1,110 @@
+"testlib.toy" load
+
+"math.toy" "
+\"module-once.marker\" file-exists? [ \"module loaded twice\" error ] if
+\"module-once.marker\" \"loaded\" write-file
+'hidden [ 40 ] def
+'check [ 7 ] def
+'answer [ hidden 2 + ] def
+'make-answer [ [ hidden 2 + ] ] def
+'public-check [ check ] def
+'run [ exec ] def
+'answer export
+'make-answer export
+'public-check export
+'run export
+" write-file
+
+"math" require
+math::answer 42 == check
+math::make-answer exec 42 == check
+math::public-check 7 == check
+'root-only [ 77 ] def
+[ root-only ] math::run 77 == check
+'math::answer word? check
+'math::hidden word? not check
+words 'math::answer contains? check
+words 'math::hidden contains? not check
+
+\ Aliases are qualified-name shorthands scoped to the importing module.
+"math" 'm require-as
+m::answer 42 == check
+'m::hidden word? not check
+"math" 'm require-as
+m::answer 42 == check
+
+\ Requiring a loaded module is a no-op.
+"math" require
+math::answer 42 == check
+
+"dependency.toy" "
+'value [ 5 ] def
+'value export
+" write-file
+
+"consumer.toy" "
+\"dependency\" 'dep require-as
+'combined [ dep::value 2 * ] def
+'deferred [ [ dep::value ] ] def
+'combined export
+'deferred export
+" write-file
+
+"consumer" require
+consumer::combined 10 == check
+consumer::deferred exec 5 == check
+'dep::value word? not check
+dependency::value 5 == check
+
+\ An alias collision fails without replacing the existing binding.
+[ "dependency" 'm require-as ] [] try
+m::answer 42 == check
+[ "math" 'bad::alias require-as ] [] try
+
+\ A new target is available through its alias after loading completes.
+"fresh.toy" "
+'value [ 18 ] def
+'value export
+" write-file
+"fresh" 'f require-as
+f::value 18 == check
+
+\ Raw load inherits its caller's module but does not create another namespace.
+"extension.toy" "
+'loaded-word [ loader-helper ] def
+" write-file
+"loader.toy" "
+'loader-helper [ 12 ] def
+\"extension.toy\" load
+'loaded-word export
+" write-file
+"loader" require
+loader::loaded-word 12 == check
+
+\ Nested raw loads resolve beside the file that performs the load.
+"mkdir nested-load" shell 0 == check drop
+"nested-load/helper.toy" "'relative-loaded [ 31 ] def" write-file
+"nested-load/main.toy" "\"helper.toy\" load" write-file
+"nested-load/main.toy" load
+relative-loaded 31 == check
+
+\ Failed modules keep even explicitly exported partial definitions private.
+"broken.toy" "
+'partial [ 99 ] def
+'partial export
+\"module failed\" error
+" write-file
+[ "broken" require ] [] try
+'broken::partial word? not check
+
+\ Failed require-as removes its alias so the name can be reused.
+"alias-broken.toy" "
+'partial [ 100 ] def
+'partial export
+\"alias load failed\" error
+" write-file
+[ "alias-broken" 'reusable require-as ] [] try
+"math" 'reusable require-as
+reusable::answer 42 == check
+[ "broken" require ] [] try
+'broken::partial word? not check

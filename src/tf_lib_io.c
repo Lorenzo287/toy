@@ -1,4 +1,6 @@
 #include "tf_lib.h"
+#include <ctype.h>
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -205,58 +207,339 @@ tf_ret tf_input(tf_ctx *ctx) {
     return TF_OK;
 }
 
+static char *source_directory(tf_ctx *ctx) {
+    if (!ctx->current_span.source) return tf_xstrdup(".");
+    const char *source = tf_source_file_name(ctx->current_span.source);
+    if (!source || source[0] == '<') return tf_xstrdup(".");
+
+    const char *separator = NULL;
+    for (const char *p = source; *p; p++) {
+        if (*p == '/' || *p == '\\') separator = p;
+    }
+    if (!separator) return tf_xstrdup(".");
+
+    size_t len = (size_t)(separator - source);
+    if (len == 0) len = 1;
+    char *directory = tf_xmalloc(len + 1);
+    memcpy(directory, source, len);
+    directory[len] = '\0';
+    return directory;
+}
+
+static char *join_path(const char *directory, const char *relative) {
+    size_t directory_len = strlen(directory);
+    size_t relative_len = strlen(relative);
+    bool needs_separator = directory_len > 0 &&
+                           directory[directory_len - 1] != '/' &&
+                           directory[directory_len - 1] != '\\';
+    char *path = tf_xmalloc(directory_len + (needs_separator ? 1 : 0) +
+                            relative_len + 1);
+    memcpy(path, directory, directory_len);
+    size_t out = directory_len;
+    if (needs_separator) path[out++] = '/';
+    memcpy(path + out, relative, relative_len + 1);
+    return path;
+}
+
+static bool path_is_absolute(const char *path) {
+    if (!path || path[0] == '\0') return false;
+    if (path[0] == '/' || path[0] == '\\') return true;
+    return isalpha((unsigned char)path[0]) && path[1] == ':' &&
+           (path[2] == '/' || path[2] == '\\');
+}
+
+typedef enum {
+    SOURCE_READ_OK,
+    SOURCE_READ_NOT_FOUND,
+    SOURCE_READ_ERROR
+} source_read_status;
+
+static source_read_status read_source_file(const char *path, char **source) {
+    FILE *fp = fopen(path, "rb");
+    if (!fp) {
+        return errno == ENOENT || errno == ENOTDIR ? SOURCE_READ_NOT_FOUND
+                                                   : SOURCE_READ_ERROR;
+    }
+    if (fseek(fp, 0, SEEK_END) != 0) {
+        fclose(fp);
+        return SOURCE_READ_ERROR;
+    }
+    long size = ftell(fp);
+    if (size < 0) {
+        fclose(fp);
+        return SOURCE_READ_ERROR;
+    }
+    rewind(fp);
+
+    char *buffer = tf_xmalloc((size_t)size + 1);
+    size_t read = fread(buffer, 1, (size_t)size, fp);
+    fclose(fp);
+    if (read != (size_t)size) {
+        free(buffer);
+        return SOURCE_READ_ERROR;
+    }
+    buffer[read] = '\0';
+    *source = buffer;
+    return SOURCE_READ_OK;
+}
+
+static source_read_status resolve_source_file(tf_ctx *ctx,
+                                              const char *requested,
+                                              char **resolved, char **source) {
+    if (path_is_absolute(requested)) {
+        *resolved = tf_xstrdup(requested);
+        return read_source_file(*resolved, source);
+    }
+
+    char *directory = source_directory(ctx);
+    if (strcmp(directory, ".") == 0) {
+        free(directory);
+        *resolved = tf_xstrdup(requested);
+        return read_source_file(*resolved, source);
+    }
+
+    *resolved = join_path(directory, requested);
+    free(directory);
+    source_read_status status = read_source_file(*resolved, source);
+    if (status != SOURCE_READ_NOT_FOUND) return status;
+
+    free(*resolved);
+    *resolved = tf_xstrdup(requested);
+    return read_source_file(*resolved, source);
+}
+
 tf_ret tf_load(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_STR)) return TF_ERR;
 
     tf_obj *path = tf_stack_pop(ctx);
-    FILE *fp = fopen(path->str.ptr, "rb");
-    if (!fp) {
-        tf_ctx_runtime_errorf(ctx, "failed to load '%s'\n", path->str.ptr);
+    char *resolved = NULL;
+    char *source = NULL;
+    source_read_status status =
+        resolve_source_file(ctx, path->str.ptr, &resolved, &source);
+    if (status != SOURCE_READ_OK) {
+        tf_ctx_runtime_errorf(
+            ctx, status == SOURCE_READ_NOT_FOUND ? "failed to load '%s'\n"
+                                                 : "'load' failed to read '%s'\n",
+            path->str.ptr);
+        free(resolved);
         tf_obj_release(path);
         return TF_ERR;
     }
 
-    if (fseek(fp, 0, SEEK_END) != 0) {
-        fclose(fp);
-        tf_ctx_runtime_errorf(ctx, "'load' failed to seek '%s'\n", path->str.ptr);
-        tf_obj_release(path);
-        return TF_ERR;
-    }
-
-    long size = ftell(fp);
-    if (size < 0) {
-        fclose(fp);
-        tf_ctx_runtime_errorf(ctx, "'load' failed to read size for '%s'\n",
-                              path->str.ptr);
-        tf_obj_release(path);
-        return TF_ERR;
-    }
-    rewind(fp);
-
-    char *source = tf_xmalloc((size_t)size + 1);
-    size_t n_read = fread(source, 1, (size_t)size, fp);
-    if (n_read != (size_t)size) {
-        fclose(fp);
-        free(source);
-        tf_ctx_runtime_errorf(ctx, "'load' failed to read all bytes from '%s'\n",
-                              path->str.ptr);
-        tf_obj_release(path);
-        return TF_ERR;
-    }
-    source[n_read] = '\0';
-    fclose(fp);
-
-    tf_obj *prg = tf_lexer_parse(path->str.ptr, source);
+    tf_obj *prg = tf_lexer_parse(resolved, source);
     free(source);
+    free(resolved);
     if (!prg) {
         tf_obj_release(path);
         return TF_ERR;
     }
 
+    tf_source_file_set_module(prg->span.source,
+                              tf_current_module_index(ctx));
     tf_frame_push_program(ctx, prg);
     tf_obj_release(prg);
     tf_obj_release(path);
     return TF_OK;
+}
+
+typedef struct {
+    size_t module_index;
+    size_t alias_owner;
+    char *alias_name;
+    size_t alias_len;
+} require_state;
+
+static tf_ret require_finish(tf_ctx *ctx, void *raw_state, bool *done) {
+    (void)ctx;
+    (void)raw_state;
+    *done = true;
+    return TF_OK;
+}
+
+static void require_cleanup(tf_ctx *ctx, void *raw_state, tf_ret status) {
+    require_state *state = raw_state;
+    if (status != TF_OK && state->alias_name) {
+        tf_module_alias_remove(ctx, state->alias_owner, state->alias_name,
+                               state->alias_len, state->module_index);
+    }
+    tf_module_finish(ctx, state->module_index, status);
+    free(state->alias_name);
+    free(state);
+}
+
+static char *module_relative_path(const char *name, size_t len) {
+    size_t separators = 0;
+    for (size_t i = 0; i + 1 < len; i++) {
+        if (name[i] == ':' && name[i + 1] == ':') separators++;
+    }
+
+    size_t path_len = len - separators + 4;
+    char *path = tf_xmalloc(path_len + 1);
+    size_t out = 0;
+    for (size_t i = 0; i < len;) {
+        if (i + 1 < len && name[i] == ':' && name[i + 1] == ':') {
+            path[out++] = '/';
+            i += 2;
+        } else {
+            path[out++] = name[i++];
+        }
+    }
+    memcpy(path + out, ".toy", 5);
+    return path;
+}
+
+static void release_require_args(tf_obj *name, tf_obj *alias) {
+    tf_obj_release(name);
+    if (alias) tf_obj_release(alias);
+}
+
+static bool alias_name_valid(const char *name, size_t len) {
+    return !memchr(name, ':', len) && tf_module_name_valid(name, len);
+}
+
+static bool alias_matches_module(tf_ctx *ctx, size_t owner_module_index,
+                                 tf_obj *alias, tf_obj *module_name) {
+    size_t target = tf_module_alias_find(ctx, owner_module_index,
+                                         alias->str.ptr, alias->str.len);
+    if (target == (size_t)-1) return true;
+    const tf_module *module = tf_module_get(ctx, target);
+    if (module && module->name_len == module_name->str.len &&
+        memcmp(module->name, module_name->str.ptr, module->name_len) == 0) {
+        return true;
+    }
+    tf_ctx_runtime_errorf(
+        ctx, "module alias '%s' already refers to '%s'\n", alias->str.ptr,
+        module ? module->name : "<unknown>");
+    return false;
+}
+
+static tf_ret require_module(tf_ctx *ctx, tf_obj *name, tf_obj *alias) {
+    size_t owner_module_index = tf_current_module_index(ctx);
+    if (!tf_module_name_valid(name->str.ptr, name->str.len)) {
+        tf_ctx_runtime_errorf(ctx, "invalid module name '%s'\n", name->str.ptr);
+        release_require_args(name, alias);
+        return TF_ERR;
+    }
+    if (alias && !alias_name_valid(alias->str.ptr, alias->str.len)) {
+        tf_ctx_runtime_errorf(ctx, "invalid module alias '%s'\n",
+                              alias->str.ptr);
+        release_require_args(name, alias);
+        return TF_ERR;
+    }
+    if (alias && !alias_matches_module(ctx, owner_module_index, alias, name)) {
+        release_require_args(name, alias);
+        return TF_ERR;
+    }
+
+    size_t existing = tf_module_find(ctx, name->str.ptr, name->str.len);
+    if (existing != (size_t)-1) {
+        const tf_module *module = tf_module_get(ctx, existing);
+        if (module->state == TF_MODULE_LOADED) {
+            if (alias &&
+                !tf_module_alias_add(ctx, owner_module_index, alias->str.ptr,
+                                     alias->str.len, existing)) {
+                tf_ctx_runtime_errorf(ctx, "failed to register module alias '%s'\n",
+                                      alias->str.ptr);
+                release_require_args(name, alias);
+                return TF_ERR;
+            }
+            release_require_args(name, alias);
+            return TF_OK;
+        }
+        if (module->state == TF_MODULE_LOADING) {
+            tf_ctx_runtime_errorf(
+                ctx, "cyclic module dependency involving '%s'\n",
+                name->str.ptr);
+        } else {
+            tf_ctx_runtime_errorf(ctx, "module '%s' previously failed to load\n",
+                                  name->str.ptr);
+        }
+        release_require_args(name, alias);
+        return TF_ERR;
+    }
+
+    tf_word *namespace_conflict =
+        tf_dict_namespace_conflict(ctx, name->str.ptr, name->str.len);
+    if (namespace_conflict) {
+        tf_ctx_runtime_errorf(ctx,
+                              "module '%s' conflicts with existing word '%s'\n",
+                              name->str.ptr, namespace_conflict->name);
+        release_require_args(name, alias);
+        return TF_ERR;
+    }
+
+    char *relative = module_relative_path(name->str.ptr, name->str.len);
+    char *path = NULL;
+    char *source = NULL;
+    source_read_status read_status =
+        resolve_source_file(ctx, relative, &path, &source);
+    free(relative);
+
+    if (read_status != SOURCE_READ_OK) {
+        tf_ctx_runtime_errorf(
+            ctx, read_status == SOURCE_READ_NOT_FOUND
+                     ? "failed to find module '%s'\n"
+                     : "failed to read module '%s'\n",
+            name->str.ptr);
+        free(path);
+        release_require_args(name, alias);
+        return TF_ERR;
+    }
+
+    size_t module_index = tf_module_begin(ctx, name->str.ptr, name->str.len,
+                                          path);
+    tf_obj *program = tf_lexer_parse(path, source);
+    free(source);
+    free(path);
+    if (!program) {
+        tf_module_finish(ctx, module_index, TF_ERR);
+        tf_ctx_set_error(ctx, "module parsing failed");
+        release_require_args(name, alias);
+        return TF_ERR;
+    }
+    tf_source_file_set_module(program->span.source, module_index);
+
+    if (alias &&
+        !tf_module_alias_add(ctx, owner_module_index, alias->str.ptr,
+                             alias->str.len, module_index)) {
+        tf_ctx_runtime_errorf(ctx, "failed to register module alias '%s'\n",
+                              alias->str.ptr);
+        tf_module_finish(ctx, module_index, TF_ERR);
+        tf_obj_release(program);
+        release_require_args(name, alias);
+        return TF_ERR;
+    }
+
+    require_state *state = tf_xmalloc(sizeof(*state));
+    state->module_index = module_index;
+    state->alias_owner = owner_module_index;
+    state->alias_name = NULL;
+    state->alias_len = 0;
+    if (alias) {
+        state->alias_name = tf_xmalloc(alias->str.len + 1);
+        memcpy(state->alias_name, alias->str.ptr, alias->str.len + 1);
+        state->alias_len = alias->str.len;
+    }
+    tf_frame_push_native(ctx, require_finish, require_cleanup, state);
+    tf_frame_push_program_module(ctx, program, module_index);
+    tf_obj_release(program);
+    release_require_args(name, alias);
+    return TF_OK;
+}
+
+tf_ret tf_require(tf_ctx *ctx) {
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_STR)) return TF_ERR;
+    return require_module(ctx, tf_stack_pop_type(ctx, TF_OBJ_TYPE_STR), NULL);
+}
+
+tf_ret tf_require_as(tf_ctx *ctx) {
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_SYMBOL) ||
+        !tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_STR)) {
+        return TF_ERR;
+    }
+    tf_obj *alias = tf_stack_pop_type(ctx, TF_OBJ_TYPE_SYMBOL);
+    tf_obj *name = tf_stack_pop_type(ctx, TF_OBJ_TYPE_STR);
+    return require_module(ctx, name, alias);
 }
 
 tf_ret tf_readf(tf_ctx *ctx) {
