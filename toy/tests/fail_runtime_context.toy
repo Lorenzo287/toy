@@ -1,0 +1,9 @@
+'inner [
+    10 "oops" +
+] def
+
+'outer [
+    inner
+] def
+
+outer

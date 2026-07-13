@@ -57,6 +57,12 @@ snapshots with ordinary Toy output; the Go adapter translates those records to
 DAP without parsing tdb's human-oriented text. The machine session currently
 owns source-breakpoint filtering and step-in/over/out depth control.
 
+Unhandled diagnostics inspect the same live VM state before error unwinding.
+They print a bounded data-stack snapshot and, when execution is nested, a
+bounded call chain of Toy program frames. Native continuation frames remain an
+implementation detail in these user-facing reports. Error suppression used by
+`try` prevents handled failures from producing diagnostics.
+
 ## Object Layout
 
 Runtime values are boxed `tf_obj` records with reference counts. Collections

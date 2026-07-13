@@ -424,31 +424,15 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
         tf_native_fn repl_command = repl_command_for_source(ctx, source);
         tf_ret result = repl_command ? repl_command(ctx)
                                      : run_source(ctx, "<repl>", source, debug);
-        if (result == TF_ERR && !trace_enabled) {
-            if (ctx->program_error) {
-                printf("%snot ok%s\n", tf_console_clr(TF_CLR_PROGRAM_ERR),
-                       tf_console_clr(TF_CLR_RESET));
-            } else {
-                printf("%snot ok%s\n", tf_console_clr(TF_CLR_ERR),
-                       tf_console_clr(TF_CLR_RESET));
-            }
-        } else if (result == TF_INTERRUPTED || result == TF_REPL_COMMAND ||
-                   (result == TF_OK && ctx->suppress_repl_status)) {
+        if (result == TF_ERR || result == TF_INTERRUPTED ||
+            result == TF_REPL_COMMAND ||
+            (result == TF_OK && ctx->suppress_repl_status)) {
             fflush(stdout);
         } else {
             if (trace_enabled) {
                 size_t stack_len = tf_stack_len(ctx);
-                if (result == TF_ERR) {
-                    if (ctx->program_error) {
-                        printf("%s<%zu>%s", tf_console_clr(TF_CLR_PROGRAM_ERR),
-                               stack_len, tf_console_clr(TF_CLR_RESET));
-                    } else
-                        printf("%s<%zu>%s", tf_console_clr(TF_CLR_ERR), stack_len,
-                               tf_console_clr(TF_CLR_RESET));
-                } else {
-                    printf("%s<%zu>%s", tf_console_clr(TF_CLR_OK), stack_len,
-                           tf_console_clr(TF_CLR_RESET));
-                }
+                printf("%s<%zu>%s", tf_console_clr(TF_CLR_OK), stack_len,
+                       tf_console_clr(TF_CLR_RESET));
                 if (stack_len > 0) printf(" ");
                 for (size_t i = 0; i < stack_len; i++) {
                     tf_obj_print_display_colored(tf_stack_peek(ctx, stack_len - 1 - i));

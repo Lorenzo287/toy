@@ -1,0 +1,6 @@
+runtime error: '+' expected number at stack depth 0, found string
+  at fail_runtime_context.toy:2:15
+  stack <2> 10 "oops"
+  in inner at fail_runtime_context.toy:2:15
+  in outer at fail_runtime_context.toy:6:5
+  in <program> at fail_runtime_context.toy:9:1

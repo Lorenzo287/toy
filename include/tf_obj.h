@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 typedef enum {
     TF_OBJ_TYPE_BOOL,
@@ -231,6 +232,7 @@ void tf_obj_print(tf_obj *o, size_t *count);
 void tf_obj_print_value(tf_obj *o);
 void tf_obj_print_display(tf_obj *o);
 void tf_obj_print_source(tf_obj *o);
+void tf_obj_fprint_display(FILE *output, tf_obj *o);
 void tf_obj_print_value_colored(tf_obj *o);
 void tf_obj_print_display_colored(tf_obj *o);
 void tf_obj_print_source_colored(tf_obj *o);

@@ -49,6 +49,18 @@ output contracts, and manual host interaction. User examples live separately.
 The shared Go formatter provides a CLI and standard LSP document formatting
 while preserving author-selected line layout.
 
+### Debugging Foundation
+
+**Status: Completed**
+
+Unhandled failures report source location, a bounded data-stack snapshot, and
+a bounded Toy call chain. The terminal debugger provides instruction stepping,
+while the DAP adapter provides file launch, source breakpoints, step
+in/over/out, stack and frame inspection, and output forwarding for compatible
+editors. The REPL remains the primary interactive development environment;
+further DAP or graphical-interface work is deferred until a concrete workflow
+requires it.
+
 ## Work in Progress
 
 ### Performance Work
@@ -63,17 +75,6 @@ Keep optimization work benchmark-driven and record durable experiments under
 - call-frame specialization;
 - cache behavior for list, vector, and string workloads;
 - structural hashes if map/set key policy expands.
-
-### Debugger
-
-**Status: In progress**
-
-The debugger provides tdb instruction stepping and a first DAP adapter for
-launching files, source breakpoints, step-in/over/out, data-stack inspection,
-named program-frame backtraces, native-continuation visibility, output, and
-source locations. Continue refining shared session semantics, collection
-inspection, breakpoint resolution, and lifecycle control before expanding into
-evaluation, watches, or a standalone graphical frontend.
 
 ## Future Work
 

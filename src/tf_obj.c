@@ -1289,34 +1289,38 @@ void tf_obj_cache_clear(void) {
     obj_cache_len = 0;
 }
 
-static void print_escaped_string(const char *s, size_t len) {
+static void fprint_escaped_string(FILE *output, const char *s, size_t len) {
     for (size_t i = 0; i < len; i++) {
         unsigned char c = (unsigned char)s[i];
         switch (c) {
         case '\\':
-            printf("\\\\");
+            fprintf(output, "\\\\");
             break;
         case '"':
-            printf("\\\"");
+            fprintf(output, "\\\"");
             break;
         case '\n':
-            printf("\\n");
+            fprintf(output, "\\n");
             break;
         case '\r':
-            printf("\\r");
+            fprintf(output, "\\r");
             break;
         case '\t':
-            printf("\\t");
+            fprintf(output, "\\t");
             break;
         default:
             if (c < 0x20 || c >= 0x7f) {
-                printf("\\x%02x", c);
+                fprintf(output, "\\x%02x", c);
             } else {
-                putchar(c);
+                fputc(c, output);
             }
             break;
         }
     }
+}
+
+static void print_escaped_string(const char *s, size_t len) {
+    fprint_escaped_string(stdout, s, len);
 }
 
 // Debug printer: includes type tags and is intended for developer inspection
@@ -1600,7 +1604,8 @@ void tf_obj_print_value_colored(tf_obj *o) {
 
 // Source printer: reconstructs objects in a source-like form for words like
 // `see`
-static void print_source_like(tf_obj *o, bool display, bool color) {
+static void fprint_source_like(FILE *output, tf_obj *o, bool display,
+                               bool color) {
     const char *escape = NULL;
     if (color) {
         switch (o->type) {
@@ -1633,141 +1638,145 @@ static void print_source_like(tf_obj *o, bool display, bool color) {
         default:
             break;
         }
-        if (escape) printf("%s", escape);
+        if (escape) fprintf(output, "%s", escape);
     }
 
     switch (o->type) {
     case TF_OBJ_TYPE_INT:
-        printf("%" PRId64, o->i);
+        fprintf(output, "%" PRId64, o->i);
         break;
     case TF_OBJ_TYPE_FLOAT: {
         char buf[64];
         tf_format_double(buf, sizeof buf, o->f);
-        printf("%s", buf);
-        if (isfinite(o->f) && !strpbrk(buf, ".eE")) printf(".0");
+        fprintf(output, "%s", buf);
+        if (isfinite(o->f) && !strpbrk(buf, ".eE")) fprintf(output, ".0");
         break;
     }
     case TF_OBJ_TYPE_SYMBOL:
-        printf("'");
-        printf("%s", o->str.ptr);
+        fprintf(output, "'");
+        fprintf(output, "%s", o->str.ptr);
         break;
     case TF_OBJ_TYPE_CALL:
-        printf("%s", o->str.ptr);
+        fprintf(output, "%s", o->str.ptr);
         break;
     case TF_OBJ_TYPE_STR:
-        printf("\"");
-        print_escaped_string(o->str.ptr, o->str.len);
-        printf("\"");
+        fprintf(output, "\"");
+        fprint_escaped_string(output, o->str.ptr, o->str.len);
+        fprintf(output, "\"");
         break;
     case TF_OBJ_TYPE_BOOL:
-        printf("%s", o->b ? "true" : "false");
+        fprintf(output, "%s", o->b ? "true" : "false");
         break;
     case TF_OBJ_TYPE_VARFETCH:
-        printf("$%s", o->str.ptr);
+        fprintf(output, "$%s", o->str.ptr);
         break;
     case TF_OBJ_TYPE_VARLIST:
-        printf("|");
+        fprintf(output, "|");
         for (size_t i = 0; i < o->vector.len; i++) {
-            printf("%s", o->vector.elem[i]->str.ptr);
-            if (i + 1 < o->vector.len) printf(" ");
+            fprintf(output, "%s", o->vector.elem[i]->str.ptr);
+            if (i + 1 < o->vector.len) fprintf(output, " ");
         }
-        if (color && escape) printf("%s", escape);
-        printf("|");
+        if (color && escape) fprintf(output, "%s", escape);
+        fprintf(output, "|");
         break;
     case TF_OBJ_TYPE_VECTOR:
-        printf("[");
+        fprintf(output, "[");
         for (size_t i = 0; i < o->vector.len; i++) {
-            print_source_like(o->vector.elem[i], display, color);
-            if (i + 1 < o->vector.len) printf(" ");
+            fprint_source_like(output, o->vector.elem[i], display, color);
+            if (i + 1 < o->vector.len) fprintf(output, " ");
         }
-        if (color && escape) printf("%s", escape);
-        printf("]");
+        if (color && escape) fprintf(output, "%s", escape);
+        fprintf(output, "]");
         break;
     case TF_OBJ_TYPE_LIST: {
-        printf("(");
+        fprintf(output, "(");
         tf_list_node *node = o->list.head;
         while (node) {
-            print_source_like(node->value, display, color);
+            fprint_source_like(output, node->value, display, color);
             node = node->next;
-            if (node) printf(" ");
+            if (node) fprintf(output, " ");
         }
-        if (color && escape) printf("%s", escape);
-        printf(")");
+        if (color && escape) fprintf(output, "%s", escape);
+        fprintf(output, ")");
         break;
     }
     case TF_OBJ_TYPE_MAP:
-        printf("{");
+        fprintf(output, "{");
         for (size_t i = 0; i < o->map.len; i++) {
-            if (i > 0) printf(" ");
-            print_source_like(o->map.entries[i].key, display, color);
-            printf(" ");
-            print_source_like(o->map.entries[i].value, display, color);
+            if (i > 0) fprintf(output, " ");
+            fprint_source_like(output, o->map.entries[i].key, display, color);
+            fprintf(output, " ");
+            fprint_source_like(output, o->map.entries[i].value, display, color);
         }
-        if (color && escape) printf("%s", escape);
-        printf("}");
+        if (color && escape) fprintf(output, "%s", escape);
+        fprintf(output, "}");
         break;
     case TF_OBJ_TYPE_SET:
-        printf("#{");
+        fprintf(output, "#{");
         for (size_t i = 0; i < o->set.len; i++) {
-            if (i > 0) printf(" ");
-            print_source_like(o->set.entries[i].item, display, color);
+            if (i > 0) fprintf(output, " ");
+            fprint_source_like(output, o->set.entries[i].item, display, color);
         }
-        if (color && escape) printf("%s", escape);
-        printf("}");
+        if (color && escape) fprintf(output, "%s", escape);
+        fprintf(output, "}");
         break;
     case TF_OBJ_TYPE_DEQUE:
-        printf(display ? "deque[" : "[");
+        fprintf(output, display ? "deque[" : "[");
         for (size_t i = 0; i < o->deque.len; i++) {
-            if (i > 0) printf(" ");
-            print_source_like(tf_deque_get(o, i), display, color);
+            if (i > 0) fprintf(output, " ");
+            fprint_source_like(output, tf_deque_get(o, i), display, color);
         }
-        if (color && escape) printf("%s", escape);
-        printf(display ? "]" : "] >deque");
+        if (color && escape) fprintf(output, "%s", escape);
+        fprintf(output, display ? "]" : "] >deque");
         break;
     case TF_OBJ_TYPE_PQUEUE: {
-        printf(display ? "pqueue[" : "[");
+        fprintf(output, display ? "pqueue[" : "[");
         tf_obj *tmp = tf_pqueue_clone(o);
         for (size_t i = 0; tmp->pqueue.len > 0; i++) {
             tf_obj *priority = NULL;
             tf_obj *value = NULL;
             tf_pqueue_pop(tmp, &priority, &value);
-            if (i > 0) printf(" ");
-            printf("[");
-            print_source_like(priority, display, color);
-            printf(" ");
-            print_source_like(value, display, color);
-            if (color && escape) printf("%s", escape);
-            printf("]");
+            if (i > 0) fprintf(output, " ");
+            fprintf(output, "[");
+            fprint_source_like(output, priority, display, color);
+            fprintf(output, " ");
+            fprint_source_like(output, value, display, color);
+            if (color && escape) fprintf(output, "%s", escape);
+            fprintf(output, "]");
             tf_obj_release(priority);
             tf_obj_release(value);
         }
         tf_obj_release(tmp);
-        if (color && escape) printf("%s", escape);
-        printf(display ? "]" : "] >pqueue");
+        if (color && escape) fprintf(output, "%s", escape);
+        fprintf(output, display ? "]" : "] >pqueue");
         break;
     }
     default:
-        printf("?");
+        fprintf(output, "?");
         break;
     }
 
     if (color && escape) {
-        printf("\x1b[0m");
+        fprintf(output, "\x1b[0m");
     }
 }
 
 void tf_obj_print_display(tf_obj *o) {
-    print_source_like(o, true, false);
+    fprint_source_like(stdout, o, true, false);
+}
+
+void tf_obj_fprint_display(FILE *output, tf_obj *o) {
+    fprint_source_like(output, o, true, false);
 }
 
 void tf_obj_print_display_colored(tf_obj *o) {
-    print_source_like(o, true, tf_console_use_color());
+    fprint_source_like(stdout, o, true, tf_console_use_color());
 }
 
 void tf_obj_print_source(tf_obj *o) {
-    print_source_like(o, false, false);
+    fprint_source_like(stdout, o, false, false);
 }
 
 void tf_obj_print_source_colored(tf_obj *o) {
-    print_source_like(o, false, tf_console_use_color());
+    fprint_source_like(stdout, o, false, tf_console_use_color());
 }

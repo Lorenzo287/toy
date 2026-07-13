@@ -54,6 +54,10 @@ See the [build instructions](./docs/build.md) for other build modes, the
 binaries are also available from the
 [releases page](https://github.com/Lorenzo287/toy/releases).
 
+Unhandled runtime errors include the live data stack and, for nested calls, a
+concise Toy call chain. This provides useful failure context in both the REPL
+and file execution without requiring an interactive debugger.
+
 ## Why Postfix?
 
 An expression can be viewed as a

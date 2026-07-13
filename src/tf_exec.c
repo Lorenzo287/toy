@@ -11,6 +11,8 @@
 
 #define TF_CALL_STACK_INITIAL_CAP 8
 #define TF_CAPTURE_INITIAL_CAP 4
+#define TF_ERROR_STACK_LIMIT 8
+#define TF_ERROR_FRAME_LIMIT 8
 
 _Static_assert((TF_WORD_LOOKUP_CACHE_CAP & (TF_WORD_LOOKUP_CACHE_CAP - 1)) == 0,
                "word lookup cache capacity must be a power of two");
@@ -144,6 +146,71 @@ static const char *source_basename(const char *path) {
     return name;
 }
 
+static void ctx_print_error_stack(tf_ctx *ctx) {
+    size_t len = tf_stack_len(ctx);
+    size_t start = len > TF_ERROR_STACK_LIMIT ? len - TF_ERROR_STACK_LIMIT : 0;
+
+    fprintf(stderr, "  stack %s<%zu>%s", tf_console_clr(TF_CLR_ERR), len, 
+			tf_console_clr(TF_CLR_RESET));
+    if (start > 0) fprintf(stderr, " ...");
+    for (size_t i = start; i < len; i++) {
+        fprintf(stderr, " ");
+        tf_obj_fprint_display(stderr, tf_stack_peek(ctx, len - 1 - i));
+    }
+    fprintf(stderr, "\n");
+}
+
+static size_t ctx_program_frame_count(tf_ctx *ctx) {
+    size_t program_count = 0;
+    size_t frame_count = tf_debug_frame_count(ctx);
+    for (size_t depth = 0; depth < frame_count; depth++) {
+        tf_debug_frame_info frame;
+        if (tf_debug_get_frame(ctx, depth, &frame) &&
+            frame.kind == TF_FRAME_PROGRAM) {
+            program_count++;
+        }
+    }
+    return program_count;
+}
+
+static void ctx_print_error_frames(tf_ctx *ctx) {
+    size_t program_count = ctx_program_frame_count(ctx);
+    if (program_count <= 1) return;
+
+    size_t printed = 0;
+    size_t frame_count = tf_debug_frame_count(ctx);
+    for (size_t depth = 0;
+         depth < frame_count && printed < TF_ERROR_FRAME_LIMIT; depth++) {
+        tf_debug_frame_info frame;
+        if (!tf_debug_get_frame(ctx, depth, &frame) ||
+            frame.kind != TF_FRAME_PROGRAM) {
+            continue;
+        }
+
+        tf_source_span location = printed == 0 ? ctx_best_span(ctx)
+                                                : frame.location;
+        fprintf(stderr, "  in %s",
+                frame.word_name ? frame.word_name : "<program>");
+        if (location.source) {
+            fprintf(stderr, " at %s:%zu:%zu",
+                    source_basename(tf_source_file_name(location.source)),
+                    (size_t)location.line, (size_t)location.col);
+        }
+        fprintf(stderr, "\n");
+        printed++;
+    }
+
+    if (program_count > printed) {
+        fprintf(stderr, "  ... %zu more frame%s\n", program_count - printed,
+                program_count - printed == 1 ? "" : "s");
+    }
+}
+
+static void ctx_print_error_context(tf_ctx *ctx) {
+    ctx_print_error_stack(ctx);
+    ctx_print_error_frames(ctx);
+}
+
 static const char *current_word_name(tf_ctx *ctx) {
     return ctx->current_word ? ctx->current_word : "<native>";
 }
@@ -160,6 +227,7 @@ static void ctx_diagnostic_vf(tf_ctx *ctx, const char *label, const char *color,
                 source_basename(tf_source_file_name(span.source)),
                 (size_t)span.line, (size_t)span.col);
     }
+    ctx_print_error_context(ctx);
 }
 
 void tf_ctx_runtime_errorf(tf_ctx *ctx, const char *fmt, ...) {

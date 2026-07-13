@@ -52,6 +52,25 @@ runtime error: undefined variable '$a'
 
 Use `def` for persistent names.
 
+## Runtime Diagnostics
+
+Unhandled runtime and program errors report the source location and live data
+stack. Errors inside nested words or quotations also include the Toy call
+chain:
+
+```text
+runtime error: '+' expected number at stack depth 0, found string
+  at example.toy:2:15
+  stack <2> 10 "oops"
+  in inner at example.toy:2:15
+  in outer at example.toy:6:5
+  in <program> at example.toy:9:1
+```
+
+Stack values use the same bottom-to-top display order as the REPL. Reports show
+at most the top eight stack values and eight Toy frames, with omitted entries
+summarized. Errors handled by `try` do not produce a report.
+
 ## tdb Instruction Debugger
 
 Type `tdb` to toggle the terminal debugger for subsequent REPL input. The VM
