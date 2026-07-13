@@ -10,6 +10,7 @@
 #include "tf_exec.h"
 #include "tf_lexer.h"
 #include "tf_obj.h"
+#include "tf_runtime.h"
 #include <linenoise.h>
 
 typedef struct {
@@ -23,8 +24,8 @@ typedef struct {
     int list_depth;
 } repl_state;
 
-static tf_ret run_source(tf_ctx *ctx, const char *filename, char *source,
-                         bool debug);
+static tf_ret run_source(tf_ctx *ctx, const char *filename, const char *source,
+                         bool show_parsed);
 static char *read_repl_line(bool complete);
 static bool append_text(char **buf, size_t *len, size_t *cap, const char *text);
 static void reset_state(repl_state *state);
@@ -63,7 +64,7 @@ static tf_debug_action repl_debug_hook(tf_ctx *ctx,
 
 #include "tf_repl_builtins.inc"
 
-tf_ret tf_run_file(tf_ctx *ctx, const char *filename, bool debug) {
+tf_ret tf_run_file(tf_ctx *ctx, const char *filename, bool show_parsed) {
     FILE *fp = fopen(filename, "r");
     if (!fp) {
         perror("Failed to open program");
@@ -79,7 +80,7 @@ tf_ret tf_run_file(tf_ctx *ctx, const char *filename, bool debug) {
     prg_text[n_read] = '\0';
     fclose(fp);
 
-    tf_ret result = run_source(ctx, filename, prg_text, debug);
+    tf_ret result = run_source(ctx, filename, prg_text, show_parsed);
     free(prg_text);
     return result;
 }
@@ -89,7 +90,7 @@ static tf_ret hints_toggle(tf_ctx *ctx) {
     hints_enabled = !hints_enabled;
     printf("%shints: %s%s\n", tf_console_clr(TF_CLR_INFO),
            tf_console_clr(TF_CLR_RESET), hints_enabled ? "on" : "off");
-    return TF_REPL_COMMAND;
+    return TF_OK;
 }
 
 static tf_ret trace_toggle(tf_ctx *ctx) {
@@ -97,7 +98,7 @@ static tf_ret trace_toggle(tf_ctx *ctx) {
     trace_enabled = !trace_enabled;
     printf("%strace: %s%s\n", tf_console_clr(TF_CLR_INFO),
            tf_console_clr(TF_CLR_RESET), trace_enabled ? "on" : "off");
-    return TF_REPL_COMMAND;
+    return TF_OK;
 }
 
 void tf_tdb_set_enabled(tf_ctx *ctx, bool enabled) {
@@ -108,7 +109,7 @@ void tf_tdb_set_enabled(tf_ctx *ctx, bool enabled) {
 
 static tf_ret tdb_toggle(tf_ctx *ctx) {
     tf_tdb_set_enabled(ctx, !debugger_enabled);
-    return TF_REPL_COMMAND;
+    return TF_OK;
 }
 
 static const char *repl_source_basename(const char *path) {
@@ -347,15 +348,16 @@ static tf_ret help_show(tf_ctx *ctx) {
     }
     print_word_grid("User words", user_names, user_count);
     free(user_names);
-    return TF_REPL_COMMAND;
+    return TF_OK;
 }
 
-tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
+tf_ret tf_run_repl(tf_ctx *ctx, bool show_parsed) {
     char *source = NULL;
     size_t len = 0;
     size_t cap = 0;
     repl_state state;
     bool ctrl_c_exit_armed = false;
+    tf_ret repl_result = TF_OK;
 
     reset_state(&state);
     init_repl_ui(ctx);
@@ -422,10 +424,18 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
         ctx->suppress_repl_status = false;
         debugger_continuing = false;
         tf_native_fn repl_command = repl_command_for_source(ctx, source);
-        tf_ret result = repl_command ? repl_command(ctx)
-                                     : run_source(ctx, "<repl>", source, debug);
+        tf_ret result;
+        if (repl_command) {
+            result = repl_command(ctx);
+            ctx->suppress_repl_status = true;
+        } else {
+            result = run_source(ctx, "<repl>", source, show_parsed);
+        }
+        if (result == TF_EXIT_REQUESTED) {
+            repl_result = result;
+            break;
+        }
         if (result == TF_ERR || result == TF_INTERRUPTED ||
-            result == TF_REPL_COMMAND ||
             (result == TF_OK && ctx->suppress_repl_status)) {
             fflush(stdout);
         } else {
@@ -454,16 +464,16 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool debug) {
 
     free_repl_ui(ctx);
     free(source);
-    return TF_OK;
+    return repl_result;
 }
 
-static tf_ret run_source(tf_ctx *ctx, const char *filename, char *source,
-                         bool debug) {
-    tf_obj *prg = tf_lexer_parse(filename, source);
+static tf_ret run_source(tf_ctx *ctx, const char *filename, const char *source,
+                         bool show_parsed) {
+    tf_obj *prg = tf_parse_source(filename, source);
     if (!prg) return TF_ERR;
 
-    if (debug) {
-        printf("=== Tokenized program ===\n");
+    if (show_parsed) {
+        printf("=== Parsed program ===\n");
         size_t count = 0;
         tf_obj_print(prg, &count);
         printf("\n\n");
@@ -476,7 +486,7 @@ static tf_ret run_source(tf_ctx *ctx, const char *filename, char *source,
         return TF_INTERRUPTED;
     }
 
-    if (debug) {
+    if (show_parsed) {
         printf("\n=== Stack content after execution ===\n");
         size_t count = 0;
         tf_obj_print(ctx->data_stack, &count);
@@ -487,11 +497,8 @@ static tf_ret run_source(tf_ctx *ctx, const char *filename, char *source,
     return result;
 }
 
-tf_ret tf_run_string(tf_ctx *ctx, const char *source, bool debug) {
-    char *dup = tf_xstrdup(source);
-    tf_ret res = run_source(ctx, "<eval>", dup, debug);
-    free(dup);
-    return res;
+tf_ret tf_run_string(tf_ctx *ctx, const char *source, bool show_parsed) {
+    return run_source(ctx, "<eval>", source, show_parsed);
 }
 
 static void repl_completion(const char *buf, linenoiseCompletions *lc) {

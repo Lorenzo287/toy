@@ -17,16 +17,17 @@ navigation and development rules.
 - `src/tf_builtins.inc`, `src/tf_docs.c`, `src/tf_repl_builtins.inc`:
   generated builtin/runtime-doc files; do not hand-edit.
 - `include/`: internal APIs; read these before engine, lexer, object, or native edits.
-- `toy/examples/`: curated user-facing Toy programs; formatting-sensitive
-  quines live under `toy/examples/quines/`.
-- `toy/tests/`: flat automated and manual Toy cases. Prefixes declare behavior:
-  `test_`, `fail_`, `output_`, and `manual_`.
+- `examples/toy/`, `examples/c/`: curated Toy programs and C embedding hosts;
+  formatting-sensitive quines live under `examples/toy/quines/`.
+- `tests/toy/`, `tests/c/`: language cases and C API regressions. Toy test
+  prefixes declare behavior: `test_`, `fail_`, `output_`, and `manual_`.
 - `docs/`: build, REPL, tooling, and roadmap docs.
 - `docs/combinators.md`: examples for nontrivial control, recursion, and
   collection combinator usage.
 - `docs/data-model.md`: collection syntax, interop, complexity, equality, and
   hashing reference.
 - `docs/runtime-internals.md`: VM/object/allocation implementation notes.
+- `docs/embedding.md`: experimental C embedding and native-word API.
 - `benchmarks/`: reproducible performance workloads, runner, and recorded
   experiment results.
 - `benchmarks/results/`: benchmark result notes and comparison templates.
@@ -51,6 +52,7 @@ navigation and development rules.
 - Native word registry: generated grouped tables in `src/tf_builtins.inc`,
   included by `src/tf_exec.c` and registered by `tf_ctx_new()`.
 - Native declarations: `include/tf_lib.h`.
+- Experimental public C API: `include/toy.h`, implemented by `src/toy.c`.
 - Execution engine: `include/tf_exec.h`, `src/tf_exec.c`.
 - Objects/ownership: `include/tf_obj.h`, `src/tf_obj.c`, `include/tf_alloc.h`.
 - Lexer: `include/tf_lexer.h`, `src/tf_lexer.c`.
@@ -67,7 +69,7 @@ navigation and development rules.
 - For roadmap work, read `docs/language-roadmap.md` first. For collection or
   data-structure work, read `docs/data-model.md` too.
 - For native word changes, update `builtins.json`, declarations, and focused
-  `toy/tests/` cases, then regenerate and commit all generated metadata.
+  `tests/toy/` cases, then regenerate and commit all generated metadata.
 - Build with `cmake --build build`; run relevant scripts and
   `ctest --test-dir build -C Release --output-on-failure`. Use `build-leak` for
   ownership, stack-effect, or execution-flow changes.

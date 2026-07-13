@@ -18,6 +18,10 @@ cmake -S . -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE
 cmake --build build
 ```
 
+The build produces the `toy` CLI and a static `toy_runtime` library. CMake
+hosts can link the `toy::runtime` alias and use the experimental API in
+`include/toy.h`; see [Embedding Toy in C](./embedding.md).
+
 ### 2. LeakCheck
 
 Development build for tracking leaks.

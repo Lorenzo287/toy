@@ -76,24 +76,24 @@ Keep optimization work benchmark-driven and record durable experiments under
 - cache behavior for list, vector, and string workloads;
 - structural hashes if map/set key policy expands.
 
-## Future Work
-
 ### Runtime API and Foreign Function Interface
 
-**Status: Future**
+**Status: In progress**
 
 Treat the [foreign function interface](https://en.wikipedia.org/wiki/Foreign_function_interface)
-as a staged runtime-boundary project, not a single general-purpose `call-c`
-word. Toy has an internal native-word convention, but its context, values,
-ownership rules, and registration functions are not a stable external API.
+as an exploratory interoperability track, not a single general-purpose
+`call-c` word. The CLI now links a reusable static runtime, and experimental API
+version zero exposes opaque states, primitive stack access, host-to-Toy calls,
+and synchronous native-word registration. The API is not stable yet.
 
-The proposed stages are:
+Current follow-up candidates are:
 
-1. separate the CLI from a reusable Toy runtime library;
-2. expose opaque context and value handles with explicit ownership and error
+1. redirect output and detailed parser diagnostics through host callbacks;
+2. add opaque foreign resources with explicit type, lifetime, and destructor
    rules;
-3. support host applications registering native words;
-4. define a versioned native-module interface;
+3. prove the bidirectional boundary with a small handwritten Raylib host;
+4. define a versioned native-module interface if separately distributed
+   extensions become useful;
 5. use [libffi](https://github.com/libffi/libffi) to experiment with explicit
    scalar and string signatures resolved at runtime;
 6. consider foreign pointers, output parameters, structs, variadic functions,
@@ -103,6 +103,8 @@ The proposed stages are:
 The resulting boundary should be reusable by embedders, native modules, and
 compiled Toy code. Native calls that schedule Toy code must preserve the
 iterative VM execution model.
+
+## Future Work
 
 ### Compiler Backends
 

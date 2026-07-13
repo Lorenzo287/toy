@@ -215,8 +215,46 @@ static const char *current_word_name(tf_ctx *ctx) {
     return ctx->current_word ? ctx->current_word : "<native>";
 }
 
+void tf_ctx_clear_error(tf_ctx *ctx) {
+    if (!ctx) return;
+    free(ctx->last_error);
+    ctx->last_error = NULL;
+}
+
+void tf_ctx_set_error(tf_ctx *ctx, const char *message) {
+    if (!ctx) return;
+    tf_ctx_clear_error(ctx);
+    if (message) ctx->last_error = tf_xstrdup(message);
+}
+
+const char *tf_ctx_last_error(tf_ctx *ctx) {
+    return ctx ? ctx->last_error : NULL;
+}
+
+static void ctx_store_error_vf(tf_ctx *ctx, const char *fmt, va_list args) {
+    va_list count_args;
+    va_copy(count_args, args);
+    int length = vsnprintf(NULL, 0, fmt, count_args);
+    va_end(count_args);
+    if (length < 0) return;
+
+    char *message = tf_xmalloc((size_t)length + 1);
+    va_list write_args;
+    va_copy(write_args, args);
+    vsnprintf(message, (size_t)length + 1, fmt, write_args);
+    va_end(write_args);
+    while (length > 0 &&
+           (message[length - 1] == '\n' || message[length - 1] == '\r')) {
+        message[--length] = '\0';
+    }
+
+    tf_ctx_clear_error(ctx);
+    ctx->last_error = message;
+}
+
 static void ctx_diagnostic_vf(tf_ctx *ctx, const char *label, const char *color,
                               const char *fmt, va_list args) {
+    ctx_store_error_vf(ctx, fmt, args);
     fprintf(stderr, "%s%s:%s ", tf_console_clr(color), label,
             tf_console_clr(TF_CLR_RESET));
     vfprintf(stderr, fmt, args);
@@ -447,6 +485,8 @@ tf_ctx *tf_ctx_new(int argc, char **argv) {
     ctx->error_reported = false;
     ctx->program_error = false;
     ctx->suppress_repl_status = false;
+    ctx->interrupted = 0;
+    ctx->last_error = NULL;
     ctx->current_span = (tf_source_span){0};
     ctx->current_word = NULL;
     ctx->debug_hook = NULL;
@@ -472,6 +512,7 @@ void tf_ctx_free(tf_ctx *ctx) {
     free(ctx->words.buckets);
     while (ctx->call_stack_len > 0) tf_frame_pop(ctx, TF_OK);
     free(ctx->call_stack);
+    free(ctx->last_error);
     free(ctx);
 }
 
@@ -635,11 +676,8 @@ tf_obj *tf_scope_lookup_var(tf_ctx *ctx, tf_obj *name) {
     return NULL;
 }
 
-static volatile sig_atomic_t interrupted = 0;
-void tf_vm_handle_sigint(int sig) {
-    (void)sig;
-    signal(SIGINT, tf_vm_handle_sigint);
-    interrupted = 1;
+void tf_ctx_interrupt(tf_ctx *ctx) {
+    if (ctx) ctx->interrupted = 1;
 }
 
 /*
@@ -661,6 +699,7 @@ static tf_ret dict_call_resolved(tf_ctx *ctx, tf_word *word) {
  * This ensures deep user-defined word recursion does not overflow the C stack.
  */
 tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
+    tf_ctx_clear_error(ctx);
     ctx->current_span = program ? program->span : (tf_source_span){0};
     if (program->type != TF_OBJ_TYPE_VECTOR) {
         if (ctx->error_suppression_depth == 0) {
@@ -679,9 +718,9 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
     frame_push_program_kind(ctx, program, TF_FRAME_PROGRAM_ROOT);
 
     while (ctx->call_stack_len > entry_depth) {
-        if (interrupted) {
+        if (ctx->interrupted) {
             frame_unwind_to(ctx, entry_depth, TF_INTERRUPTED);
-            interrupted = 0;  // reset for next run
+            ctx->interrupted = 0;  // reset for next run
             return TF_INTERRUPTED;
         }
 
@@ -719,7 +758,7 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
                 ctx->debug_hook(ctx, &event, ctx->debug_userdata);
             if (action == TF_DEBUG_ABORT) {
                 frame_unwind_to(ctx, entry_depth, TF_INTERRUPTED);
-                interrupted = 0;
+                ctx->interrupted = 0;
                 return TF_INTERRUPTED;
             }
             if (action == TF_DEBUG_CONTINUE) debug_continuing = true;
@@ -744,9 +783,9 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
                 frame_unwind_to(ctx, entry_depth, TF_INTERRUPTED);
                 return TF_INTERRUPTED;
             }
-            if (call_res == TF_REPL_COMMAND) {
-                frame_unwind_to(ctx, entry_depth, TF_REPL_COMMAND);
-                return TF_REPL_COMMAND;
+            if (call_res == TF_EXIT_REQUESTED) {
+                frame_unwind_to(ctx, entry_depth, TF_EXIT_REQUESTED);
+                return TF_EXIT_REQUESTED;
             }
             if (call_res == TF_ERR) {
                 if (ctx->error_suppression_depth == 0 &&

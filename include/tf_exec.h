@@ -1,12 +1,18 @@
 #ifndef TF_EXEC_H
 #define TF_EXEC_H
 
+#include <signal.h>
+#include "toy.h"
 #include "tf_obj.h"
 
-typedef enum { TF_OK, TF_ERR, TF_INTERRUPTED, TF_REPL_COMMAND } tf_ret;
+typedef toy_status tf_ret;
+typedef toy_state tf_ctx;
+typedef toy_native_fn tf_native_fn;
 
-typedef struct tf_ctx tf_ctx;
-typedef tf_ret (*tf_native_fn)(tf_ctx *ctx);
+#define TF_OK TOY_OK
+#define TF_ERR TOY_ERROR
+#define TF_INTERRUPTED TOY_INTERRUPTED
+#define TF_EXIT_REQUESTED TOY_EXIT_REQUESTED
 typedef tf_ret (*tf_frame_step_fn)(tf_ctx *ctx, void *state, bool *done);
 typedef void (*tf_frame_cleanup_fn)(tf_ctx *ctx, void *state, tf_ret status);
 typedef tf_ret (*tf_frame_error_fn)(tf_ctx *ctx, void *state, tf_ret status,
@@ -152,6 +158,8 @@ struct tf_ctx {
     bool error_reported;
     bool program_error;
     bool suppress_repl_status;
+    volatile sig_atomic_t interrupted;
+    char *last_error;
     tf_source_span current_span;
     const char *current_word;
     tf_debug_hook_fn debug_hook;
@@ -193,6 +201,10 @@ void tf_frame_pop(tf_ctx *ctx, tf_ret status);
 /* Context lifecycle. */
 tf_ctx *tf_ctx_new(int argc, char **argv);
 void tf_ctx_free(tf_ctx *ctx);
+void tf_ctx_interrupt(tf_ctx *ctx);
+void tf_ctx_clear_error(tf_ctx *ctx);
+void tf_ctx_set_error(tf_ctx *ctx, const char *message);
+const char *tf_ctx_last_error(tf_ctx *ctx);
 
 /* Read-only native catalog, in presentation order. */
 const tf_builtin_group *tf_builtin_groups(size_t *count);
@@ -210,7 +222,6 @@ tf_obj *tf_scope_lookup_var(tf_ctx *ctx, tf_obj *name);
 tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program);
 bool tf_obj_is_callable(tf_obj *o);
 tf_ret tf_vm_call_callable(tf_ctx *ctx, tf_obj *callable);
-void tf_vm_handle_sigint(int sig);
 
 /* Frontend-neutral debugger hook and read-only frame inspection. */
 void tf_debug_set_hook(tf_ctx *ctx, tf_debug_hook_fn hook, void *userdata);

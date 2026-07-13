@@ -44,13 +44,13 @@ cmake --build build
 .\build\toy.exe # REPL
 .\build\toy.exe program.toy
 .\build\toy.exe --eval "1 2 + print"
-.\build\toy.exe --debug program.toy
+.\build\toy.exe --parsed program.toy
 .\build\toy.exe --tdb program.toy
 ```
 
 See the [build instructions](./docs/build.md) for other build modes, the
 [REPL guide](./docs/repl.md) for interactive use, and the curated
-[examples](./toy/examples/README.md) for complete programs. Release 
+[examples](./examples/README.md) for complete programs. Release
 binaries are also available from the
 [releases page](https://github.com/Lorenzo287/toy/releases).
 
@@ -240,7 +240,7 @@ pwd print
 
 The display words `.`, `.s`, and `.S` are observers: they print without
 changing the stack. `repr` returns an escaped, source-like string
-(makes me think of [quines](toy/examples/quines/quine.toy)).
+(makes me think of [quines](examples/toy/quines/quine.toy)).
 `print` writes one value literally with a newline; `printf` interprets `{}` 
 placeholders and adds no newline. Comments use `\` to the end of a line 
 or `/* ... */` for a block.
@@ -251,6 +251,7 @@ Language references:
 
 - [Combinators](./docs/combinators.md)
 - [Data model](./docs/data-model.md)
+- [Embedding Toy in C](./docs/embedding.md)
 
 Editor support:
 

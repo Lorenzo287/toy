@@ -333,6 +333,5 @@ tf_ret tf_monotonic_ns(tf_ctx *ctx) {
 
 tf_ret tf_exit(tf_ctx *ctx) {
     (void)ctx;
-    exit(0);
-    return TF_OK;
+    return TF_EXIT_REQUESTED;
 }

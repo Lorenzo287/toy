@@ -96,7 +96,7 @@ static int hex_value(int c) {
 }
 
 /* Parse source text into a vector of runtime objects. */
-tf_obj *tf_lexer_parse(const char *filename, char *prg_text) {
+tf_obj *tf_lexer_parse(const char *filename, const char *prg_text) {
     tf_source_file *source = tf_source_file_new(filename);
     tf_lexer lexer_state = {.source = source,
                             .start = prg_text,
@@ -295,7 +295,7 @@ static int lexer_normalize_capture_names(tf_lexer *lexer, tf_obj *names) {
 #define MAX_NUM_LEN 128
 static tf_obj *lexer_tokenize_number(tf_lexer *lexer) {
     char buf[MAX_NUM_LEN];
-    char *start = lexer->pos;
+    const char *start = lexer->pos;
     bool flt = false;
     bool digit = false;
 
@@ -381,7 +381,7 @@ static tf_obj *lexer_tokenize_single_char_call(tf_lexer *lexer) {
 
 static tf_obj *lexer_tokenize_name(tf_lexer *lexer) {
     tf_source_span span = lexer_mark(lexer);
-    char *start = lexer->pos;
+    const char *start = lexer->pos;
     while (tf_lexer_is_symbol_char(lexer->pos[0])) {
         if (lexer->pos[0] == '/' && lexer->pos[1] == '*') break;
         lexer_advance(lexer);
@@ -457,7 +457,7 @@ static tf_obj *lexer_vector_to_set(tf_lexer *lexer, tf_obj *items) {
 
 static tf_obj *lexer_tokenize_string(tf_lexer *lexer) {
     tf_source_span span = lexer_mark(lexer);
-    char *string_start = lexer->pos;
+    const char *string_start = lexer->pos;
     lexer_advance(lexer);  // skip opening "
     char inline_buf[TF_STRING_INLINE_CAP + 1];
     size_t cap = sizeof(inline_buf);

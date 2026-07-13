@@ -8,9 +8,39 @@ set(BUILD_MODE "None" CACHE STRING "None | AllocationStats | LeakCheck | Profile
 set_property(CACHE BUILD_MODE PROPERTY STRINGS None AllocationStats LeakCheck Profile)
 message(STATUS "Build mode: ${BUILD_MODE}")
 
-file(GLOB SOURCES CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/src/*.c")
-add_executable(toy ${SOURCES})
+set(TOY_RUNTIME_SOURCES
+    src/tf_alloc.c
+    src/tf_console.c
+    src/tf_docs.c
+    src/tf_exec.c
+    src/tf_lexer.c
+    src/tf_lib_control.c
+    src/tf_lib_core.c
+    src/tf_lib_data.c
+    src/tf_lib_io.c
+    src/tf_lib_meta.c
+    src/tf_lib_sys.c
+    src/tf_obj.c
+    src/tf_runtime.c
+    src/toy.c
+)
+
+set(TOY_CLI_SOURCES
+    src/main.c
+    src/tf_debug_protocol.c
+    src/tf_repl.c
+)
+
+add_library(toy_runtime STATIC ${TOY_RUNTIME_SOURCES})
+add_library(toy::runtime ALIAS toy_runtime)
+target_include_directories(toy_runtime PUBLIC ${PROJECT_SOURCE_DIR}/include)
+
+add_executable(toy ${TOY_CLI_SOURCES})
 target_include_directories(toy PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(toy PRIVATE toy_runtime)
+
+add_executable(toy_embed_example EXCLUDE_FROM_ALL examples/c/embed.c)
+target_link_libraries(toy_embed_example PRIVATE toy::runtime)
 
 if(WIN32)
     target_sources(toy PRIVATE ${PROJECT_SOURCE_DIR}/deps/linenoise/linenoise_win.c)
@@ -22,7 +52,7 @@ if(WIN32)
     endif()
 else()
     target_sources(toy PRIVATE ${PROJECT_SOURCE_DIR}/deps/linenoise/linenoise.c)
-    target_link_libraries(toy PRIVATE m)
+    target_link_libraries(toy_runtime PUBLIC m)
 endif()
 target_include_directories(toy PRIVATE ${PROJECT_SOURCE_DIR}/deps/linenoise)
 
@@ -32,7 +62,7 @@ include(CTest)
 
 if(BUILD_TESTING)
     set(TOY_TEST_TIMEOUT 10 CACHE STRING "Timeout in seconds for each Toy test")
-    set(TOY_TEST_DIR "${PROJECT_SOURCE_DIR}/toy/tests")
+    set(TOY_TEST_DIR "${PROJECT_SOURCE_DIR}/tests/toy")
     set(TOY_TEST_RUNNER "${PROJECT_SOURCE_DIR}/cmake/RunToyCase.cmake")
 
     if(EXISTS "${TOY_TEST_DIR}/testlib.toy")
@@ -106,33 +136,58 @@ if(BUILD_TESTING)
         LABELS "toy;positive"
         TIMEOUT "${TOY_TEST_TIMEOUT}"
     )
+
+    add_executable(test_embed_api tests/c/test_embed_api.c)
+    target_link_libraries(test_embed_api PRIVATE toy_runtime)
+    if(MSVC)
+        target_compile_options(test_embed_api PRIVATE /W3)
+    else()
+        target_compile_options(test_embed_api PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME test_embed_api COMMAND test_embed_api)
+    set_tests_properties(test_embed_api PROPERTIES
+        LABELS "c-api;positive"
+        TIMEOUT "${TOY_TEST_TIMEOUT}"
+    )
 endif()
 
 # ── Baseline warnings ─────────────────────────────────────────────────────────
 
-if(MSVC)
-    target_compile_options(toy PRIVATE /W3)
-    target_compile_definitions(toy PRIVATE _CRT_SECURE_NO_WARNINGS)
-else()
-    target_compile_options(toy PRIVATE -Wall -Wextra -Wpedantic)
-    if(WIN32 AND NOT MINGW)
-        target_compile_definitions(toy PRIVATE _CRT_SECURE_NO_WARNINGS)
+foreach(TOY_TARGET IN ITEMS toy_runtime toy toy_embed_example)
+    if(MSVC)
+        target_compile_options(${TOY_TARGET} PRIVATE /W3)
+        target_compile_definitions(${TOY_TARGET} PRIVATE _CRT_SECURE_NO_WARNINGS)
+    else()
+        target_compile_options(${TOY_TARGET} PRIVATE -Wall -Wextra -Wpedantic)
+        if(WIN32 AND NOT MINGW)
+            target_compile_definitions(${TOY_TARGET} PRIVATE _CRT_SECURE_NO_WARNINGS)
+        endif()
     endif()
-endif()
+endforeach()
 
 # ── LeakCheck / Profile override CMAKE_BUILD_TYPE ────────────────────────────
 
 if(BUILD_MODE STREQUAL "AllocationStats")
+    target_compile_definitions(toy_runtime PRIVATE TF_ALLOC_STATS)
     target_compile_definitions(toy PRIVATE TF_ALLOC_STATS)
 
 elseif(BUILD_MODE STREQUAL "LeakCheck")
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "" FORCE)
     if(WIN32)
+        target_compile_definitions(toy_runtime PRIVATE STB_LEAKCHECK)
         target_compile_definitions(toy PRIVATE STB_LEAKCHECK)
+        target_include_directories(toy_runtime PRIVATE ${PROJECT_SOURCE_DIR}/deps)
         target_include_directories(toy PRIVATE ${PROJECT_SOURCE_DIR}/deps)
+        if(TARGET test_embed_api)
+            target_compile_definitions(test_embed_api PRIVATE STB_LEAKCHECK)
+            target_include_directories(test_embed_api PRIVATE
+                                       ${PROJECT_SOURCE_DIR}/deps)
+        endif()
     else()
+        target_compile_options(toy_runtime PRIVATE -fsanitize=leak
+                                                   -fno-omit-frame-pointer)
         target_compile_options(toy PRIVATE -fsanitize=leak -fno-omit-frame-pointer)
-        target_link_options(toy PRIVATE -fsanitize=leak)
+        target_link_options(toy_runtime PUBLIC -fsanitize=leak)
     endif()
 
 elseif(BUILD_MODE STREQUAL "Profile")
@@ -141,9 +196,11 @@ elseif(BUILD_MODE STREQUAL "Profile")
     endif()
     set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "" FORCE) # -O2 -g built-in
     if(MSVC)
+        target_compile_options(toy_runtime PRIVATE /Oy-)
         target_compile_options(toy PRIVATE /Oy-)
         target_link_options(toy PRIVATE /DEBUG)
     else()
+        target_compile_options(toy_runtime PRIVATE -fno-omit-frame-pointer)
         target_compile_options(toy PRIVATE -fno-omit-frame-pointer)
     endif()
 endif()

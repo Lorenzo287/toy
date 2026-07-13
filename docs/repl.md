@@ -131,7 +131,7 @@ The process exits when file or `--eval` execution finishes. Running
 Inside an existing REPL, `tdb` followed by stepping into a `load` call also
 debugs the loaded file in the same context.
 
-tdb is separate from the CLI `--debug` option, which prints the parsed program
+tdb is separate from the CLI `--parsed` option, which prints the parsed program
 and final stack without interactive stepping.
 
 ## Multiline Input

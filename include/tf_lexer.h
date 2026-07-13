@@ -5,15 +5,15 @@
 
 typedef struct {
     tf_source_file *source;
-    char *start;
-    char *pos;
+    const char *start;
+    const char *pos;
     uint32_t line;
     uint32_t col;
     int error;
 } tf_lexer;
 
 /* Parse Toy source into a top-level program vector. */
-tf_obj *tf_lexer_parse(const char *filename, char *prg);
+tf_obj *tf_lexer_parse(const char *filename, const char *prg);
 
 /* Shared by the lexer and REPL input scanner. */
 int tf_lexer_is_symbol_char(int c);

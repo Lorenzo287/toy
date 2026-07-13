@@ -35,6 +35,20 @@ the C call stack. The main loop keeps processing frames until no work remains.
 This model keeps Toy-level recursion and higher-order combinators independent
 from the C call stack.
 
+## Embedding Boundary
+
+The core sources build as the static `toy_runtime` library. The `toy`
+executable links that library and keeps command-line parsing, the REPL,
+linenoise, the terminal debugger frontend, and the debug protocol outside the
+runtime target.
+
+`include/toy.h` is the experimental public boundary. It treats the interpreter
+state as opaque and exposes evaluation, host-to-Toy word calls, synchronous
+native registration, primitive stack access, diagnostics, and interruption.
+Internal headers continue to expose implementation structures only to the
+runtime and bundled frontends. See the [embedding guide](./embedding.md) for
+the current ownership and execution contracts.
+
 ## Debugger Hooks
 
 The VM can install a frontend-neutral debug hook on a context. Before each Toy

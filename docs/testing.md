@@ -1,7 +1,8 @@
 # Testing Toy
 
-Toy keeps automated regressions under `toy/tests/` and user-facing programs
-under `toy/examples/`. Examples may be smoke-tested separately, but their
+Toy keeps automated regressions under `tests/toy/` and user-facing programs
+under `examples/toy/`. C API regressions and hosts live alongside them under
+`tests/c/` and `examples/c/`. Examples may be smoke-tested separately, but their
 source should teach or demonstrate the language rather than act as the
 correctness suite.
 
@@ -30,7 +31,7 @@ ctest --test-dir build -C Release -L output --output-on-failure
 
 ## File Conventions
 
-The flat `toy/tests/` directory uses filename prefixes to declare how each case
+The flat `tests/toy/` directory uses filename prefixes to declare how each case
 is evaluated:
 
 - `test_*.toy` must exit successfully. These files should use the test-only
@@ -47,10 +48,10 @@ is evaluated:
 For example:
 
 ```text
-toy/tests/fail_runtime_divide_by_zero.toy
-toy/tests/fail_runtime_divide_by_zero.stderr
-toy/tests/output_repr.toy
-toy/tests/output_repr.stdout
+tests/toy/fail_runtime_divide_by_zero.toy
+tests/toy/fail_runtime_divide_by_zero.stderr
+tests/toy/output_repr.toy
+tests/toy/output_repr.stdout
 ```
 
 Use value assertions for language semantics and stack effects. Use expected

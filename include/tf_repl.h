@@ -5,13 +5,13 @@
 #include "tf_exec.h"
 
 /* Parse and run a file in the provided interpreter context. */
-tf_ret tf_run_file(tf_ctx *ctx, const char *filename, bool debug);
+tf_ret tf_run_file(tf_ctx *ctx, const char *filename, bool show_parsed);
 
 /* Parse and run an in-memory source string. */
-tf_ret tf_run_string(tf_ctx *ctx, const char *source, bool debug);
+tf_ret tf_run_string(tf_ctx *ctx, const char *source, bool show_parsed);
 
 /* Start the interactive REPL loop. */
-tf_ret tf_run_repl(tf_ctx *ctx, bool debug);
+tf_ret tf_run_repl(tf_ctx *ctx, bool show_parsed);
 
 /* Enable or disable the terminal debugger (tdb) frontend on a context. */
 void tf_tdb_set_enabled(tf_ctx *ctx, bool enabled);
