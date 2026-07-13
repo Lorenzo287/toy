@@ -5,61 +5,16 @@ future tracks. It is not a language reference, an agent manual, or a changelog.
 
 ## Status Labels
 
-- **Completed**: stable enough to serve as a foundation for later work.
 - **In progress**: an active or ongoing development track.
 - **Future**: an accepted direction that has not started or is intentionally
   deferred.
 
-## Completed Foundations
+## Current Baseline
 
-### Language and Execution Model
-
-**Status: Completed**
-
-The current language and execution model is the foundation for later work. Its
-behavior belongs in the [README](../README.md), [combinator
-reference](./combinators.md), and [runtime internals](./runtime-internals.md),
-not in this roadmap.
-
-### Collection and Value Model
-
-**Status: Completed**
-
-The value model covers vectors, lists, strings, maps, sets, deques, and priority
-queues with public value semantics and representation-aware implementations.
-The current contracts and complexity expectations live in the
-[data-model reference](./data-model.md).
-
-### Tooling and Measurement Foundation
-
-**Status: Completed**
-
-Builtin metadata generates the runtime registry, help and documentation data,
-LSP data, Tree-sitter word lists, and VS Code grammar data. The repository also
-has focused regression scripts, a Tree-sitter grammar, a Go LSP, editor support,
-benchmark workloads, and allocation-counting builds. These foundations may be
-extended by the active tracks below.
-
-### Validation and Formatting Foundation
-
-**Status: Completed**
-
-Portable CTest cases distinguish value regressions, expected failures, exact
-output contracts, and manual host interaction. User examples live separately.
-The shared Go formatter provides a CLI and standard LSP document formatting
-while preserving author-selected line layout.
-
-### Debugging Foundation
-
-**Status: Completed**
-
-Unhandled failures report source location, a bounded data-stack snapshot, and
-a bounded Toy call chain. The terminal debugger provides instruction stepping,
-while the DAP adapter provides file launch, source breakpoints, step
-in/over/out, stack and frame inspection, and output forwarding for compatible
-editors. The REPL remains the primary interactive development environment;
-further DAP or graphical-interface work is deferred until a concrete workflow
-requires it.
+Toy already has the language, collection, tooling, testing, formatting, and
+debugging foundations needed by the tracks below. Current behavior belongs in
+the [README](../README.md) and focused references; completed work belongs in Git
+history rather than this roadmap.
 
 ## Work in Progress
 

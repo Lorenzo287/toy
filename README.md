@@ -44,19 +44,14 @@ cmake --build build
 .\build\toy.exe # REPL
 .\build\toy.exe program.toy
 .\build\toy.exe --eval "1 2 + print"
-.\build\toy.exe --parsed program.toy
-.\build\toy.exe --tdb program.toy
+.\build\toy.exe --tdb # Debugger
 ```
 
-See the [build instructions](./docs/build.md) for other build modes, the
-[REPL guide](./docs/repl.md) for interactive use, and the curated
-[examples](./examples/README.md) for complete programs. Release
+See the [build instructions](./docs/build.md) to have more control over
+the build mode, the [REPL guide](./docs/repl.md) for interactive use,
+and the [examples](./examples/) for complete programs. Release
 binaries are also available from the
 [releases page](https://github.com/Lorenzo287/toy/releases).
-
-Unhandled runtime errors include the live data stack and, for nested calls, a
-concise Toy call chain. This provides useful failure context in both the REPL
-and file execution without requiring an interactive debugger.
 
 ## Why Postfix?
 
@@ -129,7 +124,8 @@ programs:
 
 The first value is a call instruction; the second is a symbol. Most programs do
 not need to construct calls directly, but `>call` makes runtime program
-generation possible when they do. The
+generation possible when they do (see
+[homoiconicity](https://en.wikipedia.org/wiki/Homoiconicity). The
 [data-model reference](./docs/data-model.md#names-and-code) describes the exact
 representations and conversions.
 
@@ -179,6 +175,9 @@ observe the surrounding stack. For example, `[ 0 > ]` can test the top value
 without consuming it: Toy reads the boolean result and then restores the stack
 that existed before the predicate ran. Output, file writes, and other side
 effects performed by a predicate are not undone.
+
+The [combinator reference](./docs/combinators.md) covers the less obvious
+control, recursion, and collection combinators in more depth.
 
 ### Collections Have Different Strengths
 
@@ -245,28 +244,19 @@ changing the stack. `repr` returns an escaped, source-like string
 placeholders and adds no newline. Comments use `\` to the end of a line 
 or `/* ... */` for a block.
 
-## Documentation and Tooling
+## Embedding and Native Interop
 
-Language references:
+Toy can be embedded as a static C runtime. The API currently lets
+a host create interpreter states, evaluate Toy source, call Toy words,
+exchange primitive stack values, and register C functions as native words. The
+[embedding guide](./docs/embedding.md) defines the execution and ownership
+rules, while [`examples/c/embed.c`](./examples/c/embed.c) shows both call
+directions in a complete host.
 
-- [Combinators](./docs/combinators.md)
-- [Data model](./docs/data-model.md)
-- [Embedding Toy in C](./docs/embedding.md)
-
-Editor support:
-
-- [Tree-sitter](./docs/tree-sitter.md)
-- [LSP](./docs/lsp.md)
-- [Debugger adapter](./docs/dap.md)
-- [Formatter](./docs/formatter.md)
-- [VS Code](./docs/vscode.md)
-
-Project development:
-
-- [Benchmarks](./benchmarks/README.md)
-- [Runtime Internals](./docs/runtime-internals.md)
-- [Testing](./docs/testing.md)
-- [Roadmap](./docs/language-roadmap.md)
+This boundary is the foundation for handwritten library bindings, such as a
+Raylib integration, and possible later work on native modules and dynamic FFI.
+Those additional layers are not implemented yet and their design remains
+exploratory.
 
 ## Built-in Words
 

@@ -8,47 +8,19 @@ stack values, and register synchronous native words.
 The API is intentionally small and does not yet promise source or binary
 compatibility between releases.
 
-## Minimal Host
+## Buildable Example
 
-```c
-#include <inttypes.h>
-#include <stdio.h>
-#include "toy.h"
+[`examples/c/embed.c`](../examples/c/embed.c) demonstrates both directions of
+the boundary: Toy calls a registered C word, then C calls a Toy-defined word.
+Build and run it from the repository root:
 
-static toy_status host_double(toy_state *state) {
-    int64_t value;
-    if (!toy_get_int(state, 0, &value)) {
-        return toy_error(state, "host/double expected an integer");
-    }
-    if (!toy_pop(state, 1)) {
-        return toy_error(state, "host/double failed to pop its input");
-    }
-    return toy_push_int(state, value * 2);
-}
-
-int main(void) {
-    toy_state *state = toy_state_new();
-    if (!state) return 1;
-
-    if (toy_register_native(state, "host/double", host_double) != TOY_OK ||
-        toy_eval(state, "<example>", "21 host/double") != TOY_OK) {
-        fprintf(stderr, "%s\n", toy_last_error(state));
-        toy_state_free(state);
-        return 1;
-    }
-
-    int64_t result;
-    if (toy_get_int(state, 0, &result)) {
-        printf("result: %" PRId64 "\n", result);
-    }
-
-    toy_state_free(state);
-    return 0;
-}
+```powershell
+cmake --build build --target toy_embed_example
+.\build\toy_embed_example.exe
 ```
 
 When Toy is included as a CMake subproject, link the host against
-`toy_runtime`:
+`toy::runtime`:
 
 ```cmake
 add_subdirectory(path/to/toy)
@@ -120,13 +92,5 @@ host inspects or repairs its stack.
 - only primitive public stack access is available;
 - there is no shared-library ABI, native module loader, foreign resource type,
   or dynamic FFI yet.
-
-A complete bidirectional host example lives in `examples/c/embed.c`. Build and
-run it from the repository root with:
-
-```powershell
-cmake --build build --target toy_embed_example
-.\build\toy_embed_example.exe
-```
 
 The focused C regression is `tests/c/test_embed_api.c`.
