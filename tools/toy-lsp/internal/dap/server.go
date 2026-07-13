@@ -15,6 +15,7 @@ import (
 
 const toyThreadID = 1
 const dataStackReference = 1
+const capturesReferenceBase = 1000
 
 type Server struct {
 	logger *log.Logger
@@ -307,18 +308,44 @@ func (s *Server) handleStackTrace(req request) error {
 }
 
 func (s *Server) handleScopes(req request) error {
+	var arguments struct {
+		FrameID int `json:"frameId"`
+	}
+	if err := json.Unmarshal(req.Arguments, &arguments); err != nil {
+		return s.writer.fail(req, fmt.Sprintf("invalid scopes arguments: %v", err))
+	}
 	snapshot, ok := s.currentSnapshot()
 	if !ok {
 		return s.writer.fail(req, "Toy is not paused")
 	}
-	return s.writer.respond(req, map[string]any{
-		"scopes": []any{map[string]any{
-			"name":               "Data stack",
+	var selected *machineFrame
+	for i := range snapshot.Frames {
+		if snapshot.Frames[i].ID == arguments.FrameID {
+			selected = &snapshot.Frames[i]
+			break
+		}
+	}
+	if selected == nil {
+		return s.writer.fail(req, fmt.Sprintf("unknown frame %d", arguments.FrameID))
+	}
+	scopes := []any{map[string]any{
+		"name":               "Data stack",
+		"presentationHint":   "locals",
+		"variablesReference": dataStackReference,
+		"namedVariables":     len(snapshot.Stack),
+		"expensive":          false,
+	}}
+	if len(selected.Captures) > 0 {
+		scopes = append(scopes, map[string]any{
+			"name":               "Captures",
 			"presentationHint":   "locals",
-			"variablesReference": dataStackReference,
-			"namedVariables":     len(snapshot.Stack),
+			"variablesReference": capturesReferenceBase + selected.ID,
+			"namedVariables":     len(selected.Captures),
 			"expensive":          false,
-		}},
+		})
+	}
+	return s.writer.respond(req, map[string]any{
+		"scopes": scopes,
 	})
 }
 
@@ -331,15 +358,26 @@ func (s *Server) handleVariables(req request) error {
 	if err := json.Unmarshal(req.Arguments, &arguments); err != nil {
 		return s.writer.fail(req, fmt.Sprintf("invalid variables arguments: %v", err))
 	}
-	if arguments.VariablesReference != dataStackReference {
-		return s.writer.respond(req, map[string]any{"variables": []any{}})
-	}
 	snapshot, ok := s.currentSnapshot()
 	if !ok {
 		return s.writer.fail(req, "Toy is not paused")
 	}
+	var values []machineValue
+	if arguments.VariablesReference == dataStackReference {
+		values = snapshot.Stack
+	} else if arguments.VariablesReference >= capturesReferenceBase {
+		frameID := arguments.VariablesReference - capturesReferenceBase
+		for _, frame := range snapshot.Frames {
+			if frame.ID == frameID {
+				values = frame.Captures
+				break
+			}
+		}
+	} else {
+		return s.writer.respond(req, map[string]any{"variables": []any{}})
+	}
 	start := max(arguments.Start, 0)
-	end := len(snapshot.Stack)
+	end := len(values)
 	if arguments.Count > 0 && start+arguments.Count < end {
 		end = start + arguments.Count
 	}
@@ -347,7 +385,7 @@ func (s *Server) handleVariables(req request) error {
 		start = end
 	}
 	variables := make([]any, 0, end-start)
-	for _, value := range snapshot.Stack[start:end] {
+	for _, value := range values[start:end] {
 		variables = append(variables, map[string]any{
 			"name":               value.Name,
 			"value":              value.Value,

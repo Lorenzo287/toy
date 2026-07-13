@@ -1,5 +1,5 @@
 "testlib.toy" load
 
-'inc [ 1 + ] def
+'inc [ 1 + ] def 7 | seed |
 0 inc
 1 == check

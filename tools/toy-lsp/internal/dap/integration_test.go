@@ -29,7 +29,7 @@ func TestDAPEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	program, err := filepath.Abs(filepath.Join("..", "..", "..", "..",
-		"toy", "tests", "test_debug_protocol.toy"))
+		"tests", "toy", "test_debug_protocol.toy"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,8 @@ func TestDAPEndToEnd(t *testing.T) {
 	scopes := expect("response", "scopes")
 	var scopesBody struct {
 		Scopes []struct {
-			VariablesReference int `json:"variablesReference"`
+			Name               string `json:"name"`
+			VariablesReference int    `json:"variablesReference"`
 		} `json:"scopes"`
 	}
 	if err := json.Unmarshal(scopes.Body, &scopesBody); err != nil {
@@ -174,6 +175,49 @@ func TestDAPEndToEnd(t *testing.T) {
 	}
 	if stoppedBody.Reason != "breakpoint" {
 		t.Fatalf("stop reason = %q, want breakpoint", stoppedBody.Reason)
+	}
+	send("stackTrace", map[string]any{"threadId": toyThreadID})
+	stackTrace = expect("response", "stackTrace")
+	if err := json.Unmarshal(stackTrace.Body, &stackTraceBody); err != nil {
+		t.Fatal(err)
+	}
+	if len(stackTraceBody.StackFrames) == 0 {
+		t.Fatal("breakpoint stop has no stack frame")
+	}
+	send("scopes", map[string]any{
+		"frameId": stackTraceBody.StackFrames[0].ID,
+	})
+	scopes = expect("response", "scopes")
+	if err := json.Unmarshal(scopes.Body, &scopesBody); err != nil {
+		t.Fatal(err)
+	}
+	capturesReference := 0
+	for _, scope := range scopesBody.Scopes {
+		if scope.Name == "Captures" {
+			capturesReference = scope.VariablesReference
+			break
+		}
+	}
+	if capturesReference == 0 {
+		t.Fatalf("capture scope missing: %#v", scopesBody.Scopes)
+	}
+	send("variables", map[string]any{
+		"variablesReference": capturesReference,
+	})
+	captures := expect("response", "variables")
+	var capturesBody struct {
+		Variables []struct {
+			Name  string `json:"name"`
+			Value string `json:"value"`
+		} `json:"variables"`
+	}
+	if err := json.Unmarshal(captures.Body, &capturesBody); err != nil {
+		t.Fatal(err)
+	}
+	if len(capturesBody.Variables) != 1 ||
+		capturesBody.Variables[0].Name != "seed" ||
+		capturesBody.Variables[0].Value != "7" {
+		t.Fatalf("unexpected captures: %#v", capturesBody.Variables)
 	}
 
 	send("stepIn", map[string]any{"threadId": toyThreadID})

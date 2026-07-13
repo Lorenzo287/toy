@@ -62,14 +62,19 @@ and frame depth. It returns one of three actions:
 Native words remain atomic at this boundary. Native continuations are visible
 in read-only frame views, and any Toy quotations they schedule produce normal
 instruction events. Frame views expose stable word labels, PCs, program lengths,
-call sites, and current locations without giving frontends mutable VM access.
+call sites, current locations, and borrowed capture bindings without giving
+frontends mutable VM access. Similar read-only views distinguish native and
+user-defined dictionary entries and expose user-word bodies. These views reuse
+state the VM already retains; normal instruction dispatch does no extra capture
+or dictionary bookkeeping for the debugger.
 
 The first frontend is the terminal debugger, tdb, available from the REPL and
 through `--tdb` for files and evaluated source. A machine frontend uses the
 same hook for `toy-dap`. Its private record-separated stream multiplexes paused
 snapshots with ordinary Toy output; the Go adapter translates those records to
-DAP without parsing tdb's human-oriented text. The machine session currently
-owns source-breakpoint filtering and step-in/over/out depth control.
+DAP without parsing tdb's human-oriented text. Both frontends use the internal
+debug controller for step-in/over/out state and source or word breakpoint
+filtering, while retaining their own command parsing and presentation.
 
 Unhandled diagnostics inspect the same live VM state before error unwinding.
 They print a bounded data-stack snapshot and, when execution is nested, a

@@ -930,3 +930,71 @@ bool tf_debug_get_frame(tf_ctx *ctx, size_t depth,
     }
     return true;
 }
+
+static tf_var_table *debug_frame_vars(tf_ctx *ctx, size_t depth) {
+    if (depth >= ctx->call_stack_len) return NULL;
+    size_t frame_index = ctx->call_stack_len - 1 - depth;
+    tf_frame *frame = &ctx->call_stack[frame_index];
+    if (!frame_is_program(frame->kind)) return NULL;
+    return &frame->as.program.vars;
+}
+
+size_t tf_debug_capture_count(tf_ctx *ctx, size_t frame_depth) {
+    tf_var_table *vars = debug_frame_vars(ctx, frame_depth);
+    return vars ? vars->len : 0;
+}
+
+bool tf_debug_get_capture(tf_ctx *ctx, size_t frame_depth, size_t index,
+                          tf_debug_capture_info *info) {
+    tf_var_table *vars = debug_frame_vars(ctx, frame_depth);
+    if (!info || !vars || index >= vars->len) return false;
+    tf_var *bindings = vars->vars ? vars->vars : &vars->inline_var;
+    info->name = bindings[index].name->str.ptr;
+    info->value = bindings[index].val;
+    return true;
+}
+
+bool tf_debug_lookup_capture(tf_ctx *ctx, const char *name, size_t name_len,
+                             tf_debug_capture_info *info) {
+    if (!name || !info) return false;
+    for (size_t depth = 0; depth < ctx->call_stack_len; depth++) {
+        tf_var_table *vars = debug_frame_vars(ctx, depth);
+        if (!vars) continue;
+        tf_var *bindings = vars->vars ? vars->vars : &vars->inline_var;
+        for (size_t i = vars->len; i > 0; i--) {
+            tf_obj *binding_name = bindings[i - 1].name;
+            if (binding_name->str.len == name_len &&
+                memcmp(binding_name->str.ptr, name, name_len) == 0) {
+                info->name = binding_name->str.ptr;
+                info->value = bindings[i - 1].val;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+size_t tf_debug_word_count(tf_ctx *ctx) {
+    return ctx->words.count;
+}
+
+static void debug_fill_word_info(tf_word *word, tf_debug_word_info *info) {
+    info->name = word->name;
+    info->user_defined = word->type == TF_WORD_USER;
+    info->body = info->user_defined ? word->user_impl : NULL;
+}
+
+bool tf_debug_get_word(tf_ctx *ctx, size_t index, tf_debug_word_info *info) {
+    if (!info || index >= ctx->words.count) return false;
+    debug_fill_word_info(&ctx->words.entries[index], info);
+    return true;
+}
+
+bool tf_debug_find_word(tf_ctx *ctx, const char *name, size_t name_len,
+                        tf_debug_word_info *info) {
+    if (!name || !info) return false;
+    tf_word *word = tf_dict_lookup_name(ctx, name, name_len);
+    if (!word) return false;
+    debug_fill_word_info(word, info);
+    return true;
+}

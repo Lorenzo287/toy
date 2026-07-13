@@ -1,6 +1,6 @@
 # Toy REPL
 
-Running `toy` without a file starts an interactive REPL. The REPL is the best
+Running `toy` without a file starts an interactive REPL. The REPL is a good
 place to learn Toy because the language can document itself: inspect the word
 catalog, ask for a word's docs, try a small expression, and immediately see the
 stack.
@@ -98,26 +98,48 @@ The three prompts make debugger state explicit:
 
 Debugger commands are:
 
-- `Enter`, `s`, or `step`: execute the displayed instruction and pause again;
-- `c` or `continue`: run the rest of the current REPL input;
+- `Enter`, `s`, or `step`: step into the displayed instruction;
+- `n` or `next`: step over the displayed instruction;
+- `out`, `finish`, or `step-out`: run until the current frame returns;
+- `c` or `continue`: run until a breakpoint or the input completes;
+- `b` or `break` followed by a line or word: add a breakpoint;
+- `breakpoints` or `info break`: list breakpoints;
+- `d` or `delete` followed by an ID: delete one breakpoint;
+- `clear`: delete all breakpoints;
 - `p` or `stack`: display the data stack without advancing;
+- `locals` with an optional frame number: display captures owned by that frame;
+- `print $name`: display the dynamically visible capture named `$name`;
+- `words`: list user-defined words;
+- `see name`: display a user-word definition or identify a native word;
 - `bt` or `backtrace`: display program and native-continuation frames;
 - `off`: disable tdb and continue;
 - `q` or `abort`: unwind the current input as an interruption;
 - `h`, `help`, or `?`: show the command summary.
 
+Line breakpoints apply to the source containing the current pause; word
+breakpoints stop before the first instruction of a named user word. This makes
+`break update` useful across REPL inputs and later redefinitions, while
+`break 12` is mainly useful when debugging a file. Breakpoint IDs remain valid
+until deleted or tdb is disabled.
+
 Native words are single instructions. If a native combinator schedules Toy
-code, stepping enters the scheduled quotation on the next pause. `continue`
-also applies to nested file execution started by the current input. The
-debugger remains enabled for the next REPL input unless `off` or `tdb` turns it
-off. Standalone REPL controls such as `tdb`, `trace`, `hints`, and `help` are
-handled outside VM evaluation, so toggling tdb does not stop to debug the
-toggle itself.
+code, stepping enters the scheduled quotation on the next pause. `next` skips
+Toy frames entered by the current instruction, and `finish` stops in its
+caller. `continue` also applies to nested file execution started by the current
+input. The debugger remains enabled for the next REPL input unless `off` or
+`tdb` turns it off. Standalone REPL controls such as `tdb`, `trace`, `hints`,
+and `help` are handled outside VM evaluation, so toggling tdb does not stop to
+debug the toggle itself.
 
 The pause line describes only the current frame. Its `depth` field tells you
 how many VM frames are active. `bt` is most useful when depth is greater than
 one: it shows the complete chain of user words, quotations, native
-continuations, and the root program.
+continuations, and the root program. Frame zero is the current frame, so
+`locals` is shorthand for `locals 0`; `locals 1` inspects its caller. Captures
+belong to the frame where their `| ... |` list executed, while `print $name`
+searches outward through active frames just like Toy's `$name` instruction.
+`words` and `see` inspect the current context, including definitions created by
+earlier REPL inputs or loaded files.
 
 To debug a file or an evaluated source string directly from PowerShell:
 
@@ -130,9 +152,6 @@ The process exits when file or `--eval` execution finishes. Running
 `.\build\toy.exe --tdb` without a file starts the REPL with tdb already armed.
 Inside an existing REPL, `tdb` followed by stepping into a `load` call also
 debugs the loaded file in the same context.
-
-tdb is separate from the CLI `--parsed` option, which prints the parsed program
-and final stack without interactive stepping.
 
 ## Multiline Input
 

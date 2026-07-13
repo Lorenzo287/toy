@@ -3,8 +3,10 @@
 \ Run directly from the repository root with:
 \   .\build\toy.exe --tdb tests\toy\manual_tdb.toy
 \
-\ Use `stack` and `bt` while entering `tdb-inc` and the quotation scheduled by
-\ `times`. The same file can be stepped into from a REPL `load` call.
+\ Try `break 10`, `break tdb-inc`, `next`, `finish`, `stack`, and `bt` while
+\ entering `tdb-inc` and the quotation scheduled by `times`. After its capture
+\ list runs, try `locals` and `print $value`; `words` and `see tdb-inc` inspect
+\ the dictionary. The same file can be stepped into from a REPL `load` call.
 
-'tdb-inc [ 1 + ] def
+'tdb-inc [ | value | $value 1 + ] def
 0 2 [ tdb-inc ] times

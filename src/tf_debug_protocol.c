@@ -9,31 +9,13 @@
 #include <string.h>
 
 #include "tf_alloc.h"
+#include "tf_debug_control.h"
 #include "tf_obj.h"
-
-typedef enum {
-    DEBUG_PAUSED,
-    DEBUG_STEP_IN,
-    DEBUG_STEP_OVER,
-    DEBUG_STEP_OUT,
-    DEBUG_RUNNING
-} debug_run_mode;
-
-typedef struct {
-    size_t line;
-    uint32_t offset;
-    bool resolved;
-} debug_breakpoint;
 
 struct tf_debug_protocol {
     FILE *output;
     char *program_path;
-    debug_breakpoint *breakpoints;
-    size_t breakpoint_count;
-    size_t breakpoint_capacity;
-    size_t resume_depth;
-    debug_run_mode mode;
-    bool first_stop;
+    tf_debug_control control;
 };
 
 static void write_json_string(FILE *output, const char *text);
@@ -52,8 +34,7 @@ tf_debug_protocol *tf_debug_protocol_new(FILE *output,
     tf_debug_protocol *protocol = tf_xcalloc(1, sizeof(*protocol));
     protocol->output = output;
     protocol->program_path = tf_xstrdup(program_path);
-    protocol->mode = DEBUG_PAUSED;
-    protocol->first_stop = true;
+    tf_debug_control_init(&protocol->control, true);
     return protocol;
 }
 
@@ -74,7 +55,7 @@ void tf_debug_protocol_finish(tf_debug_protocol *protocol, tf_ret result) {
 
 void tf_debug_protocol_free(tf_debug_protocol *protocol) {
     if (!protocol) return;
-    free(protocol->breakpoints);
+    tf_debug_control_dispose(&protocol->control);
     free(protocol->program_path);
     free(protocol);
 }
@@ -283,6 +264,16 @@ static void write_span(FILE *output, tf_source_span span) {
             (size_t)span.col);
 }
 
+static void write_debug_value(FILE *output, const char *name, tf_obj *value) {
+    fputs("{\"name\":", output);
+    write_json_string(output, name);
+    fputs(",\"type\":", output);
+    write_json_string(output, tf_obj_type_name(value));
+    fputs(",\"value\":\"", output);
+    write_source_value(output, value);
+    fputs("\"}", output);
+}
+
 static void write_stopped_event(tf_ctx *ctx, const tf_debug_event *event,
                                 tf_debug_protocol *protocol,
                                 const char *reason) {
@@ -308,8 +299,16 @@ static void write_stopped_event(tf_ctx *ctx, const tf_debug_event *event,
                               : (frame.word_name ? frame.word_name : "<program>"));
         fputc(',', output);
         write_span(output, depth == 0 ? event->span : frame.location);
-        fprintf(output, ",\"pc\":%zu,\"length\":%zu}", frame.pc,
-                frame.program_len);
+        fprintf(output, ",\"pc\":%zu,\"length\":%zu,\"captures\":[",
+                frame.pc, frame.program_len);
+        size_t capture_count = tf_debug_capture_count(ctx, depth);
+        for (size_t i = 0; i < capture_count; i++) {
+            tf_debug_capture_info capture;
+            if (!tf_debug_get_capture(ctx, depth, i, &capture)) continue;
+            if (i > 0) fputc(',', output);
+            write_debug_value(output, capture.name, capture.value);
+        }
+        fputs("]}", output);
     }
     fputc(']', output);
 
@@ -318,54 +317,12 @@ static void write_stopped_event(tf_ctx *ctx, const tf_debug_event *event,
     for (size_t i = 0; i < stack_count; i++) {
         tf_obj *value = tf_stack_peek(ctx, stack_count - 1 - i);
         if (i > 0) fputc(',', output);
-        fprintf(output, "{\"name\":\"[%zu]\",\"type\":", i);
-        write_json_string(output, tf_obj_type_name(value));
-        fputs(",\"value\":\"", output);
-        write_source_value(output, value);
-        fputs("\"}", output);
+        char name[32];
+        snprintf(name, sizeof name, "[%zu]", i);
+        write_debug_value(output, name, value);
     }
     fputs("]}\n", output);
     fflush(output);
-}
-
-static bool event_is_program_source(tf_debug_protocol *protocol,
-                                    const tf_debug_event *event) {
-    return event->span.source &&
-           strcmp(tf_source_file_name(event->span.source),
-                  protocol->program_path) == 0;
-}
-
-static bool breakpoint_matches(tf_debug_protocol *protocol,
-                               const tf_debug_event *event) {
-    if (!event_is_program_source(protocol, event)) return false;
-    for (size_t i = 0; i < protocol->breakpoint_count; i++) {
-        debug_breakpoint *breakpoint = &protocol->breakpoints[i];
-        if (breakpoint->line != event->span.line) continue;
-        if (!breakpoint->resolved) {
-            breakpoint->offset = event->span.offset;
-            breakpoint->resolved = true;
-        }
-        if (breakpoint->offset == event->span.offset) return true;
-    }
-    return false;
-}
-
-static void add_breakpoint(tf_debug_protocol *protocol, size_t line,
-                           const tf_debug_event *event) {
-    if (protocol->breakpoint_count == protocol->breakpoint_capacity) {
-        size_t capacity = protocol->breakpoint_capacity
-                              ? protocol->breakpoint_capacity * 2
-                              : 8;
-        protocol->breakpoints = tf_xrealloc(
-            protocol->breakpoints, capacity * sizeof(*protocol->breakpoints));
-        protocol->breakpoint_capacity = capacity;
-    }
-    debug_breakpoint breakpoint = {line, 0, false};
-    if (event_is_program_source(protocol, event) && event->span.line == line) {
-        breakpoint.offset = event->span.offset;
-        breakpoint.resolved = true;
-    }
-    protocol->breakpoints[protocol->breakpoint_count++] = breakpoint;
 }
 
 static void write_protocol_error(tf_debug_protocol *protocol,
@@ -387,26 +344,28 @@ static tf_debug_action wait_for_command(tf_debug_protocol *protocol,
             *--end = '\0';
         }
         if (strcmp(command, "step") == 0) {
-            protocol->mode = DEBUG_STEP_IN;
+            tf_debug_control_resume(&protocol->control, TF_DEBUG_RUN_STEP_IN,
+                                    event->frame_depth);
             return TF_DEBUG_STEP;
         }
         if (strcmp(command, "next") == 0) {
-            protocol->mode = DEBUG_STEP_OVER;
-            protocol->resume_depth = event->frame_depth;
+            tf_debug_control_resume(&protocol->control, TF_DEBUG_RUN_STEP_OVER,
+                                    event->frame_depth);
             return TF_DEBUG_STEP;
         }
         if (strcmp(command, "step-out") == 0) {
-            protocol->mode = DEBUG_STEP_OUT;
-            protocol->resume_depth = event->frame_depth;
+            tf_debug_control_resume(&protocol->control, TF_DEBUG_RUN_STEP_OUT,
+                                    event->frame_depth);
             return TF_DEBUG_STEP;
         }
         if (strcmp(command, "continue") == 0) {
-            protocol->mode = DEBUG_RUNNING;
+            tf_debug_control_resume(&protocol->control, TF_DEBUG_RUN_CONTINUE,
+                                    event->frame_depth);
             return TF_DEBUG_STEP;
         }
         if (strcmp(command, "abort") == 0) return TF_DEBUG_ABORT;
         if (strcmp(command, "clear-breakpoints") == 0) {
-            protocol->breakpoint_count = 0;
+            tf_debug_control_clear_breakpoints(&protocol->control);
             continue;
         }
         if (strncmp(command, "break ", 6) == 0) {
@@ -415,7 +374,9 @@ static tf_debug_action wait_for_command(tf_debug_protocol *protocol,
             unsigned long long line = strtoull(command + 6, &number_end, 10);
             if (errno == 0 && number_end != command + 6 &&
                 *number_end == '\0' && line > 0 && line <= SIZE_MAX) {
-                add_breakpoint(protocol, (size_t)line, event);
+                tf_debug_control_add_line_breakpoint(
+                    &protocol->control, protocol->program_path, (size_t)line,
+                    event);
             } else {
                 write_protocol_error(protocol, "invalid breakpoint line");
             }
@@ -430,21 +391,16 @@ static tf_debug_action debug_protocol_hook(tf_ctx *ctx,
                                             const tf_debug_event *event,
                                             void *userdata) {
     tf_debug_protocol *protocol = userdata;
-    const char *reason = "step";
+    tf_debug_frame_info frame;
+    const char *word_name =
+        tf_debug_get_frame(ctx, 0, &frame) ? frame.word_name : NULL;
+    tf_debug_stop_reason stop = tf_debug_control_on_event(
+        &protocol->control, event, word_name);
+    if (stop == TF_DEBUG_STOP_NONE) return TF_DEBUG_STEP;
 
-    if (protocol->first_stop) {
-        protocol->first_stop = false;
-        reason = "entry";
-    } else if (protocol->mode == DEBUG_RUNNING) {
-        if (!breakpoint_matches(protocol, event)) return TF_DEBUG_STEP;
-        reason = "breakpoint";
-    } else if (protocol->mode == DEBUG_STEP_OVER) {
-        if (event->frame_depth > protocol->resume_depth) return TF_DEBUG_STEP;
-    } else if (protocol->mode == DEBUG_STEP_OUT) {
-        if (event->frame_depth >= protocol->resume_depth) return TF_DEBUG_STEP;
-    }
-
-    protocol->mode = DEBUG_PAUSED;
+    const char *reason = stop == TF_DEBUG_STOP_ENTRY         ? "entry"
+                         : stop == TF_DEBUG_STOP_BREAKPOINT ? "breakpoint"
+                                                            : "step";
     write_stopped_event(ctx, event, protocol, reason);
     return wait_for_command(protocol, event);
 }

@@ -11,6 +11,7 @@ message(STATUS "Build mode: ${BUILD_MODE}")
 set(TOY_RUNTIME_SOURCES
     src/tf_alloc.c
     src/tf_console.c
+    src/tf_debug_control.c
     src/tf_docs.c
     src/tf_exec.c
     src/tf_lexer.c
@@ -149,6 +150,34 @@ if(BUILD_TESTING)
         LABELS "c-api;positive"
         TIMEOUT "${TOY_TEST_TIMEOUT}"
     )
+
+    add_executable(test_debug_control tests/c/test_debug_control.c)
+    target_link_libraries(test_debug_control PRIVATE toy_runtime)
+    if(MSVC)
+        target_compile_options(test_debug_control PRIVATE /W3)
+    else()
+        target_compile_options(test_debug_control PRIVATE
+                               -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME test_debug_control COMMAND test_debug_control)
+    set_tests_properties(test_debug_control PROPERTIES
+        LABELS "c-unit;positive"
+        TIMEOUT "${TOY_TEST_TIMEOUT}"
+    )
+
+    add_executable(test_debug_inspection tests/c/test_debug_inspection.c)
+    target_link_libraries(test_debug_inspection PRIVATE toy_runtime)
+    if(MSVC)
+        target_compile_options(test_debug_inspection PRIVATE /W3)
+    else()
+        target_compile_options(test_debug_inspection PRIVATE
+                               -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME test_debug_inspection COMMAND test_debug_inspection)
+    set_tests_properties(test_debug_inspection PROPERTIES
+        LABELS "c-unit;positive"
+        TIMEOUT "${TOY_TEST_TIMEOUT}"
+    )
 endif()
 
 # ── Baseline warnings ─────────────────────────────────────────────────────────
@@ -181,6 +210,17 @@ elseif(BUILD_MODE STREQUAL "LeakCheck")
         if(TARGET test_embed_api)
             target_compile_definitions(test_embed_api PRIVATE STB_LEAKCHECK)
             target_include_directories(test_embed_api PRIVATE
+                                       ${PROJECT_SOURCE_DIR}/deps)
+        endif()
+        if(TARGET test_debug_control)
+            target_compile_definitions(test_debug_control PRIVATE STB_LEAKCHECK)
+            target_include_directories(test_debug_control PRIVATE
+                                       ${PROJECT_SOURCE_DIR}/deps)
+        endif()
+        if(TARGET test_debug_inspection)
+            target_compile_definitions(test_debug_inspection PRIVATE
+                                       STB_LEAKCHECK)
+            target_include_directories(test_debug_inspection PRIVATE
                                        ${PROJECT_SOURCE_DIR}/deps)
         endif()
     else()

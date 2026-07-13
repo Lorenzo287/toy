@@ -54,6 +54,10 @@ navigation and development rules.
 - Native declarations: `include/tf_lib.h`.
 - Experimental public C API: `include/toy.h`, implemented by `src/toy.c`.
 - Execution engine: `include/tf_exec.h`, `src/tf_exec.c`.
+- Shared debugger run control: `include/tf_debug_control.h`,
+  `src/tf_debug_control.c`.
+- Read-only debugger frame, capture, and word views: `include/tf_exec.h`,
+  `src/tf_exec.c`.
 - Objects/ownership: `include/tf_obj.h`, `src/tf_obj.c`, `include/tf_alloc.h`.
 - Lexer: `include/tf_lexer.h`, `src/tf_lexer.c`.
 - REPL: `include/tf_repl.h`, `src/tf_repl.c`.

@@ -142,6 +142,17 @@ typedef struct {
     size_t program_len;
 } tf_debug_frame_info;
 
+typedef struct {
+    const char *name;
+    tf_obj *value;
+} tf_debug_capture_info;
+
+typedef struct {
+    const char *name;
+    bool user_defined;
+    tf_obj *body;
+} tf_debug_word_info;
+
 /*
  * Interpreter state shared by the VM and native words.
  */
@@ -223,11 +234,24 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program);
 bool tf_obj_is_callable(tf_obj *o);
 tf_ret tf_vm_call_callable(tf_ctx *ctx, tf_obj *callable);
 
-/* Frontend-neutral debugger hook and read-only frame inspection. */
+/*
+ * Frontend-neutral debugger hook and read-only state inspection. Returned
+ * names and objects are borrowed from ctx and must not be released or retained
+ * across execution or dictionary mutation.
+ */
 void tf_debug_set_hook(tf_ctx *ctx, tf_debug_hook_fn hook, void *userdata);
 size_t tf_debug_frame_count(tf_ctx *ctx);
 bool tf_debug_get_frame(tf_ctx *ctx, size_t depth,
                         tf_debug_frame_info *info);
+size_t tf_debug_capture_count(tf_ctx *ctx, size_t frame_depth);
+bool tf_debug_get_capture(tf_ctx *ctx, size_t frame_depth, size_t index,
+                          tf_debug_capture_info *info);
+bool tf_debug_lookup_capture(tf_ctx *ctx, const char *name, size_t name_len,
+                             tf_debug_capture_info *info);
+size_t tf_debug_word_count(tf_ctx *ctx);
+bool tf_debug_get_word(tf_ctx *ctx, size_t index, tf_debug_word_info *info);
+bool tf_debug_find_word(tf_ctx *ctx, const char *name, size_t name_len,
+                        tf_debug_word_info *info);
 
 /* Context-aware diagnostics used by the VM and native words. */
 void tf_ctx_runtime_errorf(tf_ctx *ctx, const char *fmt, ...);

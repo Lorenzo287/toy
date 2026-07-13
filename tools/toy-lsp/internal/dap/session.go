@@ -15,13 +15,14 @@ import (
 const machineRecordSeparator = byte(0x1e)
 
 type machineFrame struct {
-	ID     int    `json:"id"`
-	Name   string `json:"name"`
-	Source string `json:"source"`
-	Line   int    `json:"line"`
-	Column int    `json:"column"`
-	PC     int    `json:"pc"`
-	Length int    `json:"length"`
+	ID       int            `json:"id"`
+	Name     string         `json:"name"`
+	Source   string         `json:"source"`
+	Line     int            `json:"line"`
+	Column   int            `json:"column"`
+	PC       int            `json:"pc"`
+	Length   int            `json:"length"`
+	Captures []machineValue `json:"captures,omitempty"`
 }
 
 type machineValue struct {

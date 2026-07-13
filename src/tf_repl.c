@@ -6,6 +6,7 @@
 #include <errno.h>
 #include "tf_alloc.h"
 #include "tf_console.h"
+#include "tf_debug_control.h"
 #include "tf_docs.h"
 #include "tf_exec.h"
 #include "tf_lexer.h"
@@ -40,7 +41,8 @@ static char *history_path = NULL;
 static bool hints_enabled = true;
 static bool trace_enabled = true;
 static bool debugger_enabled = false;
-static bool debugger_continuing = false;
+static bool debugger_control_initialized = false;
+static tf_debug_control debugger_control;
 static int hints_color = 90;  // Bright black / Gray
 static int history_atexit_registered = 0;
 
@@ -58,6 +60,7 @@ static tf_ret hints_toggle(tf_ctx *ctx);
 static tf_ret trace_toggle(tf_ctx *ctx);
 static tf_ret tdb_toggle(tf_ctx *ctx);
 static tf_native_fn repl_command_for_source(tf_ctx *ctx, const char *source);
+static void print_word_grid(const char *title, const char **names, size_t count);
 static tf_debug_action repl_debug_hook(tf_ctx *ctx,
                                         const tf_debug_event *event,
                                         void *userdata);
@@ -102,8 +105,18 @@ static tf_ret trace_toggle(tf_ctx *ctx) {
 }
 
 void tf_tdb_set_enabled(tf_ctx *ctx, bool enabled) {
+    if (enabled) {
+        if (!debugger_control_initialized) {
+            tf_debug_control_init(&debugger_control, false);
+            debugger_control_initialized = true;
+        } else {
+            tf_debug_control_pause(&debugger_control);
+        }
+    } else if (debugger_control_initialized) {
+        tf_debug_control_dispose(&debugger_control);
+        debugger_control_initialized = false;
+    }
     debugger_enabled = enabled;
-    debugger_continuing = false;
     tf_debug_set_hook(ctx, debugger_enabled ? repl_debug_hook : NULL, NULL);
 }
 
@@ -180,11 +193,216 @@ static void debug_print_pause(tf_ctx *ctx, const tf_debug_event *event) {
     printf("\n");
 }
 
+static bool parse_positive_size(const char *text, size_t *value) {
+    errno = 0;
+    char *end = NULL;
+    unsigned long long parsed = strtoull(text, &end, 10);
+    if (errno != 0 || end == text || *end != '\0' || parsed == 0 ||
+        parsed > SIZE_MAX) {
+        return false;
+    }
+    *value = (size_t)parsed;
+    return true;
+}
+
+static bool parse_nonnegative_size(const char *text, size_t *value) {
+    errno = 0;
+    char *end = NULL;
+    unsigned long long parsed = strtoull(text, &end, 10);
+    if (errno != 0 || end == text || *end != '\0' || parsed > SIZE_MAX) {
+        return false;
+    }
+    *value = (size_t)parsed;
+    return true;
+}
+
+static void debug_print_locals(tf_ctx *ctx, const char *target) {
+    size_t depth = 0;
+    while (isspace((unsigned char)*target)) target++;
+    if (*target != '\0' && !parse_nonnegative_size(target, &depth)) {
+        printf("usage: locals [frame]\n");
+        return;
+    }
+
+    tf_debug_frame_info frame;
+    if (!tf_debug_get_frame(ctx, depth, &frame)) {
+        printf("unknown frame %zu\n", depth);
+        return;
+    }
+
+    size_t count = tf_debug_capture_count(ctx, depth);
+    printf("%scaptures for frame %zu (%s)%s\n",
+           tf_console_clr(TF_CLR_INFO), depth,
+           frame.word_name ? frame.word_name : "<native continuation>",
+           tf_console_clr(TF_CLR_RESET));
+    if (count == 0) {
+        printf("  <none>\n");
+        return;
+    }
+    for (size_t i = 0; i < count; i++) {
+        tf_debug_capture_info capture;
+        if (!tf_debug_get_capture(ctx, depth, i, &capture)) continue;
+        printf("  $%s = ", capture.name);
+        tf_obj_print_source_colored(capture.value);
+        printf("\n");
+    }
+}
+
+static void debug_print_capture(tf_ctx *ctx, const char *target) {
+    while (isspace((unsigned char)*target)) target++;
+    if (*target != '$') {
+        printf("usage: print $name\n");
+        return;
+    }
+    target++;
+    size_t len = strlen(target);
+    if (len == 0) {
+        printf("usage: print $name\n");
+        return;
+    }
+    for (size_t i = 0; i < len; i++) {
+        if (isspace((unsigned char)target[i])) {
+            printf("capture names cannot contain whitespace\n");
+            return;
+        }
+    }
+
+    tf_debug_capture_info capture;
+    if (!tf_debug_lookup_capture(ctx, target, len, &capture)) {
+        printf("unknown capture $%s\n", target);
+        return;
+    }
+    printf("$%s = ", capture.name);
+    tf_obj_print_source_colored(capture.value);
+    printf("\n");
+}
+
+static void debug_print_user_words(tf_ctx *ctx) {
+    size_t word_count = tf_debug_word_count(ctx);
+    const char **names =
+        word_count ? tf_xmalloc(sizeof(*names) * word_count) : NULL;
+    size_t user_count = 0;
+    for (size_t i = 0; i < word_count; i++) {
+        tf_debug_word_info word;
+        if (tf_debug_get_word(ctx, i, &word) && word.user_defined) {
+            names[user_count++] = word.name;
+        }
+    }
+    if (user_count == 0) {
+        printf("no user-defined words\n");
+    } else {
+        print_word_grid("User words", names, user_count);
+    }
+    free(names);
+}
+
+static void debug_print_definition(tf_ctx *ctx, const char *target) {
+    while (isspace((unsigned char)*target)) target++;
+    size_t len = strlen(target);
+    if (len == 0) {
+        printf("usage: see <word>\n");
+        return;
+    }
+    for (size_t i = 0; i < len; i++) {
+        if (isspace((unsigned char)target[i])) {
+            printf("word names cannot contain whitespace\n");
+            return;
+        }
+    }
+
+    tf_debug_word_info word;
+    if (!tf_debug_find_word(ctx, target, len, &word)) {
+        printf("unknown word %s\n", target);
+    } else if (!word.user_defined) {
+        printf("%s is a native word\n", word.name);
+    } else {
+        printf("'%s ", word.name);
+        tf_obj_print_source_colored(word.body);
+        printf(" def\n");
+    }
+}
+
+static void debug_add_breakpoint(const tf_debug_event *event,
+                                 const char *target) {
+    while (isspace((unsigned char)*target)) target++;
+    if (*target == '\0') {
+        printf("usage: break <line|word>\n");
+        return;
+    }
+
+    size_t line = 0;
+    size_t id = 0;
+    if (parse_positive_size(target, &line)) {
+        if (!event->span.source) {
+            printf("cannot add a line breakpoint without a source\n");
+            return;
+        }
+        const char *source_name = tf_source_file_name(event->span.source);
+        id = tf_debug_control_add_line_breakpoint(
+            &debugger_control, source_name, line, event);
+        printf("breakpoint %zu: %s:%zu\n", id, source_name, line);
+        return;
+    }
+
+    for (const char *p = target; *p != '\0'; p++) {
+        if (isspace((unsigned char)*p)) {
+            printf("word breakpoint names cannot contain whitespace\n");
+            return;
+        }
+    }
+    id = tf_debug_control_add_word_breakpoint(&debugger_control, target);
+    printf("breakpoint %zu: word %s\n", id, target);
+}
+
+static void debug_print_breakpoints(void) {
+    size_t count = tf_debug_control_breakpoint_count(&debugger_control);
+    if (count == 0) {
+        printf("no breakpoints\n");
+        return;
+    }
+    for (size_t i = 0; i < count; i++) {
+        const tf_debug_breakpoint *breakpoint =
+            tf_debug_control_breakpoint_at(&debugger_control, i);
+        if (breakpoint->kind == TF_DEBUG_BREAK_LINE) {
+            printf("  %zu  %s:%zu%s\n", breakpoint->id,
+                   breakpoint->source_name, breakpoint->line,
+                   breakpoint->resolved ? "" : " (pending)");
+        } else {
+            printf("  %zu  word %s\n", breakpoint->id,
+                   breakpoint->word_name);
+        }
+    }
+}
+
+static void debug_remove_breakpoint(const char *target) {
+    while (isspace((unsigned char)*target)) target++;
+    size_t id = 0;
+    if (!parse_positive_size(target, &id)) {
+        printf("usage: delete <breakpoint-id>\n");
+        return;
+    }
+    if (tf_debug_control_remove_breakpoint(&debugger_control, id)) {
+        printf("deleted breakpoint %zu\n", id);
+    } else {
+        printf("unknown breakpoint %zu\n", id);
+    }
+}
+
 static tf_debug_action repl_debug_hook(tf_ctx *ctx,
                                         const tf_debug_event *event,
                                         void *userdata) {
     (void)userdata;
-    if (debugger_continuing) return TF_DEBUG_CONTINUE;
+    tf_debug_frame_info frame;
+    const char *word_name =
+        tf_debug_get_frame(ctx, 0, &frame) ? frame.word_name : NULL;
+    tf_debug_stop_reason stop = tf_debug_control_on_event(
+        &debugger_control, event, word_name);
+    if (stop == TF_DEBUG_STOP_NONE) return TF_DEBUG_STEP;
+    if (stop == TF_DEBUG_STOP_BREAKPOINT) {
+        printf("%sbreakpoint %zu hit%s\n", tf_console_clr(TF_CLR_INFO),
+               tf_debug_control_last_breakpoint(&debugger_control),
+               tf_console_clr(TF_CLR_RESET));
+    }
     debug_print_pause(ctx, event);
 
     while (true) {
@@ -203,16 +421,66 @@ static tf_debug_action repl_debug_hook(tf_ctx *ctx,
 
         if (*command == '\0' || strcmp(command, "s") == 0 ||
             strcmp(command, "step") == 0) {
+            tf_debug_control_resume(&debugger_control, TF_DEBUG_RUN_STEP_IN,
+                                    event->frame_depth);
+            linenoiseFree(line);
+            return TF_DEBUG_STEP;
+        }
+        if (strcmp(command, "n") == 0 || strcmp(command, "next") == 0) {
+            tf_debug_control_resume(&debugger_control, TF_DEBUG_RUN_STEP_OVER,
+                                    event->frame_depth);
+            linenoiseFree(line);
+            return TF_DEBUG_STEP;
+        }
+        if (strcmp(command, "out") == 0 || strcmp(command, "finish") == 0 ||
+            strcmp(command, "step-out") == 0) {
+            tf_debug_control_resume(&debugger_control, TF_DEBUG_RUN_STEP_OUT,
+                                    event->frame_depth);
             linenoiseFree(line);
             return TF_DEBUG_STEP;
         }
         if (strcmp(command, "c") == 0 || strcmp(command, "continue") == 0) {
-            debugger_continuing = true;
+            tf_debug_control_resume(&debugger_control, TF_DEBUG_RUN_CONTINUE,
+                                    event->frame_depth);
+            bool has_breakpoints =
+                tf_debug_control_breakpoint_count(&debugger_control) > 0;
             linenoiseFree(line);
-            return TF_DEBUG_CONTINUE;
+            return has_breakpoints ? TF_DEBUG_STEP : TF_DEBUG_CONTINUE;
         }
-        if (strcmp(command, "p") == 0 || strcmp(command, "stack") == 0) {
+        if (strncmp(command, "break ", 6) == 0) {
+            debug_add_breakpoint(event, command + 6);
+        } else if (strncmp(command, "b ", 2) == 0) {
+            debug_add_breakpoint(event, command + 2);
+        } else if (strcmp(command, "break") == 0 ||
+                   strcmp(command, "b") == 0) {
+            printf("usage: break <line|word>\n");
+        } else if (strcmp(command, "breakpoints") == 0 ||
+                   strcmp(command, "info break") == 0) {
+            debug_print_breakpoints();
+        } else if (strncmp(command, "delete ", 7) == 0) {
+            debug_remove_breakpoint(command + 7);
+        } else if (strncmp(command, "d ", 2) == 0) {
+            debug_remove_breakpoint(command + 2);
+        } else if (strcmp(command, "clear") == 0) {
+            tf_debug_control_clear_breakpoints(&debugger_control);
+            printf("cleared breakpoints\n");
+        } else if (strcmp(command, "p") == 0 ||
+                   strcmp(command, "stack") == 0) {
             debug_print_stack(ctx);
+        } else if (strcmp(command, "locals") == 0) {
+            debug_print_locals(ctx, "");
+        } else if (strncmp(command, "locals ", 7) == 0) {
+            debug_print_locals(ctx, command + 7);
+        } else if (strncmp(command, "print ", 6) == 0) {
+            debug_print_capture(ctx, command + 6);
+        } else if (strcmp(command, "print") == 0) {
+            printf("usage: print $name\n");
+        } else if (strcmp(command, "words") == 0) {
+            debug_print_user_words(ctx);
+        } else if (strncmp(command, "see ", 4) == 0) {
+            debug_print_definition(ctx, command + 4);
+        } else if (strcmp(command, "see") == 0) {
+            printf("usage: see <word>\n");
         } else if (strcmp(command, "bt") == 0 ||
                    strcmp(command, "backtrace") == 0) {
             debug_print_backtrace(ctx, event);
@@ -226,13 +494,24 @@ static tf_debug_action repl_debug_hook(tf_ctx *ctx,
             return TF_DEBUG_ABORT;
         } else if (strcmp(command, "h") == 0 || strcmp(command, "help") == 0 ||
                    strcmp(command, "?") == 0) {
-            printf("  Enter, s, step       execute the next instruction\n"
-                   "  c, continue          run the rest of this input\n"
-                   "  p, stack             show the data stack\n"
-                   "  bt, backtrace        show VM frames\n"
-                   "  off                  disable tdb and continue\n"
-                   "  q, abort             abort the current input\n"
-                   "  h, help, ?           show this summary\n");
+            printf(
+                "  Enter, s, step       step into the next instruction\n"
+                "  n, next              step over the next instruction\n"
+                "  out, finish          run until the current frame returns\n"
+                "  c, continue          run until a breakpoint or completion\n"
+                "  b, break LINE|WORD   add a line or word breakpoint\n"
+                "  breakpoints          list breakpoints\n"
+                "  d, delete ID         delete one breakpoint\n"
+                "  clear                delete all breakpoints\n"
+                "  p, stack             show the data stack\n"
+                "  locals [FRAME]       show captures owned by a frame\n"
+                "  print $NAME          show a visible capture\n"
+                "  words                list user-defined words\n"
+                "  see WORD             show a word definition\n"
+                "  bt, backtrace        show VM frames\n"
+                "  off                  disable tdb and continue\n"
+                "  q, abort             abort the current input\n"
+                "  h, help, ?           show this summary\n");
         } else {
             printf("unknown tdb command '%s'; use 'help'\n", command);
         }
@@ -422,7 +701,9 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool show_parsed) {
         if (!input_complete(&state)) { continue; }
 
         ctx->suppress_repl_status = false;
-        debugger_continuing = false;
+        if (debugger_enabled && debugger_control_initialized) {
+            tf_debug_control_pause(&debugger_control);
+        }
         tf_native_fn repl_command = repl_command_for_source(ctx, source);
         tf_ret result;
         if (repl_command) {
@@ -715,7 +996,9 @@ static bool input_complete(const repl_state *state) {
 static void init_repl_ui(tf_ctx *ctx) {
     completion_ctx = ctx;
     history_path = get_history_path();
-    debugger_continuing = false;
+    if (debugger_enabled && debugger_control_initialized) {
+        tf_debug_control_pause(&debugger_control);
+    }
     tf_debug_set_hook(ctx, debugger_enabled ? repl_debug_hook : NULL, NULL);
 
     if (!history_atexit_registered) {
@@ -741,9 +1024,7 @@ static void init_repl_ui(tf_ctx *ctx) {
 }
 
 static void free_repl_ui(tf_ctx *ctx) {
-    debugger_enabled = false;
-    debugger_continuing = false;
-    tf_debug_set_hook(ctx, NULL, NULL);
+    tf_tdb_set_enabled(ctx, false);
     if (history_path) {
         if (linenoiseHistorySave(history_path) == -1) {
             tf_console_contextf("failed to save REPL history\n");

@@ -13,14 +13,14 @@ stream into standard DAP messages.
 - replace all breakpoints for the launched source;
 - continue, step into, step over, and step out;
 - inspect Toy VM frames and source locations;
-- inspect the data stack as a DAP scope;
+- inspect the data stack and each frame's captures as DAP scopes;
 - forward Toy stdout and diagnostics to the debug console;
 - report process exit and debugger termination.
 
-This first slice supports breakpoints only in the launched source. Stack values
-are displayed in source form but collections are not expandable yet.
-Conditional breakpoints, log points, watches, evaluation, attach, restart, and
-asynchronous pause are not currently advertised.
+This first slice supports breakpoints only in the launched source. Stack and
+capture values are displayed in source form but collections are not expandable
+yet. Conditional breakpoints, log points, watches, evaluation, attach, restart,
+and asynchronous pause are not currently advertised.
 
 ## Build
 
