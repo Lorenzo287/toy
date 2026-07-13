@@ -42,7 +42,7 @@ export default grammar({
     line_comment: $ => token(seq('\\', /.*/)),
     block_comment: $ => token(seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/')),
     boolean: $ => choice('true', 'false'),
-    number: $ => token(/[+-]?(?:(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)/),
+    number: $ => token(/[+-]?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?/),
     control_word: $ => choice(...controlWords),
     operator: $ => choice(...operatorWords),
     builtin_word: $ => choice(...builtinWords),
@@ -65,11 +65,11 @@ export default grammar({
     )),
     quoted_symbol: $ => seq(
       "'",
-      alias(choice('/', /[a-zA-Z0-9_+\-*%<>=!.?]+(?:::[a-zA-Z0-9_+\-*%<>=!.?]+)*/), $.symbol_name)
+      alias(choice('/', /\.(?:s|S)?/, /[a-zA-Z0-9_+\-*%<>=!?]+(?:\.[a-zA-Z0-9_+\-*%<>=!?]+)*/), $.symbol_name)
     ),
     var_fetch: $ => seq(
       '$',
-      alias(/[a-zA-Z0-9_+\-*%<>=!.?]+/, $.variable_name)
+      alias(/[a-zA-Z0-9_+\-*%<>=!?]+/, $.variable_name)
     ),
     block: $ => seq(
       '[',
@@ -97,6 +97,6 @@ export default grammar({
       repeat(choice($._non_capture_expression, $._comment)),
       '|',
     ),
-    word: $ => /[a-zA-Z_+\-*%<>=!.?][a-zA-Z0-9_+\-*%<>=!.?]*(?:::[a-zA-Z_+\-*%<>=!.?][a-zA-Z0-9_+\-*%<>=!.?]*)*/,
+    word: $ => /[a-zA-Z_+\-*%<>=!?][a-zA-Z0-9_+\-*%<>=!?]*(?:\.[a-zA-Z_+\-*%<>=!?][a-zA-Z0-9_+\-*%<>=!?]*)*/,
   }
 });

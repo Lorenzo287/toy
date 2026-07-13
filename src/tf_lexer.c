@@ -70,7 +70,7 @@ static void lexer_errorf(tf_lexer *lexer, const char *fmt, ...) {
 int tf_lexer_is_symbol_char(int c) {
     if (c == '\0') return 0;
     unsigned char uc = (unsigned char)c;
-    const char *sym_chars = "+-*%<>=!.?:";
+    const char *sym_chars = "+-*%<>=!.?";
     return isalpha(uc) || isdigit(uc) || c == '_' || strchr(sym_chars, uc) != NULL;
 }
 
@@ -216,7 +216,7 @@ static tf_obj *lexer_tokenize_until(tf_lexer *lexer, int terminator) {
             lexer_advance(lexer);
             o = lexer_tokenize_name(lexer);
             if (o) {
-                if (memchr(o->str.ptr, ':', o->str.len) ||
+                if (memchr(o->str.ptr, '.', o->str.len) ||
                     (o->str.len == 1 && o->str.ptr[0] == '/')) {
                     lexer_errorf(lexer,
                                  "capture names cannot be namespace-qualified\n");
@@ -296,7 +296,7 @@ static int lexer_normalize_capture_names(tf_lexer *lexer, tf_obj *names) {
                 return 0;
             }
         }
-        if (memchr(name->str.ptr, ':', name->str.len) ||
+        if (memchr(name->str.ptr, '.', name->str.len) ||
             (name->str.len == 1 && name->str.ptr[0] == '/')) {
             lexer_errorf(lexer,
                          "capture names cannot be namespace-qualified\n");
@@ -415,15 +415,18 @@ static tf_obj *lexer_tokenize_name(tf_lexer *lexer) {
 
 static int lexer_name_is_valid(tf_lexer *lexer, const char *name, size_t len) {
     if (len == 1 && name[0] == '/') return 1;
+    if ((len == 1 && name[0] == '.') ||
+        (len == 2 && name[0] == '.' &&
+         (name[1] == 's' || name[1] == 'S'))) {
+        return 1;
+    }
     for (size_t i = 0; i < len; i++) {
-        if (name[i] != ':') continue;
-        if (i == 0 || i + 1 >= len || name[i + 1] != ':' ||
-            i + 2 >= len || name[i + 2] == ':') {
+        if (name[i] != '.') continue;
+        if (i == 0 || i + 1 >= len || name[i + 1] == '.') {
             lexer_errorf(lexer,
-                         "namespace separators must be written as '::' between names\n");
+                         "namespace separator '.' must appear between names\n");
             return 0;
         }
-        i++;
     }
     return 1;
 }
@@ -582,8 +585,7 @@ static int lexer_starts_signed_number(tf_lexer *lexer) {
         !lexer_at_token_boundary(lexer)) {
         return 0;
     }
-    return isdigit((unsigned char)lexer->pos[1]) ||
-           (lexer->pos[1] == '.' && isdigit((unsigned char)lexer->pos[2]));
+    return isdigit((unsigned char)lexer->pos[1]);
 }
 
 static int lexer_at_token_boundary(tf_lexer *lexer) {

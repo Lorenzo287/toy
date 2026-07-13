@@ -4,6 +4,9 @@ project(toy C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
+option(TOY_BUILD_RAYLIB
+       "Build the optional Raylib native module and Toy-driven example" OFF)
+
 set(BUILD_MODE "None" CACHE STRING "None | AllocationStats | LeakCheck | Profile")
 set_property(CACHE BUILD_MODE PROPERTY STRINGS None AllocationStats LeakCheck Profile)
 message(STATUS "Build mode: ${BUILD_MODE}")
@@ -42,6 +45,45 @@ target_link_libraries(toy PRIVATE toy_runtime)
 
 add_executable(toy_embed_example EXCLUDE_FROM_ALL examples/c/embed.c)
 target_link_libraries(toy_embed_example PRIVATE toy::runtime)
+
+if(TOY_BUILD_RAYLIB)
+    if(NOT TARGET raylib AND NOT TARGET raylib::raylib)
+        find_package(raylib CONFIG QUIET)
+    endif()
+
+    if(TARGET raylib::raylib)
+        set(TOY_RAYLIB_TARGET raylib::raylib)
+    elseif(TARGET raylib)
+        set(TOY_RAYLIB_TARGET raylib)
+    else()
+        find_path(TOY_RAYLIB_INCLUDE_DIR raylib.h PATH_SUFFIXES include)
+        find_library(TOY_RAYLIB_LIBRARY NAMES raylib PATH_SUFFIXES lib)
+        if(NOT TOY_RAYLIB_INCLUDE_DIR OR NOT TOY_RAYLIB_LIBRARY)
+            message(FATAL_ERROR
+                "Raylib was not found; set CMAKE_PREFIX_PATH to its prefix")
+        endif()
+
+        add_library(toy_raylib_external UNKNOWN IMPORTED)
+        set_target_properties(toy_raylib_external PROPERTIES
+            IMPORTED_LOCATION "${TOY_RAYLIB_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${TOY_RAYLIB_INCLUDE_DIR}")
+        if(WIN32)
+            set_property(TARGET toy_raylib_external PROPERTY
+                INTERFACE_LINK_LIBRARIES "opengl32;gdi32;winmm")
+        endif()
+        set(TOY_RAYLIB_TARGET toy_raylib_external)
+    endif()
+
+    add_library(toy_raylib STATIC bindings/raylib/toy_raylib.c)
+    add_library(toy::raylib ALIAS toy_raylib)
+    target_include_directories(toy_raylib
+        PUBLIC ${PROJECT_SOURCE_DIR}/bindings/raylib)
+    target_link_libraries(toy_raylib PUBLIC toy::runtime ${TOY_RAYLIB_TARGET})
+
+    add_executable(toy_raylib_example EXCLUDE_FROM_ALL
+                   examples/c/raylib_host.c)
+    target_link_libraries(toy_raylib_example PRIVATE toy::raylib)
+endif()
 
 if(WIN32)
     target_sources(toy PRIVATE ${PROJECT_SOURCE_DIR}/deps/linenoise/linenoise_win.c)
@@ -151,6 +193,25 @@ if(BUILD_TESTING)
         TIMEOUT "${TOY_TEST_TIMEOUT}"
     )
 
+    add_executable(test_raylib_module
+                   tests/c/test_raylib_module.c
+                   bindings/raylib/toy_raylib.c)
+    target_include_directories(test_raylib_module PRIVATE
+        ${PROJECT_SOURCE_DIR}/tests/c/stubs
+        ${PROJECT_SOURCE_DIR}/bindings/raylib)
+    target_link_libraries(test_raylib_module PRIVATE toy_runtime)
+    if(MSVC)
+        target_compile_options(test_raylib_module PRIVATE /W3)
+    else()
+        target_compile_options(test_raylib_module PRIVATE
+                               -Wall -Wextra -Wpedantic)
+    endif()
+    add_test(NAME test_raylib_module COMMAND test_raylib_module)
+    set_tests_properties(test_raylib_module PROPERTIES
+        LABELS "c-api;binding;positive"
+        TIMEOUT "${TOY_TEST_TIMEOUT}"
+    )
+
     add_executable(test_debug_control tests/c/test_debug_control.c)
     target_link_libraries(test_debug_control PRIVATE toy_runtime)
     if(MSVC)
@@ -182,7 +243,12 @@ endif()
 
 # ── Baseline warnings ─────────────────────────────────────────────────────────
 
-foreach(TOY_TARGET IN ITEMS toy_runtime toy toy_embed_example)
+set(TOY_WARNING_TARGETS toy_runtime toy toy_embed_example)
+if(TARGET toy_raylib)
+    list(APPEND TOY_WARNING_TARGETS toy_raylib toy_raylib_example)
+endif()
+
+foreach(TOY_TARGET IN LISTS TOY_WARNING_TARGETS)
     if(MSVC)
         target_compile_options(${TOY_TARGET} PRIVATE /W3)
         target_compile_definitions(${TOY_TARGET} PRIVATE _CRT_SECURE_NO_WARNINGS)
@@ -210,6 +276,12 @@ elseif(BUILD_MODE STREQUAL "LeakCheck")
         if(TARGET test_embed_api)
             target_compile_definitions(test_embed_api PRIVATE STB_LEAKCHECK)
             target_include_directories(test_embed_api PRIVATE
+                                       ${PROJECT_SOURCE_DIR}/deps)
+        endif()
+        if(TARGET test_raylib_module)
+            target_compile_definitions(test_raylib_module PRIVATE
+                                       STB_LEAKCHECK)
+            target_include_directories(test_raylib_module PRIVATE
                                        ${PROJECT_SOURCE_DIR}/deps)
         endif()
         if(TARGET test_debug_control)

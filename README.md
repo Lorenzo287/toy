@@ -247,7 +247,7 @@ or `/* ... */` for a block.
 ## Modules
 
 `require` loads a Toy source module once. Definitions are private by default;
-`export` makes selected words available through `::` qualified names:
+`export` makes selected words available through `.` qualified names:
 
 ```toy
 \ math.toy
@@ -257,14 +257,14 @@ or `/* ... */` for a block.
 
 \ app.toy
 "math" require
-21 math::double print   \ 42
+21 math.double print   \ 42
 
 \ An alias is local to this importing file/module.
 "math" 'm require-as
-21 m::double print      \ 42
+21 m.double print      \ 42
 ```
 
-The module name maps to its source path, so `"util::math" require` looks for
+The module name maps to its source path, so `"util.math" require` looks for
 `util/math.toy`, first beside the importing file and then from the current
 working directory. Code inside a module uses its own words without a prefix,
 and quotations keep that module context when passed elsewhere. Cyclic imports
@@ -273,6 +273,10 @@ should simply execute in the caller's context without module isolation or
 load-once behavior; its relative paths use the same source-directory-first
 resolution. This also makes `tdb` followed by `"program.toy" load` useful for
 repeated edit–reload–debug sessions in the REPL.
+
+The dot is reserved for qualification, so definitions and captures use local
+names without dots. The root display words `.`, `.s`, and `.S` remain explicit
+exceptions.
 
 ## Embedding and Native Interop
 
@@ -285,8 +289,10 @@ rules, while [`examples/c/embed.c`](./examples/c/embed.c) shows both call
 directions in a complete host.
 
 This boundary is the foundation for handwritten library bindings, such as a
-Raylib integration. Native modules now share source-module naming, `require`,
-and aliases; dynamic library loading and general FFI remain exploratory.
+Raylib integration. The optional Raylib module now demonstrates a window and
+drawing loop controlled entirely by Toy. Native modules share source-module
+naming, `require`, and aliases; dynamic library loading and general FFI remain
+exploratory.
 
 ## Built-in Words
 

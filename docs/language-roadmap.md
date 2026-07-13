@@ -23,7 +23,7 @@ history rather than this roadmap.
 **Status: In progress**
 
 Source modules now provide load-once `require`, private definitions, explicit
-exports, relative dependency loading, module-scoped aliases, and `::` qualified
+exports, relative dependency loading, module-scoped aliases, and `.` qualified
 names. Keep the model small while real programs establish whether configurable
 search paths or additional module metadata are worthwhile. Native modules
 should reuse this namespace and load-state machinery rather than introduce a
@@ -52,19 +52,19 @@ as an exploratory interoperability track, not a single general-purpose
 version zero exposes opaque states, primitive stack access, host-to-Toy calls,
 and synchronous native-word or native-module registration. Native module
 descriptors reuse source-module names, exports, load state, and aliases. The API
-is not stable yet.
+is not stable yet. A small optional Raylib module now exercises the primitive
+boundary with a Toy-owned window and drawing loop.
 
 Current follow-up candidates are:
 
 1. redirect output and detailed parser diagnostics through host callbacks;
 2. add opaque foreign resources with explicit type, lifetime, and destructor
-   rules;
-3. prove the bidirectional boundary with a small handwritten Raylib host;
-4. define a versioned shared-library ABI and loader if separately distributed
+   rules, then extend bindings to textures, sounds, and similar values;
+3. define a versioned shared-library ABI and loader if separately distributed
    native modules become useful;
-5. use [libffi](https://github.com/libffi/libffi) to experiment with explicit
+4. use [libffi](https://github.com/libffi/libffi) to experiment with explicit
    scalar and string signatures resolved at runtime;
-6. consider foreign pointers, output parameters, structs, variadic functions,
+5. consider foreign pointers, output parameters, structs, variadic functions,
    and callbacks only after the basic ownership and VM-boundary rules are
    settled.
 

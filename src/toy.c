@@ -52,9 +52,9 @@ static const tf_module *qualified_word_owner(toy_state *state,
                                              size_t name_len) {
     for (size_t i = 1; i < state->modules.len; i++) {
         const tf_module *module = &state->modules.entries[i];
-        if (name_len <= module->name_len + 2) continue;
+        if (name_len <= module->name_len + 1) continue;
         if (memcmp(name, module->name, module->name_len) == 0 &&
-            memcmp(name + module->name_len, "::", 2) == 0) {
+            name[module->name_len] == '.') {
             return module;
         }
     }
@@ -149,17 +149,17 @@ toy_status toy_register_native_module(toy_state *state,
             return api_errorf(state, "invalid native word name '%s' in module '%s'",
                               word->name, module->name);
         }
-        if (module_name_len > SIZE_MAX - 3 ||
-            word_name_len > SIZE_MAX - module_name_len - 3) {
+        if (module_name_len > SIZE_MAX - 2 ||
+            word_name_len > SIZE_MAX - module_name_len - 2) {
             free_native_names(qualified_names, module->word_count);
             return api_errorf(state, "native module word name is too long");
         }
 
-        size_t qualified_len = module_name_len + 2 + word_name_len;
+        size_t qualified_len = module_name_len + 1 + word_name_len;
         char *qualified = tf_xmalloc(qualified_len + 1);
         memcpy(qualified, module->name, module_name_len);
-        memcpy(qualified + module_name_len, "::", 2);
-        memcpy(qualified + module_name_len + 2, word->name,
+        qualified[module_name_len] = '.';
+        memcpy(qualified + module_name_len + 1, word->name,
                word_name_len + 1);
         qualified_names[i] = qualified;
 

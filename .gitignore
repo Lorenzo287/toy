@@ -5,6 +5,7 @@ build-prof/
 build-leak/
 build-linux/
 build-msvc/
+build-raylib/
 bin/
 obj/
 
@@ -41,6 +42,7 @@ toy_forth.out
 GEMINI.md
 CLAUDE.md
 .claude/
+compile_flags.txt
 
 # Local tools
 Makefile

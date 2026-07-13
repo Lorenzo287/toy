@@ -368,23 +368,12 @@ static void require_cleanup(tf_ctx *ctx, void *raw_state, tf_ret status) {
 }
 
 static char *module_relative_path(const char *name, size_t len) {
-    size_t separators = 0;
-    for (size_t i = 0; i + 1 < len; i++) {
-        if (name[i] == ':' && name[i + 1] == ':') separators++;
-    }
-
-    size_t path_len = len - separators + 4;
+    size_t path_len = len + 4;
     char *path = tf_xmalloc(path_len + 1);
-    size_t out = 0;
-    for (size_t i = 0; i < len;) {
-        if (i + 1 < len && name[i] == ':' && name[i + 1] == ':') {
-            path[out++] = '/';
-            i += 2;
-        } else {
-            path[out++] = name[i++];
-        }
+    for (size_t i = 0; i < len; i++) {
+        path[i] = name[i] == '.' ? '/' : name[i];
     }
-    memcpy(path + out, ".toy", 5);
+    memcpy(path + len, ".toy", 5);
     return path;
 }
 
@@ -394,7 +383,7 @@ static void release_require_args(tf_obj *name, tf_obj *alias) {
 }
 
 static bool alias_name_valid(const char *name, size_t len) {
-    return !memchr(name, ':', len) && tf_module_name_valid(name, len);
+    return !memchr(name, '.', len) && tf_module_name_valid(name, len);
 }
 
 static bool alias_matches_module(tf_ctx *ctx, size_t owner_module_index,

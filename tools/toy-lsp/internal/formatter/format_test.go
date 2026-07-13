@@ -107,8 +107,8 @@ func TestFormatUsesRuntimeLexerTokenBoundaries(t *testing.T) {
 		},
 		{
 			name:   "namespace remains part of symbols",
-			source: "foo::bar 'foo::bar",
-			want:   "foo::bar 'foo::bar\n",
+			source: "foo.bar 'foo.bar . .s .S '. '.s '.S",
+			want:   "foo.bar 'foo.bar . .s .S '. '.s '.S\n",
 		},
 		{
 			name:   "slash is always an operator",
@@ -167,7 +167,9 @@ func TestFormatRejectsRuntimeMalformedTokenAdjacency(t *testing.T) {
 }
 
 func TestFormatRejectsMalformedNamespaceNames(t *testing.T) {
-	for _, source := range []string{"foo:bar", "$foo::bar"} {
+	for _, source := range []string{
+		"foo:bar", "$foo.bar", "foo..bar", ".foo", "foo.", ".5",
+	} {
 		t.Run(source, func(t *testing.T) {
 			_, err := Format([]byte(source), DefaultOptions())
 			if err == nil {

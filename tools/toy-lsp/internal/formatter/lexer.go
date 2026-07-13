@@ -7,7 +7,7 @@ import (
 
 // sourceLexer mirrors the token-boundary rules in src/tf_lexer.c. Tree-sitter
 // remains the formatter's structural parser, but its lexical choices are not
-// lossless for adjacency such as 1-2 or foo::bar. Rendering from these spans
+// lossless for adjacency such as 1-2 or foo.bar. Rendering from these spans
 // ensures that inserting whitespace cannot split or merge runtime tokens.
 type sourceLexer struct {
 	source          []byte
@@ -242,7 +242,7 @@ func (lexer *sourceLexer) scanPrefixedSymbol(prefix byte) error {
 		if name == "true" || name == "false" {
 			return lexer.errorAt(start, "expected variable name after '$'")
 		}
-		if name == "/" || bytes.Contains(lexer.source[symbolStart:lexer.pos], []byte("::")) {
+		if name == "/" || bytes.Contains(lexer.source[symbolStart:lexer.pos], []byte(".")) {
 			return lexer.errorAt(start, "capture names cannot be namespace-qualified")
 		}
 	}
@@ -255,15 +255,17 @@ func (lexer *sourceLexer) validateNamespaceName(start, end int) error {
 	if len(name) == 1 && name[0] == '/' {
 		return nil
 	}
+	if len(name) == 1 && name[0] == '.' ||
+		len(name) == 2 && name[0] == '.' && (name[1] == 's' || name[1] == 'S') {
+		return nil
+	}
 	for index := 0; index < len(name); index++ {
-		if name[index] != ':' {
+		if name[index] != '.' {
 			continue
 		}
-		if index == 0 || index+1 >= len(name) || name[index+1] != ':' ||
-			index+2 >= len(name) || name[index+2] == ':' {
-			return lexer.errorAt(start+index, "namespace separators must be written as '::' between names")
+		if index == 0 || index+1 >= len(name) || name[index+1] == '.' {
+			return lexer.errorAt(start+index, "namespace separator '.' must appear between names")
 		}
-		index++
 	}
 	return nil
 }
@@ -336,8 +338,7 @@ func (lexer *sourceLexer) startsSignedNumber() bool {
 	if !lexer.atTokenBoundary() {
 		return false
 	}
-	return isASCIIDigit(lexer.peek(1)) ||
-		(lexer.peek(1) == '.' && isASCIIDigit(lexer.peek(2)))
+	return isASCIIDigit(lexer.peek(1))
 }
 
 func (lexer *sourceLexer) atTokenBoundary() bool {
@@ -422,7 +423,7 @@ func isASCIIHex(value byte) bool {
 
 func isSymbolByte(value byte) bool {
 	return isASCIIAlpha(value) || isASCIIDigit(value) || value == '_' ||
-		value == '+' || value == '-' || value == '*' || value == ':' ||
+		value == '+' || value == '-' || value == '*' ||
 		value == '%' || value == '<' || value == '>' || value == '=' ||
 		value == '!' || value == '.' || value == '?'
 }

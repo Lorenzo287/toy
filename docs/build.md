@@ -22,6 +22,21 @@ The build produces the `toy` CLI and a static `toy_runtime` library. CMake
 hosts can link the `toy::runtime` alias and use the experimental API in
 `include/toy.h`; see [Embedding Toy in C](./embedding.md).
 
+The optional Raylib binding is disabled by default. With either a Raylib CMake
+package or an installation prefix containing `include/raylib.h` and its library,
+build the binding and Toy-driven example with:
+
+```powershell
+cmake -S . -B build-raylib -DTOY_BUILD_RAYLIB=ON
+cmake --build build-raylib --target toy_raylib_example
+.\build-raylib\toy_raylib_example.exe
+```
+
+Set `CMAKE_PREFIX_PATH` to that prefix, or use a package-manager toolchain, when
+CMake cannot find Raylib. The compiler must be compatible with the installed
+Raylib binary. This option adds `toy::raylib`; it never downloads the
+dependency.
+
 ### 2. LeakCheck
 
 Development build for tracking leaks.

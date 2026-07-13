@@ -566,10 +566,10 @@ bool tf_module_name_valid(const char *name, size_t name_len) {
     if (!name || name_len == 0) return false;
     bool segment_start = true;
     for (size_t i = 0; i < name_len;) {
-        if (i + 1 < name_len && name[i] == ':' && name[i + 1] == ':') {
+        if (name[i] == '.') {
             if (segment_start) return false;
             segment_start = true;
-            i += 2;
+            i++;
             continue;
         }
         unsigned char c = (unsigned char)name[i];
@@ -586,7 +586,7 @@ bool tf_module_name_valid(const char *name, size_t name_len) {
 
 bool tf_module_word_name_valid(const char *name, size_t name_len) {
     if (!name || name_len == 0) return false;
-    const char *operators = "+-*%<>=!.?";
+    const char *operators = "+-*%<>=!?";
     unsigned char first = (unsigned char)name[0];
     if (!isalpha(first) && first != '_' && !strchr(operators, first)) {
         return false;
@@ -787,28 +787,24 @@ void tf_dict_add_native_scoped(tf_ctx *ctx, const char *name, size_t name_len,
 }
 
 static bool name_is_qualified(const char *name, size_t len) {
-    for (size_t i = 0; i + 1 < len; i++) {
-        if (name[i] == ':' && name[i + 1] == ':') return true;
-    }
-    return false;
+    return memchr(name, '.', len) != NULL;
 }
 
 static bool split_alias_request(const char *name, size_t len,
                                 size_t *alias_len, const char **local_name,
                                 size_t *local_len) {
     size_t separator = (size_t)-1;
-    for (size_t i = 0; i + 1 < len; i++) {
-        if (name[i] != ':' || name[i + 1] != ':') continue;
+    for (size_t i = 0; i < len; i++) {
+        if (name[i] != '.') continue;
         if (separator != (size_t)-1) return false;
         separator = i;
-        i++;
     }
-    if (separator == (size_t)-1 || separator == 0 || separator + 2 >= len) {
+    if (separator == (size_t)-1 || separator == 0 || separator + 1 >= len) {
         return false;
     }
     *alias_len = separator;
-    *local_name = name + separator + 2;
-    *local_len = len - separator - 2;
+    *local_name = name + separator + 1;
+    *local_len = len - separator - 1;
     return true;
 }
 
@@ -831,11 +827,11 @@ static tf_word *dict_lookup_scoped_exact(tf_ctx *ctx, size_t module_index,
     const tf_module *module = tf_module_get(ctx, module_index);
     if (!module) return NULL;
 
-    size_t qualified_len = module->name_len + 2 + name_len;
+    size_t qualified_len = module->name_len + 1 + name_len;
     char *qualified = tf_xmalloc(qualified_len + 1);
     memcpy(qualified, module->name, module->name_len);
-    memcpy(qualified + module->name_len, "::", 2);
-    memcpy(qualified + module->name_len + 2, name, name_len);
+    qualified[module->name_len] = '.';
+    memcpy(qualified + module->name_len + 1, name, name_len);
     qualified[qualified_len] = '\0';
     tf_word *word = tf_dict_lookup_name(ctx, qualified, qualified_len);
     free(qualified);
@@ -859,11 +855,11 @@ static char *qualified_word_name(tf_ctx *ctx, size_t module_index,
                                  size_t *qualified_len) {
     const tf_module *module = tf_module_get(ctx, module_index);
     if (!module) return NULL;
-    *qualified_len = module->name_len + 2 + name_len;
+    *qualified_len = module->name_len + 1 + name_len;
     char *qualified = tf_xmalloc(*qualified_len + 1);
     memcpy(qualified, module->name, module->name_len);
-    memcpy(qualified + module->name_len, "::", 2);
-    memcpy(qualified + module->name_len + 2, name, name_len);
+    qualified[module->name_len] = '.';
+    memcpy(qualified + module->name_len + 1, name, name_len);
     qualified[*qualified_len] = '\0';
     return qualified;
 }
@@ -954,11 +950,11 @@ static bool word_matches_request(tf_ctx *ctx, tf_word *word,
             ctx, current_module, name, name_len, &local_name, &local_len);
         if (target != (size_t)-1) {
             const tf_module *module = tf_module_get(ctx, target);
-            size_t prefix_len = module ? module->name_len + 2 : 0;
+            size_t prefix_len = module ? module->name_len + 1 : 0;
             return module && word->module_index == target &&
                    word->name_len == prefix_len + local_len &&
                    memcmp(word->name, module->name, module->name_len) == 0 &&
-                   memcmp(word->name + module->name_len, "::", 2) == 0 &&
+                   word->name[module->name_len] == '.' &&
                    memcmp(word->name + prefix_len, local_name, local_len) == 0;
         }
         return word->name_len == name_len &&
@@ -970,7 +966,7 @@ static bool word_matches_request(tf_ctx *ctx, tf_word *word,
     }
     if (word->module_index != current_module) return false;
     const tf_module *module = tf_module_get(ctx, current_module);
-    size_t prefix_len = module ? module->name_len + 2 : 0;
+    size_t prefix_len = module ? module->name_len + 1 : 0;
     return word->name_len == prefix_len + name_len &&
            memcmp(word->name + prefix_len, name, name_len) == 0;
 }
@@ -1052,9 +1048,9 @@ tf_word *tf_dict_namespace_conflict(tf_ctx *ctx, const char *module_name,
     for (size_t i = 0; i < ctx->words.count; i++) {
         tf_word *word = &ctx->words.entries[i];
         if (word->module_index != TF_ROOT_MODULE) continue;
-        if (word->name_len <= module_name_len + 2) continue;
+        if (word->name_len <= module_name_len + 1) continue;
         if (memcmp(word->name, module_name, module_name_len) == 0 &&
-            memcmp(word->name + module_name_len, "::", 2) == 0) {
+            word->name[module_name_len] == '.') {
             return word;
         }
     }

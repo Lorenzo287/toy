@@ -76,22 +76,47 @@ static const toy_native_module host_module = {
 toy_register_native_module(state, &host_module);
 ```
 
+Module descriptor names may contain dotted namespace segments; word entries are
+local names and therefore cannot contain dots.
+
 Registration copies the names, validates the entire descriptor before making
 changes, exports every word, and marks the module loaded. Toy can therefore use
 the ordinary module vocabulary without a `host.toy` file:
 
 ```toy
 "host" require
-21 host::double
+21 host.double
 
 "host" 'h require-as
-"ready" h::log
+"ready" h.log
 ```
 
 Module names and namespace ownership cannot collide with source modules or
 previously registered qualified words. The callback functions themselves must
 remain valid for the lifetime of the state. `toy_register_native()` remains
 available for standalone words that do not need module identity.
+
+## Raylib Proof
+
+The optional `bindings/raylib/` adapter is the first real native module built on
+this API. Its host only creates a state, registers `raylib`, and loads
+`examples/toy/raylib.toy`; the window loop, close predicate, frame boundaries,
+and drawing calls are ordinary Toy code.
+
+Configure with `-DTOY_BUILD_RAYLIB=ON` after installing Raylib, then build and
+run `toy_raylib_example`. The module currently provides:
+
+- window lifecycle: `init-window`, `close-window`,
+  `window-should-close?`, and `set-target-fps`;
+- frames and drawing: `begin-drawing`, `end-drawing`, `clear-background`,
+  `draw-circle`, `draw-rectangle`, and `draw-text`;
+- values and queries: `rgba`, `mouse-x`, `mouse-y`, and `frame-time`.
+
+`rgba` converts four byte integers to a packed Toy integer accepted by the
+drawing words. This keeps the initial binding within the primitive public API.
+Textures, sounds, models, and other owned Raylib values should wait for explicit
+foreign-resource lifetime rules rather than being represented as untyped
+integers.
 
 ## Stack and Ownership
 

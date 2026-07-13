@@ -43,7 +43,7 @@ loaded, or failed, which provides load-once behavior and detects cyclic
 dependencies without recursively entering the VM.
 
 The dictionary remains one hash table. Module definitions are stored under
-canonical `module::word` keys, while each program frame carries its lexical
+canonical `module.word` keys, while each program frame carries its lexical
 module. Unqualified lookup checks that module first and then the root native
 words; qualified lookup exposes only explicitly exported words from loaded
 modules. A separate alias table maps a short prefix to a module index within one

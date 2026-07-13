@@ -3,7 +3,7 @@
 Toy is a small concatenative language/runtime in C. It has a stack-based
 execution model, first-class quotations and symbols, explicit call nodes,
 refcounted collection objects, dynamic captures (`| a b |` / `$a`), source
-modules with `::` qualified exports, a generated builtin registry, a scoped
+modules with `.` qualified exports, a generated builtin registry, a scoped
 word dictionary, and an iterative VM frame stack for user words.
 
 Roadmap work lives in `docs/language-roadmap.md`. Keep this file focused on
@@ -19,6 +19,8 @@ navigation and development rules.
 - `include/`: internal APIs; read these before engine, lexer, object, or native edits.
 - `examples/toy/`, `examples/c/`: curated Toy programs and C embedding hosts;
   formatting-sensitive quines live under `examples/toy/quines/`.
+- `bindings/raylib/`: optional handwritten Raylib native module, kept outside
+  the core runtime.
 - `tests/toy/`, `tests/c/`: language cases and C API regressions. Toy test
   prefixes declare behavior: `test_`, `fail_`, `output_`, and `manual_`.
 - `docs/`: build, REPL, tooling, and roadmap docs.
@@ -54,6 +56,8 @@ navigation and development rules.
 - Native declarations: `include/tf_lib.h`.
 - Experimental public C and native-module API: `include/toy.h`, implemented by
   `src/toy.c`.
+- Raylib binding adapter and registration entry point:
+  `bindings/raylib/toy_raylib.h`, `bindings/raylib/toy_raylib.c`.
 - Execution engine: `include/tf_exec.h`, `src/tf_exec.c`.
 - Module registry and scoped lookup: `include/tf_exec.h`, `src/tf_exec.c`;
   module loading and path resolution: `src/tf_lib_io.c`.

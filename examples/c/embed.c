@@ -7,7 +7,7 @@ static toy_status host_log(toy_state *state) {
     const char *message = NULL;
     size_t length = 0;
     if (!toy_get_string(state, 0, &message, &length)) {
-        return toy_error(state, "host::log expected a string");
+        return toy_error(state, "host.log expected a string");
     }
 
     fputs("Toy says: ", stdout);
@@ -15,7 +15,7 @@ static toy_status host_log(toy_state *state) {
     fputc('\n', stdout);
 
     if (!toy_pop(state, 1)) {
-        return toy_error(state, "host::log failed to pop its input");
+        return toy_error(state, "host.log failed to pop its input");
     }
     return TOY_OK;
 }
@@ -55,7 +55,7 @@ int main(void) {
     const char *program =
         "'score [ 2 * 10 + ] def\n"
         "\"host\" 'h require-as\n"
-        "\"runtime initialized\" h::log";
+        "\"runtime initialized\" h.log";
     status = toy_eval(state, "embed.toy", program);
     if (status != TOY_OK) {
         int result = report_error(state, "Toy evaluation", status);
