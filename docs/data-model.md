@@ -21,6 +21,7 @@ details that make this efficient are collected at the end of the guide.
 | set | `#{ "red" "green" }`, `>set` | insertion-ordered membership |
 | deque | `>deque` | efficient front and back endpoints |
 | priority queue | `>pqueue` | minimum-priority access |
+| resource | native module or embedding API | opaque, typed foreign handle |
 
 Strings are byte sequences, not Unicode strings. String literals accept `\n`,
 `\r`, `\t`, `\"`, `\\`, and `\xHH`; unknown escapes are errors.
@@ -154,6 +155,9 @@ Hashable values, and therefore valid map keys and set items, are currently:
 Call instructions are deliberately not hashable; convert one with `>symbol`
 when its name is intended as a key. Floats and structural values compare for
 equality but are not hash keys yet.
+Resources compare by wrapper identity and are not hashable. Their copied type
+tag is visible in the display form `<resource:type.name>`, but the foreign
+pointer is never exposed to Toy code.
 This avoids unresolved policy questions around NaN, signed zero, and cached
 structural hashes.
 
@@ -267,6 +271,11 @@ references to their items, which lets the runtime share existing values instead
 of copying whole structures unnecessarily. These details must remain invisible
 to Toy programs: every optimization still preserves the value behavior
 described above.
+
+Opaque resources participate in the same reference counting. Their native
+destructor runs exactly once when the last wrapper reference disappears;
+placing a resource in a collection therefore extends its lifetime without
+copying the foreign handle.
 
 Current performance techniques include:
 

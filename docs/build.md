@@ -32,6 +32,15 @@ cmake --build build-raylib --target toy_raylib_example
 .\build-raylib\toy_raylib_example.exe
 ```
 
+The launcher accepts another Toy program followed by string values to place on
+its initial data stack. For example, the texture demo loads an opaque Raylib
+resource from an image path, retains it through the drawing loop, and drops it
+before closing the window:
+
+```powershell
+.\build-raylib\toy_raylib_example.exe examples\toy\raylib_texture.toy path\to\image.png
+```
+
 Set `CMAKE_PREFIX_PATH` to that prefix, or use a package-manager toolchain, when
 CMake cannot find Raylib. The compiler must be compatible with the installed
 Raylib binary. This option adds `toy::raylib`; it never downloads the

@@ -169,6 +169,7 @@ static const tf_doc_entry builtin_docs[] = {
     {"set?", "x -- bool", "", "Check whether the input is a set."},
     {"deque?", "x -- bool", "", "Check whether the input is a deque."},
     {"pqueue?", "x -- bool", "", "Check whether the input is a priority queue."},
+    {"resource?", "x -- bool", "", "Check whether the input is an opaque foreign resource."},
     {"number?", "x -- bool", "", "Check whether the input is an integer or float."},
     {"sequence?", "x -- bool", "", "Check whether the input can be iterated as a sequence: vector, list, or string."},
     {"callable?", "x -- bool", "", "Check whether the input can be executed now: a vector quotation, symbol, or call naming a defined word."},

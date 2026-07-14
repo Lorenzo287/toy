@@ -666,6 +666,10 @@ var builtinDocs = map[string]builtinDoc{
 		StackEffect: "x -- bool",
 		Description: "Check whether the input is a priority queue.",
 	},
+	"resource?": {
+		StackEffect: "x -- bool",
+		Description: "Check whether the input is an opaque foreign resource.",
+	},
 	"number?": {
 		StackEffect: "x -- bool",
 		Description: "Check whether the input is an integer or float.",

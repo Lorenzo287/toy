@@ -282,17 +282,22 @@ exceptions.
 
 Toy can be embedded as a static C runtime. The API currently lets
 a host create interpreter states, evaluate Toy source, call Toy words,
-exchange primitive stack values, and register C functions individually or as
-native modules. The
+exchange primitive and opaque resource stack values, and register C functions
+individually or as native modules. Resource values let bindings carry typed,
+automatically released foreign handles without exposing pointers to Toy.
+State-local callbacks can redirect Toy output and detailed parser/runtime
+diagnostics into host logs or user interfaces. The
 [embedding guide](./docs/embedding.md) defines the execution and ownership
 rules, while [`examples/c/embed.c`](./examples/c/embed.c) shows both call
-directions in a complete host.
+directions in a complete host and
+[`examples/c/embed_callbacks.c`](./examples/c/embed_callbacks.c) demonstrates
+captured output and diagnostics.
 
 This boundary is the foundation for handwritten library bindings, such as a
 Raylib integration. The optional Raylib module now demonstrates a window and
-drawing loop controlled entirely by Toy. Native modules share source-module
-naming, `require`, and aliases; dynamic library loading and general FFI remain
-exploratory.
+drawing loop controlled entirely by Toy, including owned texture resources.
+Native modules share source-module naming, `require`, and aliases; dynamic
+library loading and general FFI remain exploratory.
 
 ## Built-in Words
 
@@ -313,7 +318,7 @@ exploratory.
 | Maps / Sets                 | `>map`, `>set`, `has?`, `get`, `get-or`, `assoc`, `dissoc`, `keys`, `values`, `pairs`, `items`, `insert`, `remove` |
 | Set Algebra                 | `union`, `intersection`, `difference`, `symmetric-difference`, `subset?`, `proper-subset?`, `superset?`, `proper-superset?`, `disjoint?` |
 | Priority Queues             | `>pqueue`, `pq-push`, `pq-peek`, `pq-pop` |
-| Types                       | `type-of`, `bool?`, `int?`, `float?`, `string?`, `symbol?`, `call?`, `vector?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `number?`, `sequence?`, `callable?` |
+| Types                       | `type-of`, `bool?`, `int?`, `float?`, `string?`, `symbol?`, `call?`, `vector?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `resource?`, `number?`, `sequence?`, `callable?` |
 | Definitions / Introspection | `def`, `export`, `word?`, `var?`, `body`, `>symbol`, `>call`, `name`, `words`, `see`, `doc`, `search-words`, `repr` |
 | Console                     | `printf`, `print`, `.`, `.s`, `.S`, `read-key`, `read-line`, `clear` |
 | Files                       | `load`, `require`, `require-as`, `read-file`, `write-file`, `delete-file`, `read-lines`, `file-exists?` |

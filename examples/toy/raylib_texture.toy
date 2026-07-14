@@ -1,0 +1,26 @@
+\ Pass an image path after this script; the Raylib host puts it on the stack.
+\ .\build-raylib\toy_raylib_example.exe examples\toy\raylib_texture.toy path\to\image.png
+
+"raylib" 'rl require-as
+
+'background [ 245 245 245 255 rl.rgba ] def
+'white [ 255 255 255 255 rl.rgba ] def
+'ink [ 80 80 80 255 rl.rgba ] def
+
+800 450 "Toy texture resource" rl.init-window
+60 rl.set-target-fps
+
+rl.load-texture
+
+[
+    rl.window-should-close? not
+] [
+    rl.begin-drawing
+    background rl.clear-background
+    dup 80 100 white rl.draw-texture
+    "dup keeps the texture resource alive across frames" 20 20 20 ink rl.draw-text
+    rl.end-drawing
+] while
+
+drop
+rl.close-window

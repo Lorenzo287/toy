@@ -172,6 +172,7 @@ export const builtinWords = [
   "set?",
   "deque?",
   "pqueue?",
+  "resource?",
   "number?",
   "sequence?",
   "callable?",

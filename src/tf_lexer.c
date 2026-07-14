@@ -8,6 +8,7 @@
 #include <string.h>
 #include "tf_alloc.h"
 #include "tf_console.h"
+#include "tf_exec.h"
 
 #define TF_TOP_LEVEL_INITIAL_CAP 8
 
@@ -56,15 +57,32 @@ static const char *source_basename(const char *path) {
 }
 
 static void lexer_errorf(tf_lexer *lexer, const char *fmt, ...) {
-    va_list ap;
     lexer->error = 1;
-    tf_console_lexer_errorf("");
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    va_end(ap);
-    fprintf(stderr, "  at %s:%zu:%zu\n",
-            source_basename(tf_source_file_name(lexer->source)),
-            (size_t)lexer->line, (size_t)lexer->col);
+    va_list args;
+    va_start(args, fmt);
+    va_list count_args;
+    va_copy(count_args, args);
+    int length = vsnprintf(NULL, 0, fmt, count_args);
+    va_end(count_args);
+    if (length < 0) {
+        va_end(args);
+        return;
+    }
+
+    char *message = tf_xmalloc((size_t)length + 1);
+    vsnprintf(message, (size_t)length + 1, fmt, args);
+    va_end(args);
+
+    const char *source_name = tf_source_file_name(lexer->source);
+    if (lexer->ctx) {
+        tf_ctx_parse_error(lexer->ctx, source_name, (size_t)lexer->line,
+                           (size_t)lexer->col, message);
+    } else {
+        tf_console_lexer_errorf("%s", message);
+        fprintf(stderr, "  at %s:%zu:%zu\n", source_basename(source_name),
+                (size_t)lexer->line, (size_t)lexer->col);
+    }
+    free(message);
 }
 
 int tf_lexer_is_symbol_char(int c) {
@@ -98,13 +116,19 @@ static int hex_value(int c) {
 
 /* Parse source text into a vector of runtime objects. */
 tf_obj *tf_lexer_parse(const char *filename, const char *prg_text) {
+    return tf_lexer_parse_ctx(NULL, filename, prg_text);
+}
+
+tf_obj *tf_lexer_parse_ctx(tf_ctx *ctx, const char *filename,
+                           const char *prg_text) {
     tf_source_file *source = tf_source_file_new(filename);
     tf_lexer lexer_state = {.source = source,
                             .start = prg_text,
                             .pos = prg_text,
                             .line = 1,
                             .col = 1,
-                            .error = 0};
+                            .error = 0,
+                            .ctx = ctx};
     tf_obj *result = lexer_tokenize_until(&lexer_state, 0);
     tf_source_file_release(source);
     return result;

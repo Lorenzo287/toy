@@ -11,7 +11,17 @@
 #include "tf_obj.h"
 #include "tf_exec.h"
 #include "tf_alloc.h"
+#include "tf_console.h"
 #include "tf_lexer.h"
+
+static void ctx_output_obj_write(void *userdata, const char *data,
+                                 size_t length) {
+    tf_ctx_write_output(userdata, data, length);
+}
+
+static void ctx_write_value(tf_ctx *ctx, tf_obj *value, bool color) {
+    tf_obj_write_value(value, ctx_output_obj_write, ctx, color);
+}
 
 static int read_line_dynamic(FILE *fp, char **buf, size_t *cap,
                              size_t *line_len) {
@@ -41,7 +51,7 @@ tf_ret tf_printf(tf_ctx *ctx) {
 
     if (o->type != TF_OBJ_TYPE_STR) {
         o = tf_stack_pop(ctx);
-        tf_obj_print_value(o);
+        ctx_write_value(ctx, o, false);
         tf_obj_release(o);
         return TF_OK;
     }
@@ -72,7 +82,7 @@ tf_ret tf_printf(tf_ctx *ctx) {
 
     if (!has_format) {
         o = tf_stack_pop(ctx);
-        tf_obj_print_value(o);
+        ctx_write_value(ctx, o, false);
         tf_obj_release(o);
         return TF_OK;
     }
@@ -90,24 +100,26 @@ tf_ret tf_printf(tf_ctx *ctx) {
     for (size_t i = 0; i < fmt_len; i++) {
         if (fmt[i] == '{') {
             if (i + 1 < fmt_len && fmt[i + 1] == '}') {
-                tf_obj_print_value(tf_stack_peek(ctx, count - 1 - arg_idx));
+                ctx_write_value(ctx,
+                                tf_stack_peek(ctx, count - 1 - arg_idx),
+                                false);
                 arg_idx++;
                 i++;
             } else if (i + 1 < fmt_len && fmt[i + 1] == '{') {
-                putchar('{');
+                tf_ctx_write_output(ctx, "{", 1);
                 i++;
             } else {
-                putchar('{');
+                tf_ctx_write_output(ctx, "{", 1);
             }
         } else if (fmt[i] == '}') {
             if (i + 1 < fmt_len && fmt[i + 1] == '}') {
-                putchar('}');
+                tf_ctx_write_output(ctx, "}", 1);
                 i++;
             } else {
-                putchar('}');
+                tf_ctx_write_output(ctx, "}", 1);
             }
         } else {
-            putchar(fmt[i]);
+            tf_ctx_write_output(ctx, &fmt[i], 1);
         }
     }
 
@@ -122,8 +134,8 @@ tf_ret tf_printf(tf_ctx *ctx) {
 tf_ret tf_print(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
-    tf_obj_print_value(o);
-    putchar('\n');
+    ctx_write_value(ctx, o, false);
+    tf_ctx_write_output(ctx, "\n", 1);
     tf_obj_release(o);
     return TF_OK;
 }
@@ -131,54 +143,62 @@ tf_ret tf_print(tf_ctx *ctx) {
 tf_ret tf_dot(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_peek(ctx, 0);
-    tf_obj_print_value(o);
-    printf("\n");
+    ctx_write_value(ctx, o, false);
+    tf_ctx_write_output(ctx, "\n", 1);
     return TF_OK;
 }
 
 tf_ret tf_stack(tf_ctx *ctx) {
     size_t len = tf_stack_len(ctx);
-    printf("<%zu> ", len);
+    bool color = tf_ctx_output_is_console(ctx) && tf_console_use_color();
+    tf_ctx_outputf(ctx, "<%zu> ", len);
     for (size_t i = 0; i < len; i++) {
-        tf_obj_print_value_colored(tf_stack_peek(ctx, len - 1 - i));
-        printf(" ");
+        ctx_write_value(ctx, tf_stack_peek(ctx, len - 1 - i), color);
+        tf_ctx_write_output(ctx, " ", 1);
     }
-    printf("\n");
+    tf_ctx_write_output(ctx, "\n", 1);
     return TF_OK;
 }
 
 tf_ret tf_stack_source(tf_ctx *ctx) {
     size_t len = tf_stack_len(ctx);
-    printf("<%zu> ", len);
+    bool color = tf_ctx_output_is_console(ctx) && tf_console_use_color();
+    tf_ctx_outputf(ctx, "<%zu> ", len);
     for (size_t i = 0; i < len; i++) {
-        tf_obj_print_source_colored(tf_stack_peek(ctx, len - 1 - i));
-        printf(" ");
+        tf_obj_write_source(tf_stack_peek(ctx, len - 1 - i),
+                            ctx_output_obj_write, ctx, color);
+        tf_ctx_write_output(ctx, " ", 1);
     }
-    printf("\n");
+    tf_ctx_write_output(ctx, "\n", 1);
     return TF_OK;
 }
 
 tf_ret tf_clear(tf_ctx *ctx) {
     ctx->suppress_repl_status = true;
 #ifdef _WIN32
-    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
-    CONSOLE_SCREEN_BUFFER_INFO info;
-    if (out != INVALID_HANDLE_VALUE && GetConsoleScreenBufferInfo(out, &info)) {
-        DWORD cell_count = (DWORD)info.dwSize.X * (DWORD)info.dwSize.Y;
-        COORD home = {0, 0};
-        DWORD written = 0;
+    if (tf_ctx_output_is_console(ctx)) {
+        HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+        CONSOLE_SCREEN_BUFFER_INFO info;
+        if (out != INVALID_HANDLE_VALUE &&
+            GetConsoleScreenBufferInfo(out, &info)) {
+            DWORD cell_count = (DWORD)info.dwSize.X * (DWORD)info.dwSize.Y;
+            COORD home = {0, 0};
+            DWORD written = 0;
 
-        if (FillConsoleOutputCharacterA(out, ' ', cell_count, home, &written) &&
-            FillConsoleOutputAttribute(out, info.wAttributes, cell_count, home,
-                                       &written) &&
-            SetConsoleCursorPosition(out, home)) {
-            return TF_OK;
+            if (FillConsoleOutputCharacterA(out, ' ', cell_count, home,
+                                            &written) &&
+                FillConsoleOutputAttribute(out, info.wAttributes, cell_count,
+                                           home, &written) &&
+                SetConsoleCursorPosition(out, home)) {
+                return TF_OK;
+            }
         }
     }
 #endif
 
-    printf("\x1b[H\x1b[2J");
-    fflush(stdout);
+    tf_ctx_write_output(ctx, "\x1b[H\x1b[2J",
+                        sizeof("\x1b[H\x1b[2J") - 1);
+    if (tf_ctx_output_is_console(ctx)) fflush(stdout);
     return TF_OK;
 }
 
@@ -326,7 +346,7 @@ tf_ret tf_load(tf_ctx *ctx) {
         return TF_ERR;
     }
 
-    tf_obj *prg = tf_lexer_parse(resolved, source);
+    tf_obj *prg = tf_lexer_parse_ctx(ctx, resolved, source);
     free(source);
     free(resolved);
     if (!prg) {
@@ -477,12 +497,11 @@ static tf_ret require_module(tf_ctx *ctx, tf_obj *name, tf_obj *alias) {
 
     size_t module_index = tf_module_begin(ctx, name->str.ptr, name->str.len,
                                           path);
-    tf_obj *program = tf_lexer_parse(path, source);
+    tf_obj *program = tf_lexer_parse_ctx(ctx, path, source);
     free(source);
     free(path);
     if (!program) {
         tf_module_finish(ctx, module_index, TF_ERR);
-        tf_ctx_set_error(ctx, "module parsing failed");
         release_require_args(name, alias);
         return TF_ERR;
     }

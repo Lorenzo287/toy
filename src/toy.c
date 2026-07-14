@@ -61,8 +61,13 @@ static const tf_module *qualified_word_owner(toy_state *state,
     return NULL;
 }
 
-toy_state *toy_state_new(void) {
-    return tf_ctx_new(0, NULL);
+toy_state *toy_state_new(const toy_state_config *config) {
+    toy_state *state = tf_ctx_new(0, NULL);
+    if (!state || !config) return state;
+    tf_ctx_set_output(state, config->output, config->output_userdata);
+    tf_ctx_set_diagnostic(state, config->diagnostic,
+                          config->diagnostic_userdata);
+    return state;
 }
 
 void toy_state_free(toy_state *state) {
@@ -90,8 +95,8 @@ toy_status toy_call(toy_state *state, const char *word) {
     return result;
 }
 
-toy_status toy_register_native(toy_state *state, const char *name,
-                               toy_native_fn function) {
+toy_status toy_register_word(toy_state *state, const char *name,
+                             toy_native_fn function) {
     if (!state || !name || name[0] == '\0' || !function) return TOY_ERROR;
     if (!state_is_idle(state)) return TOY_ERROR;
     const tf_module *owner = qualified_word_owner(state, name, strlen(name));
@@ -103,8 +108,8 @@ toy_status toy_register_native(toy_state *state, const char *name,
     return TOY_OK;
 }
 
-toy_status toy_register_native_module(toy_state *state,
-                                      const toy_native_module *module) {
+toy_status toy_register_module(toy_state *state,
+                               const toy_native_module *module) {
     if (!state) return TOY_ERROR;
     if (!state_is_idle(state)) return TOY_ERROR;
     if (!module || !module->name || module->name[0] == '\0') {
@@ -223,6 +228,8 @@ toy_type toy_stack_type(toy_state *state, size_t depth) {
         return TOY_TYPE_DEQUE;
     case TF_OBJ_TYPE_PQUEUE:
         return TOY_TYPE_PQUEUE;
+    case TF_OBJ_TYPE_RESOURCE:
+        return TOY_TYPE_RESOURCE;
     case TF_OBJ_TYPE_VARLIST:
     case TF_OBJ_TYPE_VARFETCH:
         return TOY_TYPE_INTERNAL;
@@ -262,6 +269,32 @@ bool toy_get_string(toy_state *state, size_t depth, const char **data,
     return true;
 }
 
+bool toy_get_resource(toy_state *state, size_t depth,
+                      const char *expected_type, void **resource) {
+    tf_obj *object = state ? tf_stack_peek(state, depth) : NULL;
+    if (!object || object->type != TF_OBJ_TYPE_RESOURCE || !expected_type ||
+        expected_type[0] == '\0' || !resource) {
+        return false;
+    }
+    size_t expected_len = strlen(expected_type);
+    if (object->resource.type_len != expected_len ||
+        memcmp(object->resource.type_name, expected_type, expected_len) != 0) {
+        return false;
+    }
+    *resource = object->resource.pointer;
+    return true;
+}
+
+bool toy_get_resource_type(toy_state *state, size_t depth,
+                           const char **type_name) {
+    tf_obj *object = state ? tf_stack_peek(state, depth) : NULL;
+    if (!object || object->type != TF_OBJ_TYPE_RESOURCE || !type_name) {
+        return false;
+    }
+    *type_name = object->resource.type_name;
+    return true;
+}
+
 bool toy_pop(toy_state *state, size_t count) {
     if (!state || tf_stack_len(state) < count) return false;
     for (size_t i = 0; i < count; i++) {
@@ -294,7 +327,29 @@ toy_status toy_push_string(toy_state *state, const char *data, size_t length) {
     return TOY_OK;
 }
 
-const char *toy_last_error(toy_state *state) {
+toy_status toy_push_resource(toy_state *state, const char *type_name,
+                             void *resource,
+                             toy_resource_destructor destructor,
+                             void *destructor_userdata) {
+    if (!state) return TOY_ERROR;
+    if (!type_name || type_name[0] == '\0') {
+        return api_errorf(state, "resource type name must not be empty");
+    }
+    size_t type_len = strlen(type_name);
+    if (!tf_module_name_valid(type_name, type_len)) {
+        return api_errorf(state, "resource type name '%s' is invalid",
+                          type_name);
+    }
+    if (!resource) {
+        return api_errorf(state, "resource pointer must not be NULL");
+    }
+    tf_stack_push(state, tf_obj_new_resource(
+                             type_name, type_len, resource, destructor,
+                             destructor_userdata));
+    return TOY_OK;
+}
+
+const char *toy_get_error(toy_state *state) {
     return tf_ctx_last_error(state);
 }
 
@@ -302,7 +357,7 @@ void toy_clear_error(toy_state *state) {
     tf_ctx_clear_error(state);
 }
 
-toy_status toy_error(toy_state *state, const char *message) {
+toy_status toy_set_error(toy_state *state, const char *message) {
     if (!state) return TOY_ERROR;
     tf_ctx_runtime_errorf(state, "%s\n", message ? message : "native error");
     return TOY_ERROR;

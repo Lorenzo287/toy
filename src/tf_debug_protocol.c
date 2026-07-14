@@ -253,6 +253,12 @@ static void write_source_value(FILE *output, tf_obj *value) {
         write_source_char(output, ']');
         break;
     }
+    case TF_OBJ_TYPE_RESOURCE:
+        write_source_cstr(output, "<resource:");
+        write_json_mem(output, value->resource.type_name,
+                       value->resource.type_len);
+        write_source_char(output, '>');
+        break;
     }
 }
 

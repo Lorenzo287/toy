@@ -66,7 +66,9 @@ runtime target.
 `include/toy.h` is the experimental public boundary. It treats the interpreter
 state as opaque and exposes evaluation, host-to-Toy word calls, synchronous
 native word/module registration, primitive stack access, diagnostics, and
-interruption.
+interruption. Typed resource access wraps external pointers in ordinary
+refcounted objects with copied tags and exactly-once destructors, while keeping
+the pointer and object layout opaque to Toy code.
 Internal headers continue to expose implementation structures only to the
 runtime and bundled frontends. See the [embedding guide](./embedding.md) for
 the current ownership and execution contracts.
@@ -117,6 +119,8 @@ Important object-level optimizations:
 - short strings, symbols, and call nodes store bytes inline inside the object;
 - heap strings reuse otherwise idle inline bytes to remember capacity;
 - released `tf_obj` records can be reused through a bounded object cache;
+- resource objects run their external destructor before their released object
+  storage enters that cache;
 - many update-style words mutate only when `refcount == 1`, otherwise they
   clone first to preserve value semantics.
 - vector `filter` results keep up to two matches inline, then reserve at most

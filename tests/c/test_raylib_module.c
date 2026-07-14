@@ -42,6 +42,16 @@ static int text_x = 0;
 static int text_y = 0;
 static int text_size = 0;
 static Color text_color;
+static bool texture_load_succeeds = true;
+static int texture_load_count = 0;
+static char texture_path[64];
+static int texture_unload_count = 0;
+static unsigned int unloaded_texture_id = 0;
+static int texture_draw_count = 0;
+static unsigned int drawn_texture_id = 0;
+static int texture_x = 0;
+static int texture_y = 0;
+static Color texture_tint;
 
 void InitWindow(int width, int height, const char *title) {
     window_width = width;
@@ -102,6 +112,30 @@ void DrawText(const char *text, int x, int y, int font_size, Color color) {
     text_color = color;
 }
 
+Texture2D LoadTexture(const char *file_name) {
+    texture_load_count++;
+    snprintf(texture_path, sizeof(texture_path), "%s", file_name);
+    if (!texture_load_succeeds) return (Texture2D){0};
+    return (Texture2D){.id = 77,
+                       .width = 32,
+                       .height = 16,
+                       .mipmaps = 1,
+                       .format = 7};
+}
+
+void UnloadTexture(Texture2D texture) {
+    texture_unload_count++;
+    unloaded_texture_id = texture.id;
+}
+
+void DrawTexture(Texture2D texture, int x, int y, Color tint) {
+    texture_draw_count++;
+    drawn_texture_id = texture.id;
+    texture_x = x;
+    texture_y = y;
+    texture_tint = tint;
+}
+
 int GetMouseX(void) {
     return 123;
 }
@@ -120,7 +154,7 @@ static bool color_is(Color color, int red, int green, int blue, int alpha) {
 }
 
 int main(void) {
-    toy_state *state = toy_state_new();
+    toy_state *state = toy_state_new(NULL);
     CHECK(state, "state creation");
     CHECK(toy_raylib_register(state) == TOY_OK, "module registration");
 
@@ -164,6 +198,64 @@ int main(void) {
           "text arguments");
     CHECK(toy_stack_size(state) == 0, "drawing words consume inputs");
 
+    CHECK(toy_eval(state, "<raylib-load-texture>",
+                   "\"sprite.png\" rl.load-texture") == TOY_OK,
+          "load texture resource");
+    CHECK(texture_load_count == 1 && strcmp(texture_path, "sprite.png") == 0,
+          "texture load arguments");
+    CHECK(toy_stack_type(state, 0) == TOY_TYPE_RESOURCE,
+          "texture uses a resource value");
+    const char *resource_type = NULL;
+    CHECK(toy_get_resource_type(state, 0, &resource_type) &&
+              strcmp(resource_type, "raylib.texture") == 0,
+          "texture resource type");
+
+    CHECK(toy_eval(state, "<raylib-draw-texture>",
+                   "dup 90 100 20 30 40 255 rl.rgba rl.draw-texture") ==
+              TOY_OK,
+          "draw texture resource");
+    CHECK(texture_draw_count == 1 && drawn_texture_id == 77 &&
+              texture_x == 90 && texture_y == 100 &&
+              color_is(texture_tint, 20, 30, 40, 255),
+          "texture draw arguments");
+    CHECK(texture_unload_count == 0,
+          "retained texture remains loaded after drawing");
+    CHECK(toy_pop(state, 1), "release retained texture");
+    CHECK(texture_unload_count == 1 && unloaded_texture_id == 77,
+          "texture resource destructor unloads once");
+
+    int foreign_texture = 0;
+    CHECK(toy_push_resource(state, "host.texture", &foreign_texture, NULL,
+                            NULL) == TOY_OK,
+          "push mismatched texture resource");
+    CHECK(toy_eval(state, "<raylib-wrong-texture>",
+                   "1 2 3 4 5 255 rl.rgba rl.draw-texture") == TOY_ERROR,
+          "reject resource with wrong type tag");
+    CHECK(toy_get_error(state) &&
+              strstr(toy_get_error(state), "expected a raylib texture"),
+          "wrong texture type diagnostic");
+    CHECK(toy_pop(state, 4), "clear rejected texture draw inputs");
+
+    CHECK(toy_eval(state, "<raylib-texture-nul>",
+                   "\"bad\\x00path\" rl.load-texture") == TOY_ERROR,
+          "reject embedded NUL texture path");
+    CHECK(toy_get_error(state) &&
+              strstr(toy_get_error(state), "embedded NUL byte"),
+          "embedded NUL texture diagnostic");
+    CHECK(toy_pop(state, 1), "pop rejected texture path");
+
+    texture_load_succeeds = false;
+    CHECK(toy_eval(state, "<raylib-texture-failure>",
+                   "\"missing.png\" rl.load-texture") == TOY_ERROR,
+          "report texture load failure");
+    CHECK(toy_get_error(state) &&
+              strstr(toy_get_error(state), "failed to load"),
+          "texture load failure diagnostic");
+    CHECK(toy_stack_size(state) == 0,
+          "failed texture load consumed valid path");
+    CHECK(texture_unload_count == 1,
+          "failed texture was not passed to the destructor");
+
     window_should_close = true;
     CHECK(toy_eval(state, "<raylib-input>",
                    "rl.window-should-close? rl.mouse-x rl.mouse-y "
@@ -185,7 +277,7 @@ int main(void) {
     CHECK(toy_eval(state, "<raylib-invalid-color>",
                    "0 0 0 256 rl.rgba") == TOY_ERROR,
           "invalid color rejected");
-    CHECK(toy_last_error(state) && strstr(toy_last_error(state), "0 and 255"),
+    CHECK(toy_get_error(state) && strstr(toy_get_error(state), "0 and 255"),
           "invalid color diagnostic");
     CHECK(toy_pop(state, 4), "pop rejected color inputs");
 
@@ -193,7 +285,7 @@ int main(void) {
                    "\"a\\x00b\" 0 0 12 1 2 3 4 rl.rgba "
                    "rl.draw-text") == TOY_ERROR,
           "embedded NUL rejected");
-    CHECK(toy_last_error(state) && strstr(toy_last_error(state), "NUL byte"),
+    CHECK(toy_get_error(state) && strstr(toy_get_error(state), "NUL byte"),
           "embedded NUL diagnostic");
     CHECK(toy_pop(state, 5), "pop rejected text inputs");
 
@@ -209,8 +301,8 @@ int main(void) {
     CHECK(toy_eval(state, "<raylib-init-failure>",
                    "320 200 \"failure\" rl.init-window") == TOY_ERROR,
           "initialization failure reported");
-    CHECK(toy_last_error(state) &&
-              strstr(toy_last_error(state), "failed to initialize"),
+    CHECK(toy_get_error(state) &&
+              strstr(toy_get_error(state), "failed to initialize"),
           "initialization failure diagnostic");
     CHECK(toy_stack_size(state) == 0,
           "failed initialization consumed valid inputs");

@@ -223,6 +223,7 @@ static const tf_builtin_word native_type_words[] = {
     {"set?", tf_set_q},
     {"deque?", tf_deque_q},
     {"pqueue?", tf_pqueue_q},
+    {"resource?", tf_resource_q},
     {"number?", tf_number_q},
     {"sequence?", tf_sequence_q},
     {"callable?", tf_callable_q},

@@ -19,6 +19,7 @@ typedef enum {
     TF_OBJ_TYPE_SET,
     TF_OBJ_TYPE_DEQUE,
     TF_OBJ_TYPE_PQUEUE,
+    TF_OBJ_TYPE_RESOURCE,
     TF_OBJ_TYPE_VARLIST,
     TF_OBJ_TYPE_VARFETCH
 } tf_type;
@@ -41,6 +42,9 @@ typedef struct {
  * storage but execute their named word when encountered in a program.
  */
 typedef struct tf_obj tf_obj;
+typedef void (*tf_obj_write_fn)(void *userdata, const char *data,
+                                size_t length);
+typedef void (*tf_resource_destructor)(void *resource, void *userdata);
 
 typedef struct {
     tf_obj *key;
@@ -126,6 +130,13 @@ struct tf_obj {
             size_t cap;
             size_t next_order;
         } pqueue;
+        struct {
+            char *type_name;
+            size_t type_len;
+            void *pointer;
+            tf_resource_destructor destructor;
+            void *destructor_userdata;
+        } resource;
     };
 };
 
@@ -133,6 +144,8 @@ _Static_assert(sizeof(((tf_obj *)0)->vector) <= sizeof(((tf_obj *)0)->map),
                "inline vector storage must not increase tf_obj size");
 _Static_assert(sizeof(((tf_obj *)0)->str) <= sizeof(((tf_obj *)0)->map),
                "inline string storage must not increase tf_obj size");
+_Static_assert(sizeof(((tf_obj *)0)->resource) <= sizeof(((tf_obj *)0)->map),
+               "resource storage must not increase tf_obj size");
 
 /* Non-owning cursor over a sequence owned by the caller. */
 typedef struct {
@@ -159,6 +172,9 @@ tf_obj *tf_obj_new_string(const char *s, size_t len);
 tf_obj *tf_obj_new_string_uninitialized(size_t len);
 /* Takes a heap buffer of at least len + 1 bytes and always consumes it. */
 tf_obj *tf_obj_new_string_take(char *s, size_t len);
+tf_obj *tf_obj_new_resource(const char *type_name, size_t type_len,
+                            void *pointer, tf_resource_destructor destructor,
+                            void *destructor_userdata);
 tf_source_file *tf_source_file_new(const char *filename);
 void tf_source_file_retain(tf_source_file *source);
 void tf_source_file_release(tf_source_file *source);
@@ -238,5 +254,11 @@ void tf_obj_fprint_display(FILE *output, tf_obj *o);
 void tf_obj_print_value_colored(tf_obj *o);
 void tf_obj_print_display_colored(tf_obj *o);
 void tf_obj_print_source_colored(tf_obj *o);
+void tf_obj_write_value(tf_obj *o, tf_obj_write_fn write, void *userdata,
+                        bool color);
+void tf_obj_write_display(tf_obj *o, tf_obj_write_fn write, void *userdata,
+                          bool color);
+void tf_obj_write_source(tf_obj *o, tf_obj_write_fn write, void *userdata,
+                         bool color);
 
 #endif  // TF_OBJ_H

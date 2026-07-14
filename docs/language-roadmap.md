@@ -49,22 +49,22 @@ Keep optimization work benchmark-driven and record durable experiments under
 Treat the [foreign function interface](https://en.wikipedia.org/wiki/Foreign_function_interface)
 as an exploratory interoperability track, not a single general-purpose
 `call-c` word. The CLI now links a reusable static runtime, and experimental API
-version zero exposes opaque states, primitive stack access, host-to-Toy calls,
-and synchronous native-word or native-module registration. Native module
-descriptors reuse source-module names, exports, load state, and aliases. The API
-is not stable yet. A small optional Raylib module now exercises the primitive
-boundary with a Toy-owned window and drawing loop.
+version zero exposes opaque states, primitive and typed resource stack access,
+host-to-Toy calls, and synchronous native-word or native-module registration.
+Native module descriptors reuse source-module names, exports, load state, and
+aliases. The API is not stable yet. A small optional Raylib module now
+exercises the boundary with a Toy-owned window and drawing loop plus
+automatically unloaded texture resources.
 
 Current follow-up candidates are:
 
-1. redirect output and detailed parser diagnostics through host callbacks;
-2. add opaque foreign resources with explicit type, lifetime, and destructor
-   rules, then extend bindings to textures, sounds, and similar values;
-3. define a versioned shared-library ABI and loader if separately distributed
+1. extend the resource boundary to sounds and similar values when bindings need
+   them, preserving explicit type and lifetime rules;
+2. define a versioned shared-library ABI and loader if separately distributed
    native modules become useful;
-4. use [libffi](https://github.com/libffi/libffi) to experiment with explicit
+3. use [libffi](https://github.com/libffi/libffi) to experiment with explicit
    scalar and string signatures resolved at runtime;
-5. consider foreign pointers, output parameters, structs, variadic functions,
+4. consider foreign pointers, output parameters, structs, variadic functions,
    and callbacks only after the basic ownership and VM-boundary rules are
    settled.
 

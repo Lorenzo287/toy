@@ -46,6 +46,10 @@ target_link_libraries(toy PRIVATE toy_runtime)
 add_executable(toy_embed_example EXCLUDE_FROM_ALL examples/c/embed.c)
 target_link_libraries(toy_embed_example PRIVATE toy::runtime)
 
+add_executable(toy_embed_callbacks_example EXCLUDE_FROM_ALL
+               examples/c/embed_callbacks.c)
+target_link_libraries(toy_embed_callbacks_example PRIVATE toy::runtime)
+
 if(TOY_BUILD_RAYLIB)
     if(NOT TARGET raylib AND NOT TARGET raylib::raylib)
         find_package(raylib CONFIG QUIET)
@@ -243,7 +247,8 @@ endif()
 
 # ── Baseline warnings ─────────────────────────────────────────────────────────
 
-set(TOY_WARNING_TARGETS toy_runtime toy toy_embed_example)
+set(TOY_WARNING_TARGETS toy_runtime toy toy_embed_example
+                        toy_embed_callbacks_example)
 if(TARGET toy_raylib)
     list(APPEND TOY_WARNING_TARGETS toy_raylib toy_raylib_example)
 endif()

@@ -1418,6 +1418,14 @@
           "syntaxClass": "builtin"
         },
         {
+          "name": "resource?",
+          "cFunction": "tf_resource_q",
+          "stackEffect": "x -- bool",
+          "syntax": "",
+          "description": "Check whether the input is an opaque foreign resource.",
+          "syntaxClass": "builtin"
+        },
+        {
           "name": "number?",
           "cFunction": "tf_number_q",
           "stackEffect": "x -- bool",

@@ -99,6 +99,7 @@ tf_ret tf_map_q(tf_ctx *ctx);
 tf_ret tf_set_q(tf_ctx *ctx);
 tf_ret tf_deque_q(tf_ctx *ctx);
 tf_ret tf_pqueue_q(tf_ctx *ctx);
+tf_ret tf_resource_q(tf_ctx *ctx);
 tf_ret tf_number_q(tf_ctx *ctx);
 tf_ret tf_sequence_q(tf_ctx *ctx);
 tf_ret tf_callable_q(tf_ctx *ctx);

@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <inttypes.h>
 #include <math.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -247,6 +248,20 @@ int tf_obj_compare_string(tf_obj *a, tf_obj *b) {
         if (cmp < 0) return -1;
         return 1;
     }
+}
+
+tf_obj *tf_obj_new_resource(const char *type_name, size_t type_len,
+                            void *pointer, tf_resource_destructor destructor,
+                            void *destructor_userdata) {
+    tf_obj *o = tf_obj_new(TF_OBJ_TYPE_RESOURCE);
+    o->resource.type_name = tf_xmalloc(type_len + 1);
+    memcpy(o->resource.type_name, type_name, type_len);
+    o->resource.type_name[type_len] = '\0';
+    o->resource.type_len = type_len;
+    o->resource.pointer = pointer;
+    o->resource.destructor = destructor;
+    o->resource.destructor_userdata = destructor_userdata;
+    return o;
 }
 
 int tf_obj_compare_number(tf_obj *a, tf_obj *b) {
@@ -1280,6 +1295,16 @@ void tf_obj_free(tf_obj *o) {
         }
         free(o->pqueue.entries);
         break;
+    case TF_OBJ_TYPE_RESOURCE: {
+        tf_resource_destructor destructor = o->resource.destructor;
+        void *pointer = o->resource.pointer;
+        void *userdata = o->resource.destructor_userdata;
+        o->resource.destructor = NULL;
+        o->resource.pointer = NULL;
+        if (destructor) destructor(pointer, userdata);
+        free(o->resource.type_name);
+        break;
+    }
     case TF_OBJ_TYPE_VARFETCH:
     case TF_OBJ_TYPE_SYMBOL:
     case TF_OBJ_TYPE_CALL:
@@ -1450,13 +1475,62 @@ void tf_obj_print(tf_obj *o, size_t *count) {
         printf("]");
         break;
     }
+    case TF_OBJ_TYPE_RESOURCE:
+        printf("(resource:%s)", o->resource.type_name);
+        break;
     default:
         printf("?");
     }
 }
 
+typedef struct {
+    tf_obj_write_fn write;
+    void *userdata;
+} obj_writer;
+
+static void file_write(void *userdata, const char *data, size_t length) {
+    if (length > 0) fwrite(data, 1, length, userdata);
+}
+
+static void writer_mem(obj_writer *writer, const char *data, size_t length) {
+    if (length > 0) writer->write(writer->userdata, data, length);
+}
+
+static void writer_cstr(obj_writer *writer, const char *text) {
+    writer_mem(writer, text, strlen(text));
+}
+
+static void writer_char(obj_writer *writer, char c) {
+    writer_mem(writer, &c, 1);
+}
+
+static void writer_printf(obj_writer *writer, const char *fmt, ...) {
+    char stack_buffer[128];
+    va_list args;
+    va_start(args, fmt);
+    va_list count_args;
+    va_copy(count_args, args);
+    int length = vsnprintf(stack_buffer, sizeof stack_buffer, fmt, count_args);
+    va_end(count_args);
+    if (length < 0) {
+        va_end(args);
+        return;
+    }
+    if ((size_t)length < sizeof stack_buffer) {
+        writer_mem(writer, stack_buffer, (size_t)length);
+        va_end(args);
+        return;
+    }
+
+    char *buffer = tf_xmalloc((size_t)length + 1);
+    vsnprintf(buffer, (size_t)length + 1, fmt, args);
+    writer_mem(writer, buffer, (size_t)length);
+    free(buffer);
+    va_end(args);
+}
+
 // Runtime printer: prints values the way user-facing words like `print` expect
-static void print_value_like(tf_obj *o, bool color) {
+static void write_value_like(obj_writer *writer, tf_obj *o, bool color) {
     const char *escape = NULL;
     if (color) {
         switch (o->type) {
@@ -1484,140 +1558,187 @@ static void print_value_like(tf_obj *o, bool color) {
         case TF_OBJ_TYPE_SET:
         case TF_OBJ_TYPE_DEQUE:
         case TF_OBJ_TYPE_PQUEUE:
+        case TF_OBJ_TYPE_RESOURCE:
             escape = "\x1b[94m"; // Bright Blue
             break;
         default:
             break;
         }
-        if (escape) printf("%s", escape);
+        if (escape) writer_cstr(writer, escape);
     }
 
     switch (o->type) {
     case TF_OBJ_TYPE_INT:
-        printf("%" PRId64, o->i);
+        writer_printf(writer, "%" PRId64, o->i);
         break;
     case TF_OBJ_TYPE_FLOAT: {
         char buf[64];
         tf_format_double(buf, sizeof buf, o->f);
-        printf("%s", buf);
+        writer_cstr(writer, buf);
         break;
     }
     case TF_OBJ_TYPE_SYMBOL:
     case TF_OBJ_TYPE_CALL:
-        printf("%s", o->str.ptr);
+        writer_mem(writer, o->str.ptr, o->str.len);
         break;
     case TF_OBJ_TYPE_STR:
-        fwrite(o->str.ptr, 1, o->str.len, stdout);
+        writer_mem(writer, o->str.ptr, o->str.len);
         break;
     case TF_OBJ_TYPE_BOOL:
-        printf("%s", o->b ? "true" : "false");
+        writer_cstr(writer, o->b ? "true" : "false");
         break;
     case TF_OBJ_TYPE_VARFETCH:
-        printf("$%s", o->str.ptr);
+        writer_char(writer, '$');
+        writer_mem(writer, o->str.ptr, o->str.len);
         break;
     case TF_OBJ_TYPE_VARLIST:
-        printf("|");
+        writer_char(writer, '|');
         for (size_t i = 0; i < o->vector.len; i++) {
-            print_value_like(o->vector.elem[i], color);
-            if (i != o->vector.len - 1) printf(" ");
+            write_value_like(writer, o->vector.elem[i], color);
+            if (i != o->vector.len - 1) writer_char(writer, ' ');
         }
-        if (color && escape) printf("%s", escape);
-        printf("|");
+        if (color && escape) writer_cstr(writer, escape);
+        writer_char(writer, '|');
         break;
     case TF_OBJ_TYPE_VECTOR:
-        printf("[");
+        writer_char(writer, '[');
         for (size_t i = 0; i < o->vector.len; i++) {
-            print_value_like(o->vector.elem[i], color);
-            if (i != o->vector.len - 1) printf(" ");
+            write_value_like(writer, o->vector.elem[i], color);
+            if (i != o->vector.len - 1) writer_char(writer, ' ');
         }
-        if (color && escape) printf("%s", escape);
-        printf("]");
+        if (color && escape) writer_cstr(writer, escape);
+        writer_char(writer, ']');
         break;
     case TF_OBJ_TYPE_LIST: {
-        printf("(");
+        writer_char(writer, '(');
         tf_list_node *node = o->list.head;
         while (node) {
-            print_value_like(node->value, color);
+            write_value_like(writer, node->value, color);
             node = node->next;
-            if (node) printf(" ");
+            if (node) writer_char(writer, ' ');
         }
-        if (color && escape) printf("%s", escape);
-        printf(")");
+        if (color && escape) writer_cstr(writer, escape);
+        writer_char(writer, ')');
         break;
     }
     case TF_OBJ_TYPE_MAP:
-        printf("{");
+        writer_char(writer, '{');
         for (size_t i = 0; i < o->map.len; i++) {
-            if (i > 0) printf(" ");
-            print_value_like(o->map.entries[i].key, color);
-            printf(" ");
-            print_value_like(o->map.entries[i].value, color);
+            if (i > 0) writer_char(writer, ' ');
+            write_value_like(writer, o->map.entries[i].key, color);
+            writer_char(writer, ' ');
+            write_value_like(writer, o->map.entries[i].value, color);
         }
-        if (color && escape) printf("%s", escape);
-        printf("}");
+        if (color && escape) writer_cstr(writer, escape);
+        writer_char(writer, '}');
         break;
     case TF_OBJ_TYPE_SET:
-        printf("#{");
+        writer_cstr(writer, "#{");
         for (size_t i = 0; i < o->set.len; i++) {
-            if (i > 0) printf(" ");
-            print_value_like(o->set.entries[i].item, color);
+            if (i > 0) writer_char(writer, ' ');
+            write_value_like(writer, o->set.entries[i].item, color);
         }
-        if (color && escape) printf("%s", escape);
-        printf("}");
+        if (color && escape) writer_cstr(writer, escape);
+        writer_char(writer, '}');
         break;
     case TF_OBJ_TYPE_DEQUE:
-        printf("deque[");
+        writer_cstr(writer, "deque[");
         for (size_t i = 0; i < o->deque.len; i++) {
-            if (i > 0) printf(" ");
-            print_value_like(tf_deque_get(o, i), color);
+            if (i > 0) writer_char(writer, ' ');
+            write_value_like(writer, tf_deque_get(o, i), color);
         }
-        if (color && escape) printf("%s", escape);
-        printf("]");
+        if (color && escape) writer_cstr(writer, escape);
+        writer_char(writer, ']');
         break;
     case TF_OBJ_TYPE_PQUEUE: {
-        printf("pqueue[");
+        writer_cstr(writer, "pqueue[");
         tf_obj *tmp = tf_pqueue_clone(o);
         for (size_t i = 0; tmp->pqueue.len > 0; i++) {
             tf_obj *priority = NULL;
             tf_obj *value = NULL;
             tf_pqueue_pop(tmp, &priority, &value);
-            if (i > 0) printf(" ");
-            printf("[");
-            print_value_like(priority, color);
-            printf(" ");
-            print_value_like(value, color);
-            if (color && escape) printf("%s", escape);
-            printf("]");
+            if (i > 0) writer_char(writer, ' ');
+            writer_char(writer, '[');
+            write_value_like(writer, priority, color);
+            writer_char(writer, ' ');
+            write_value_like(writer, value, color);
+            if (color && escape) writer_cstr(writer, escape);
+            writer_char(writer, ']');
             tf_obj_release(priority);
             tf_obj_release(value);
         }
         tf_obj_release(tmp);
-        if (color && escape) printf("%s", escape);
-        printf("]");
+        if (color && escape) writer_cstr(writer, escape);
+        writer_char(writer, ']');
         break;
     }
+    case TF_OBJ_TYPE_RESOURCE:
+        writer_cstr(writer, "<resource:");
+        writer_mem(writer, o->resource.type_name, o->resource.type_len);
+        writer_char(writer, '>');
+        break;
     default:
-        printf("?");
+        writer_char(writer, '?');
     }
 
     if (color && escape) {
-        printf("\x1b[0m");
+        writer_cstr(writer, "\x1b[0m");
     }
 }
 
 // Runtime printer: prints values the way user-facing words like `print` expect
 void tf_obj_print_value(tf_obj *o) {
-    print_value_like(o, false);
+    obj_writer writer = {.write = file_write, .userdata = stdout};
+    write_value_like(&writer, o, false);
 }
 
 void tf_obj_print_value_colored(tf_obj *o) {
-    print_value_like(o, tf_console_use_color());
+    obj_writer writer = {.write = file_write, .userdata = stdout};
+    write_value_like(&writer, o, tf_console_use_color());
+}
+
+void tf_obj_write_value(tf_obj *o, tf_obj_write_fn write, void *userdata,
+                        bool color) {
+    if (!o || !write) return;
+    obj_writer writer = {.write = write, .userdata = userdata};
+    write_value_like(&writer, o, color);
 }
 
 // Source printer: reconstructs objects in a source-like form for words like
 // `see`
-static void fprint_source_like(FILE *output, tf_obj *o, bool display,
-                               bool color) {
+static void writer_escaped_string(obj_writer *writer, const char *s,
+                                  size_t len) {
+    for (size_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)s[i];
+        switch (c) {
+        case '\\':
+            writer_cstr(writer, "\\\\");
+            break;
+        case '"':
+            writer_cstr(writer, "\\\"");
+            break;
+        case '\n':
+            writer_cstr(writer, "\\n");
+            break;
+        case '\r':
+            writer_cstr(writer, "\\r");
+            break;
+        case '\t':
+            writer_cstr(writer, "\\t");
+            break;
+        default:
+            if (c < 0x20 || c >= 0x7f) {
+                writer_printf(writer, "\\x%02x", c);
+            } else {
+                writer_char(writer, (char)c);
+            }
+            break;
+        }
+    }
+}
+
+static void write_source_like(obj_writer *writer, tf_obj *o, bool display,
+                              bool color) {
     const char *escape = NULL;
     if (color) {
         switch (o->type) {
@@ -1645,150 +1766,179 @@ static void fprint_source_like(FILE *output, tf_obj *o, bool display,
         case TF_OBJ_TYPE_SET:
         case TF_OBJ_TYPE_DEQUE:
         case TF_OBJ_TYPE_PQUEUE:
+        case TF_OBJ_TYPE_RESOURCE:
             escape = "\x1b[94m"; // Bright Blue
             break;
         default:
             break;
         }
-        if (escape) fprintf(output, "%s", escape);
+        if (escape) writer_cstr(writer, escape);
     }
 
     switch (o->type) {
     case TF_OBJ_TYPE_INT:
-        fprintf(output, "%" PRId64, o->i);
+        writer_printf(writer, "%" PRId64, o->i);
         break;
     case TF_OBJ_TYPE_FLOAT: {
         char buf[64];
         tf_format_double(buf, sizeof buf, o->f);
-        fprintf(output, "%s", buf);
-        if (isfinite(o->f) && !strpbrk(buf, ".eE")) fprintf(output, ".0");
+        writer_cstr(writer, buf);
+        if (isfinite(o->f) && !strpbrk(buf, ".eE")) {
+            writer_cstr(writer, ".0");
+        }
         break;
     }
     case TF_OBJ_TYPE_SYMBOL:
-        fprintf(output, "'");
-        fprintf(output, "%s", o->str.ptr);
+        writer_char(writer, '\'');
+        writer_mem(writer, o->str.ptr, o->str.len);
         break;
     case TF_OBJ_TYPE_CALL:
-        fprintf(output, "%s", o->str.ptr);
+        writer_mem(writer, o->str.ptr, o->str.len);
         break;
     case TF_OBJ_TYPE_STR:
-        fprintf(output, "\"");
-        fprint_escaped_string(output, o->str.ptr, o->str.len);
-        fprintf(output, "\"");
+        writer_char(writer, '"');
+        writer_escaped_string(writer, o->str.ptr, o->str.len);
+        writer_char(writer, '"');
         break;
     case TF_OBJ_TYPE_BOOL:
-        fprintf(output, "%s", o->b ? "true" : "false");
+        writer_cstr(writer, o->b ? "true" : "false");
         break;
     case TF_OBJ_TYPE_VARFETCH:
-        fprintf(output, "$%s", o->str.ptr);
+        writer_char(writer, '$');
+        writer_mem(writer, o->str.ptr, o->str.len);
         break;
     case TF_OBJ_TYPE_VARLIST:
-        fprintf(output, "|");
+        writer_char(writer, '|');
         for (size_t i = 0; i < o->vector.len; i++) {
-            fprintf(output, "%s", o->vector.elem[i]->str.ptr);
-            if (i + 1 < o->vector.len) fprintf(output, " ");
+            writer_mem(writer, o->vector.elem[i]->str.ptr,
+                       o->vector.elem[i]->str.len);
+            if (i + 1 < o->vector.len) writer_char(writer, ' ');
         }
-        if (color && escape) fprintf(output, "%s", escape);
-        fprintf(output, "|");
+        if (color && escape) writer_cstr(writer, escape);
+        writer_char(writer, '|');
         break;
     case TF_OBJ_TYPE_VECTOR:
-        fprintf(output, "[");
+        writer_char(writer, '[');
         for (size_t i = 0; i < o->vector.len; i++) {
-            fprint_source_like(output, o->vector.elem[i], display, color);
-            if (i + 1 < o->vector.len) fprintf(output, " ");
+            write_source_like(writer, o->vector.elem[i], display, color);
+            if (i + 1 < o->vector.len) writer_char(writer, ' ');
         }
-        if (color && escape) fprintf(output, "%s", escape);
-        fprintf(output, "]");
+        if (color && escape) writer_cstr(writer, escape);
+        writer_char(writer, ']');
         break;
     case TF_OBJ_TYPE_LIST: {
-        fprintf(output, "(");
+        writer_char(writer, '(');
         tf_list_node *node = o->list.head;
         while (node) {
-            fprint_source_like(output, node->value, display, color);
+            write_source_like(writer, node->value, display, color);
             node = node->next;
-            if (node) fprintf(output, " ");
+            if (node) writer_char(writer, ' ');
         }
-        if (color && escape) fprintf(output, "%s", escape);
-        fprintf(output, ")");
+        if (color && escape) writer_cstr(writer, escape);
+        writer_char(writer, ')');
         break;
     }
     case TF_OBJ_TYPE_MAP:
-        fprintf(output, "{");
+        writer_char(writer, '{');
         for (size_t i = 0; i < o->map.len; i++) {
-            if (i > 0) fprintf(output, " ");
-            fprint_source_like(output, o->map.entries[i].key, display, color);
-            fprintf(output, " ");
-            fprint_source_like(output, o->map.entries[i].value, display, color);
+            if (i > 0) writer_char(writer, ' ');
+            write_source_like(writer, o->map.entries[i].key, display, color);
+            writer_char(writer, ' ');
+            write_source_like(writer, o->map.entries[i].value, display, color);
         }
-        if (color && escape) fprintf(output, "%s", escape);
-        fprintf(output, "}");
+        if (color && escape) writer_cstr(writer, escape);
+        writer_char(writer, '}');
         break;
     case TF_OBJ_TYPE_SET:
-        fprintf(output, "#{");
+        writer_cstr(writer, "#{");
         for (size_t i = 0; i < o->set.len; i++) {
-            if (i > 0) fprintf(output, " ");
-            fprint_source_like(output, o->set.entries[i].item, display, color);
+            if (i > 0) writer_char(writer, ' ');
+            write_source_like(writer, o->set.entries[i].item, display, color);
         }
-        if (color && escape) fprintf(output, "%s", escape);
-        fprintf(output, "}");
+        if (color && escape) writer_cstr(writer, escape);
+        writer_char(writer, '}');
         break;
     case TF_OBJ_TYPE_DEQUE:
-        fprintf(output, display ? "deque[" : "[");
+        writer_cstr(writer, display ? "deque[" : "[");
         for (size_t i = 0; i < o->deque.len; i++) {
-            if (i > 0) fprintf(output, " ");
-            fprint_source_like(output, tf_deque_get(o, i), display, color);
+            if (i > 0) writer_char(writer, ' ');
+            write_source_like(writer, tf_deque_get(o, i), display, color);
         }
-        if (color && escape) fprintf(output, "%s", escape);
-        fprintf(output, display ? "]" : "] >deque");
+        if (color && escape) writer_cstr(writer, escape);
+        writer_cstr(writer, display ? "]" : "] >deque");
         break;
     case TF_OBJ_TYPE_PQUEUE: {
-        fprintf(output, display ? "pqueue[" : "[");
+        writer_cstr(writer, display ? "pqueue[" : "[");
         tf_obj *tmp = tf_pqueue_clone(o);
         for (size_t i = 0; tmp->pqueue.len > 0; i++) {
             tf_obj *priority = NULL;
             tf_obj *value = NULL;
             tf_pqueue_pop(tmp, &priority, &value);
-            if (i > 0) fprintf(output, " ");
-            fprintf(output, "[");
-            fprint_source_like(output, priority, display, color);
-            fprintf(output, " ");
-            fprint_source_like(output, value, display, color);
-            if (color && escape) fprintf(output, "%s", escape);
-            fprintf(output, "]");
+            if (i > 0) writer_char(writer, ' ');
+            writer_char(writer, '[');
+            write_source_like(writer, priority, display, color);
+            writer_char(writer, ' ');
+            write_source_like(writer, value, display, color);
+            if (color && escape) writer_cstr(writer, escape);
+            writer_char(writer, ']');
             tf_obj_release(priority);
             tf_obj_release(value);
         }
         tf_obj_release(tmp);
-        if (color && escape) fprintf(output, "%s", escape);
-        fprintf(output, display ? "]" : "] >pqueue");
+        if (color && escape) writer_cstr(writer, escape);
+        writer_cstr(writer, display ? "]" : "] >pqueue");
         break;
     }
+    case TF_OBJ_TYPE_RESOURCE:
+        writer_cstr(writer, "<resource:");
+        writer_mem(writer, o->resource.type_name, o->resource.type_len);
+        writer_char(writer, '>');
+        break;
     default:
-        fprintf(output, "?");
+        writer_char(writer, '?');
         break;
     }
 
     if (color && escape) {
-        fprintf(output, "\x1b[0m");
+        writer_cstr(writer, "\x1b[0m");
     }
 }
 
 void tf_obj_print_display(tf_obj *o) {
-    fprint_source_like(stdout, o, true, false);
+    obj_writer writer = {.write = file_write, .userdata = stdout};
+    write_source_like(&writer, o, true, false);
 }
 
 void tf_obj_fprint_display(FILE *output, tf_obj *o) {
-    fprint_source_like(output, o, true, false);
+    obj_writer writer = {.write = file_write, .userdata = output};
+    write_source_like(&writer, o, true, false);
 }
 
 void tf_obj_print_display_colored(tf_obj *o) {
-    fprint_source_like(stdout, o, true, tf_console_use_color());
+    obj_writer writer = {.write = file_write, .userdata = stdout};
+    write_source_like(&writer, o, true, tf_console_use_color());
 }
 
 void tf_obj_print_source(tf_obj *o) {
-    fprint_source_like(stdout, o, false, false);
+    obj_writer writer = {.write = file_write, .userdata = stdout};
+    write_source_like(&writer, o, false, false);
 }
 
 void tf_obj_print_source_colored(tf_obj *o) {
-    fprint_source_like(stdout, o, false, tf_console_use_color());
+    obj_writer writer = {.write = file_write, .userdata = stdout};
+    write_source_like(&writer, o, false, tf_console_use_color());
+}
+
+void tf_obj_write_display(tf_obj *o, tf_obj_write_fn write, void *userdata,
+                          bool color) {
+    if (!o || !write) return;
+    obj_writer writer = {.write = write, .userdata = userdata};
+    write_source_like(&writer, o, true, color);
+}
+
+void tf_obj_write_source(tf_obj *o, tf_obj_write_fn write, void *userdata,
+                         bool color) {
+    if (!o || !write) return;
+    obj_writer writer = {.write = write, .userdata = userdata};
+    write_source_like(&writer, o, false, color);
 }

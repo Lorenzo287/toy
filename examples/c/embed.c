@@ -3,11 +3,11 @@
 #include <inttypes.h>
 #include <stdio.h>
 
-static toy_status host_log(toy_state *state) {
+static toy_status hostLog(toy_state *state) {
     const char *message = NULL;
     size_t length = 0;
     if (!toy_get_string(state, 0, &message, &length)) {
-        return toy_error(state, "host.log expected a string");
+        return toy_set_error(state, "host.log expected a string");
     }
 
     fputs("Toy says: ", stdout);
@@ -15,13 +15,13 @@ static toy_status host_log(toy_state *state) {
     fputc('\n', stdout);
 
     if (!toy_pop(state, 1)) {
-        return toy_error(state, "host.log failed to pop its input");
+        return toy_set_error(state, "host.log failed to pop its input");
     }
     return TOY_OK;
 }
 
 static const toy_native_word host_words[] = {
-    {"log", host_log},
+    {"log", hostLog},
 };
 
 static const toy_native_module host_module = {
@@ -30,24 +30,24 @@ static const toy_native_module host_module = {
     sizeof(host_words) / sizeof(host_words[0]),
 };
 
-static int report_error(toy_state *state, const char *operation,
-                        toy_status status) {
-    const char *message = toy_last_error(state);
+static int reportError(toy_state *state, const char *operation,
+                       toy_status status) {
+    const char *message = toy_get_error(state);
     fprintf(stderr, "%s failed (status %d): %s\n", operation, (int)status,
             message ? message : "no diagnostic available");
     return 1;
 }
 
 int main(void) {
-    toy_state *state = toy_state_new();
+    toy_state *state = toy_state_new(NULL);
     if (!state) {
         fputs("failed to create Toy state\n", stderr);
         return 1;
     }
 
-    toy_status status = toy_register_native_module(state, &host_module);
+    toy_status status = toy_register_module(state, &host_module);
     if (status != TOY_OK) {
-        int result = report_error(state, "native registration", status);
+        int result = reportError(state, "native registration", status);
         toy_state_free(state);
         return result;
     }
@@ -58,7 +58,7 @@ int main(void) {
         "\"runtime initialized\" h.log";
     status = toy_eval(state, "embed.toy", program);
     if (status != TOY_OK) {
-        int result = report_error(state, "Toy evaluation", status);
+        int result = reportError(state, "Toy evaluation", status);
         toy_state_free(state);
         return result;
     }
@@ -68,7 +68,7 @@ int main(void) {
 
     int64_t score = 0;
     if (status != TOY_OK) {
-        int result = report_error(state, "Toy word call", status);
+        int result = reportError(state, "Toy word call", status);
         toy_state_free(state);
         return result;
     }

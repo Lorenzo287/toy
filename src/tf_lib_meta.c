@@ -189,6 +189,9 @@ tf_ret tf_deque_q(tf_ctx *ctx) {
 tf_ret tf_pqueue_q(tf_ctx *ctx) {
     return type_check(ctx, TF_OBJ_TYPE_PQUEUE);
 }
+tf_ret tf_resource_q(tf_ctx *ctx) {
+    return type_check(ctx, TF_OBJ_TYPE_RESOURCE);
+}
 
 tf_ret tf_typeof(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
@@ -230,6 +233,9 @@ tf_ret tf_typeof(tf_ctx *ctx) {
         break;
     case TF_OBJ_TYPE_PQUEUE:
         type_str = "pqueue";
+        break;
+    case TF_OBJ_TYPE_RESOURCE:
+        type_str = "resource";
         break;
     case TF_OBJ_TYPE_VARLIST:
         type_str = "varlist";
@@ -431,6 +437,11 @@ static void strbuf_append_source_obj(strbuf *buf, tf_obj *o) {
         strbuf_append_cstr(buf, "] >pqueue");
         break;
     }
+    case TF_OBJ_TYPE_RESOURCE:
+        strbuf_append_cstr(buf, "<resource:");
+        strbuf_append_mem(buf, o->resource.type_name, o->resource.type_len);
+        strbuf_append_char(buf, '>');
+        break;
     }
 }
 

@@ -214,6 +214,12 @@ struct tf_ctx {
     const char *current_word;
     tf_debug_hook_fn debug_hook;
     void *debug_userdata;
+    toy_write_fn output;
+    void *output_userdata;
+    toy_write_fn diagnostic;
+    void *diagnostic_userdata;
+    bool output_is_console;
+    bool diagnostic_is_console;
 };
 
 /* Data stack API used by native word implementations. */
@@ -257,6 +263,14 @@ void tf_ctx_interrupt(tf_ctx *ctx);
 void tf_ctx_clear_error(tf_ctx *ctx);
 void tf_ctx_set_error(tf_ctx *ctx, const char *message);
 const char *tf_ctx_last_error(tf_ctx *ctx);
+void tf_ctx_set_output(tf_ctx *ctx, toy_write_fn output, void *userdata);
+void tf_ctx_set_diagnostic(tf_ctx *ctx, toy_write_fn diagnostic,
+                           void *userdata);
+void tf_ctx_write_output(tf_ctx *ctx, const char *data, size_t length);
+void tf_ctx_outputf(tf_ctx *ctx, const char *fmt, ...);
+void tf_ctx_write_diagnostic(tf_ctx *ctx, const char *data, size_t length);
+void tf_ctx_diagnosticf(tf_ctx *ctx, const char *fmt, ...);
+bool tf_ctx_output_is_console(tf_ctx *ctx);
 
 /* Read-only native catalog, in presentation order. */
 const tf_builtin_group *tf_builtin_groups(size_t *count);
@@ -323,5 +337,7 @@ bool tf_debug_find_word(tf_ctx *ctx, const char *name, size_t name_len,
 /* Context-aware diagnostics used by the VM and native words. */
 void tf_ctx_runtime_errorf(tf_ctx *ctx, const char *fmt, ...);
 void tf_ctx_program_errorf(tf_ctx *ctx, const char *fmt, ...);
+void tf_ctx_parse_error(tf_ctx *ctx, const char *source_name, size_t line,
+                        size_t col, const char *message);
 
 #endif  // TF_EXEC_H

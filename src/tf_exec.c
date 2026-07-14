@@ -172,18 +172,106 @@ static const char *source_basename(const char *path) {
     return name;
 }
 
+static void write_stdout(void *userdata, const char *data, size_t length) {
+    (void)userdata;
+    if (length > 0) fwrite(data, 1, length, stdout);
+}
+
+static void write_stderr(void *userdata, const char *data, size_t length) {
+    (void)userdata;
+    if (length > 0) fwrite(data, 1, length, stderr);
+}
+
+void tf_ctx_set_output(tf_ctx *ctx, toy_write_fn output, void *userdata) {
+    if (!ctx) return;
+    ctx->output = output ? output : write_stdout;
+    ctx->output_userdata = output ? userdata : NULL;
+    ctx->output_is_console = output == NULL;
+}
+
+void tf_ctx_set_diagnostic(tf_ctx *ctx, toy_write_fn diagnostic,
+                           void *userdata) {
+    if (!ctx) return;
+    ctx->diagnostic = diagnostic ? diagnostic : write_stderr;
+    ctx->diagnostic_userdata = diagnostic ? userdata : NULL;
+    ctx->diagnostic_is_console = diagnostic == NULL;
+}
+
+void tf_ctx_write_output(tf_ctx *ctx, const char *data, size_t length) {
+    if (!ctx || !data || length == 0) return;
+    ctx->output(ctx->output_userdata, data, length);
+}
+
+void tf_ctx_write_diagnostic(tf_ctx *ctx, const char *data, size_t length) {
+    if (!ctx || !data || length == 0) return;
+    ctx->diagnostic(ctx->diagnostic_userdata, data, length);
+}
+
+static void ctx_vwrite(toy_write_fn write, void *userdata, const char *fmt,
+                       va_list args) {
+    char stack_buffer[256];
+    va_list count_args;
+    va_copy(count_args, args);
+    int length = vsnprintf(stack_buffer, sizeof stack_buffer, fmt, count_args);
+    va_end(count_args);
+    if (length < 0) return;
+    if ((size_t)length < sizeof stack_buffer) {
+        write(userdata, stack_buffer, (size_t)length);
+        return;
+    }
+
+    char *buffer = tf_xmalloc((size_t)length + 1);
+    va_list write_args;
+    va_copy(write_args, args);
+    vsnprintf(buffer, (size_t)length + 1, fmt, write_args);
+    va_end(write_args);
+    write(userdata, buffer, (size_t)length);
+    free(buffer);
+}
+
+void tf_ctx_outputf(tf_ctx *ctx, const char *fmt, ...) {
+    if (!ctx || !fmt) return;
+    va_list args;
+    va_start(args, fmt);
+    ctx_vwrite(ctx->output, ctx->output_userdata, fmt, args);
+    va_end(args);
+}
+
+void tf_ctx_diagnosticf(tf_ctx *ctx, const char *fmt, ...) {
+    if (!ctx || !fmt) return;
+    va_list args;
+    va_start(args, fmt);
+    ctx_vwrite(ctx->diagnostic, ctx->diagnostic_userdata, fmt, args);
+    va_end(args);
+}
+
+bool tf_ctx_output_is_console(tf_ctx *ctx) {
+    return ctx && ctx->output_is_console;
+}
+
+static const char *ctx_diagnostic_color(tf_ctx *ctx, const char *color) {
+    return ctx->diagnostic_is_console ? tf_console_clr(color) : "";
+}
+
+static void ctx_diagnostic_obj_write(void *userdata, const char *data,
+                                     size_t length) {
+    tf_ctx_write_diagnostic(userdata, data, length);
+}
+
 static void ctx_print_error_stack(tf_ctx *ctx, const char *color) {
     size_t len = tf_stack_len(ctx);
     size_t start = len > TF_ERROR_STACK_LIMIT ? len - TF_ERROR_STACK_LIMIT : 0;
 
-    fprintf(stderr, "  stack %s<%zu>%s", tf_console_clr(color), len, 
-			tf_console_clr(TF_CLR_RESET));
-    if (start > 0) fprintf(stderr, " ...");
+    tf_ctx_diagnosticf(ctx, "  stack %s<%zu>%s",
+                       ctx_diagnostic_color(ctx, color), len,
+                       ctx_diagnostic_color(ctx, TF_CLR_RESET));
+    if (start > 0) tf_ctx_write_diagnostic(ctx, " ...", 4);
     for (size_t i = start; i < len; i++) {
-        fprintf(stderr, " ");
-        tf_obj_fprint_display(stderr, tf_stack_peek(ctx, len - 1 - i));
+        tf_ctx_write_diagnostic(ctx, " ", 1);
+        tf_obj_write_display(tf_stack_peek(ctx, len - 1 - i),
+                             ctx_diagnostic_obj_write, ctx, false);
     }
-    fprintf(stderr, "\n");
+    tf_ctx_write_diagnostic(ctx, "\n", 1);
 }
 
 static size_t ctx_program_frame_count(tf_ctx *ctx) {
@@ -215,20 +303,22 @@ static void ctx_print_error_frames(tf_ctx *ctx) {
 
         tf_source_span location = printed == 0 ? ctx_best_span(ctx)
                                                 : frame.location;
-        fprintf(stderr, "  in %s",
-                frame.word_name ? frame.word_name : "<program>");
+        tf_ctx_diagnosticf(ctx, "  in %s",
+                           frame.word_name ? frame.word_name : "<program>");
         if (location.source) {
-            fprintf(stderr, " at %s:%zu:%zu",
-                    source_basename(tf_source_file_name(location.source)),
-                    (size_t)location.line, (size_t)location.col);
+            tf_ctx_diagnosticf(
+                ctx, " at %s:%zu:%zu",
+                source_basename(tf_source_file_name(location.source)),
+                (size_t)location.line, (size_t)location.col);
         }
-        fprintf(stderr, "\n");
+        tf_ctx_write_diagnostic(ctx, "\n", 1);
         printed++;
     }
 
     if (program_count > printed) {
-        fprintf(stderr, "  ... %zu more frame%s\n", program_count - printed,
-                program_count - printed == 1 ? "" : "s");
+        tf_ctx_diagnosticf(ctx, "  ... %zu more frame%s\n",
+                           program_count - printed,
+                           program_count - printed == 1 ? "" : "s");
     }
 }
 
@@ -281,17 +371,48 @@ static void ctx_store_error_vf(tf_ctx *ctx, const char *fmt, va_list args) {
 static void ctx_diagnostic_vf(tf_ctx *ctx, const char *label, const char *color,
                               const char *fmt, va_list args) {
     ctx_store_error_vf(ctx, fmt, args);
-    fprintf(stderr, "%s%s:%s ", tf_console_clr(color), label,
-            tf_console_clr(TF_CLR_RESET));
-    vfprintf(stderr, fmt, args);
+    tf_ctx_diagnosticf(ctx, "%s%s:%s ", ctx_diagnostic_color(ctx, color),
+                       label, ctx_diagnostic_color(ctx, TF_CLR_RESET));
+    ctx_vwrite(ctx->diagnostic, ctx->diagnostic_userdata, fmt, args);
 
     tf_source_span span = ctx_best_span(ctx);
     if (span.source) {
-        fprintf(stderr, "  at %s:%zu:%zu\n",
-                source_basename(tf_source_file_name(span.source)),
-                (size_t)span.line, (size_t)span.col);
+        tf_ctx_diagnosticf(
+            ctx, "  at %s:%zu:%zu\n",
+            source_basename(tf_source_file_name(span.source)),
+            (size_t)span.line, (size_t)span.col);
     }
     ctx_print_error_context(ctx, color);
+}
+
+void tf_ctx_parse_error(tf_ctx *ctx, const char *source_name, size_t line,
+                        size_t col, const char *message) {
+    if (!ctx || !message) return;
+    if (ctx->error_suppression_depth > 0) return;
+    source_name = source_name ? source_name : "<eval>";
+
+    size_t message_len = strlen(message);
+    while (message_len > 0 &&
+           (message[message_len - 1] == '\n' ||
+            message[message_len - 1] == '\r')) {
+        message_len--;
+    }
+
+    int length = snprintf(NULL, 0, "%.*s at %s:%zu:%zu", (int)message_len,
+                          message, source_name, line, col);
+    if (length >= 0) {
+        char *stored = tf_xmalloc((size_t)length + 1);
+        snprintf(stored, (size_t)length + 1, "%.*s at %s:%zu:%zu",
+                 (int)message_len, message, source_name, line, col);
+        tf_ctx_set_error(ctx, stored);
+        free(stored);
+    }
+
+    tf_ctx_diagnosticf(ctx, "%sparsing error:%s %.*s\n  at %s:%zu:%zu\n",
+                       ctx_diagnostic_color(ctx, TF_CLR_ERR),
+                       ctx_diagnostic_color(ctx, TF_CLR_RESET),
+                       (int)message_len, message, source_name, line, col);
+    ctx->error_reported = true;
 }
 
 void tf_ctx_runtime_errorf(tf_ctx *ctx, const char *fmt, ...) {
@@ -338,6 +459,8 @@ const char *tf_type_name(tf_type type) {
         return "deque";
     case TF_OBJ_TYPE_PQUEUE:
         return "pqueue";
+    case TF_OBJ_TYPE_RESOURCE:
+        return "resource";
     case TF_OBJ_TYPE_VARLIST:
         return "capture list";
     case TF_OBJ_TYPE_VARFETCH:
@@ -528,6 +651,8 @@ tf_ctx *tf_ctx_new(int argc, char **argv) {
     ctx->current_word = NULL;
     ctx->debug_hook = NULL;
     ctx->debug_userdata = NULL;
+    tf_ctx_set_output(ctx, NULL, NULL);
+    tf_ctx_set_diagnostic(ctx, NULL, NULL);
 
     size_t group_count = 0;
     const tf_builtin_group *groups = tf_builtin_groups(&group_count);
