@@ -4,7 +4,10 @@ Tree-sitter grammar for Toy. It provides a robust, incremental parser that power
 
 ## Features
 
-- **Syntax Highlighting**: Precise, scope-based highlighting via Tree-sitter queries.
+- **Syntax Highlighting**: User words and symbols use a neutral baseline;
+  captures are parameter-colored, definition symbols use the function color,
+  and native words, constants, control words, and literals remain
+  distinguishable.
 - **Indentation**: Automatic indentation rules for vectors `[ ]`, lists `( )`, maps/sets `{ }`, and local capture lists `| |`.
 - **Folding**: Logical folding ranges for compound forms.
 

@@ -271,3 +271,75 @@ func TestLookupRenameEdits(t *testing.T) {
 		t.Fatalf("unexpected second outer local use rename edit: %+v", localUseEdits[2])
 	}
 }
+
+func TestIndexModuleDirectives(t *testing.T) {
+	source := `"math" require
+"util.math" 'm require-as
+'double [ 2 * ] def
+'double export
+"shared.toy" load
+[ "nested" 'n require-as ]`
+
+	index := IndexDocument(source)
+	if len(index.Imports) != 3 {
+		t.Fatalf("imports = %+v, want 3", index.Imports)
+	}
+	if index.Imports[0].Module != "math" || index.Imports[0].Alias != "" {
+		t.Fatalf("first import = %+v", index.Imports[0])
+	}
+	if index.Imports[1].Module != "util.math" || index.Imports[1].Alias != "m" {
+		t.Fatalf("aliased import = %+v", index.Imports[1])
+	}
+	if index.Imports[2].Module != "nested" || index.Imports[2].Alias != "n" {
+		t.Fatalf("nested import = %+v", index.Imports[2])
+	}
+	if !index.IsExported("double") || index.IsExported("missing") {
+		t.Fatalf("exports = %+v", index.Exports)
+	}
+	if len(index.Loads) != 1 || index.Loads[0].Path != "shared.toy" {
+		t.Fatalf("loads = %+v", index.Loads)
+	}
+
+	moduleRef, ok := LookupSourceReferenceAt(index, Position{Line: 1, Character: 3})
+	if !ok || moduleRef.Kind != SourceReferenceModule || moduleRef.Target != "util.math" {
+		t.Fatalf("module source reference = %+v, %v", moduleRef, ok)
+	}
+	loadRef, ok := LookupSourceReferenceAt(index, Position{Line: 4, Character: 3})
+	if !ok || loadRef.Kind != SourceReferenceLoad || loadRef.Target != "shared.toy" {
+		t.Fatalf("load source reference = %+v, %v", loadRef, ok)
+	}
+	if _, ok := LookupSourceReferenceAt(index, Position{Line: 2, Character: 3}); ok {
+		t.Fatal("definition name unexpectedly treated as a source reference")
+	}
+}
+
+func TestIndexUsesUTF16Columns(t *testing.T) {
+	source := "\"😀\" 'target [ 1 ] def\n\"😀\" target"
+	index := IndexDocument(source)
+
+	sym := index.Definitions["target"]
+	if sym.SelectionRange.Start.Character != 6 {
+		t.Fatalf("definition starts at UTF-16 column %d, want 6", sym.SelectionRange.Start.Character)
+	}
+	resolved, ok := LookupDefinition(index, Position{Line: 1, Character: 6})
+	if !ok || resolved.Name != "target" {
+		t.Fatalf("UTF-16 call did not resolve: %+v, %v", resolved, ok)
+	}
+}
+
+func TestQuotedSymbolIsOnlyAReferenceAtDefinitionAndExportSites(t *testing.T) {
+	index := IndexDocument(`'foo [ 1 ] def
+'foo export
+'foo print`)
+
+	if _, ok := LookupDefinition(index, Position{Line: 2, Character: 2}); ok {
+		t.Fatal("ordinary quoted symbol unexpectedly resolved as a word reference")
+	}
+	if _, ok := LookupHover(index, Position{Line: 2, Character: 2}); ok {
+		t.Fatal("ordinary quoted symbol unexpectedly received function hover")
+	}
+	refs := LookupReferences(index, Position{Line: 0, Character: 2}, true)
+	if len(refs) != 2 {
+		t.Fatalf("references = %+v, want definition plus export", refs)
+	}
+}

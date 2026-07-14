@@ -1,7 +1,10 @@
 package analysis
 
 import (
+	"strconv"
 	"strings"
+	"unicode/utf16"
+	"unicode/utf8"
 
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 
@@ -33,12 +36,17 @@ type tokenKind int
 const (
 	tokenKindWord tokenKind = iota
 	tokenKindVariable
+	tokenKindSymbol
 )
 
 type Token struct {
 	Text  string
 	Range Range
 	Kind  tokenKind
+}
+
+func (token Token) IsWord() bool {
+	return token.Kind == tokenKindWord
 }
 
 type LocalBinding struct {
@@ -48,11 +56,45 @@ type LocalBinding struct {
 	ScopeDepth int
 }
 
+type ModuleImport struct {
+	Module      string
+	Alias       string
+	Range       Range
+	SourceRange Range
+}
+
+type SourceLoad struct {
+	Path        string
+	Range       Range
+	SourceRange Range
+}
+
+type SourceReferenceKind int
+
+const (
+	SourceReferenceModule SourceReferenceKind = iota
+	SourceReferenceLoad
+)
+
+type SourceReference struct {
+	Kind   SourceReferenceKind
+	Target string
+	Range  Range
+}
+
+type Export struct {
+	Name  string
+	Range Range
+}
+
 type DocumentIndex struct {
 	Symbols     []Symbol
 	Definitions map[string]Symbol
 	WordTokens  []Token
 	Locals      []LocalBinding
+	Imports     []ModuleImport
+	Loads       []SourceLoad
+	Exports     []Export
 }
 
 const (
@@ -75,8 +117,11 @@ func IndexDocument(src string) DocumentIndex {
 		return index
 	}
 
-	collectTopLevelDefinitions(root, []byte(src), &index)
-	collectTokensAndLocals(root, []byte(src), &index, []Range{nodeRange(root)})
+	source := []byte(src)
+	positions := newPositionMapper(source)
+	collectTopLevelDefinitions(root, source, &index, positions)
+	collectModuleDirectives(root, source, &index, positions)
+	collectTokensAndLocals(root, source, &index, []Range{positions.nodeRange(root)}, positions)
 
 	return index
 }
@@ -88,6 +133,42 @@ func DocumentSymbols(src string) []Symbol {
 func LookupWordAt(index DocumentIndex, pos Position) (string, bool) {
 	word, _, ok := lookupTokenAt(index, pos)
 	return word, ok
+}
+
+func LookupTokenAt(index DocumentIndex, pos Position) (Token, bool) {
+	_, tok, ok := lookupTokenAt(index, pos)
+	return tok, ok
+}
+
+func (index DocumentIndex) IsExported(name string) bool {
+	for _, exported := range index.Exports {
+		if exported.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func LookupSourceReferenceAt(index DocumentIndex, pos Position) (SourceReference, bool) {
+	for _, imported := range index.Imports {
+		if containsPosition(imported.SourceRange, pos) {
+			return SourceReference{
+				Kind:   SourceReferenceModule,
+				Target: imported.Module,
+				Range:  imported.SourceRange,
+			}, true
+		}
+	}
+	for _, loaded := range index.Loads {
+		if containsPosition(loaded.SourceRange, pos) {
+			return SourceReference{
+				Kind:   SourceReferenceLoad,
+				Target: loaded.Path,
+				Range:  loaded.SourceRange,
+			}, true
+		}
+	}
+	return SourceReference{}, false
 }
 
 func LookupDefinition(index DocumentIndex, pos Position) (Symbol, bool) {
@@ -118,6 +199,13 @@ func LookupDefinition(index DocumentIndex, pos Position) (Symbol, bool) {
 			SelectionRange: local.Range,
 		}, true
 	}
+	if tok.Kind == tokenKindSymbol {
+		sym, ok := index.Definitions[word]
+		if !ok || (!sameRange(tok.Range, sym.SelectionRange) && !isExportRange(index, word, tok.Range)) {
+			return Symbol{}, false
+		}
+		return sym, true
+	}
 
 	sym, ok := index.Definitions[word]
 	return sym, ok
@@ -139,6 +227,9 @@ func LookupReferences(index DocumentIndex, pos Position, includeDeclaration bool
 		}
 		return localReferences(index, local, includeDeclaration)
 	}
+	if tok.Kind == tokenKindSymbol && !isExportRange(index, word, tok.Range) && !isDefinitionRange(index, word, tok.Range) {
+		return nil
+	}
 
 	sym, ok := index.Definitions[word]
 	if !ok {
@@ -157,6 +248,11 @@ func LookupReferences(index DocumentIndex, pos Position, includeDeclaration bool
 			continue
 		}
 		refs = append(refs, candidate.Range)
+	}
+	for _, exported := range index.Exports {
+		if exported.Name == sym.Name {
+			refs = append(refs, exported.Range)
+		}
 	}
 	return refs
 }
@@ -177,6 +273,9 @@ func LookupRenameEdits(index DocumentIndex, pos Position) []Range {
 		}
 		return localReferences(index, local, true)
 	}
+	if tok.Kind == tokenKindSymbol && !isExportRange(index, word, tok.Range) && !isDefinitionRange(index, word, tok.Range) {
+		return nil
+	}
 
 	sym, ok := index.Definitions[word]
 	if !ok {
@@ -193,6 +292,11 @@ func LookupRenameEdits(index DocumentIndex, pos Position) []Range {
 			continue
 		}
 		edits = append(edits, candidate.Range)
+	}
+	for _, exported := range index.Exports {
+		if exported.Name == sym.Name {
+			edits = append(edits, exported.Range)
+		}
 	}
 	return edits
 }
@@ -224,7 +328,7 @@ func lookupTokenAt(index DocumentIndex, pos Position) (string, Token, bool) {
 	return "", Token{}, false
 }
 
-func collectTokensAndLocals(node *tree_sitter.Node, src []byte, index *DocumentIndex, scopes []Range) {
+func collectTokensAndLocals(node *tree_sitter.Node, src []byte, index *DocumentIndex, scopes []Range, positions *positionMapper) {
 	if node == nil {
 		return
 	}
@@ -233,35 +337,41 @@ func collectTokensAndLocals(node *tree_sitter.Node, src []byte, index *DocumentI
 
 	switch node.Kind() {
 	case "source_file":
-		currentScopes = []Range{nodeRange(node)}
+		currentScopes = []Range{positions.nodeRange(node)}
 	case "block":
-		currentScopes = append(append([]Range(nil), scopes...), nodeRange(node))
+		currentScopes = append(append([]Range(nil), scopes...), positions.nodeRange(node))
 	case "var_fetch":
 		if child := node.NamedChild(0); child != nil && child.Kind() == "variable_name" {
 			index.WordTokens = append(index.WordTokens, Token{
 				Text:  child.Utf8Text(src),
-				Range: nodeRange(node),
+				Range: positions.nodeRange(node),
 				Kind:  tokenKindVariable,
 			})
 		}
 		return
 	case "var_list":
-		collectLocalBindings(node, src, index, currentScopes)
+		collectLocalBindings(node, src, index, currentScopes, positions)
 		return
-	case "word", "symbol_name", "builtin_word", "control_word", "operator":
+	case "symbol_name":
 		index.WordTokens = append(index.WordTokens, Token{
 			Text:  node.Utf8Text(src),
-			Range: nodeRange(node),
+			Range: positions.nodeRange(node),
+			Kind:  tokenKindSymbol,
+		})
+	case "word", "builtin_word", "control_word", "operator":
+		index.WordTokens = append(index.WordTokens, Token{
+			Text:  node.Utf8Text(src),
+			Range: positions.nodeRange(node),
 			Kind:  tokenKindWord,
 		})
 	}
 
 	for i := uint(0); i < node.NamedChildCount(); i++ {
-		collectTokensAndLocals(node.NamedChild(i), src, index, currentScopes)
+		collectTokensAndLocals(node.NamedChild(i), src, index, currentScopes, positions)
 	}
 }
 
-func collectLocalBindings(node *tree_sitter.Node, src []byte, index *DocumentIndex, scopes []Range) {
+func collectLocalBindings(node *tree_sitter.Node, src []byte, index *DocumentIndex, scopes []Range, positions *positionMapper) {
 	if len(scopes) == 0 {
 		return
 	}
@@ -277,14 +387,14 @@ func collectLocalBindings(node *tree_sitter.Node, src []byte, index *DocumentInd
 
 		index.Locals = append(index.Locals, LocalBinding{
 			Name:       child.Utf8Text(src),
-			Range:      nodeRange(child),
+			Range:      positions.nodeRange(child),
 			ScopeRange: scope,
 			ScopeDepth: scopeDepth,
 		})
 	}
 }
 
-func collectTopLevelDefinitions(root *tree_sitter.Node, src []byte, index *DocumentIndex) {
+func collectTopLevelDefinitions(root *tree_sitter.Node, src []byte, index *DocumentIndex, positions *positionMapper) {
 	for i := uint(0); i < root.NamedChildCount(); i++ {
 		child := root.NamedChild(i)
 		if child == nil {
@@ -293,7 +403,7 @@ func collectTopLevelDefinitions(root *tree_sitter.Node, src []byte, index *Docum
 
 		switch child.Kind() {
 		case "quoted_symbol":
-			if sym, ok := indexDefDefinition(root, i, leadingLineDoc(root, i, src), src); ok {
+			if sym, ok := indexDefDefinition(root, i, leadingLineDoc(root, i, src), src, positions); ok {
 				index.Symbols = append(index.Symbols, sym)
 				index.Definitions[sym.Name] = sym
 			}
@@ -301,7 +411,7 @@ func collectTopLevelDefinitions(root *tree_sitter.Node, src []byte, index *Docum
 	}
 }
 
-func indexDefDefinition(root *tree_sitter.Node, i uint, doc string, src []byte) (Symbol, bool) {
+func indexDefDefinition(root *tree_sitter.Node, i uint, doc string, src []byte, positions *positionMapper) (Symbol, bool) {
 	quoted := root.NamedChild(i)
 	if quoted == nil || quoted.Kind() != "quoted_symbol" {
 		return Symbol{}, false
@@ -312,8 +422,8 @@ func indexDefDefinition(root *tree_sitter.Node, i uint, doc string, src []byte) 
 		return Symbol{}, false
 	}
 
-	block := root.NamedChild(i + 1)
-	defWord := root.NamedChild(i + 2)
+	blockIndex, block := nextExpressionChild(root, i+1)
+	_, defWord := nextExpressionChild(root, blockIndex+1)
 	if block == nil || defWord == nil {
 		return Symbol{}, false
 	}
@@ -326,12 +436,116 @@ func indexDefDefinition(root *tree_sitter.Node, i uint, doc string, src []byte) 
 		Kind:   symbolKindFunction,
 		Detail: "symbol definition",
 		Range: Range{
-			Start: nodeRange(quoted).Start,
-			End:   nodeRange(defWord).End,
+			Start: positions.nodeRange(quoted).Start,
+			End:   positions.nodeRange(defWord).End,
 		},
-		SelectionRange: nodeRange(nameNode),
+		SelectionRange: positions.nodeRange(nameNode),
 		Doc:            doc,
 	}, true
+}
+
+func collectModuleDirectives(node *tree_sitter.Node, src []byte, index *DocumentIndex, positions *positionMapper) {
+	if node == nil {
+		return
+	}
+
+	for i := uint(0); i < node.NamedChildCount(); i++ {
+		child := node.NamedChild(i)
+		if child == nil {
+			continue
+		}
+
+		switch child.Kind() {
+		case "string":
+			value, ok := decodeStringLiteral(child.Utf8Text(src))
+			if !ok {
+				break
+			}
+
+			secondIndex, second := nextExpressionChild(node, i+1)
+			if second == nil {
+				break
+			}
+			if second.Kind() == "builtin_word" {
+				switch second.Utf8Text(src) {
+				case "require":
+					index.Imports = append(index.Imports, ModuleImport{
+						Module:      value,
+						SourceRange: positions.nodeRange(child),
+						Range: Range{
+							Start: positions.nodeRange(child).Start,
+							End:   positions.nodeRange(second).End,
+						},
+					})
+				case "load":
+					index.Loads = append(index.Loads, SourceLoad{
+						Path:        value,
+						SourceRange: positions.nodeRange(child),
+						Range: Range{
+							Start: positions.nodeRange(child).Start,
+							End:   positions.nodeRange(second).End,
+						},
+					})
+				}
+				break
+			}
+
+			if second.Kind() != "quoted_symbol" {
+				break
+			}
+			aliasNode := second.NamedChild(0)
+			if aliasNode == nil || aliasNode.Kind() != "symbol_name" {
+				break
+			}
+			_, third := nextExpressionChild(node, secondIndex+1)
+			if third == nil || third.Kind() != "builtin_word" || third.Utf8Text(src) != "require-as" {
+				break
+			}
+			index.Imports = append(index.Imports, ModuleImport{
+				Module:      value,
+				Alias:       aliasNode.Utf8Text(src),
+				SourceRange: positions.nodeRange(child),
+				Range: Range{
+					Start: positions.nodeRange(child).Start,
+					End:   positions.nodeRange(third).End,
+				},
+			})
+
+		case "quoted_symbol":
+			nameNode := child.NamedChild(0)
+			if nameNode == nil || nameNode.Kind() != "symbol_name" {
+				break
+			}
+			_, second := nextExpressionChild(node, i+1)
+			if second == nil || second.Kind() != "builtin_word" || second.Utf8Text(src) != "export" {
+				break
+			}
+			index.Exports = append(index.Exports, Export{
+				Name:  nameNode.Utf8Text(src),
+				Range: positions.nodeRange(nameNode),
+			})
+		}
+	}
+
+	for i := uint(0); i < node.NamedChildCount(); i++ {
+		collectModuleDirectives(node.NamedChild(i), src, index, positions)
+	}
+}
+
+func nextExpressionChild(parent *tree_sitter.Node, start uint) (uint, *tree_sitter.Node) {
+	for i := start; i < parent.NamedChildCount(); i++ {
+		child := parent.NamedChild(i)
+		if child == nil || child.Kind() == "line_comment" || child.Kind() == "block_comment" {
+			continue
+		}
+		return i, child
+	}
+	return 0, nil
+}
+
+func decodeStringLiteral(text string) (string, bool) {
+	value, err := strconv.Unquote(text)
+	return value, err == nil
 }
 
 func leadingLineDoc(root *tree_sitter.Node, defIndex uint, src []byte) string {
@@ -408,19 +622,57 @@ func lookupLocalBindingDeclarationAt(index DocumentIndex, pos Position) (LocalBi
 	return best, bestOK
 }
 
-func nodeRange(node *tree_sitter.Node) Range {
+type positionMapper struct {
+	source     []byte
+	lineStarts []int
+}
+
+func newPositionMapper(source []byte) *positionMapper {
+	mapper := &positionMapper{
+		source:     source,
+		lineStarts: []int{0},
+	}
+	for i, b := range source {
+		if b == '\n' {
+			mapper.lineStarts = append(mapper.lineStarts, i+1)
+		}
+	}
+	return mapper
+}
+
+func (mapper *positionMapper) nodeRange(node *tree_sitter.Node) Range {
 	start := node.StartPosition()
 	end := node.EndPosition()
 	return Range{
-		Start: Position{
-			Line:      int(start.Row),
-			Character: int(start.Column),
-		},
-		End: Position{
-			Line:      int(end.Row),
-			Character: int(end.Column),
-		},
+		Start: mapper.position(uint(start.Row), uint(start.Column)),
+		End:   mapper.position(uint(end.Row), uint(end.Column)),
 	}
+}
+
+func (mapper *positionMapper) position(row, byteColumn uint) Position {
+	position := Position{Line: int(row)}
+	if int(row) >= len(mapper.lineStarts) {
+		return position
+	}
+
+	lineStart := mapper.lineStarts[row]
+	columnEnd := lineStart + int(byteColumn)
+	if columnEnd > len(mapper.source) {
+		columnEnd = len(mapper.source)
+	}
+	for input := mapper.source[lineStart:columnEnd]; len(input) > 0; {
+		r, size := utf8.DecodeRune(input)
+		if size == 0 {
+			break
+		}
+		width := utf16.RuneLen(r)
+		if width < 0 {
+			width = 1
+		}
+		position.Character += width
+		input = input[size:]
+	}
+	return position
 }
 
 func containsPosition(rng Range, pos Position) bool {
@@ -454,6 +706,20 @@ func comparePosition(a Position, b Position) int {
 
 func sameRange(a Range, b Range) bool {
 	return a.Start == b.Start && a.End == b.End
+}
+
+func isDefinitionRange(index DocumentIndex, name string, rng Range) bool {
+	sym, ok := index.Definitions[name]
+	return ok && sameRange(sym.SelectionRange, rng)
+}
+
+func isExportRange(index DocumentIndex, name string, rng Range) bool {
+	for _, exported := range index.Exports {
+		if exported.Name == name && sameRange(exported.Range, rng) {
+			return true
+		}
+	}
+	return false
 }
 
 func trimParenComment(text string) string {

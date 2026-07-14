@@ -29,6 +29,13 @@ func LookupHover(index DocumentIndex, pos Position) (Hover, bool) {
 			Range:    tok.Range,
 		}, true
 	}
+	if tok.Kind == tokenKindSymbol {
+		sym, ok := index.Definitions[word]
+		if !ok || (!sameRange(tok.Range, sym.SelectionRange) && !isExportRange(index, word, tok.Range)) {
+			return Hover{}, false
+		}
+		return DefinitionHover(word, sym, tok.Range), true
+	}
 
 	if doc, ok := builtinDocs[word]; ok {
 		body := doc.Description
@@ -46,23 +53,25 @@ func LookupHover(index DocumentIndex, pos Position) (Hover, bool) {
 	}
 
 	if sym, ok := index.Definitions[word]; ok {
-		header := sym.Name
-
-		body := sym.Detail
-		switch {
-		case sym.Doc != "" && sym.StackEffect != "":
-			body = sym.Doc + "\n\nstack: `" + sym.StackEffect + "`"
-		case sym.Doc != "":
-			body = sym.Doc
-		case sym.StackEffect != "":
-			body = "stack: `" + sym.StackEffect + "`"
-		}
-
-		return Hover{
-			Contents: strings.TrimSpace("```toy\n" + header + "\n```\n" + body),
-			Range:    tok.Range,
-		}, true
+		return DefinitionHover(word, sym, tok.Range), true
 	}
 
 	return Hover{}, false
+}
+
+func DefinitionHover(displayName string, sym Symbol, rng Range) Hover {
+	body := sym.Detail
+	switch {
+	case sym.Doc != "" && sym.StackEffect != "":
+		body = sym.Doc + "\n\nstack: `" + sym.StackEffect + "`"
+	case sym.Doc != "":
+		body = sym.Doc
+	case sym.StackEffect != "":
+		body = "stack: `" + sym.StackEffect + "`"
+	}
+
+	return Hover{
+		Contents: strings.TrimSpace("```toy\n" + displayName + "\n```\n" + body),
+		Range:    rng,
+	}
 }

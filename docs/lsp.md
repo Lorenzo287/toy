@@ -7,9 +7,11 @@ It uses the Tree-sitter parser for indexing and providing IDE features.
 
 ### Supported LSP Methods
 
-- **Navigation**: `textDocument/definition`, `textDocument/references`.
+- **Navigation**: workspace-aware `textDocument/definition` and
+  `textDocument/references`.
 - **Introspection**: `textDocument/hover` (shows builtin docs and stack effects), `textDocument/documentSymbol`.
-- **Refactoring**: `textDocument/rename` (works for both top-level words and locals).
+- **Refactoring**: `textDocument/rename` for locals and user words, including
+  qualified uses in other files.
 - **Formatting**: `textDocument/formatting`, backed by the same formatter as
   the `toyfmt` CLI.
 - **Lifecycle**: `initialize`, `shutdown`, `exit`, `didOpen`, `didChange`, `didClose`.
@@ -19,6 +21,17 @@ It uses the Tree-sitter parser for indexing and providing IDE features.
 - **Top-level definitions**: `'name [ ... ] def`.
 - **Locals**: Bindings from `| a b |`, fetches like `$a`, and nested block shadowing.
 - **Documentation**: Leading `\ comment` lines are extracted for hovers.
+- **Workspace files**: Toy sources under the initialized workspace folders are
+  indexed from disk; unsaved open buffers override their disk copies.
+- **Modules**: Literal `require`, `require-as`, and `export` forms resolve with
+  source-relative paths, aliases, transitive imports, and export visibility.
+  Literal `load` dependencies also participate in unqualified navigation. Go
+  to definition on a module or load string opens its source file.
+
+Imports and loads assembled dynamically at runtime cannot be inferred
+statically. Native modules have no source definition to jump to. Completion,
+diagnostics, semantic tokens, and workspace-symbol search are not implemented
+yet.
 
 ## Getting Started
 

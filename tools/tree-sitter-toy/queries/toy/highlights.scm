@@ -21,16 +21,36 @@
 (string) @string
 (escape_sequence) @string.escape
 
-;; Quoted symbols
-(quoted_symbol "'" @punctuation.delimiter (symbol_name) @function)
+;; Symbols and user words form Toy's neutral baseline. Definition sites receive
+;; the function color below.
+(quoted_symbol) @variable
+
+(source_file
+  (quoted_symbol) @function
+  .
+  (block)
+  .
+  (builtin_word) @_def
+  (#eq? @_def "def")
+  (#set! "priority" 110))
+
+(block
+  (quoted_symbol) @function
+  .
+  (block)
+  .
+  (builtin_word) @_def
+  (#eq? @_def "def")
+  (#set! "priority" 110))
 
 ;; Variables and Parameters
-(var_list (word) @variable)
-(var_fetch (variable_name) @variable)
+((var_list (word) @variable.parameter)
+ (#set! "priority" 110))
+((var_fetch) @variable.parameter
+ (#set! "priority" 110))
 
-;; Capture Delimiters and Fetch Symbol
-(var_fetch "$" @type)
-(var_list "|" @type "|" @type)
+;; Capture delimiters behave like quotation/collection brackets.
+(var_list "|" @punctuation.bracket)
 
 ;; Brackets
 (block "[" @punctuation.bracket "]" @punctuation.bracket)
@@ -42,10 +62,15 @@
 (operator) @operator
 (builtin_word) @function.builtin
 
+;; Zero-argument words that always push the same numeric value.
+((builtin_word) @constant
+ (#any-of? @constant "pi" "e" "tau" "inf" "nan")
+ (#set! "priority" 110))
+
 ;; Word 'def' specifically as keyword
 ((builtin_word) @keyword
- (#eq? @keyword "def"))
+ (#eq? @keyword "def")
+ (#set! "priority" 110))
 
-;; Generic words / User calls
+;; User words share the neutral baseline with ordinary symbols.
 (word) @variable
-

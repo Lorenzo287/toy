@@ -41,7 +41,15 @@ type respError struct {
 }
 
 type initializeParams struct {
-	ProcessID int `json:"processId"`
+	ProcessID        int               `json:"processId"`
+	RootPath         string            `json:"rootPath"`
+	RootURI          string            `json:"rootUri"`
+	WorkspaceFolders []workspaceFolder `json:"workspaceFolders"`
+}
+
+type workspaceFolder struct {
+	URI  string `json:"uri"`
+	Name string `json:"name"`
 }
 
 type initializeResult struct {

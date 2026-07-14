@@ -200,9 +200,10 @@ function renderVsCodeGrammar(manifest) {
   const callSegment = '[a-zA-Z_+\\-*%<>=!?][a-zA-Z0-9_+\\-*%<>=!?]*';
   const qualifiedName = `(?:\\.(?:s|S)?|${nameSegment}(?:\\.${nameSegment})*)`;
   const qualifiedCall = `${callSegment}(?:\\.${callSegment})+`;
+  const constantWords = ['pi', 'e', 'tau', 'inf', 'nan'];
   const byClass = (syntaxClass) =>
     words.filter((word) => word.syntaxClass === syntaxClass).map((word) => regexEscape(word.name));
-  const builtinPattern = `(?<=\\s|^)(${byClass('builtin').join('|')})(?=\\s|$)`;
+  const builtinPattern = `(?<=\\s|^)(${byClass('builtin').filter((word) => word !== 'def' && !constantWords.includes(word)).join('|')})(?=\\s|$)`;
   const controlPattern = `\\b(${byClass('control').join('|')})\\b`;
   const operatorPattern = `(?<=\\s|^)(${byClass('operator').join('|')})(?=\\s|$)`;
   const grammar = {
@@ -212,6 +213,7 @@ function renderVsCodeGrammar(manifest) {
     patterns: [
       { include: '#comments' },
       { include: '#strings' },
+      { include: '#variables' },
       { include: '#functions' },
       { include: '#keywords' },
       { include: '#numbers' },
@@ -235,10 +237,24 @@ function renderVsCodeGrammar(manifest) {
           ],
         }],
       },
+      variables: {
+        patterns: [
+          { name: 'variable.parameter.toy', match: `\\$${nameSegment}` },
+          {
+            name: 'meta.binding-list.toy',
+            begin: '\\|',
+            beginCaptures: { 0: { name: 'punctuation.bracket.toy' } },
+            end: '\\|',
+            endCaptures: { 0: { name: 'punctuation.bracket.toy' } },
+            patterns: [{ name: 'variable.parameter.toy', match: callSegment }],
+          },
+        ],
+      },
       functions: {
         patterns: [
-          { name: 'entity.name.function.toy', match: `'(?:/|${qualifiedName})` },
-          { name: 'entity.name.function.toy', match: builtinPattern },
+          { name: 'entity.name.function.toy', match: `'(?:/|${qualifiedName})(?=\\s*\\[)` },
+          { name: 'variable.other.toy', match: `'(?:/|${qualifiedName})` },
+          { name: 'support.function.builtin.toy', match: builtinPattern },
         ],
       },
       keywords: {
@@ -256,9 +272,9 @@ function renderVsCodeGrammar(manifest) {
       },
       words: {
         patterns: [
-          { name: 'constant.language.toy', match: '\\b(nil|true|false|pi|e|tau|inf|nan)\\b' },
-          { name: 'support.function.toy', match: qualifiedCall },
-          { name: 'variable.other.toy', match: '\\b\\w+\\b' },
+          { name: 'constant.language.toy', match: `\\b(true|false|${constantWords.join('|')})\\b` },
+          { name: 'variable.other.toy', match: qualifiedCall },
+          { name: 'variable.other.toy', match: `(?<![a-zA-Z0-9_+\\-*%<>=!?.])${callSegment}(?![a-zA-Z0-9_+\\-*%<>=!?.])` },
         ],
       },
     },

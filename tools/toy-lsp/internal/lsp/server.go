@@ -111,6 +111,23 @@ func (s *Server) handle(w io.Writer, req request) error {
 }
 
 func (s *Server) handleInitialize(w io.Writer, req request) error {
+	if len(req.Params) > 0 {
+		var params initializeParams
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return writeResponse(w, response{
+				JSONRPC: "2.0",
+				ID:      decodeID(req.ID),
+				Error: &respError{
+					Code:    -32602,
+					Message: fmt.Sprintf("invalid initialize parameters: %v", err),
+				},
+			})
+		}
+		for _, err := range s.docs.configureWorkspace(params) {
+			s.logger.Printf("workspace indexing: %v", err)
+		}
+	}
+
 	return writeResponse(w, response{
 		JSONRPC: "2.0",
 		ID:      decodeID(req.ID),
@@ -235,19 +252,22 @@ func (s *Server) handleDefinition(w io.Writer, req request) error {
 		return err
 	}
 
-	doc, ok := s.docs.get(params.TextDocument.URI)
-	if !ok {
+	position := analysis.Position{
+		Line:      params.Position.Line,
+		Character: params.Position.Character,
+	}
+	if targetURI, ok := s.resolveSourceReference(params.TextDocument.URI, position); ok {
 		return writeResponse(w, response{
 			JSONRPC: "2.0",
 			ID:      decodeID(req.ID),
-			Result:  newResult(nil),
+			Result: newResult(location{
+				URI:   targetURI,
+				Range: lspRange{},
+			}),
 		})
 	}
 
-	sym, ok := analysis.LookupDefinition(doc.Index, analysis.Position{
-		Line:      params.Position.Line,
-		Character: params.Position.Character,
-	})
+	target, ok := s.resolveDefinition(params.TextDocument.URI, position)
 	if !ok {
 		return writeResponse(w, response{
 			JSONRPC: "2.0",
@@ -260,15 +280,15 @@ func (s *Server) handleDefinition(w io.Writer, req request) error {
 		JSONRPC: "2.0",
 		ID:      decodeID(req.ID),
 		Result: newResult(location{
-			URI: params.TextDocument.URI,
+			URI: target.URI,
 			Range: lspRange{
 				Start: lspPosition{
-					Line:      sym.SelectionRange.Start.Line,
-					Character: sym.SelectionRange.Start.Character,
+					Line:      target.Symbol.SelectionRange.Start.Line,
+					Character: target.Symbol.SelectionRange.Start.Character,
 				},
 				End: lspPosition{
-					Line:      sym.SelectionRange.End.Line,
-					Character: sym.SelectionRange.End.Character,
+					Line:      target.Symbol.SelectionRange.End.Line,
+					Character: target.Symbol.SelectionRange.End.Character,
 				},
 			},
 		}),
@@ -290,10 +310,19 @@ func (s *Server) handleHover(w io.Writer, req request) error {
 		})
 	}
 
-	info, ok := analysis.LookupHover(doc.Index, analysis.Position{
+	position := analysis.Position{
 		Line:      params.Position.Line,
 		Character: params.Position.Character,
-	})
+	}
+	info, ok := analysis.LookupHover(doc.Index, position)
+	if !ok {
+		target, resolved := s.resolveDefinition(params.TextDocument.URI, position)
+		token, hasToken := analysis.LookupTokenAt(doc.Index, position)
+		if resolved && hasToken {
+			info = analysis.DefinitionHover(token.Text, target.Symbol, token.Range)
+			ok = true
+		}
+	}
 	if !ok {
 		return writeResponse(w, response{
 			JSONRPC: "2.0",
@@ -339,25 +368,20 @@ func (s *Server) handleReferences(w io.Writer, req request) error {
 		})
 	}
 
-	ranges := analysis.LookupReferences(doc.Index, analysis.Position{
+	position := analysis.Position{
 		Line:      params.Position.Line,
 		Character: params.Position.Character,
-	}, params.Context.IncludeDeclaration)
-	locations := make([]location, 0, len(ranges))
-	for _, rng := range ranges {
-		locations = append(locations, location{
-			URI: params.TextDocument.URI,
-			Range: lspRange{
-				Start: lspPosition{
-					Line:      rng.Start.Line,
-					Character: rng.Start.Character,
-				},
-				End: lspPosition{
-					Line:      rng.End.Line,
-					Character: rng.End.Character,
-				},
-			},
-		})
+	}
+	target, resolved := s.resolveDefinition(params.TextDocument.URI, position)
+	locations := make([]location, 0)
+	if resolved && target.Symbol.Detail == "local binding" {
+		for _, rng := range analysis.LookupReferences(doc.Index, position, params.Context.IncludeDeclaration) {
+			locations = append(locations, location{URI: doc.URI, Range: toLSPRange(rng)})
+		}
+	} else if resolved {
+		for _, occurrence := range s.wordOccurrences(target, params.Context.IncludeDeclaration) {
+			locations = append(locations, location{URI: occurrence.URI, Range: toLSPRange(occurrence.Range)})
+		}
 	}
 
 	return writeResponse(w, response{
@@ -382,11 +406,12 @@ func (s *Server) handleRename(w io.Writer, req request) error {
 		})
 	}
 
-	ranges := analysis.LookupRenameEdits(doc.Index, analysis.Position{
+	position := analysis.Position{
 		Line:      params.Position.Line,
 		Character: params.Position.Character,
-	})
-	if len(ranges) == 0 {
+	}
+	target, resolved := s.resolveDefinition(params.TextDocument.URI, position)
+	if !resolved {
 		return writeResponse(w, response{
 			JSONRPC: "2.0",
 			ID:      decodeID(req.ID),
@@ -394,20 +419,27 @@ func (s *Server) handleRename(w io.Writer, req request) error {
 		})
 	}
 
-	edits := make([]textEdit, 0, len(ranges))
-	for _, rng := range ranges {
-		edits = append(edits, textEdit{
-			Range: lspRange{
-				Start: lspPosition{
-					Line:      rng.Start.Line,
-					Character: rng.Start.Character,
-				},
-				End: lspPosition{
-					Line:      rng.End.Line,
-					Character: rng.End.Character,
-				},
-			},
-			NewText: params.NewName,
+	changes := make(map[string][]textEdit)
+	if target.Symbol.Detail == "local binding" {
+		for _, rng := range analysis.LookupRenameEdits(doc.Index, position) {
+			changes[doc.URI] = append(changes[doc.URI], textEdit{
+				Range:   toLSPRange(rng),
+				NewText: params.NewName,
+			})
+		}
+	} else {
+		for _, occurrence := range s.wordOccurrences(target, true) {
+			changes[occurrence.URI] = append(changes[occurrence.URI], textEdit{
+				Range:   toLSPRange(occurrence.RenameRange),
+				NewText: params.NewName,
+			})
+		}
+	}
+	if len(changes) == 0 {
+		return writeResponse(w, response{
+			JSONRPC: "2.0",
+			ID:      decodeID(req.ID),
+			Result:  newResult(nil),
 		})
 	}
 
@@ -415,11 +447,22 @@ func (s *Server) handleRename(w io.Writer, req request) error {
 		JSONRPC: "2.0",
 		ID:      decodeID(req.ID),
 		Result: newResult(workspaceEdit{
-			Changes: map[string][]textEdit{
-				params.TextDocument.URI: edits,
-			},
+			Changes: changes,
 		}),
 	})
+}
+
+func toLSPRange(rng analysis.Range) lspRange {
+	return lspRange{
+		Start: lspPosition{
+			Line:      rng.Start.Line,
+			Character: rng.Start.Character,
+		},
+		End: lspPosition{
+			Line:      rng.End.Line,
+			Character: rng.End.Character,
+		},
+	}
 }
 
 func readMessage(r *bufio.Reader) ([]byte, error) {
