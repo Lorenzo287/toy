@@ -1,0 +1,28 @@
+\ Load the separately built SQLite native module.
+"sqlite" 'db require-as
+
+":memory:" db.open
+dup "CREATE TABLE people (id INTEGER PRIMARY KEY, name TEXT NOT NULL)" db.exec
+
+dup "INSERT INTO people (id, name) VALUES (?, ?)" db.prepare
+dup 1 1 db.bind-int
+dup 2 "Ada" db.bind-text
+dup db.step drop
+
+dup db.reset
+dup 1 2 db.bind-int
+dup 2 "Grace" db.bind-text
+dup db.step drop
+drop
+
+dup "SELECT id, name FROM people ORDER BY id" db.prepare
+[
+	dup db.step
+] [
+	dup 0 db.column-int
+	over 1 db.column-text
+	"{}: {}\n" printf
+] while
+
+drop \ statement is finalized
+drop \ database is closed

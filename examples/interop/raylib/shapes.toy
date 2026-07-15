@@ -1,3 +1,4 @@
+\ Load the separately built Raylib native module.
 "raylib" 'rl require-as
 
 'background [ 245 245 245 255 rl.rgba ] def

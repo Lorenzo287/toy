@@ -17,10 +17,13 @@ navigation and development rules.
 - `src/tf_builtins.inc`, `src/tf_docs.c`, `src/tf_repl_builtins.inc`:
   generated builtin/runtime-doc files; do not hand-edit.
 - `include/`: internal APIs; read these before engine, lexer, object, or native edits.
-- `examples/toy/`, `examples/c/`: curated Toy programs and C embedding hosts;
-  formatting-sensitive quines live under `examples/toy/quines/`.
-- `bindings/raylib/`: optional handwritten Raylib native module, kept outside
-  the core runtime.
+- `examples/programs/`: standalone Toy programs; formatting-sensitive quines
+  live under `examples/programs/quines/`.
+- `examples/embedding/`: C hosts that embed and call the Toy runtime.
+- `examples/interop/`: dynamic FFI, generated binding, and handwritten
+  external-library examples. Library-specific adapters are test cases for the
+  general boundary, not built-in integrations.
+- `modules/`: optional general-purpose native modules maintained with Toy.
 - `tests/toy/`, `tests/c/`: language cases and C API regressions. Toy test
   prefixes declare behavior: `test_`, `fail_`, `output_`, and `manual_`.
 - `docs/`: build, REPL, tooling, and roadmap docs.
@@ -60,12 +63,12 @@ navigation and development rules.
   `src/toy.c`.
 - Shared native-module ABI and support layer: `include/toy_module.h`,
   `src/toy_module.c`; platform loading: `src/tf_native_loader.c`.
-- Experimental libffi module: `bindings/ffi/toy_ffi.c`; signature and safety
+- Experimental libffi module: `modules/ffi/toy_ffi.c`; signature and safety
   contract: `docs/ffi.md`.
 - Explicit-manifest binding generator: `tools/generate-binding.js`; Nob
   integration: `nob bindgen`; contract: `docs/bindgen.md`.
-- Raylib binding adapter and registration entry point:
-  `bindings/raylib/toy_raylib.h`, `bindings/raylib/toy_raylib.c`.
+- External shared-module examples: `examples/interop/raylib/toy_raylib.c` and
+  `examples/interop/sqlite/toy_sqlite.c`.
 - Execution engine: `include/tf_exec.h`, `src/tf_exec.c`.
 - Module registry and scoped lookup: `include/tf_exec.h`, `src/tf_exec.c`;
   module loading and path resolution: `src/tf_lib_io.c`.

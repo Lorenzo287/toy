@@ -1,10 +1,10 @@
 # Testing Toy
 
 Toy keeps automated regressions under `tests/toy/` and user-facing programs
-under `examples/toy/`. C API regressions and hosts live alongside them under
-`tests/c/` and `examples/c/`. Examples may be smoke-tested separately, but their
-source should teach or demonstrate the language rather than act as the
-correctness suite.
+under `examples/programs/`. C API regressions live under `tests/c/`, while
+buildable hosts live under `examples/embedding/`. Examples may be smoke-tested
+separately, but their source should teach or demonstrate the language rather
+than act as the correctness suite.
 
 ## Run the Suite
 

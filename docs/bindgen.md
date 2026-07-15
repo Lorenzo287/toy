@@ -58,7 +58,7 @@ wrapper returns. Unsigned results outside Toy's signed 64-bit range are errors.
 Generate a C file directly with:
 
 ```powershell
-node tools\generate-binding.js bindings\clib.json build\generated\clib.c
+node tools\generate-binding.js path\to\clib.json build\generated\clib.c
 ```
 
 `--check` compares an existing output with the manifest without rewriting it.
@@ -68,7 +68,7 @@ The Nob `bindgen` command generates the wrapper and builds it as a loadable
 module:
 
 ```powershell
-.\nob.exe bindgen clib bindings\clib.json `
+.\nob.exe bindgen clib path\to\clib.json `
     --include path\to\headers `
     --lib the_c_library
 ```
@@ -82,9 +82,9 @@ dependency locations without putting them in the manifest.
 The curated standard-C example needs no additional library configuration:
 
 ```powershell
-.\nob.exe bindgen clib examples\bindings\clib.json
+.\nob.exe bindgen clib examples\interop\bindgen\clib.json
 $env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
-.\nob.exe run examples\toy\generated_clib.toy
+.\nob.exe run examples\interop\bindgen\demo.toy
 ```
 
 Toy sees a normal module:
@@ -104,5 +104,8 @@ hide a mistaken scalar declaration.
 
 Raw pointers, buffers, output parameters, owned returns, structs, unions,
 variadic functions, and callbacks are not supported. Header parsing is also not
-implemented yet. A later libclang frontend can produce this same validated
-manifest model rather than changing the generated module ABI.
+implemented yet. The handwritten [Raylib and SQLite examples](../examples/interop/)
+show why the next useful manifest extension is typed opaque resources with
+explicit construction, destruction, and borrowed-result policies. A later
+libclang frontend can produce this same validated manifest model rather than
+changing the generated module ABI.

@@ -26,7 +26,7 @@ headers change.
 .\nob.exe test
 .\nob.exe test --filter modules
 .\nob.exe examples
-.\nob.exe run examples\toy\factorial.toy
+.\nob.exe run examples\programs\factorial.toy
 .\nob.exe clean
 ```
 
@@ -82,6 +82,9 @@ Profiling with MinGW GCC on Windows is not supported.
 
 ## C Embedding Examples
 
+The [`examples/`](../examples/) tree is organized by purpose. The `examples`
+build command specifically compiles the hosts under `examples/embedding/`.
+
 Build all three C hosts with:
 
 ```powershell
@@ -129,39 +132,22 @@ The `bindgen` command runs the Node.js generator and compiles its result as a
 loadable module:
 
 ```powershell
-.\nob.exe bindgen clib examples\bindings\clib.json
+.\nob.exe bindgen clib examples\interop\bindgen\clib.json
 $env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
-.\nob.exe run examples\toy\generated_clib.toy
+.\nob.exe run examples\interop\bindgen\demo.toy
 ```
 
 Pass the external include and library options when the manifest refers to a
 third-party C library. See [Generated C Bindings](./bindgen.md) for the manifest
 contract.
 
-## Raylib
+## External-Library Examples
 
-After installing Raylib, provide its installation directories if they are not
-already on the compiler's default search path:
-
-```powershell
-.\nob.exe raylib `
-    --include C:\raylib\include `
-    --lib-dir C:\raylib\lib
-$env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
-.\nob.exe run examples\toy\raylib_shapes.toy
-```
-
-`raylib` is the default library name. Use `--lib <name-or-path>` when the
-installed library uses another name. On Windows the required system libraries
-are added automatically. The command builds both
-the loadable `toy_raylib` module and the statically registered
-`toy_raylib_example` C host.
-
-The texture demo accepts an image path:
-
-```powershell
-.\nob.exe run examples\toy\raylib_texture.toy path\to\image.png
-```
+The [interop examples](../examples/interop/) use the generic `module` command
+with external include and library options. Raylib exercises a graphics API and
+owned textures; SQLite exercises opaque database and statement handles,
+parameters, and borrowed row data. They intentionally have no dedicated build
+commands or host executables. The normal Toy CLI loads both through `require`.
 
 ## libffi
 

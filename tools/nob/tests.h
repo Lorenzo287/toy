@@ -350,9 +350,11 @@ static bool build_native_loader_test(const Build_Config *config,
     const char *bad_plugin_object = object_path(config, bad_plugin_source);
     const char *loader_object = object_path(config, loader_source);
     const char *plugin_module = temp_sprintf(
-        "%s/toy_test.plugin%s", config->module_dir, TOY_SHARED_SUFFIX_VALUE);
+        "%s/toy_test.plugin%s", config->test_module_dir,
+        TOY_SHARED_SUFFIX_VALUE);
     const char *bad_plugin_module = temp_sprintf(
-        "%s/toy_test.bad%s", config->module_dir, TOY_SHARED_SUFFIX_VALUE);
+        "%s/toy_test.bad%s", config->test_module_dir,
+        TOY_SHARED_SUFFIX_VALUE);
     *loader_executable = temp_sprintf("%s/tests/test_native_loader%s",
                                       config->build_dir, TOY_EXE_SUFFIX);
 
@@ -414,37 +416,52 @@ static bool build_raylib_test(const Build_Config *config,
 
     File_Paths headers = {0};
     File_Paths includes = {0};
-    File_Paths objects = {0};
+    File_Paths module_objects = {0};
+    File_Paths test_objects = {0};
     Procs processes = {0};
     da_append(&includes, "tests/c/stubs");
-    da_append(&includes, "bindings/raylib");
     const char *test_object = named_test_object(config, "test_raylib_module");
     const char *adapter_object = named_test_object(config,
                                                    "test_raylib_adapter");
-    da_append(&objects, test_object);
-    da_append(&objects, adapter_object);
+    const char *fixture_object = named_test_object(config,
+                                                   "test_raylib_fixture");
+    da_append(&test_objects, test_object);
+    da_append(&module_objects, adapter_object);
+    da_append(&module_objects, fixture_object);
     *executable_out = temp_sprintf("%s/tests/test_raylib_module%s",
                                    config->build_dir, TOY_EXE_SUFFIX);
 
     bool ok = collect_header_dependencies(config, &headers);
     if (ok) {
         da_append(&headers, "tests/c/stubs/raylib.h");
-        da_append(&headers, "bindings/raylib/toy_raylib.h");
-        ok = schedule_compile_options(
-            config, "tests/c/test_raylib_module.c", test_object, &headers,
-            compile_commands, &processes, false, &includes, NULL);
+        ok = schedule_compile(config, "tests/c/test_raylib_module.c",
+                              test_object, &headers, compile_commands,
+                              &processes);
     }
     if (ok) {
         ok = schedule_compile_options(
-            config, "bindings/raylib/toy_raylib.c", adapter_object, &headers,
-            compile_commands, &processes, false, &includes, NULL);
+            config, "examples/interop/raylib/toy_raylib.c", adapter_object,
+            &headers, compile_commands, &processes, true, &includes, NULL);
+    }
+    if (ok) {
+        ok = schedule_compile_options(
+            config, "tests/c/test_raylib_fixture.c", fixture_object, &headers,
+            compile_commands, &processes, true, &includes, NULL);
     }
     if (!procs_flush(&processes)) ok = false;
+    const char *module = temp_sprintf("%s/toy_raylib%s",
+                                      config->test_module_dir,
+                                      TOY_SHARED_SUFFIX_VALUE);
     if (ok) {
-        ok = link_executable(config, *executable_out, &objects, true);
+        ok = link_shared_module(config, module, &module_objects,
+                                config->module_support_lib, false);
+    }
+    if (ok) {
+        ok = link_executable(config, *executable_out, &test_objects, true);
     }
     da_free(processes);
-    da_free(objects);
+    da_free(test_objects);
+    da_free(module_objects);
     da_free(includes);
     da_free(headers);
     return ok;
@@ -500,7 +517,7 @@ static bool build_bindgen_test(const Build_Config *config,
     }
     if (!procs_flush(&processes)) ok = false;
     const char *module = temp_sprintf("%s/toy_test.bindgen%s",
-                                      config->module_dir,
+                                      config->test_module_dir,
                                       TOY_SHARED_SUFFIX_VALUE);
     if (ok) {
         ok = link_shared_module(config, module, &module_objects,
@@ -689,17 +706,19 @@ static bool run_all_tests(const Build_Config *config, const char *root,
     size_t c_test_count = c_test_artifacts.count / 2;
     if (native_loader) {
         const char *module_dir = temp_sprintf("%s/%s", root,
-                                              config->module_dir);
+                                              config->test_module_dir);
         if (!run_c_test(config, root, native_loader, module_dir)) c_ok = false;
         ++c_test_count;
     }
     if (raylib_test) {
-        if (!run_c_test(config, root, raylib_test, NULL)) c_ok = false;
+        const char *module_dir = temp_sprintf("%s/%s", root,
+                                              config->test_module_dir);
+        if (!run_c_test(config, root, raylib_test, module_dir)) c_ok = false;
         ++c_test_count;
     }
     if (bindgen_test) {
         const char *module_dir = temp_sprintf("%s/%s", root,
-                                              config->module_dir);
+                                              config->test_module_dir);
         if (!run_c_test(config, root, bindgen_test, module_dir)) c_ok = false;
         ++c_test_count;
     }

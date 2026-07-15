@@ -160,8 +160,7 @@ int main(int argc, char **argv) {
         strcmp(command, "examples") != 0 &&
         strcmp(command, "module") != 0 &&
         strcmp(command, "bindgen") != 0 && strcmp(command, "ffi") != 0 &&
-        strcmp(command, "ffi-test") != 0 &&
-        strcmp(command, "raylib") != 0 && strcmp(command, "run") != 0) {
+        strcmp(command, "ffi-test") != 0 && strcmp(command, "run") != 0) {
         nob_log(ERROR, "unknown command: %s", command);
         print_usage(program);
         return 1;
@@ -177,17 +176,6 @@ int main(int argc, char **argv) {
          strcmp(command, "ffi-test") == 0) &&
         config.libraries.count == 0) {
         da_append(&config.libraries, "ffi");
-    }
-    if (strcmp(command, "raylib") == 0) {
-        if (config.libraries.count == 0) {
-            da_append(&config.libraries, "raylib");
-        }
-#ifdef _WIN32
-        da_append(&config.libraries, "opengl32");
-        da_append(&config.libraries, "gdi32");
-        da_append(&config.libraries, "winmm");
-        da_append(&config.libraries, "shell32");
-#endif
     }
     if (!program_on_path(compiler_executable(config.compiler))) {
         nob_log(ERROR, "compiler '%s' was not found on PATH",
@@ -225,14 +213,11 @@ int main(int argc, char **argv) {
     }
     if (ok && (strcmp(command, "ffi") == 0 ||
                strcmp(command, "ffi-test") == 0)) {
-        ok = build_module(&config, "ffi", "bindings/ffi/toy_ffi.c",
+        ok = build_module(&config, "ffi", "modules/ffi/toy_ffi.c",
                           &compile_commands);
     }
     if (ok && strcmp(command, "ffi-test") == 0) {
         ok = run_ffi_integration_test(&config, root, &compile_commands);
-    }
-    if (ok && strcmp(command, "raylib") == 0) {
-        ok = build_raylib(&config, &compile_commands);
     }
     if (ok && strcmp(command, "examples") == 0) {
         ok = build_examples(&config, &compile_commands);

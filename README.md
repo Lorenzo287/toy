@@ -240,7 +240,7 @@ pwd print
 
 The display words `.`, `.s`, and `.S` are observers: they print without
 changing the stack. `repr` returns an escaped, source-like string
-(makes me think of [quines](examples/toy/quines/quine.toy)).
+(makes me think of [quines](examples/programs/quines/quine.toy)).
 `print` writes one value literally with a newline; `printf` interprets `{}` 
 placeholders and adds no newline. Comments use `\` to the end of a line 
 or `/* ... */` for a block.
@@ -290,19 +290,21 @@ released foreign handles without exposing pointers to Toy.
 State-local callbacks can redirect Toy output and detailed parser/runtime
 diagnostics into host logs or user interfaces. The
 [embedding guide](./docs/embedding.md) defines the execution and ownership
-rules, while [`examples/c/embed.c`](./examples/c/embed.c) shows both call
+rules, while
+[`examples/embedding/embed.c`](./examples/embedding/embed.c) shows both call
 directions in a complete host and
-[`examples/c/embed_callbacks.c`](./examples/c/embed_callbacks.c) demonstrates
+[`examples/embedding/callbacks.c`](./examples/embedding/callbacks.c) demonstrates
 captured output and diagnostics.
-[`examples/c/embed_values.c`](./examples/c/embed_values.c) shows structured
+[`examples/embedding/values.c`](./examples/embedding/values.c) shows structured
 values and a retained Toy quotation crossing the boundary.
 
-This boundary is the foundation for handwritten library bindings, such as a
-Raylib integration. Versioned shared native modules can use the same API
-through a host function table and are discovered by `require` without linking
-a second Toy runtime. The optional Raylib module demonstrates both static and
-shared builds, a window and drawing loop controlled entirely by Toy, and owned
-texture resources. The optional experimental [`ffi` module](docs/ffi.md) can
+This boundary is the foundation for handwritten library bindings. The
+[interop examples](./examples/interop/) use Raylib and SQLite to exercise the
+same general shared-module path; neither library is a Toy dependency or a
+built-in integration. Versioned shared native modules use the API through a
+host function table and are discovered by `require` without linking a second
+Toy runtime. The optional
+experimental [`ffi` module](docs/ffi.md) can
 also resolve fixed scalar and string C signatures dynamically through libffi;
 the [binding generator](docs/bindgen.md) can instead compile explicit manifests
 into loadable modules with ordinary Toy words. Raw pointers, aggregate types,

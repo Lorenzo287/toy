@@ -56,9 +56,12 @@ registration.
 Native module descriptors reuse source-module names, exports, load state, and
 aliases. Shared native-module ABI version one adds a size-tagged host function
 table, a stable entry symbol, platform library discovery through `require`, and
-context-owned library handles. The API is not stable yet. A small optional
-Raylib module exercises both static and shared registration with a Toy-owned
-window, drawing loop, and automatically unloaded texture resources. An optional
+context-owned library handles. The API is not stable yet. A Raylib interop
+example exercises the generic shared-module path with a Toy-owned window,
+drawing loop, and automatically unloaded texture resources. A SQLite example
+exercises opaque database and statement handles, prepared parameters, copied
+row data, and automatic finalization. Both remain external-library examples,
+not Toy-provided integrations. An optional
 libffi module now experiments with dynamically resolved, explicit signatures
 for booleans, integers, floats, and copied C strings. An explicit-manifest
 generator can compile that same safe subset into ordinary loadable module words;
@@ -66,16 +69,15 @@ automatic header parsing is not implemented yet.
 
 Current follow-up candidates are:
 
-1. extend the resource boundary to sounds and similar values when bindings need
-   them, preserving explicit type and lifetime rules;
-2. exercise shared-module discovery and packaging with another real library
-   before stabilizing installation or search-path rules;
-3. exercise dynamic and generated bindings against real libraries and settle
-   reusable library/package configuration;
-4. add a libclang frontend for the explicit generator manifest before exposing
-   foreign pointers, output parameters, structs, variadic functions,
-   and callbacks only after the basic ownership and VM-boundary rules are
-   settled.
+1. extend the explicit manifest with typed opaque resources, constructors,
+   destructors, output handles, and borrowed/copy result policies, using the
+   handwritten SQLite adapter as the concrete target;
+2. settle reusable library/package configuration without making the runtime or
+   build program aware of individual third-party libraries;
+3. add a libclang frontend after the resource manifest is explicit enough to
+   preserve ownership decisions that headers cannot infer;
+4. expose general buffers, structs, variadic functions, and callbacks only
+   after their ownership and VM-boundary rules are settled.
 
 The resulting boundary should be reusable by embedders, native modules, and
 compiled Toy code. Native calls that schedule Toy code must preserve the

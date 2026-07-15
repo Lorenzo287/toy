@@ -1,5 +1,4 @@
-\ Pass an image path after this script. The native host preloads it, while the
-\ normal CLI exposes it through argv.
+\ Pass an image path after this script; the Toy CLI exposes it through argv.
 
 "raylib" 'rl require-as
 

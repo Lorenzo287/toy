@@ -84,7 +84,7 @@ Internal headers continue to expose implementation structures only to the
 runtime and bundled frontends. See the [embedding guide](./embedding.md) for
 the current ownership and execution contracts.
 
-The optional `bindings/ffi/` module is a consumer of this boundary rather than
+The optional `modules/ffi/` module is a consumer of this boundary rather than
 part of the VM. It represents loaded libraries and prepared libffi call
 interfaces as typed resources. A prepared function retains its library; Toy
 resource teardown releases the call metadata and closes the foreign library

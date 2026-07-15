@@ -1,8 +1,4 @@
-#include "toy_raylib.h"
-
-#ifdef TOY_SHARED_MODULE
 #include "toy_module.h"
-#endif
 
 #include <raylib.h>
 
@@ -385,7 +381,6 @@ static const toy_native_word raylib_words[] = {
     {"frame-time", raylib_frame_time},
 };
 
-#ifdef TOY_SHARED_MODULE
 static const toy_module_export raylib_module = {
     TOY_MODULE_ABI_VERSION,
     sizeof(toy_module_export),
@@ -399,14 +394,3 @@ TOY_MODULE_EXPORT const toy_module_export *toy_module_v1(
     if (!toy_module_bind(api)) return NULL;
     return &raylib_module;
 }
-#else
-static const toy_native_module raylib_module = {
-    "raylib",
-    raylib_words,
-    sizeof(raylib_words) / sizeof(raylib_words[0]),
-};
-
-toy_status toy_raylib_register(toy_state *state) {
-    return toy_register_module(state, &raylib_module);
-}
-#endif

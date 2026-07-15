@@ -3,6 +3,8 @@
 Toy's optional `ffi` native module uses libffi to call functions from shared C
 libraries without compiling a handwritten wrapper for each function. It is an
 experiment on top of the shared-module ABI, not a stable or sandboxed interface.
+Its implementation lives in [`modules/ffi/`](../modules/ffi/); it is not linked
+into the core runtime.
 
 Build it after installing libffi. Provide include and library directories when
 they are not already on the compiler's search path:
@@ -75,10 +77,10 @@ c.call                         \ 42
 ```
 
 For a concrete example, pass the platform C runtime library to
-`examples/toy/ffi_strlen.toy`:
+`examples/interop/ffi/strlen.toy`:
 
 ```powershell
-.\nob.exe run examples\toy\ffi_strlen.toy msvcrt.dll
+.\nob.exe run examples\interop\ffi\strlen.toy msvcrt.dll
 ```
 
 Common Unix C runtime names include `libc.so.6` on Linux and

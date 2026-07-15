@@ -11,12 +11,13 @@ compatibility between releases.
 
 ## Buildable Example
 
-[`examples/c/embed.c`](../examples/c/embed.c) demonstrates both directions of
-the boundary: Toy calls a registered C word, then C calls a Toy-defined word.
-[`examples/c/embed_callbacks.c`](../examples/c/embed_callbacks.c) captures
+[`examples/embedding/embed.c`](../examples/embedding/embed.c) demonstrates both
+directions of the boundary: Toy calls a registered C word, then C calls a
+Toy-defined word.
+[`examples/embedding/callbacks.c`](../examples/embedding/callbacks.c) captures
 binary-safe Toy output, redirects diagnostics separately, and inspects a
 detailed parser error.
-[`examples/c/embed_values.c`](../examples/c/embed_values.c) constructs
+[`examples/embedding/values.c`](../examples/embedding/values.c) constructs
 structured input, traverses a returned map, and calls a retained Toy quotation.
 Build and run the examples from the repository root:
 
@@ -58,7 +59,7 @@ toy_state *state = toy_state_new(&config);
 ```
 
 The complete buildable version is
-[`examples/c/embed_callbacks.c`](../examples/c/embed_callbacks.c).
+[`examples/embedding/callbacks.c`](../examples/embedding/callbacks.c).
 
 Callbacks run synchronously and receive borrowed byte spans, which may contain
 NUL bytes and are not NUL-terminated. They must copy data that needs to outlive
@@ -307,18 +308,17 @@ keys or set items, and report `resource` through `type-of` and `resource?`.
 Their display form is `<resource:type.name>` and is intentionally opaque rather
 than reconstructable source.
 
-## Raylib Proof
+## Raylib Interop Example
 
-The optional `bindings/raylib/` adapter is the first real native module built on
-this API. `nob raylib` builds both a statically registered host and the loadable
-`toy_raylib` module. The dedicated host registers the static form, while the
-normal CLI discovers the shared form through `require`. In both cases the
-window loop, close predicate, frame boundaries, and drawing calls are ordinary
-Toy code.
+`examples/interop/raylib/` demonstrates a real native module built on this API.
+It is an external-library example rather than a runtime feature: the generic
+`nob module` command builds `toy_raylib`, and the normal CLI discovers it
+through `require`. The window loop, close predicate, frame boundaries, and
+drawing calls are ordinary Toy code.
 
-After installing Raylib, build it with `nob raylib` and any required
-`--include`/`--lib-dir` options; see [Build Instructions](./build.md#raylib).
-The module currently provides:
+After installing Raylib, build it with the required include and library options;
+see the [example README](../examples/interop/raylib/README.md). The module
+currently provides:
 
 - window lifecycle: `init-window`, `close-window`,
   `window-should-close?`, and `set-target-fps`;
@@ -339,6 +339,21 @@ dup 40 60 255 255 255 255 rl.rgba rl.draw-texture
 drop
 rl.close-window
 ```
+
+## SQLite Interop Example
+
+`examples/interop/sqlite/` applies the same generic module contract to a very
+different library. Its database and statement pointers become typed resources;
+database destruction calls `sqlite3_close_v2`, statement destruction calls
+`sqlite3_finalize`, and borrowed column text is copied before a native word
+consumes the statement input.
+
+The adapter is intentionally an example rather than a maintained standard
+library. It is useful because it identifies general binding concepts that the
+current scalar manifest cannot express: opaque handle constructors, output
+parameters, destructors, and borrowed buffers. See the
+[SQLite example README](../examples/interop/sqlite/) for the generic build
+command and a prepared-statement program.
 
 ## Stack and Ownership
 
@@ -383,4 +398,4 @@ host inspects or repairs its stack.
   and copied-string signatures.
 
 The focused C regression is `tests/c/test_embed_api.c`; the structured host is
-`examples/c/embed_values.c`.
+`examples/embedding/values.c`.

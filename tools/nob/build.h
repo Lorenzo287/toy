@@ -26,6 +26,7 @@ typedef struct {
     const char *build_dir;
     const char *object_dir;
     const char *module_dir;
+    const char *test_module_dir;
     const char *runtime_lib;
     const char *module_support_lib;
     const char *toy_exe;
@@ -150,7 +151,6 @@ static void print_usage(const char *program) {
     fprintf(stderr, "  bindgen <name> <json> Generate and build a native module\n");
     fprintf(stderr, "  ffi                   Build the optional libffi module\n");
     fprintf(stderr, "  ffi-test              Build and test the libffi module\n");
-    fprintf(stderr, "  raylib                Build the Raylib module and host example\n");
     fprintf(stderr, "  run                   Build and run the Toy CLI\n");
     fprintf(stderr, "  clean                 Remove build outputs\n");
     fprintf(stderr, "  help                  Show this help\n\n");
@@ -168,11 +168,10 @@ static void print_usage(const char *program) {
     fprintf(stderr, "  %s --mode debug run --tdb program.toy\n", program);
     fprintf(stderr, "  %s test --filter modules\n", program);
     fprintf(stderr, "  %s module sample.native path/to/module.c\n", program);
-    fprintf(stderr, "  %s bindgen clib examples/bindings/clib.json\n", program);
-    fprintf(stderr, "  %s ffi --lib ffi\n", program);
-    fprintf(stderr, "  %s raylib --include path/to/include --lib-dir path/to/lib\n",
+    fprintf(stderr, "  %s bindgen clib examples/interop/bindgen/clib.json\n",
             program);
-    fprintf(stderr, "  %s run examples/toy/factorial.toy\n", program);
+    fprintf(stderr, "  %s ffi --lib ffi\n", program);
+    fprintf(stderr, "  %s run examples/programs/factorial.toy\n", program);
 }
 
 static bool parse_compiler(const char *value, Compiler *compiler) {
@@ -238,6 +237,8 @@ static bool configure_paths(Build_Config *config) {
                                      mode_name(config->mode));
     config->object_dir = temp_sprintf("%s/obj", config->build_dir);
     config->module_dir = temp_sprintf("%s/modules", config->build_dir);
+    config->test_module_dir = temp_sprintf("%s/test-modules",
+                                           config->build_dir);
     config->runtime_lib = static_library_path(config, "toy_runtime");
     config->module_support_lib = static_library_path(
         config, "toy_module_support");
@@ -252,6 +253,7 @@ static bool configure_paths(Build_Config *config) {
     if (!ensure_directory(config->build_dir)) return false;
     if (!ensure_directory(config->object_dir)) return false;
     if (!ensure_directory(config->module_dir)) return false;
+    if (!ensure_directory(config->test_module_dir)) return false;
     if (!ensure_directory(temp_sprintf("%s/tests", config->build_dir))) {
         return false;
     }
@@ -759,9 +761,9 @@ static bool build_generated_module(const Build_Config *config,
 static bool build_examples(const Build_Config *config,
                            Compile_Commands *compile_commands) {
     const char *sources[] = {
-        "examples/c/embed.c",
-        "examples/c/embed_callbacks.c",
-        "examples/c/embed_values.c",
+        "examples/embedding/embed.c",
+        "examples/embedding/callbacks.c",
+        "examples/embedding/values.c",
     };
     const char *names[] = {
         "toy_embed_example",
@@ -791,70 +793,6 @@ static bool build_examples(const Build_Config *config,
     da_free(objects);
     da_free(processes);
     da_free(headers);
-    return ok;
-}
-
-static bool build_raylib(const Build_Config *config,
-                         Compile_Commands *compile_commands) {
-    File_Paths headers = {0};
-    File_Paths includes = {0};
-    File_Paths definitions = {0};
-    File_Paths module_objects = {0};
-    File_Paths host_objects = {0};
-    Procs processes = {0};
-    da_append(&includes, "bindings/raylib");
-    da_append(&definitions, "TOY_SHARED_MODULE");
-    const char *module_object = temp_sprintf("%s/raylib_module.obj",
-                                             config->object_dir);
-    const char *static_object = temp_sprintf("%s/raylib_static.obj",
-                                             config->object_dir);
-    const char *host_object = object_path(config, "examples/c/raylib_host.c");
-    da_append(&module_objects, module_object);
-    da_append(&host_objects, static_object);
-    da_append(&host_objects, host_object);
-
-    bool ok = collect_header_dependencies(config, &headers);
-    if (ok && file_exists(module_object)) ok = delete_file(module_object);
-    if (ok && file_exists(static_object)) ok = delete_file(static_object);
-    if (ok && file_exists(host_object)) ok = delete_file(host_object);
-    if (ok) da_append(&headers, "bindings/raylib/toy_raylib.h");
-    if (ok) {
-        ok = schedule_compile_options(
-            config, "bindings/raylib/toy_raylib.c", module_object, &headers,
-            compile_commands, &processes, true, &includes, &definitions);
-    }
-    if (ok) {
-        ok = schedule_compile_options(
-            config, "bindings/raylib/toy_raylib.c", static_object, &headers,
-            compile_commands, &processes, false, &includes, NULL);
-    }
-    if (ok) {
-        ok = schedule_compile_options(
-            config, "examples/c/raylib_host.c", host_object, &headers,
-            compile_commands, &processes, false, &includes, NULL);
-    }
-    if (!procs_flush(&processes)) ok = false;
-    const char *module = temp_sprintf("%s/toy_raylib%s", config->module_dir,
-                                      TOY_SHARED_SUFFIX_VALUE);
-    if (ok) {
-        ok = link_shared_module(config, module, &module_objects,
-                                config->module_support_lib, true);
-    }
-    const char *host = temp_sprintf("%s/toy_raylib_example%s",
-                                    config->build_dir, TOY_EXE_SUFFIX);
-    if (ok) {
-        ok = link_executable_options(config, host, &host_objects, true, true);
-    }
-    if (ok) {
-        nob_log(INFO, "built native module %s", module);
-        nob_log(INFO, "built %s", host);
-    }
-    da_free(processes);
-    da_free(headers);
-    da_free(includes);
-    da_free(definitions);
-    da_free(module_objects);
-    da_free(host_objects);
     return ok;
 }
 

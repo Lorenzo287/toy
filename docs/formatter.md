@@ -44,7 +44,7 @@ The setting also applies to lists, maps, sets, and capture bars.
 
 Configuration is discovered from the filesystem root down to the formatted
 file. A nearer `.toyfmt` overrides only the settings it specifies. The
-`examples/toy/quines/` directory uses `disable = true` because rewriting a
+`examples/programs/quines/` directory uses `disable = true` because rewriting a
 quine's source would change what it reproduces.
 
 ## Command Line
@@ -61,9 +61,9 @@ go build -o toyfmt.exe ./cmd/toyfmt
 Format one file to standard output, check files, or update them in place:
 
 ```powershell
-.\toyfmt.exe ..\..\examples\toy\factorial.toy
-.\toyfmt.exe --check ..\..\examples\toy\factorial.toy
-.\toyfmt.exe --write ..\..\examples\toy\factorial.toy
+.\toyfmt.exe ..\..\examples\programs\factorial.toy
+.\toyfmt.exe --check ..\..\examples\programs\factorial.toy
+.\toyfmt.exe --write ..\..\examples\programs\factorial.toy
 ```
 
 Use `--stdin-filepath` when reading standard input so configuration discovery

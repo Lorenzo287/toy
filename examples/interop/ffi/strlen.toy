@@ -1,5 +1,5 @@
 \ Pass a C runtime library as the first argument.
-\ Windows: .\nob.exe run examples\toy\ffi_strlen.toy msvcrt.dll
+\ Windows: .\nob.exe run examples\interop\ffi\strlen.toy msvcrt.dll
 \ Common Unix names include libc.so.6 and /usr/lib/libSystem.B.dylib.
 
 "ffi" 'c require-as
