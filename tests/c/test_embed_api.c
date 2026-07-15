@@ -333,11 +333,21 @@ int main(void) {
     CHECK(toy_push_bool(first, true) == TOY_OK, "push bool");
     bool boolean = false;
     CHECK(toy_get_bool(first, 0, &boolean) && boolean, "get bool");
+    toy_value *bool_value = toy_value_retain(first, 0);
+    CHECK(bool_value && toy_value_type(bool_value) == TOY_TYPE_BOOL &&
+              toy_value_get_bool(bool_value, &boolean) && boolean,
+          "retain and inspect bool");
+    toy_value_release(bool_value);
     CHECK(toy_pop(first, 1), "pop bool");
 
     CHECK(toy_push_float(first, 2.5) == TOY_OK, "push float");
     double floating = 0.0;
     CHECK(toy_get_float(first, 0, &floating) && floating == 2.5, "get float");
+    toy_value *float_value = toy_value_retain(first, 0);
+    CHECK(float_value && toy_value_get_float(float_value, &floating) &&
+              floating == 2.5,
+          "retain and inspect float");
+    toy_value_release(float_value);
     CHECK(toy_pop(first, 1), "pop float");
 
     CHECK(toy_push_string(first, "hello", 5) == TOY_OK, "push string");
@@ -346,7 +356,144 @@ int main(void) {
     CHECK(toy_get_string(first, 0, &text, &length) && length == 5 &&
               memcmp(text, "hello", 5) == 0,
           "get string");
+    toy_value *string_value = toy_value_retain(first, 0);
+    CHECK(string_value &&
+              toy_value_get_string(string_value, &text, &length) &&
+              length == 5 && memcmp(text, "hello", 5) == 0,
+          "retain and inspect string");
+    size_t sequence_size = 0;
+    CHECK(toy_sequence_size(string_value, &sequence_size) &&
+              sequence_size == 5,
+          "string sequence size");
+    toy_value *string_item = toy_sequence_get(string_value, 1);
+    CHECK(string_item &&
+              toy_value_get_string(string_item, &text, &length) &&
+              length == 1 && text[0] == 'e',
+          "string sequence item");
+    toy_value_release(string_item);
+    toy_value_release(string_value);
     CHECK(toy_pop(first, 1), "pop string");
+
+    CHECK(toy_push_int(first, 3) == TOY_OK &&
+              toy_push_int(first, 4) == TOY_OK &&
+              toy_push_int(first, 5) == TOY_OK,
+          "push vector items");
+    CHECK(toy_make_vector(first, 3) == TOY_OK, "make vector from stack");
+    toy_value *scores = toy_value_retain(first, 0);
+    CHECK(scores && toy_value_type(scores) == TOY_TYPE_VECTOR &&
+              toy_sequence_size(scores, &sequence_size) &&
+              sequence_size == 3,
+          "retain constructed vector");
+    toy_value *score = toy_sequence_get(scores, 1);
+    CHECK(score && toy_value_get_int(score, &integer) && integer == 4,
+          "inspect constructed vector item");
+    toy_value_release(score);
+    CHECK(!toy_sequence_get(scores, 3), "reject out-of-range sequence item");
+    CHECK(toy_pop(first, 1), "pop constructed vector");
+
+    CHECK(toy_push_string(first, "name", 4) == TOY_OK &&
+              toy_push_string(first, "Ada", 3) == TOY_OK &&
+              toy_push_string(first, "scores", 6) == TOY_OK &&
+              toy_push_value(first, scores) == TOY_OK,
+          "push map pairs");
+    CHECK(toy_make_map(first, 2) == TOY_OK, "make map from stack");
+    toy_value *profile = toy_value_retain(first, 0);
+    CHECK(profile && toy_value_type(profile) == TOY_TYPE_MAP,
+          "retain constructed map");
+    size_t map_size = 0;
+    CHECK(toy_map_size(profile, &map_size) && map_size == 2,
+          "constructed map size");
+
+    toy_value *map_key = NULL;
+    toy_value *map_value = NULL;
+    CHECK(toy_map_entry(profile, 0, &map_key, &map_value),
+          "read first map entry");
+    CHECK(toy_value_get_string(map_key, &text, &length) && length == 4 &&
+              memcmp(text, "name", 4) == 0,
+          "first map key preserves insertion order");
+    CHECK(toy_value_get_string(map_value, &text, &length) && length == 3 &&
+              memcmp(text, "Ada", 3) == 0,
+          "first map value");
+    toy_value_release(map_key);
+    toy_value_release(map_value);
+
+    CHECK(toy_map_entry(profile, 1, &map_key, &map_value),
+          "read second map entry");
+    CHECK(toy_value_get_string(map_key, &text, &length) && length == 6 &&
+              memcmp(text, "scores", 6) == 0 &&
+              toy_sequence_size(map_value, &sequence_size) &&
+              sequence_size == 3,
+          "second map entry contains vector");
+    toy_value_release(map_key);
+    toy_value_release(map_value);
+    CHECK(!toy_map_entry(profile, 2, &map_key, &map_value),
+          "reject out-of-range map entry");
+
+    CHECK(toy_pop(first, 1), "pop constructed map");
+    CHECK(toy_push_value(first, profile) == TOY_OK,
+          "restore retained map to stack");
+    CHECK(toy_eval(first, "<retained-map>",
+                   "\"scores\" get 0 swap [ + ] fold") == TOY_OK,
+          "use retained map from Toy");
+    CHECK(toy_get_int(first, 0, &integer) && integer == 12,
+          "retained map result");
+    CHECK(toy_pop(first, 1), "pop retained map result");
+
+    CHECK(toy_push_value(second, profile) == TOY_ERROR,
+          "reject a retained value in another state");
+    CHECK(toy_stack_size(second) == 0,
+          "cross-state value rejection preserves stack");
+
+    CHECK(toy_eval(first, "<retained-callable>", "[ 3 * ]") == TOY_OK,
+          "create callable value");
+    toy_value *triple = toy_value_retain(first, 0);
+    CHECK(triple && toy_value_type(triple) == TOY_TYPE_VECTOR,
+          "retain callable value");
+    CHECK(toy_pop(first, 1), "pop original callable");
+    CHECK(toy_push_int(first, 14) == TOY_OK, "push callable argument");
+    CHECK(toy_call_value(first, triple) == TOY_OK,
+          "call retained quotation");
+    CHECK(toy_get_int(first, 0, &integer) && integer == 42,
+          "retained quotation result");
+    CHECK(toy_pop(first, 1), "pop callable result");
+    CHECK(toy_call_value(second, triple) == TOY_ERROR,
+          "reject cross-state callable");
+
+    score = toy_sequence_get(scores, 0);
+    CHECK(score && toy_call_value(first, score) == TOY_ERROR,
+          "reject retained non-callable");
+    toy_value_release(score);
+
+    CHECK(toy_make_vector(first, 1) == TOY_ERROR,
+          "vector construction detects stack underflow");
+    CHECK(toy_stack_size(first) == 0,
+          "vector construction underflow preserves stack");
+    CHECK(toy_make_vector(first, 0) == TOY_OK,
+          "make empty vector for invalid map key");
+    CHECK(toy_push_int(first, 1) == TOY_OK,
+          "push invalid map value");
+    CHECK(toy_make_map(first, 1) == TOY_ERROR,
+          "map construction rejects unhashable key");
+    CHECK(toy_stack_size(first) == 2,
+          "invalid map construction preserves inputs");
+    CHECK(toy_pop(first, 2), "clear invalid map inputs");
+
+    CHECK(toy_eval(first, "<list-value>", "( 7 8 )") == TOY_OK,
+          "create list value");
+    toy_value *list_value = toy_value_retain(first, 0);
+    CHECK(list_value && toy_sequence_size(list_value, &sequence_size) &&
+              sequence_size == 2,
+          "list sequence size");
+    toy_value *list_item = toy_sequence_get(list_value, 1);
+    CHECK(list_item && toy_value_get_int(list_item, &integer) && integer == 8,
+          "list sequence item");
+    toy_value_release(list_item);
+    toy_value_release(list_value);
+    CHECK(toy_pop(first, 1), "pop list value");
+
+    toy_value_release(triple);
+    toy_value_release(profile);
+    toy_value_release(scores);
 
     size_t stack_before_resource = toy_stack_size(first);
     int rejected_resource = 0;
@@ -385,6 +532,15 @@ int main(void) {
     CHECK(toy_get_resource_type(first, 0, &resource_type) &&
               strcmp(resource_type, "host.widget") == 0,
           "resource type name is copied");
+
+    toy_value *resource_value = toy_value_retain(first, 0);
+    CHECK(resource_value &&
+              toy_value_get_resource(resource_value, "host.widget",
+                                     &borrowed_resource) &&
+              borrowed_resource == widget &&
+              toy_value_get_resource_type(resource_value, &resource_type) &&
+              strcmp(resource_type, "host.widget") == 0,
+          "retain and inspect resource");
 
     CHECK(toy_eval(first, "<resource-introspection>",
                    "dup resource? dup type-of") == TOY_OK,
@@ -429,8 +585,11 @@ int main(void) {
     CHECK(resource_destroy_count == 0,
           "collection retains resource ownership");
     CHECK(toy_pop(first, 1), "release resource collection");
+    CHECK(resource_destroy_count == 0,
+          "retained resource outlives stack references");
+    toy_value_release(resource_value);
     CHECK(resource_destroy_count == 1,
-          "resource destructor runs once after final release");
+          "resource destructor runs once after retained release");
 
     CHECK(toy_eval(first, "<resource-error>", "host.fail-resource") ==
               TOY_ERROR,

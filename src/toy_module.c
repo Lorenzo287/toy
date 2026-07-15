@@ -89,3 +89,75 @@ toy_status toy_fail(toy_state *state, const char *message) {
 void toy_interrupt(toy_state *state) {
     host->interrupt(state);
 }
+
+toy_value *toy_value_retain(toy_state *state, size_t depth) {
+    return host->value_retain(state, depth);
+}
+
+void toy_value_release(toy_value *value) {
+    host->value_release(value);
+}
+
+toy_type toy_value_type(const toy_value *value) {
+    return host->value_type(value);
+}
+
+bool toy_value_get_bool(const toy_value *value, bool *result) {
+    return host->value_get_bool(value, result);
+}
+
+bool toy_value_get_int(const toy_value *value, int64_t *result) {
+    return host->value_get_int(value, result);
+}
+
+bool toy_value_get_float(const toy_value *value, double *result) {
+    return host->value_get_float(value, result);
+}
+
+bool toy_value_get_string(const toy_value *value, const char **data,
+                          size_t *length) {
+    return host->value_get_string(value, data, length);
+}
+
+bool toy_value_get_resource(const toy_value *value,
+                            const char *expected_type, void **resource) {
+    return host->value_get_resource(value, expected_type, resource);
+}
+
+bool toy_value_get_resource_type(const toy_value *value,
+                                 const char **type_name) {
+    return host->value_get_resource_type(value, type_name);
+}
+
+toy_status toy_push_value(toy_state *state, const toy_value *value) {
+    return host->push_value(state, value);
+}
+
+bool toy_sequence_size(const toy_value *sequence, size_t *size) {
+    return host->sequence_size(sequence, size);
+}
+
+toy_value *toy_sequence_get(const toy_value *sequence, size_t index) {
+    return host->sequence_get(sequence, index);
+}
+
+bool toy_map_size(const toy_value *map, size_t *size) {
+    return host->map_size(map, size);
+}
+
+bool toy_map_entry(const toy_value *map, size_t index, toy_value **key,
+                   toy_value **value) {
+    return host->map_entry(map, index, key, value);
+}
+
+toy_status toy_make_vector(toy_state *state, size_t item_count) {
+    return host->make_vector(state, item_count);
+}
+
+toy_status toy_make_map(toy_state *state, size_t pair_count) {
+    return host->make_map(state, pair_count);
+}
+
+toy_status toy_call_value(toy_state *state, const toy_value *callable) {
+    return host->call_value(state, callable);
+}

@@ -50,7 +50,9 @@ Treat the [foreign function interface](https://en.wikipedia.org/wiki/Foreign_fun
 as an exploratory interoperability track, not a single general-purpose
 `call-c` word. The CLI now links a reusable static runtime, and experimental API
 version zero exposes opaque states, primitive and typed resource stack access,
-host-to-Toy calls, and synchronous native-word or native-module registration.
+state-bound persistent values, basic collection construction and traversal,
+host-to-Toy value calls, and synchronous native-word or native-module
+registration.
 Native module descriptors reuse source-module names, exports, load state, and
 aliases. Shared native-module ABI version one adds a size-tagged host function
 table, a stable entry symbol, platform library discovery through `require`, and

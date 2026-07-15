@@ -12,6 +12,7 @@ extern "C" {
 #define TOY_API_VERSION 0
 
 typedef struct tf_ctx toy_state;
+typedef struct toy_value toy_value;
 
 typedef uint32_t toy_status;
 enum {
@@ -101,6 +102,42 @@ toy_status toy_push_resource(toy_state *state, const char *type_name,
                              void *resource,
                              toy_resource_destructor destructor,
                              void *destructor_userdata);
+
+/* Persistent, state-bound references to Toy values. A retained value must be
+ * released before its state is destroyed. */
+toy_value *toy_value_retain(toy_state *state, size_t depth);
+void toy_value_release(toy_value *value);
+toy_type toy_value_type(const toy_value *value);
+bool toy_value_get_bool(const toy_value *value, bool *result);
+bool toy_value_get_int(const toy_value *value, int64_t *result);
+bool toy_value_get_float(const toy_value *value, double *result);
+bool toy_value_get_string(const toy_value *value, const char **data,
+                          size_t *length);
+bool toy_value_get_resource(const toy_value *value,
+                            const char *expected_type, void **resource);
+bool toy_value_get_resource_type(const toy_value *value,
+                                 const char **type_name);
+toy_status toy_push_value(toy_state *state, const toy_value *value);
+
+/* Vector, list, and string inspection. Returned items are new retained values.
+ * A string item is a one-byte string, matching the Toy sequence contract. */
+bool toy_sequence_size(const toy_value *sequence, size_t *size);
+toy_value *toy_sequence_get(const toy_value *sequence, size_t index);
+
+/* Map entries follow insertion order. Both outputs are new retained values. */
+bool toy_map_size(const toy_value *map, size_t *size);
+bool toy_map_entry(const toy_value *map, size_t index, toy_value **key,
+                   toy_value **value);
+
+/* Stack construction. These consume their inputs only after validation and
+ * push the resulting collection. Vector items and map pairs preserve their
+ * deepest-to-top order; map input is key value key value ... */
+toy_status toy_make_vector(toy_state *state, size_t item_count);
+toy_status toy_make_map(toy_state *state, size_t pair_count);
+
+/* Invoke a retained quotation, symbol, or call using the current data stack.
+ * Like toy_eval() and toy_call(), this requires an idle state. */
+toy_status toy_call_value(toy_state *state, const toy_value *callable);
 
 /* Diagnostics and cooperative interruption. */
 const char *toy_get_error(toy_state *state);

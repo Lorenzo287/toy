@@ -282,9 +282,10 @@ exceptions.
 
 Toy can be embedded as a static C runtime. The API currently lets
 a host create interpreter states, evaluate Toy source, call Toy words,
-exchange primitive and opaque resource stack values, and register C functions
-individually or as native modules. Resource values let bindings carry typed,
-automatically released foreign handles without exposing pointers to Toy.
+exchange primitive and opaque resource stack values, retain arbitrary values,
+traverse or construct basic collections, and register C functions individually
+or as native modules. Resource values let bindings carry typed, automatically
+released foreign handles without exposing pointers to Toy.
 State-local callbacks can redirect Toy output and detailed parser/runtime
 diagnostics into host logs or user interfaces. The
 [embedding guide](./docs/embedding.md) defines the execution and ownership
@@ -292,6 +293,8 @@ rules, while [`examples/c/embed.c`](./examples/c/embed.c) shows both call
 directions in a complete host and
 [`examples/c/embed_callbacks.c`](./examples/c/embed_callbacks.c) demonstrates
 captured output and diagnostics.
+[`examples/c/embed_values.c`](./examples/c/embed_values.c) shows structured
+values and a retained Toy quotation crossing the boundary.
 
 This boundary is the foundation for handwritten library bindings, such as a
 Raylib integration. Versioned shared native modules can use the same API

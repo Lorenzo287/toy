@@ -49,18 +49,25 @@ int main(int argc, char **argv) {
 
     CHECK(toy_eval(state, "<native-loader>",
                    "\"test.plugin\" 'p require-as "
-                   "21 p.double p.make-resource") == TOY_OK,
+                   "21 p.double p.make-resource "
+                   "[ 1 2 3 ] p.sequence-size "
+                   "p.make-pair [ 7 9 ] ==") == TOY_OK,
           "load and call shared native module");
 
     const char *resource_type = NULL;
     int64_t integer = 0;
-    CHECK(toy_stack_size(state) == 2, "native result stack size");
-    CHECK(toy_get_resource_type(state, 0, &resource_type) &&
+    bool boolean = false;
+    CHECK(toy_stack_size(state) == 4, "native result stack size");
+    CHECK(toy_get_bool(state, 0, &boolean) && boolean,
+          "shared module collection construction");
+    CHECK(toy_get_int(state, 1, &integer) && integer == 3,
+          "shared module retained sequence access");
+    CHECK(toy_get_resource_type(state, 2, &resource_type) &&
               strcmp(resource_type, "test.plugin.resource") == 0,
           "shared module resource result");
-    CHECK(toy_get_int(state, 1, &integer) && integer == 42,
+    CHECK(toy_get_int(state, 3, &integer) && integer == 42,
           "shared module integer result");
-    CHECK(toy_pop(state, 2), "release native results");
+    CHECK(toy_pop(state, 4), "release native results");
 
     CHECK(toy_eval(state, "<native-loader-repeat>",
                    "\"test.plugin\" require 20 test.plugin.double") ==

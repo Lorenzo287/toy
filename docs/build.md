@@ -22,6 +22,14 @@ The build produces the `toy` CLI and a static `toy_runtime` library. CMake
 hosts can link the `toy::runtime` alias and use the experimental API in
 `include/toy.h`; see [Embedding Toy in C](./embedding.md).
 
+The structured-value embedding example constructs vectors and maps in C,
+passes them through Toy, traverses the result, and invokes a retained quotation:
+
+```powershell
+cmake --build build --target toy_embed_values_example
+.\build\toy_embed_values_example.exe
+```
+
 The optional Raylib binding is disabled by default. With either a Raylib CMake
 package or an installation prefix containing `include/raylib.h` and its
 library, build the normal CLI and loadable module with:

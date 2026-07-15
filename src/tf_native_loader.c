@@ -100,6 +100,23 @@ static const toy_module_api module_api = {
     .clear_error = toy_clear_error,
     .fail = toy_fail,
     .interrupt = toy_interrupt,
+    .value_retain = toy_value_retain,
+    .value_release = toy_value_release,
+    .value_type = toy_value_type,
+    .value_get_bool = toy_value_get_bool,
+    .value_get_int = toy_value_get_int,
+    .value_get_float = toy_value_get_float,
+    .value_get_string = toy_value_get_string,
+    .value_get_resource = toy_value_get_resource,
+    .value_get_resource_type = toy_value_get_resource_type,
+    .push_value = toy_push_value,
+    .sequence_size = toy_sequence_size,
+    .sequence_get = toy_sequence_get,
+    .map_size = toy_map_size,
+    .map_entry = toy_map_entry,
+    .make_vector = toy_make_vector,
+    .make_map = toy_make_map,
+    .call_value = toy_call_value,
 };
 
 static bool file_exists(const char *path) {

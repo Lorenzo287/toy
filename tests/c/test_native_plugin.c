@@ -29,9 +29,40 @@ static toy_status plugin_make_resource(toy_state *state) {
     return status;
 }
 
+static toy_status plugin_sequence_size(toy_state *state) {
+    toy_value *sequence = toy_value_retain(state, 0);
+    if (!sequence) {
+        return toy_fail(state, "test.plugin.sequence-size expected a value");
+    }
+
+    size_t size = 0;
+    if (!toy_sequence_size(sequence, &size) ||
+        (uint64_t)size > INT64_MAX) {
+        toy_value_release(sequence);
+        return toy_fail(state,
+                        "test.plugin.sequence-size expected a sequence");
+    }
+    if (!toy_pop(state, 1)) {
+        toy_value_release(sequence);
+        return toy_fail(state,
+                        "test.plugin.sequence-size failed to pop its input");
+    }
+    toy_value_release(sequence);
+    return toy_push_int(state, (int64_t)size);
+}
+
+static toy_status plugin_make_pair(toy_state *state) {
+    toy_status status = toy_push_int(state, 7);
+    if (status == TOY_OK) status = toy_push_int(state, 9);
+    if (status == TOY_OK) status = toy_make_vector(state, 2);
+    return status;
+}
+
 static const toy_native_word plugin_words[] = {
     {"double", plugin_double},
     {"make-resource", plugin_make_resource},
+    {"sequence-size", plugin_sequence_size},
+    {"make-pair", plugin_make_pair},
 };
 
 static const toy_module_export plugin = {

@@ -74,6 +74,10 @@ add_executable(toy_embed_callbacks_example EXCLUDE_FROM_ALL
                examples/c/embed_callbacks.c)
 target_link_libraries(toy_embed_callbacks_example PRIVATE toy::runtime)
 
+add_executable(toy_embed_values_example EXCLUDE_FROM_ALL
+               examples/c/embed_values.c)
+target_link_libraries(toy_embed_values_example PRIVATE toy::runtime)
+
 if(TOY_BUILD_FFI)
     find_package(PkgConfig QUIET)
     if(PkgConfig_FOUND)
@@ -438,7 +442,7 @@ endif()
 # ── Baseline warnings ─────────────────────────────────────────────────────────
 
 set(TOY_WARNING_TARGETS toy_runtime toy_module_support toy toy_embed_example
-                        toy_embed_callbacks_example)
+                        toy_embed_callbacks_example toy_embed_values_example)
 if(TARGET toy_bindgen_clib_example)
     list(APPEND TOY_WARNING_TARGETS toy_bindgen_clib_example)
 endif()

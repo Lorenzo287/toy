@@ -69,10 +69,13 @@ runtime target.
 
 `include/toy.h` is the experimental public boundary. It treats the interpreter
 state as opaque and exposes evaluation, host-to-Toy word calls, synchronous
-native word/module registration, primitive stack access, diagnostics, and
-interruption. Typed resource access wraps external pointers in ordinary
-refcounted objects with copied tags and exactly-once destructors, while keeping
-the pointer and object layout opaque to Toy code. `include/toy_module.h`
+native word/module registration, primitive stack access, persistent value
+references, basic collection access, diagnostics, and interruption. Persistent
+values retain their internal object but remain state-bound, so C cannot expose
+or transfer `tf_obj` layouts between runtimes. Typed resource access wraps
+external pointers in ordinary refcounted objects with copied tags and
+exactly-once destructors, while keeping the pointer and object layout opaque to
+Toy code. `include/toy_module.h`
 defines shared-module ABI version 1: an exported descriptor entry point and a
 size-tagged host function table. `toy_module_support` forwards the familiar
 public stack/resource calls through that table, so a plugin does not link a

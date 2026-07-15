@@ -11,6 +11,11 @@
 #include "tf_obj.h"
 #include "tf_runtime.h"
 
+struct toy_value {
+    toy_state *state;
+    tf_obj *object;
+};
+
 static bool state_is_idle(toy_state *state) {
     if (!state) return false;
     if (state->call_stack_len == 0) return true;
@@ -59,6 +64,60 @@ static const tf_module *qualified_word_owner(toy_state *state,
         }
     }
     return NULL;
+}
+
+static toy_type value_type(tf_obj *value) {
+    if (!value) return TOY_TYPE_MISSING;
+
+    switch (value->type) {
+    case TF_OBJ_TYPE_BOOL:
+        return TOY_TYPE_BOOL;
+    case TF_OBJ_TYPE_INT:
+        return TOY_TYPE_INT;
+    case TF_OBJ_TYPE_FLOAT:
+        return TOY_TYPE_FLOAT;
+    case TF_OBJ_TYPE_STR:
+        return TOY_TYPE_STRING;
+    case TF_OBJ_TYPE_SYMBOL:
+        return TOY_TYPE_SYMBOL;
+    case TF_OBJ_TYPE_CALL:
+        return TOY_TYPE_CALL;
+    case TF_OBJ_TYPE_VECTOR:
+        return TOY_TYPE_VECTOR;
+    case TF_OBJ_TYPE_LIST:
+        return TOY_TYPE_LIST;
+    case TF_OBJ_TYPE_MAP:
+        return TOY_TYPE_MAP;
+    case TF_OBJ_TYPE_SET:
+        return TOY_TYPE_SET;
+    case TF_OBJ_TYPE_DEQUE:
+        return TOY_TYPE_DEQUE;
+    case TF_OBJ_TYPE_PQUEUE:
+        return TOY_TYPE_PQUEUE;
+    case TF_OBJ_TYPE_RESOURCE:
+        return TOY_TYPE_RESOURCE;
+    case TF_OBJ_TYPE_VARLIST:
+    case TF_OBJ_TYPE_VARFETCH:
+        return TOY_TYPE_INTERNAL;
+    }
+    return TOY_TYPE_INTERNAL;
+}
+
+static toy_value *value_retain_object(toy_state *state, tf_obj *object) {
+    if (!state || !object) return NULL;
+    toy_value *value = tf_xmalloc(sizeof(*value));
+    value->state = state;
+    value->object = object;
+    tf_obj_retain(object);
+    return value;
+}
+
+static toy_value *value_take_object(toy_state *state, tf_obj *object) {
+    if (!state || !object) return NULL;
+    toy_value *value = tf_xmalloc(sizeof(*value));
+    value->state = state;
+    value->object = object;
+    return value;
 }
 
 toy_state *toy_state_new(const toy_state_config *config) {
@@ -206,40 +265,7 @@ size_t toy_stack_size(toy_state *state) {
 
 toy_type toy_stack_type(toy_state *state, size_t depth) {
     tf_obj *value = state ? tf_stack_peek(state, depth) : NULL;
-    if (!value) return TOY_TYPE_MISSING;
-
-    switch (value->type) {
-    case TF_OBJ_TYPE_BOOL:
-        return TOY_TYPE_BOOL;
-    case TF_OBJ_TYPE_INT:
-        return TOY_TYPE_INT;
-    case TF_OBJ_TYPE_FLOAT:
-        return TOY_TYPE_FLOAT;
-    case TF_OBJ_TYPE_STR:
-        return TOY_TYPE_STRING;
-    case TF_OBJ_TYPE_SYMBOL:
-        return TOY_TYPE_SYMBOL;
-    case TF_OBJ_TYPE_CALL:
-        return TOY_TYPE_CALL;
-    case TF_OBJ_TYPE_VECTOR:
-        return TOY_TYPE_VECTOR;
-    case TF_OBJ_TYPE_LIST:
-        return TOY_TYPE_LIST;
-    case TF_OBJ_TYPE_MAP:
-        return TOY_TYPE_MAP;
-    case TF_OBJ_TYPE_SET:
-        return TOY_TYPE_SET;
-    case TF_OBJ_TYPE_DEQUE:
-        return TOY_TYPE_DEQUE;
-    case TF_OBJ_TYPE_PQUEUE:
-        return TOY_TYPE_PQUEUE;
-    case TF_OBJ_TYPE_RESOURCE:
-        return TOY_TYPE_RESOURCE;
-    case TF_OBJ_TYPE_VARLIST:
-    case TF_OBJ_TYPE_VARFETCH:
-        return TOY_TYPE_INTERNAL;
-    }
-    return TOY_TYPE_INTERNAL;
+    return value_type(value);
 }
 
 bool toy_get_bool(toy_state *state, size_t depth, bool *value) {
@@ -352,6 +378,212 @@ toy_status toy_push_resource(toy_state *state, const char *type_name,
                              type_name, type_len, resource, destructor,
                              destructor_userdata));
     return TOY_OK;
+}
+
+toy_value *toy_value_retain(toy_state *state, size_t depth) {
+    return value_retain_object(state,
+                               state ? tf_stack_peek(state, depth) : NULL);
+}
+
+void toy_value_release(toy_value *value) {
+    if (!value) return;
+    tf_obj_release(value->object);
+    free(value);
+}
+
+toy_type toy_value_type(const toy_value *value) {
+    return value ? value_type(value->object) : TOY_TYPE_MISSING;
+}
+
+bool toy_value_get_bool(const toy_value *value, bool *result) {
+    if (!value || value->object->type != TF_OBJ_TYPE_BOOL || !result) {
+        return false;
+    }
+    *result = value->object->b;
+    return true;
+}
+
+bool toy_value_get_int(const toy_value *value, int64_t *result) {
+    if (!value || value->object->type != TF_OBJ_TYPE_INT || !result) {
+        return false;
+    }
+    *result = value->object->i;
+    return true;
+}
+
+bool toy_value_get_float(const toy_value *value, double *result) {
+    if (!value || value->object->type != TF_OBJ_TYPE_FLOAT || !result) {
+        return false;
+    }
+    *result = value->object->f;
+    return true;
+}
+
+bool toy_value_get_string(const toy_value *value, const char **data,
+                          size_t *length) {
+    if (!value || value->object->type != TF_OBJ_TYPE_STR || !data ||
+        !length) {
+        return false;
+    }
+    *data = value->object->str.ptr;
+    *length = value->object->str.len;
+    return true;
+}
+
+bool toy_value_get_resource(const toy_value *value,
+                            const char *expected_type, void **resource) {
+    if (!value || value->object->type != TF_OBJ_TYPE_RESOURCE ||
+        !expected_type || expected_type[0] == '\0' || !resource) {
+        return false;
+    }
+    size_t expected_len = strlen(expected_type);
+    if (value->object->resource.type_len != expected_len ||
+        memcmp(value->object->resource.type_name, expected_type,
+               expected_len) != 0) {
+        return false;
+    }
+    *resource = value->object->resource.pointer;
+    return true;
+}
+
+bool toy_value_get_resource_type(const toy_value *value,
+                                 const char **type_name) {
+    if (!value || value->object->type != TF_OBJ_TYPE_RESOURCE || !type_name) {
+        return false;
+    }
+    *type_name = value->object->resource.type_name;
+    return true;
+}
+
+toy_status toy_push_value(toy_state *state, const toy_value *value) {
+    if (!state || !value) return TOY_ERROR;
+    if (value->state != state) {
+        return api_errorf(state, "cannot use a value retained by another state");
+    }
+    tf_obj_retain(value->object);
+    tf_stack_push(state, value->object);
+    return TOY_OK;
+}
+
+bool toy_sequence_size(const toy_value *sequence, size_t *size) {
+    if (!sequence || !size) return false;
+    switch (sequence->object->type) {
+    case TF_OBJ_TYPE_VECTOR:
+        *size = sequence->object->vector.len;
+        return true;
+    case TF_OBJ_TYPE_LIST:
+        *size = sequence->object->list.len;
+        return true;
+    case TF_OBJ_TYPE_STR:
+        *size = sequence->object->str.len;
+        return true;
+    default:
+        return false;
+    }
+}
+
+toy_value *toy_sequence_get(const toy_value *sequence, size_t index) {
+    if (!sequence) return NULL;
+    tf_obj *object = sequence->object;
+    switch (object->type) {
+    case TF_OBJ_TYPE_VECTOR:
+        if (index >= object->vector.len) return NULL;
+        return value_retain_object(sequence->state, object->vector.elem[index]);
+    case TF_OBJ_TYPE_LIST:
+        return value_retain_object(sequence->state,
+                                   tf_list_get(object, index));
+    case TF_OBJ_TYPE_STR:
+        if (index >= object->str.len) return NULL;
+        return value_take_object(
+            sequence->state,
+            tf_obj_new_string(object->str.ptr + index, 1));
+    default:
+        return NULL;
+    }
+}
+
+bool toy_map_size(const toy_value *map, size_t *size) {
+    if (!map || map->object->type != TF_OBJ_TYPE_MAP || !size) return false;
+    *size = map->object->map.len;
+    return true;
+}
+
+bool toy_map_entry(const toy_value *map, size_t index, toy_value **key,
+                   toy_value **value) {
+    if (!map || map->object->type != TF_OBJ_TYPE_MAP ||
+        index >= map->object->map.len || !key || !value || key == value) {
+        return false;
+    }
+    tf_map_entry *entry = &map->object->map.entries[index];
+    *key = value_retain_object(map->state, entry->key);
+    *value = value_retain_object(map->state, entry->value);
+    return true;
+}
+
+toy_status toy_make_vector(toy_state *state, size_t item_count) {
+    if (!state) return TOY_ERROR;
+    if (tf_stack_len(state) < item_count) {
+        return api_errorf(state,
+                          "cannot make a vector from %zu stack values",
+                          item_count);
+    }
+
+    tf_obj *vector = tf_obj_new_vector_with_capacity(item_count);
+    for (size_t i = 0; i < item_count; i++) {
+        tf_obj *item = tf_stack_peek(state, item_count - i - 1);
+        tf_obj_retain(item);
+        tf_vector_push(vector, item);
+    }
+    toy_pop(state, item_count);
+    tf_stack_push(state, vector);
+    return TOY_OK;
+}
+
+toy_status toy_make_map(toy_state *state, size_t pair_count) {
+    if (!state) return TOY_ERROR;
+    if (pair_count > SIZE_MAX / 2) {
+        return api_errorf(state, "map pair count is too large");
+    }
+    size_t item_count = pair_count * 2;
+    if (tf_stack_len(state) < item_count) {
+        return api_errorf(state, "cannot make a map from %zu stack pairs",
+                          pair_count);
+    }
+
+    for (size_t i = 0; i < pair_count; i++) {
+        size_t key_depth = item_count - (i * 2) - 1;
+        tf_obj *key = tf_stack_peek(state, key_depth);
+        if (!tf_obj_hashable(key)) {
+            return api_errorf(state, "map key %zu is not hashable", i);
+        }
+    }
+
+    tf_obj *map = tf_obj_new_map();
+    tf_map_reserve(map, pair_count);
+    for (size_t i = 0; i < pair_count; i++) {
+        size_t key_depth = item_count - (i * 2) - 1;
+        tf_obj *key = tf_stack_peek(state, key_depth);
+        tf_obj *item = tf_stack_peek(state, key_depth - 1);
+        (void)tf_map_set(map, key, item);
+    }
+    toy_pop(state, item_count);
+    tf_stack_push(state, map);
+    return TOY_OK;
+}
+
+toy_status toy_call_value(toy_state *state, const toy_value *callable) {
+    if (!state || !callable) return TOY_ERROR;
+    if (!state_is_idle(state)) return TOY_ERROR;
+    if (callable->state != state) {
+        return api_errorf(state, "cannot call a value retained by another state");
+    }
+    if (!tf_obj_is_callable(callable->object)) {
+        return api_errorf(state, "retained value is not callable");
+    }
+
+    tf_obj_retain(callable->object);
+    tf_stack_push(state, callable->object);
+    return toy_call(state, "exec");
 }
 
 const char *toy_get_error(toy_state *state) {

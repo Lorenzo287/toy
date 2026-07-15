@@ -3,8 +3,8 @@
 Toy builds a static `toy_runtime` library alongside the `toy` command-line
 executable. The experimental version-zero API in `include/toy.h` lets a C host
 create an interpreter state, evaluate source, call Toy words, inspect primitive
-or opaque resource stack values, and register synchronous native words or
-modules.
+or opaque resource stack values, retain arbitrary Toy values, traverse basic
+collections, and register synchronous native words or modules.
 
 The API is intentionally small and does not yet promise source or binary
 compatibility between releases.
@@ -15,7 +15,10 @@ compatibility between releases.
 the boundary: Toy calls a registered C word, then C calls a Toy-defined word.
 [`examples/c/embed_callbacks.c`](../examples/c/embed_callbacks.c) captures
 binary-safe Toy output, redirects diagnostics separately, and inspects a
-detailed parser error. Build and run either example from the repository root:
+detailed parser error.
+[`examples/c/embed_values.c`](../examples/c/embed_values.c) constructs
+structured input, traverses a returned map, and calls a retained Toy quotation.
+Build and run the examples from the repository root:
 
 ```powershell
 cmake --build build --target toy_embed_example
@@ -23,6 +26,9 @@ cmake --build build --target toy_embed_example
 
 cmake --build build --target toy_embed_callbacks_example
 .\build\toy_embed_callbacks_example.exe
+
+cmake --build build --target toy_embed_values_example
+.\build\toy_embed_values_example.exe
 ```
 
 When Toy is included as a CMake subproject, link the host against
@@ -177,7 +183,8 @@ TOY_MODULE_EXPORT const toy_module_export *toy_module_v1(
 ```
 
 Link the module-support target, not `toy::runtime`. It supplies local forwarding
-functions for the familiar stack, resource, error, and interruption API:
+functions for the familiar stack, retained-value, resource, error, and
+interruption API:
 
 ```cmake
 add_library(toy_sample MODULE sample.c)
@@ -209,6 +216,60 @@ remains loaded until state destruction. Stacks, frames, definitions, and
 resource destructors are released before unloading, so destructors implemented
 inside the module remain callable. Shared modules are unrestricted native code
 and must be trusted like any other library loaded into the process.
+
+## Persistent Values and Collections
+
+`toy_value_retain()` creates an opaque, persistent reference to the value at a
+stack depth. The reference keeps that value alive after `toy_pop()` and across
+later evaluation. `toy_push_value()` places the value back on its original
+state's stack without consuming the reference:
+
+```c
+toy_eval(state, "callback.toy", "[ 3 * ]");
+toy_value *callback = toy_value_retain(state, 0);
+toy_pop(state, 1);
+
+toy_push_int(state, 14);
+toy_call_value(state, callback);  /* leaves 42 */
+toy_value_release(callback);
+```
+
+Values are state-bound. Passing one to `toy_push_value()` or
+`toy_call_value()` with another state is an error. Every retained value,
+including items returned by the collection accessors, must be released exactly
+once and before its state is destroyed. This ordering keeps quotation module
+context and native resource destructors valid. A retained value is a reference,
+not a serialized copy.
+
+`toy_value_type()` and the `toy_value_get_*()` functions inspect primitive or
+resource values without temporarily restoring them to the stack. Returned
+string bytes, resource type names, and resource pointers are borrowed until the
+value is released or its state is destroyed.
+
+`toy_sequence_size()` and `toy_sequence_get()` traverse vectors, lists, and
+strings. A string item is a copied one-byte string, matching Toy's language
+semantics. `toy_map_size()` and `toy_map_entry()` traverse maps in insertion
+order; each successful entry access returns two new retained values.
+
+Construction remains stack-oriented so hosts and native modules can reuse the
+primitive push API:
+
+```c
+toy_push_int(state, 3);
+toy_push_int(state, 4);
+toy_push_int(state, 5);
+toy_make_vector(state, 3);  /* 3 4 5 -- [3 4 5] */
+
+toy_push_string(state, "name", 4);
+toy_push_string(state, "Ada", 3);
+toy_make_map(state, 1);     /* "name" "Ada" -- {"name" "Ada"} */
+```
+
+Both constructors preserve deepest-to-top order and validate all inputs before
+consuming them. Map inputs alternate key and value; keys follow Toy's normal
+hashability rules. `toy_call_value()` accepts quotations, symbols, and call
+values, requires an idle state, and leaves the retained reference reusable.
+Execution errors retain their normal non-transactional stack behavior.
 
 ## Opaque Foreign Resources
 
@@ -293,8 +354,8 @@ The pointer returned through `toy_get_string()` is a borrowed view. Do not keep
 it across stack mutation, further execution, or state destruction.
 
 The version-zero public API intentionally does not expose `tf_obj`, reference
-counts, collection storage, dictionary entries, or VM frames. Collections
-remain opaque even though they can retain public resource values internally.
+counts, collection storage, dictionary entries, or VM frames. Persistent values
+and collection accessors keep those layouts opaque.
 
 ## Errors and State Reuse
 
@@ -318,9 +379,12 @@ host inspects or repairs its stack.
 - allocation failure terminates the process;
 - the normal filesystem, environment, process, and shell builtins are enabled;
 - the runtime uses bounded process-global allocation caches;
-- collection values still have no public construction or traversal API;
+- retained values must be released manually before their state is destroyed;
+- public construction and traversal currently cover vectors, maps, and
+  vector/list/string sequence access rather than every collection family;
 - shared-module installation and package discovery are not defined yet;
 - the optional [dynamic FFI](./ffi.md) currently handles only explicit scalar
   and copied-string signatures.
 
-The focused C regression is `tests/c/test_embed_api.c`.
+The focused C regression is `tests/c/test_embed_api.c`; the structured host is
+`examples/c/embed_values.c`.

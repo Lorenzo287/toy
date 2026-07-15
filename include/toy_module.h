@@ -56,6 +56,28 @@ typedef struct {
     void (*clear_error)(toy_state *state);
     toy_status (*fail)(toy_state *state, const char *message);
     void (*interrupt)(toy_state *state);
+
+    toy_value *(*value_retain)(toy_state *state, size_t depth);
+    void (*value_release)(toy_value *value);
+    toy_type (*value_type)(const toy_value *value);
+    bool (*value_get_bool)(const toy_value *value, bool *result);
+    bool (*value_get_int)(const toy_value *value, int64_t *result);
+    bool (*value_get_float)(const toy_value *value, double *result);
+    bool (*value_get_string)(const toy_value *value, const char **data,
+                             size_t *length);
+    bool (*value_get_resource)(const toy_value *value,
+                               const char *expected_type, void **resource);
+    bool (*value_get_resource_type)(const toy_value *value,
+                                    const char **type_name);
+    toy_status (*push_value)(toy_state *state, const toy_value *value);
+    bool (*sequence_size)(const toy_value *sequence, size_t *size);
+    toy_value *(*sequence_get)(const toy_value *sequence, size_t index);
+    bool (*map_size)(const toy_value *map, size_t *size);
+    bool (*map_entry)(const toy_value *map, size_t index, toy_value **key,
+                      toy_value **value);
+    toy_status (*make_vector)(toy_state *state, size_t item_count);
+    toy_status (*make_map)(toy_state *state, size_t pair_count);
+    toy_status (*call_value)(toy_state *state, const toy_value *callable);
 } toy_module_api;
 
 /* Returned by the exported toy_module_v1 entry point. */
