@@ -1,13 +1,12 @@
 # Embedding Toy in C
 
 Toy builds a static `toy_runtime` library alongside the `toy` command-line
-executable. The experimental version-zero API in `include/toy.h` lets a C host
+executable. The experimental API in `include/toy.h` lets a C host
 create an interpreter state, evaluate source, call Toy words, inspect primitive
 or opaque resource stack values, retain arbitrary Toy values, traverse basic
 collections, and register synchronous native words or modules.
 
-The API is intentionally small and does not yet promise source or binary
-compatibility between releases.
+The API is intentionally small and may change freely while experimental.
 
 ## Buildable Example
 
@@ -89,7 +88,7 @@ toy_call(state, "update");
 
 Both entry points require an idle state. A native word must not recursively call
 `toy_eval()` or `toy_call()` on the state that is currently executing. Native
-continuations remain an internal VM facility in API version zero.
+continuations remain an internal VM facility.
 
 The main statuses are:
 
@@ -141,8 +140,8 @@ available for standalone words that do not need module identity.
 ## Shared Native Modules
 
 `include/toy_module.h` defines shared-module ABI version 1. A module exports the
-fixed `toy_module_v1` entry point, binds the size-tagged host function table,
-and returns a static descriptor:
+fixed `toy_module_init` entry point, accepts the ABI version and size-tagged host
+function table, and returns a static descriptor:
 
 ```c
 #include "toy_module.h"
@@ -163,16 +162,15 @@ static const toy_native_word words[] = {
 };
 
 static const toy_module_export module = {
-    TOY_MODULE_ABI_VERSION,
     sizeof(toy_module_export),
     "sample",
     words,
     sizeof(words) / sizeof(words[0]),
 };
 
-TOY_MODULE_EXPORT const toy_module_export *toy_module_v1(
-    const toy_module_api *api) {
-    if (!toy_module_bind(api)) return NULL;
+TOY_MODULE_EXPORT const toy_module_export *toy_module_init(
+    uint32_t abi_version, const toy_module_api *api) {
+    if (!toy_module_bind(abi_version, api)) return NULL;
     return &module;
 }
 ```
@@ -204,11 +202,11 @@ module vocabulary remains unchanged:
 21 s.twice
 ```
 
-The entry point and descriptor must report ABI version 1. Structure sizes make
-append-only extensions detectable, while a breaking contract will use a new
-entry symbol and ABI version. Modules must still match the runtime's target
-architecture and C ABI. The host table has process lifetime; the library itself
-remains loaded until state destruction. Stacks, frames, definitions, and
+The loader passes ABI version 1 to the entry point, and both structure sizes
+must match exactly. These checks reject stale or mismatched native binaries
+before their function tables are used. Modules must still match the runtime's
+target architecture and C ABI. The host table has process lifetime; the library
+itself remains loaded until state destruction. Stacks, frames, definitions, and
 resource destructors are released before unloading, so destructors implemented
 inside the module remain callable. Shared modules are unrestricted native code
 and must be trusted like any other library loaded into the process.
@@ -364,7 +362,7 @@ create state-owned values. `toy_push_string()` copies its input bytes.
 The pointer returned through `toy_get_string()` is a borrowed view. Do not keep
 it across stack mutation, further execution, or state destruction.
 
-The version-zero public API intentionally does not expose `tf_obj`, reference
+The public API intentionally does not expose `tf_obj`, reference
 counts, collection storage, dictionary entries, or VM frames. Persistent values
 and collection accessors keep those layouts opaque.
 

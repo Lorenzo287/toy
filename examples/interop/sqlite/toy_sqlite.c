@@ -540,14 +540,14 @@ static const toy_native_word sqlite_words[] = {
 };
 
 static const toy_module_export sqlite_module = {
-    TOY_MODULE_ABI_VERSION,
     sizeof(toy_module_export),
     "sqlite",
     sqlite_words,
     sizeof(sqlite_words) / sizeof(sqlite_words[0]),
 };
 
-TOY_MODULE_EXPORT const toy_module_export *toy_module_v1(const toy_module_api *api) {
-    if (!toy_module_bind(api)) return NULL;
+TOY_MODULE_EXPORT const toy_module_export *toy_module_init(
+    uint32_t abi_version, const toy_module_api *api) {
+    if (!toy_module_bind(abi_version, api)) return NULL;
     return &sqlite_module;
 }

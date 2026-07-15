@@ -48,8 +48,8 @@ Keep optimization work benchmark-driven and record durable experiments under
 
 Treat the [foreign function interface](https://en.wikipedia.org/wiki/Foreign_function_interface)
 as an exploratory interoperability track, not a single general-purpose
-`call-c` word. The CLI now links a reusable static runtime, and experimental API
-version zero exposes opaque states, primitive and typed resource stack access,
+`call-c` word. The CLI now links a reusable static runtime, and the experimental
+public API exposes opaque states, primitive and typed resource stack access,
 state-bound persistent values, basic collection construction and traversal,
 host-to-Toy value calls, and synchronous native-word or native-module
 registration.
@@ -64,14 +64,16 @@ row data, and automatic finalization. Both remain external-library examples,
 not Toy-provided integrations. An optional
 libffi module now experiments with dynamically resolved, explicit signatures
 for booleans, integers, floats, and copied C strings. An explicit-manifest
-generator can compile that same safe subset into ordinary loadable module words;
-automatic header parsing is not implemented yet.
+generator can compile that safe subset into ordinary loadable module words,
+including typed opaque resources, destructors, exact resource inputs, direct
+owned returns, output handles, numeric success codes, and failure cleanup.
+Automatic header parsing is not implemented yet.
 
 Current follow-up candidates are:
 
-1. extend the explicit manifest with typed opaque resources, constructors,
-   destructors, output handles, and borrowed/copy result policies, using the
-   handwritten SQLite adapter as the concrete target;
+1. use the handwritten SQLite adapter to drive hidden constant arguments,
+   result-code mapping, length-aware buffers, and dependent-handle lifetime
+   policy without making the generator SQLite-specific;
 2. settle reusable library/package configuration without making the runtime or
    build program aware of individual third-party libraries;
 3. add a libclang frontend after the resource manifest is explicit enough to

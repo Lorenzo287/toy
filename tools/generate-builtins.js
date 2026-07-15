@@ -17,7 +17,6 @@ function requireString(value, field) {
 
 function loadManifest() {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  if (manifest.schemaVersion !== 1) fail('schemaVersion must be 1');
   if (!Array.isArray(manifest.categories) || manifest.categories.length === 0) {
     fail('categories must be a non-empty array');
   }

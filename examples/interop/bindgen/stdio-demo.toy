@@ -1,0 +1,5 @@
+"stdio.generated" 'io require-as
+
+"examples/interop/bindgen/stdio-demo.toy" "rb" io.open
+dup io.read-byte "first source byte: {}\n" printf
+drop \ fclose runs when the final stdio.generated.file reference is released

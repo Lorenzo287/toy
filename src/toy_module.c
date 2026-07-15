@@ -2,9 +2,9 @@
 
 static const toy_module_api *host = NULL;
 
-bool toy_module_bind(const toy_module_api *api) {
-    if (!api || api->abi_version != TOY_MODULE_ABI_VERSION ||
-        api->struct_size < sizeof(toy_module_api)) {
+bool toy_module_bind(uint32_t abi_version, const toy_module_api *api) {
+    if (abi_version != TOY_MODULE_ABI_VERSION || !api ||
+        api->struct_size != sizeof(toy_module_api)) {
         return false;
     }
     host = api;

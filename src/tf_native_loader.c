@@ -80,7 +80,6 @@ static void library_close(void *handle) {
 #endif
 
 static const toy_module_api module_api = {
-    .abi_version = TOY_MODULE_ABI_VERSION,
     .struct_size = sizeof(toy_module_api),
     .stack_size = toy_stack_size,
     .stack_type = toy_stack_type,
@@ -183,16 +182,16 @@ static tf_native_module_status load_candidate(tf_ctx *ctx, const char *name,
         return TF_NATIVE_MODULE_ERROR;
     }
 
-    const toy_module_export *exported = entry(&module_api);
+    const toy_module_export *exported =
+        entry(TOY_MODULE_ABI_VERSION, &module_api);
     if (!exported) {
-        tf_ctx_runtime_errorf(
-            ctx, "native module '%s' rejected module ABI version %u\n", path,
-            TOY_MODULE_ABI_VERSION);
+        tf_ctx_runtime_errorf(ctx,
+                              "native module '%s' rejected the host ABI\n",
+                              path);
         library_close(handle);
         return TF_NATIVE_MODULE_ERROR;
     }
-    if (exported->abi_version != TOY_MODULE_ABI_VERSION ||
-        exported->struct_size < sizeof(toy_module_export)) {
+    if (exported->struct_size != sizeof(toy_module_export)) {
         tf_ctx_runtime_errorf(ctx,
                               "native module '%s' has an incompatible "
                               "descriptor\n",

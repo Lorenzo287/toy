@@ -1,7 +1,13 @@
 {
-  "schemaVersion": 1,
   "module": "test.bindgen",
   "headers": ["test_bindgen_fixture.h"],
+  "resources": [
+    {
+      "name": "box",
+      "cType": "test_bindgen_box *",
+      "destructor": "test_bindgen_box_destroy"
+    }
+  ],
   "functions": [
     {
       "name": "test_bindgen_add_i32",
@@ -49,6 +55,66 @@
       "name": "test_bindgen_too_large",
       "word": "too-large",
       "returns": "u64",
+      "args": []
+    },
+    {
+      "name": "test_bindgen_box_new",
+      "word": "make-box",
+      "returns": {"resource": "box"},
+      "args": ["i64"]
+    },
+    {
+      "name": "test_bindgen_box_open",
+      "word": "open-box",
+      "returns": {"status": "i32", "success": [0]},
+      "args": ["i64", {"outResource": "box"}]
+    },
+    {
+      "name": "test_bindgen_box_open_alternate",
+      "word": "open-box-alternate",
+      "returns": {"status": "i32", "success": [0, 1]},
+      "args": ["i64", {"outResource": "box"}]
+    },
+    {
+      "name": "test_bindgen_box_open_fail",
+      "word": "open-box-fail",
+      "returns": {"status": "i32", "success": [0]},
+      "args": ["i64", {"outResource": "box"}]
+    },
+    {
+      "name": "test_bindgen_box_open_empty",
+      "word": "open-box-empty",
+      "returns": {"status": "i32", "success": [0]},
+      "args": [{"outResource": "box"}]
+    },
+    {
+      "name": "test_bindgen_box_value",
+      "word": "box-value",
+      "returns": "i64",
+      "args": [{"resource": "box"}]
+    },
+    {
+      "name": "test_bindgen_box_label",
+      "word": "box-label",
+      "returns": "cstr",
+      "args": [{"resource": "box"}]
+    },
+    {
+      "name": "test_bindgen_box_set",
+      "word": "set-box",
+      "returns": {"status": "i32", "success": [0]},
+      "args": [{"resource": "box"}, "i64"]
+    },
+    {
+      "name": "test_bindgen_box_destroy_count",
+      "word": "box-destroy-count",
+      "returns": "i32",
+      "args": []
+    },
+    {
+      "name": "test_bindgen_box_live_count",
+      "word": "box-live-count",
+      "returns": "i32",
       "args": []
     }
   ]

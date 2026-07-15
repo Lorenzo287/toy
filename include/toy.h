@@ -9,8 +9,6 @@
 extern "C" {
 #endif
 
-#define TOY_API_VERSION 0
-
 typedef struct tf_ctx toy_state;
 typedef struct toy_value toy_value;
 

@@ -11,7 +11,7 @@ extern "C" {
 #endif
 
 #define TOY_MODULE_ABI_VERSION 1u
-#define TOY_MODULE_ENTRY_SYMBOL "toy_module_v1"
+#define TOY_MODULE_ENTRY_SYMBOL "toy_module_init"
 
 #if defined(_WIN32)
 #define TOY_MODULE_EXPORT __declspec(dllexport)
@@ -23,10 +23,9 @@ extern "C" {
 
 /*
  * Host operations available to shared native modules. The table has static
- * process lifetime. New ABI-compatible fields may only be appended.
+ * process lifetime. The structure size must match exactly.
  */
 typedef struct {
-    uint32_t abi_version;
     size_t struct_size;
 
     size_t (*stack_size)(toy_state *state);
@@ -80,9 +79,8 @@ typedef struct {
     toy_status (*call_value)(toy_state *state, const toy_value *callable);
 } toy_module_api;
 
-/* Returned by the exported toy_module_v1 entry point. */
+/* Returned by the exported toy_module_init entry point. */
 typedef struct {
-    uint32_t abi_version;
     size_t struct_size;
     const char *name;
     const toy_native_word *words;
@@ -90,14 +88,15 @@ typedef struct {
 } toy_module_export;
 
 typedef const toy_module_export *(*toy_module_entry)(
-    const toy_module_api *api);
+    uint32_t abi_version, const toy_module_api *api);
 
-TOY_MODULE_EXPORT const toy_module_export *toy_module_v1(
-    const toy_module_api *api);
+TOY_MODULE_EXPORT const toy_module_export *toy_module_init(
+    uint32_t abi_version, const toy_module_api *api);
 
-/* Bind the host table before returning a module descriptor. Shared modules
- * link Toy's module-support object, not the Toy runtime itself. */
-bool toy_module_bind(const toy_module_api *api);
+/* Check the ABI version and bind the host table before returning a module
+ * descriptor. Shared modules link Toy's module-support object, not the Toy
+ * runtime itself. */
+bool toy_module_bind(uint32_t abi_version, const toy_module_api *api);
 
 #ifdef __cplusplus
 }

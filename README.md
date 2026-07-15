@@ -307,8 +307,10 @@ Toy runtime. The optional
 experimental [`ffi` module](docs/ffi.md) can
 also resolve fixed scalar and string C signatures dynamically through libffi;
 the [binding generator](docs/bindgen.md) can instead compile explicit manifests
-into loadable modules with ordinary Toy words. Raw pointers, aggregate types,
-callbacks, and automatic header parsing remain future work.
+into loadable modules with ordinary Toy words. Generated bindings now support
+basic owned opaque resources, destructors, resource arguments, and output
+handles. Arbitrary pointers and buffers, aggregate types, callbacks, and
+automatic header parsing remain future work.
 
 ## Built-in Words
 

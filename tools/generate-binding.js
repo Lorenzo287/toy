@@ -20,6 +20,20 @@ const supportedTypes = new Set([
   'f64',
   'cstr',
 ]);
+const statusTypes = new Set([
+  'i8',
+  'u8',
+  'i16',
+  'u16',
+  'i32',
+  'u32',
+  'i64',
+  'isize',
+]);
+
+function isObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value);
+}
 
 function fail(message) {
   throw new Error(message);
@@ -43,16 +57,111 @@ function validateType(value, field, allowVoid) {
   if (value === 'void' && !allowVoid) fail(`${field} cannot be void`);
 }
 
+function validateCIdentifier(value, field) {
+  requireString(value, field);
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
+    fail(`${field} is not a C identifier`);
+  }
+}
+
+function validateResourceName(value, field) {
+  requireString(value, field);
+  if (!/^[A-Za-z_][A-Za-z0-9_-]*$/.test(value)) {
+    fail(`${field} is not a local resource name`);
+  }
+}
+
+function validateCPointerType(value, field) {
+  requireString(value, field);
+  const pointerType =
+    /^(?:(?:const|volatile)\s+)*(?:(?:struct|union)\s+)?[A-Za-z_][A-Za-z0-9_]*(?:\s*\*+)+$/;
+  if (!pointerType.test(value)) {
+    fail(`${field} must be a C pointer type`);
+  }
+}
+
+function resourceMap(manifest) {
+  return new Map((manifest.resources || []).map((resource, index) => [
+    resource.name,
+    {...resource, index},
+  ]));
+}
+
+function requireResource(resources, name, field) {
+  validateResourceName(name, field);
+  if (!resources.has(name)) fail(`${field} references unknown resource '${name}'`);
+}
+
+function validateStatusCode(value, type, field) {
+  if (!Number.isSafeInteger(value)) fail(`${field} must be a safe integer`);
+  const ranges = {
+    i8: [-128, 127],
+    u8: [0, 255],
+    i16: [-32768, 32767],
+    u16: [0, 65535],
+    i32: [-2147483648, 2147483647],
+    u32: [0, 4294967295],
+    isize: [-2147483648, 2147483647],
+  };
+  if (ranges[type] && (value < ranges[type][0] || value > ranges[type][1])) {
+    fail(`${field} is outside ${type}'s range`);
+  }
+}
+
+function validateReturn(value, field, resources) {
+  if (typeof value === 'string') {
+    validateType(value, field, true);
+    return;
+  }
+  if (!isObject(value)) fail(`${field} must be a type string or object`);
+
+  if (Object.prototype.hasOwnProperty.call(value, 'resource')) {
+    requireKeys(value, new Set(['resource']), field);
+    requireResource(resources, value.resource, `${field}.resource`);
+    return;
+  }
+
+  requireKeys(value, new Set(['status', 'success']), field);
+  validateType(value.status, `${field}.status`, false);
+  if (!statusTypes.has(value.status)) {
+    fail(`${field}.status must be a supported status integer type`);
+  }
+  if (!Array.isArray(value.success) || value.success.length === 0) {
+    fail(`${field}.success must be a non-empty array`);
+  }
+  const codes = new Set();
+  for (const [index, code] of value.success.entries()) {
+    validateStatusCode(code, value.status, `${field}.success[${index}]`);
+    if (codes.has(code)) fail(`${field}.success contains duplicate code ${code}`);
+    codes.add(code);
+  }
+}
+
+function validateArgument(value, field, resources) {
+  if (typeof value === 'string') {
+    validateType(value, field, false);
+    return;
+  }
+  if (!isObject(value)) fail(`${field} must be a type string or object`);
+  const hasResource = Object.prototype.hasOwnProperty.call(value, 'resource');
+  const hasOutResource = Object.prototype.hasOwnProperty.call(value, 'outResource');
+  if (hasResource === hasOutResource) {
+    fail(`${field} must contain exactly one of resource or outResource`);
+  }
+  const key = hasResource ? 'resource' : 'outResource';
+  requireKeys(value, new Set([key]), field);
+  requireResource(resources, value[key], `${field}.${key}`);
+}
+
 function validateManifest(manifest) {
-  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+  if (!isObject(manifest)) {
     fail('manifest must be a JSON object');
   }
   requireKeys(
     manifest,
-    new Set(['schemaVersion', 'module', 'headers', 'functions']),
+    new Set(['module', 'headers', 'resources', 'functions']),
     'manifest'
   );
-  if (manifest.schemaVersion !== 1) fail('schemaVersion must be 1');
 
   requireString(manifest.module, 'module');
   if (!/^[A-Za-z_][A-Za-z0-9_-]*(?:\.[A-Za-z_][A-Za-z0-9_-]*)*$/.test(manifest.module)) {
@@ -72,20 +181,35 @@ function validateManifest(manifest) {
     headers.add(header);
   }
 
+  if (manifest.resources !== undefined && !Array.isArray(manifest.resources)) {
+    fail('resources must be an array');
+  }
+  const resourceNames = new Set();
+  for (const [index, resource] of (manifest.resources || []).entries()) {
+    const field = `resources[${index}]`;
+    if (!isObject(resource)) fail(`${field} must be an object`);
+    requireKeys(resource, new Set(['name', 'cType', 'destructor']), field);
+    validateResourceName(resource.name, `${field}.name`);
+    if (resourceNames.has(resource.name)) {
+      fail(`duplicate resource '${resource.name}'`);
+    }
+    resourceNames.add(resource.name);
+    validateCPointerType(resource.cType, `${field}.cType`);
+    validateCIdentifier(resource.destructor, `${field}.destructor`);
+  }
+  const resources = resourceMap(manifest);
+
   if (!Array.isArray(manifest.functions) || manifest.functions.length === 0) {
     fail('functions must be a non-empty array');
   }
   const words = new Set();
   for (const [index, fn] of manifest.functions.entries()) {
     const field = `functions[${index}]`;
-    if (!fn || typeof fn !== 'object' || Array.isArray(fn)) {
+    if (!isObject(fn)) {
       fail(`${field} must be an object`);
     }
     requireKeys(fn, new Set(['name', 'word', 'returns', 'args']), field);
-    requireString(fn.name, `${field}.name`);
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(fn.name)) {
-      fail(`${field}.name is not a C identifier`);
-    }
+    validateCIdentifier(fn.name, `${field}.name`);
     if (fn.word !== undefined) requireString(fn.word, `${field}.word`);
     const word = fn.word || fn.name;
     if (!/^[A-Za-z_+*%<>=!?-][A-Za-z0-9_+*%<>=!?-]*$/.test(word)) {
@@ -94,11 +218,23 @@ function validateManifest(manifest) {
     if (words.has(word)) fail(`duplicate Toy word '${word}'`);
     words.add(word);
 
-    validateType(fn.returns, `${field}.returns`, true);
+    validateReturn(fn.returns, `${field}.returns`, resources);
     if (!Array.isArray(fn.args)) fail(`${field}.args must be an array`);
     if (fn.args.length > 32) fail(`${field}.args supports at most 32 arguments`);
-    for (const [argIndex, type] of fn.args.entries()) {
-      validateType(type, `${field}.args[${argIndex}]`, false);
+    let outputCount = 0;
+    for (const [argIndex, argument] of fn.args.entries()) {
+      validateArgument(argument, `${field}.args[${argIndex}]`, resources);
+      if (isObject(argument) && argument.outResource !== undefined) {
+        outputCount++;
+      }
+    }
+    if (outputCount > 1) {
+      fail(`${field}.args supports at most one output resource`);
+    }
+    if (outputCount > 0 &&
+        !(fn.returns === 'void' ||
+          (isObject(fn.returns) && fn.returns.status !== undefined))) {
+      fail(`${field} output resources require void or status returns`);
     }
   }
   return manifest;
@@ -144,6 +280,53 @@ function cDeclaration(type, name, argument = false) {
   return `${cType(type, argument)}${separator}${name}`;
 }
 
+function isResourceInput(argument) {
+  return isObject(argument) && argument.resource !== undefined;
+}
+
+function isOutputResource(argument) {
+  return isObject(argument) && argument.outResource !== undefined;
+}
+
+function isResourceReturn(value) {
+  return isObject(value) && value.resource !== undefined;
+}
+
+function isStatusReturn(value) {
+  return isObject(value) && value.status !== undefined;
+}
+
+function getResource(manifest, name) {
+  const resource = resourceMap(manifest).get(name);
+  if (!resource) fail(`internal error: unknown resource '${name}'`);
+  return resource;
+}
+
+function resourceTypeName(manifest, resource) {
+  return `${manifest.module}.${resource.name}`;
+}
+
+function resourceDeclaration(resource, name) {
+  return `${resource.cType} ${name}`;
+}
+
+function returnCType(manifest, value) {
+  if (typeof value === 'string') return cType(value);
+  if (isResourceReturn(value)) {
+    return getResource(manifest, value.resource).cType;
+  }
+  return cType(value.status);
+}
+
+function argumentDescription(manifest, argument) {
+  if (typeof argument === 'string') return argument;
+  const resource = getResource(
+    manifest,
+    argument.resource !== undefined ? argument.resource : argument.outResource
+  );
+  return resourceTypeName(manifest, resource);
+}
+
 function argumentMessage(moduleName, word, index, type) {
   return cString(`${moduleName}.${word} argument ${index + 1} expected ${type}`);
 }
@@ -157,8 +340,21 @@ function emitFailure(lines, condition, message) {
   );
 }
 
-function emitArgumentDeclarations(lines, type, index) {
+function emitArgumentDeclarations(lines, manifest, type, index) {
   const argument = `argument_${index}`;
+  if (isResourceInput(type)) {
+    const resource = getResource(manifest, type.resource);
+    lines.push(
+      `    void *raw_resource_${index} = NULL;`,
+      `    ${resourceDeclaration(resource, argument)} = NULL;`
+    );
+    return;
+  }
+  if (isOutputResource(type)) {
+    const resource = getResource(manifest, type.outResource);
+    lines.push(`    ${resourceDeclaration(resource, argument)} = NULL;`);
+    return;
+  }
   switch (type) {
     case 'bool':
     case 'i64':
@@ -182,10 +378,35 @@ function emitArgumentDeclarations(lines, type, index) {
   }
 }
 
-function emitArgumentConversion(lines, moduleName, word, type, index, depth) {
+function emitArgumentConversion(
+  lines,
+  manifest,
+  word,
+  type,
+  index,
+  visibleIndex,
+  depth
+) {
   const argument = `argument_${index}`;
   const raw = `raw_argument_${index}`;
-  const message = argumentMessage(moduleName, word, index, type);
+  const message = argumentMessage(
+    manifest.module,
+    word,
+    visibleIndex,
+    argumentDescription(manifest, type)
+  );
+  if (isResourceInput(type)) {
+    const resource = getResource(manifest, type.resource);
+    emitFailure(
+      lines,
+      `toy_get_resource(state, ${depth}, ` +
+        `${cString(resourceTypeName(manifest, resource))}, ` +
+        `&raw_resource_${index})`,
+      message
+    );
+    lines.push(`    ${argument} = raw_resource_${index};`);
+    return;
+  }
   switch (type) {
     case 'bool':
       emitFailure(lines, `toy_get_bool(state, ${depth}, &${argument})`, message);
@@ -285,7 +506,7 @@ function emitArgumentConversion(lines, moduleName, word, type, index, depth) {
       lines.push(
         `    ${argument} = malloc(string_length_${index} + 1);`,
         `    if (!${argument}) {`,
-        `        status = toy_fail(state, ${cString(`${moduleName}.${word} could not copy argument ${index + 1}`)});`,
+        `        status = toy_fail(state, ${cString(`${manifest.module}.${word} could not copy argument ${visibleIndex + 1}`)});`,
         '        goto cleanup;',
         '    }',
         `    memcpy(${argument}, string_data_${index}, string_length_${index});`,
@@ -297,14 +518,8 @@ function emitArgumentConversion(lines, moduleName, word, type, index, depth) {
   }
 }
 
-function emitReturn(lines, moduleName, word, type, call) {
+function emitScalarReturn(lines, moduleName, word, type) {
   const prefix = `${moduleName}.${word}`;
-  if (type === 'void') {
-    lines.push(`    ${call};`, '    status = TOY_OK;');
-    return;
-  }
-
-  lines.push(`    ${cDeclaration(type, 'result')} = ${call};`);
   switch (type) {
     case 'bool':
       lines.push('    status = toy_push_bool(state, result);');
@@ -337,8 +552,10 @@ function emitReturn(lines, moduleName, word, type, call) {
       lines.push(
         '    if (!result) {',
         `        status = toy_fail(state, ${cString(`${prefix} returned a null cstr`)});`,
+        '    } else if (!result_copy) {',
+        `        status = toy_fail(state, ${cString(`${prefix} could not copy its cstr result`)});`,
         '    } else {',
-        '        status = toy_push_string(state, result, strlen(result));',
+        '        status = toy_push_string(state, result_copy, result_length);',
         '    }'
       );
       break;
@@ -347,43 +564,143 @@ function emitReturn(lines, moduleName, word, type, call) {
   }
 }
 
+function emitResourcePush(lines, manifest, resource, value, prefix) {
+  lines.push(
+    `    if (!${value}) {`,
+    `        status = toy_fail(state, ${cString(`${prefix} returned a null ${resourceTypeName(manifest, resource)}`)});`,
+    '    } else {',
+    `        status = toy_push_resource(state, ` +
+      `${cString(resourceTypeName(manifest, resource))}, ${value}, ` +
+      `binding_destroy_resource_${resource.index}, NULL);`,
+    `        if (status == TOY_OK) ${value} = NULL;`,
+    '    }'
+  );
+}
+
+function statusCondition(value) {
+  return value.success
+    .map((code) => `result == (${cType(value.status)})${code}`)
+    .join(' || ');
+}
+
 function renderFunction(manifest, fn, index) {
   const word = fn.word || fn.name;
+  const prefix = `${manifest.module}.${word}`;
+  const visibleArgs = fn.args.filter((argument) => !isOutputResource(argument));
+  const outputEntry = fn.args
+    .map((argument, argIndex) => ({argument, argIndex}))
+    .find((entry) => isOutputResource(entry.argument));
+  const directResource = isResourceReturn(fn.returns)
+    ? getResource(manifest, fn.returns.resource)
+    : null;
   const lines = [
     `static toy_status binding_word_${index}(toy_state *state) {`,
     '    toy_status status = TOY_ERROR;',
   ];
 
   for (const [argIndex, type] of fn.args.entries()) {
-    emitArgumentDeclarations(lines, type, argIndex);
+    emitArgumentDeclarations(lines, manifest, type, argIndex);
     if (type === 'f32') lines.push(`    double raw_number_${argIndex} = 0.0;`);
   }
-  if (fn.args.length > 0) lines.push('');
+  if (fn.returns !== 'void') {
+    lines.push(`    ${returnCType(manifest, fn.returns)} result = 0;`);
+  }
+  if (fn.returns === 'cstr') {
+    lines.push(
+      '    char *result_copy = NULL;',
+      '    size_t result_length = 0;'
+    );
+  }
+  if (fn.args.length > 0 || fn.returns !== 'void') lines.push('');
 
+  let visibleIndex = 0;
   for (const [argIndex, type] of fn.args.entries()) {
+    if (isOutputResource(type)) continue;
     emitArgumentConversion(
       lines,
-      manifest.module,
+      manifest,
       word,
       type,
       argIndex,
-      fn.args.length - argIndex - 1
+      visibleIndex,
+      visibleArgs.length - visibleIndex - 1
+    );
+    visibleIndex++;
+  }
+  const callArguments = fn.args.map((argument, argIndex) =>
+    isOutputResource(argument) ? `&argument_${argIndex}` : `argument_${argIndex}`
+  );
+  const call = `${fn.name}(${callArguments.join(', ')})`;
+  if (fn.returns === 'void') lines.push(`    ${call};`);
+  else lines.push(`    result = ${call};`);
+
+  if (fn.returns === 'cstr') {
+    lines.push(
+      '    if (result) {',
+      '        result_length = strlen(result);',
+      '        result_copy = malloc(result_length + 1);',
+      '        if (result_copy) {',
+      '            memcpy(result_copy, result, result_length + 1);',
+      '        }',
+      '    }'
     );
   }
-  if (fn.args.length > 0) {
+
+  if (visibleArgs.length > 0) {
     lines.push(
-      '    if (!toy_pop(state, ' + fn.args.length + ')) {',
-      `        status = toy_fail(state, ${cString(`${manifest.module}.${word} failed to pop its inputs`)});`,
+      '    if (!toy_pop(state, ' + visibleArgs.length + ')) {',
+      `        status = toy_fail(state, ${cString(`${prefix} failed to pop its inputs`)});`,
       '        goto cleanup;',
       '    }'
     );
   }
 
-  const call = `${fn.name}(${fn.args.map((_, argIndex) => `argument_${argIndex}`).join(', ')})`;
-  emitReturn(lines, manifest.module, word, fn.returns, call);
+  if (isStatusReturn(fn.returns)) {
+    lines.push(
+      `    if (!(${statusCondition(fn.returns)})) {`,
+      `        status = binding_fail_status(state, ${cString(prefix)}, ` +
+        '(long long)result);',
+      '        goto cleanup;',
+      '    }'
+    );
+  }
+
+  if (directResource) {
+    emitResourcePush(lines, manifest, directResource, 'result', prefix);
+  } else if (outputEntry) {
+    const resource = getResource(manifest, outputEntry.argument.outResource);
+    emitResourcePush(
+      lines,
+      manifest,
+      resource,
+      `argument_${outputEntry.argIndex}`,
+      prefix
+    );
+  } else if (typeof fn.returns === 'string' && fn.returns !== 'void') {
+    emitScalarReturn(lines, manifest.module, word, fn.returns);
+  } else {
+    lines.push('    status = TOY_OK;');
+  }
   lines.push('    goto cleanup;', '', 'cleanup:');
   for (const [argIndex, type] of fn.args.entries()) {
     if (type === 'cstr') lines.push(`    free(argument_${argIndex});`);
+    if (isOutputResource(type)) {
+      const resource = getResource(manifest, type.outResource);
+      lines.push(
+        `    if (argument_${argIndex}) {`,
+        `        binding_destroy_resource_${resource.index}(` +
+          `argument_${argIndex}, NULL);`,
+        '    }'
+      );
+    }
+  }
+  if (fn.returns === 'cstr') lines.push('    free(result_copy);');
+  if (directResource) {
+    lines.push(
+      '    if (result) {',
+      `        binding_destroy_resource_${directResource.index}(result, NULL);`,
+      '    }'
+    );
   }
   lines.push('    return status;', '}', '');
   return lines;
@@ -392,6 +709,9 @@ function renderFunction(manifest, fn, index) {
 function renderBinding(manifest) {
   const needsNumberHelper = manifest.functions.some((fn) =>
     fn.args.some((type) => type === 'f32' || type === 'f64')
+  );
+  const needsStatusHelper = manifest.functions.some((fn) =>
+    isStatusReturn(fn.returns)
   );
   const lines = [
     `/* ${generatedComment} */`,
@@ -402,6 +722,7 @@ function renderBinding(manifest) {
     '#include <float.h>',
     '#include <math.h>',
     '#include <stdint.h>',
+    '#include <stdio.h>',
     '#include <stdlib.h>',
     '#include <string.h>',
     '',
@@ -423,6 +744,32 @@ function renderBinding(manifest) {
     );
   }
 
+  if (needsStatusHelper) {
+    lines.push(
+      'static toy_status binding_fail_status(toy_state *state,',
+      '                                      const char *word,',
+      '                                      long long value) {',
+      '    char message[256];',
+      '    snprintf(message, sizeof(message), "%s failed with status %lld",',
+      '             word, value);',
+      '    return toy_fail(state, message);',
+      '}',
+      ''
+    );
+  }
+
+  for (const [index, resource] of (manifest.resources || []).entries()) {
+    lines.push(
+      `static void binding_destroy_resource_${index}(void *resource,`,
+      '                                       void *userdata) {',
+      '    (void)userdata;',
+      `    ${resourceDeclaration(resource, 'value')} = resource;`,
+      `    (void)${resource.destructor}(value);`,
+      '}',
+      ''
+    );
+  }
+
   for (const [index, fn] of manifest.functions.entries()) {
     lines.push(...renderFunction(manifest, fn, index));
   }
@@ -435,16 +782,15 @@ function renderBinding(manifest) {
     '};',
     '',
     'static const toy_module_export binding_module = {',
-    '    TOY_MODULE_ABI_VERSION,',
     '    sizeof(toy_module_export),',
     `    ${cString(manifest.module)},`,
     '    binding_words,',
     '    sizeof(binding_words) / sizeof(binding_words[0]),',
     '};',
     '',
-    'TOY_MODULE_EXPORT const toy_module_export *toy_module_v1(',
-    '    const toy_module_api *api) {',
-    '    if (!toy_module_bind(api)) return NULL;',
+    'TOY_MODULE_EXPORT const toy_module_export *toy_module_init(',
+    '    uint32_t abi_version, const toy_module_api *api) {',
+    '    if (!toy_module_bind(abi_version, api)) return NULL;',
     '    return &binding_module;',
     '}',
     ''

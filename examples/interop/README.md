@@ -18,12 +18,12 @@ runtime dependency.
 
 Today, projects have three increasingly flexible choices:
 
-1. use `bindgen` for declared scalar and C-string functions;
+1. use `bindgen` for declared scalar and C-string functions or basic owned
+   opaque resources;
 2. use the optional `ffi` module for dynamic scalar and C-string calls;
-3. write a small C module when the library requires resources, ownership
-   policies, aggregates, callbacks, or other library-specific translation.
+3. write a small C module when the library requires buffers, aggregates,
+   callbacks, dependent resources, or other library-specific translation.
 
-The intended next step is to make the third choice smaller and more
-declarative, especially for typed opaque resources. SQLite is the concrete test
-case for that generator work; it is not a reason to add SQLite-specific logic
-to Toy.
+The generator should continue making the third choice smaller without adding
+library-specific logic to Toy. SQLite remains the concrete test for status
+mapping, hidden constant arguments, and length-aware borrowed buffers.
