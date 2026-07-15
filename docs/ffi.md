@@ -90,3 +90,8 @@ symbol actually has the declared C type. A wrong signature, invalid returned
 pointer, library bug, or hostile library can corrupt memory or terminate the
 process. Only load trusted libraries and verify signatures against their C
 headers.
+
+For known APIs that can be compiled ahead of time, the
+[binding generator](./bindgen.md) turns the same basic type vocabulary into a
+normal loadable module. That removes runtime symbol/signature setup and lets the
+C compiler see the library declarations.

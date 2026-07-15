@@ -67,6 +67,17 @@ $env:TOY_MODULE_PATH = (Resolve-Path .\build-ffi).Path
 See [Experimental Dynamic FFI](./ffi.md) for its explicit signature syntax,
 supported C types, platform examples, and safety limitations.
 
+Node.js can generate compiled scalar/string bindings without enabling libffi.
+The included standard-C example is built on demand:
+
+```powershell
+cmake --build build --target toy toy_bindgen_clib_example
+$env:TOY_MODULE_PATH = (Resolve-Path .\build).Path
+.\build\toy.exe examples\toy\generated_clib.toy
+```
+
+See [Generated C Bindings](./bindgen.md) for the JSON manifest and CMake helper.
+
 ### 2. LeakCheck
 
 Development build for tracking leaks.

@@ -300,8 +300,9 @@ a second Toy runtime. The optional Raylib module demonstrates both static and
 shared builds, a window and drawing loop controlled entirely by Toy, and owned
 texture resources. The optional experimental [`ffi` module](docs/ffi.md) can
 also resolve fixed scalar and string C signatures dynamically through libffi;
-raw pointers, aggregate types, callbacks, and header-driven generation remain
-future work.
+the [binding generator](docs/bindgen.md) can instead compile explicit manifests
+into loadable modules with ordinary Toy words. Raw pointers, aggregate types,
+callbacks, and automatic header parsing remain future work.
 
 ## Built-in Words
 

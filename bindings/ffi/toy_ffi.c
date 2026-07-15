@@ -567,7 +567,8 @@ static bool read_argument(toy_state *state, foreign_kind kind, size_t index,
             }
             break;
         case FOREIGN_USIZE:
-            if (toy_get_int(state, depth, &integer) && integer >= 0) {
+            if (toy_get_int(state, depth, &integer) && integer >= 0 &&
+                (uint64_t)integer <= UINTPTR_MAX) {
                 slot->usize = (uintptr_t)integer;
                 return true;
             }

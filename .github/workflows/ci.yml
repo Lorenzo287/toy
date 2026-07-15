@@ -53,6 +53,9 @@ jobs:
       - name: Check generated builtin metadata
         run: node tools/generate-builtins.js --check
 
+      - name: Test the binding generator
+        run: node tests/tools/test_generate_binding.js
+
       - name: Install Tree-sitter dependencies
         working-directory: tools/tree-sitter-toy
         run: |

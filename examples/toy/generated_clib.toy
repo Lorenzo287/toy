@@ -1,0 +1,4 @@
+"clib" 'c require-as
+
+"Toy speaks generated C" c.strlen print
+"alpha" "beta" c.strcmp 0 < print

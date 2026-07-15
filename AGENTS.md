@@ -60,6 +60,8 @@ navigation and development rules.
   `src/toy_module.c`; platform loading: `src/tf_native_loader.c`.
 - Experimental libffi module: `bindings/ffi/toy_ffi.c`; signature and safety
   contract: `docs/ffi.md`.
+- Explicit-manifest binding generator: `tools/generate-binding.js`; CMake
+  helper: `cmake/ToyBinding.cmake`; contract: `docs/bindgen.md`.
 - Raylib binding adapter and registration entry point:
   `bindings/raylib/toy_raylib.h`, `bindings/raylib/toy_raylib.c`.
 - Execution engine: `include/tf_exec.h`, `src/tf_exec.c`.

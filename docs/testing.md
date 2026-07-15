@@ -27,6 +27,7 @@ Use CTest labels to select a class of case:
 ctest --test-dir build -C Release -L positive --output-on-failure
 ctest --test-dir build -C Release -L negative --output-on-failure
 ctest --test-dir build -C Release -L output --output-on-failure
+ctest --test-dir build -C Release -L binding-generator --output-on-failure
 ```
 
 ## File Conventions

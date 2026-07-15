@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "module": "test.bindgen",
+  "headers": ["test_bindgen_fixture.h"],
+  "functions": [
+    {
+      "name": "test_bindgen_add_i32",
+      "word": "add",
+      "returns": "i32",
+      "args": ["i32", "i32"]
+    },
+    {
+      "name": "test_bindgen_negative_i8",
+      "word": "negative-i8",
+      "returns": "i8",
+      "args": []
+    },
+    {
+      "name": "test_bindgen_scale_f64",
+      "word": "scale",
+      "returns": "f64",
+      "args": ["f64", "i32"]
+    },
+    {
+      "name": "test_bindgen_text_length",
+      "word": "text-length",
+      "returns": "usize",
+      "args": ["cstr"]
+    },
+    {
+      "name": "test_bindgen_greeting",
+      "word": "greeting",
+      "returns": "cstr",
+      "args": []
+    },
+    {
+      "name": "test_bindgen_not",
+      "word": "not",
+      "returns": "bool",
+      "args": ["bool"]
+    },
+    {
+      "name": "test_bindgen_ignore_i32",
+      "word": "ignore",
+      "returns": "void",
+      "args": ["i32"]
+    },
+    {
+      "name": "test_bindgen_too_large",
+      "word": "too-large",
+      "returns": "u64",
+      "args": []
+    }
+  ]
+}

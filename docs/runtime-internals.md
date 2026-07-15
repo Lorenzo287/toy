@@ -87,6 +87,12 @@ interfaces as typed resources. A prepared function retains its library; Toy
 resource teardown releases the call metadata and closes the foreign library
 before the native `ffi` module itself is unloaded.
 
+Generated bindings take the other route through the same module boundary.
+`tools/generate-binding.js` emits ordinary native callbacks that perform
+range-checked stack conversion and direct C calls. The resulting module links
+`toy_module_support`, so generated code still shares the host VM without
+linking another runtime.
+
 ## Debugger Hooks
 
 The VM can install a frontend-neutral debug hook on a context. Before each Toy

@@ -58,7 +58,9 @@ context-owned library handles. The API is not stable yet. A small optional
 Raylib module exercises both static and shared registration with a Toy-owned
 window, drawing loop, and automatically unloaded texture resources. An optional
 libffi module now experiments with dynamically resolved, explicit signatures
-for booleans, integers, floats, and copied C strings.
+for booleans, integers, floats, and copied C strings. An explicit-manifest
+generator can compile that same safe subset into ordinary loadable module words;
+automatic header parsing is not implemented yet.
 
 Current follow-up candidates are:
 
@@ -66,10 +68,10 @@ Current follow-up candidates are:
    them, preserving explicit type and lifetime rules;
 2. exercise shared-module discovery and packaging with another real library
    before stabilizing installation or search-path rules;
-3. exercise the libffi prototype against real libraries and settle reusable
-   function/library ownership plus error behavior;
-4. consider header-driven binding generation before exposing foreign pointers,
-   output parameters, structs, variadic functions,
+3. exercise dynamic and generated bindings against real libraries and settle
+   reusable library/package configuration;
+4. add a libclang frontend for the explicit generator manifest before exposing
+   foreign pointers, output parameters, structs, variadic functions,
    and callbacks only after the basic ownership and VM-boundary rules are
    settled.
 

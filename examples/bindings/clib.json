@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "module": "clib",
+  "headers": ["string.h"],
+  "functions": [
+    {
+      "name": "strlen",
+      "returns": "usize",
+      "args": ["cstr"]
+    },
+    {
+      "name": "strcmp",
+      "returns": "i32",
+      "args": ["cstr", "cstr"]
+    }
+  ]
+}

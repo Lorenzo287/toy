@@ -53,6 +53,16 @@ set_target_properties(toy_module_support PROPERTIES
     POSITION_INDEPENDENT_CODE ON
     C_VISIBILITY_PRESET hidden)
 
+include(cmake/ToyBinding.cmake)
+
+if(TOY_BINDING_NODE)
+    toy_add_generated_binding(
+        toy_bindgen_clib_example
+        examples/bindings/clib.json
+        toy_clib
+        EXCLUDE_FROM_ALL)
+endif()
+
 add_executable(toy ${TOY_CLI_SOURCES})
 target_include_directories(toy PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(toy PRIVATE toy_runtime)
@@ -318,6 +328,56 @@ if(BUILD_TESTING)
         TIMEOUT "${TOY_TEST_TIMEOUT}"
     )
 
+    if(TOY_BINDING_NODE)
+        add_test(NAME test_binding_generator_js
+                 COMMAND "${TOY_BINDING_NODE}"
+                         "${PROJECT_SOURCE_DIR}/tests/tools/test_generate_binding.js")
+        set_tests_properties(test_binding_generator_js PROPERTIES
+            LABELS "binding-generator;positive"
+            TIMEOUT "${TOY_TEST_TIMEOUT}"
+        )
+
+        add_library(test_bindgen_fixture SHARED
+                    tests/c/test_bindgen_fixture.c)
+        target_compile_definitions(test_bindgen_fixture PRIVATE
+                                   TEST_BINDGEN_FIXTURE_BUILD)
+        target_include_directories(test_bindgen_fixture PUBLIC
+                                   ${PROJECT_SOURCE_DIR}/tests/c)
+        set_target_properties(test_bindgen_fixture PROPERTIES
+            PREFIX ""
+            OUTPUT_NAME "toy_bindgen_fixture")
+
+        toy_add_generated_binding(
+            test_generated_binding
+            tests/bindings/test_bindgen.json
+            "toy_test.bindgen"
+            EXCLUDE_FROM_ALL)
+        target_include_directories(test_generated_binding PRIVATE
+                                   ${PROJECT_SOURCE_DIR}/tests/c)
+        target_link_libraries(test_generated_binding PRIVATE
+                              test_bindgen_fixture)
+
+        add_executable(test_bindgen_module tests/c/test_bindgen_module.c)
+        target_link_libraries(test_bindgen_module PRIVATE toy_runtime)
+        add_dependencies(test_bindgen_module test_generated_binding)
+        if(MSVC)
+            target_compile_options(test_bindgen_fixture PRIVATE /W3)
+            target_compile_options(test_bindgen_module PRIVATE /W3)
+        else()
+            target_compile_options(test_bindgen_fixture PRIVATE
+                                   -Wall -Wextra -Wpedantic)
+            target_compile_options(test_bindgen_module PRIVATE
+                                   -Wall -Wextra -Wpedantic)
+        endif()
+        add_test(NAME test_bindgen_module
+                 COMMAND test_bindgen_module
+                         "$<TARGET_FILE_DIR:test_generated_binding>")
+        set_tests_properties(test_bindgen_module PROPERTIES
+            LABELS "binding-generator;c-api;native-module;positive"
+            TIMEOUT "${TOY_TEST_TIMEOUT}"
+        )
+    endif()
+
     if(TARGET toy_ffi_module)
         add_library(test_ffi_fixture SHARED tests/c/test_ffi_fixture.c)
         set_target_properties(test_ffi_fixture PROPERTIES
@@ -379,6 +439,12 @@ endif()
 
 set(TOY_WARNING_TARGETS toy_runtime toy_module_support toy toy_embed_example
                         toy_embed_callbacks_example)
+if(TARGET toy_bindgen_clib_example)
+    list(APPEND TOY_WARNING_TARGETS toy_bindgen_clib_example)
+endif()
+if(TARGET test_generated_binding)
+    list(APPEND TOY_WARNING_TARGETS test_generated_binding)
+endif()
 if(TARGET toy_ffi_module)
     list(APPEND TOY_WARNING_TARGETS toy_ffi_module)
 endif()
@@ -432,6 +498,12 @@ elseif(BUILD_MODE STREQUAL "LeakCheck")
         if(TARGET test_ffi_module)
             target_compile_definitions(test_ffi_module PRIVATE STB_LEAKCHECK)
             target_include_directories(test_ffi_module PRIVATE
+                                       ${PROJECT_SOURCE_DIR}/deps)
+        endif()
+        if(TARGET test_bindgen_module)
+            target_compile_definitions(test_bindgen_module PRIVATE
+                                       STB_LEAKCHECK)
+            target_include_directories(test_bindgen_module PRIVATE
                                        ${PROJECT_SOURCE_DIR}/deps)
         endif()
         if(TARGET test_debug_control)
