@@ -155,7 +155,7 @@ foreach ($Path in $TsQueryPaths) {
 $LspPathEscaped = (Join-Path $InstallDir "toy-lsp.exe").Replace('\', '\\')
 $DapPathEscaped = (Join-Path $InstallDir "toy-dap.exe").Replace('\', '\\')
 $TsPathEscaped = (Join-Path $InstallDir "tree-sitter-toy").Replace('\', '/')
-$ToyRuntimePath = Join-Path $RepoRoot "build\toy.exe"
+$ToyRuntimePath = Join-Path $RepoRoot "build\clang\release\toy.exe"
 $ToyRuntimePathEscaped = $ToyRuntimePath.Replace('\', '\\')
 if (-not (Test-Path -LiteralPath $ToyRuntimePath)) {
     Write-Host "Warning: Build Toy before using DAP: $ToyRuntimePath" -ForegroundColor Yellow

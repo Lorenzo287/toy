@@ -27,7 +27,7 @@ and asynchronous pause are not currently advertised.
 Build the Toy runtime first:
 
 ```powershell
-cmake --build build
+.\nob.exe build
 ```
 
 Then build the adapter from `tools/toy-lsp`:
@@ -59,7 +59,7 @@ dap.configurations.toy = {
         name = "Debug current Toy file",
         program = "${file}",
         cwd = "${workspaceFolder}",
-        runtimeExecutable = "C:/path/to/toy/build/toy.exe",
+        runtimeExecutable = "C:/path/to/toy/build/clang/release/toy.exe",
         stopOnEntry = true,
         args = {},
     },

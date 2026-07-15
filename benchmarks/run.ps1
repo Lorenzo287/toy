@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Toy = (Join-Path $PSScriptRoot "..\build\toy.exe"),
+    [string]$Toy = (Join-Path $PSScriptRoot "..\build\clang\release\toy.exe"),
     [ValidateRange(1, 1000)]
     [int]$Runs = 5,
     [string[]]$Benchmark

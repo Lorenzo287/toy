@@ -35,20 +35,21 @@ discovered it yet. Toy's REPL also uses antirez's
 
 ## Getting Started
 
-Build Toy with CMake, then start the REPL or run a source file:
+Bootstrap the self-contained build, then start the REPL or run a source file:
 
 ```powershell
-cmake -S . -B build
-cmake --build build
+clang -std=c11 -O3 nob.c -o nob.exe
+.\nob.exe build
 
-.\build\toy.exe # REPL
-.\build\toy.exe program.toy
-.\build\toy.exe --eval "1 2 + print"
-.\build\toy.exe --tdb # Debugger
+.\nob.exe run # REPL
+.\nob.exe run program.toy
+.\nob.exe run --eval "1 2 + print"
+.\nob.exe run --tdb # Debugger
 ```
 
 See the [build instructions](./docs/build.md) to have more control over
-the build mode, the [REPL guide](./docs/repl.md) for interactive use,
+the compiler, build mode, examples, and external modules, the
+[REPL guide](./docs/repl.md) for interactive use,
 and the [examples](./examples/) for complete programs. Release
 binaries are also available from the
 [releases page](https://github.com/Lorenzo287/toy/releases).

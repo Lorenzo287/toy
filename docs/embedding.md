@@ -21,26 +21,20 @@ structured input, traverses a returned map, and calls a retained Toy quotation.
 Build and run the examples from the repository root:
 
 ```powershell
-cmake --build build --target toy_embed_example
-.\build\toy_embed_example.exe
-
-cmake --build build --target toy_embed_callbacks_example
-.\build\toy_embed_callbacks_example.exe
-
-cmake --build build --target toy_embed_values_example
-.\build\toy_embed_values_example.exe
+.\nob.exe examples
+.\build\clang\release\toy_embed_example.exe
+.\build\clang\release\toy_embed_callbacks_example.exe
+.\build\clang\release\toy_embed_values_example.exe
 ```
 
-When Toy is included as a CMake subproject, link the host against
-`toy::runtime`:
+The command builds `toy_runtime` and links each host against it. A separate C
+project can use `include/toy.h` and link the archive from the matching
+`build/<compiler>/<mode>/` directory. Use the same compiler ABI, and add the
+platform libraries used by the runtime (`user32` on Windows; `m` and, outside
+macOS, `dl` on Unix).
 
-```cmake
-add_subdirectory(path/to/toy)
-target_link_libraries(my_host PRIVATE toy::runtime)
-```
-
-Pass `-DBUILD_TESTING=OFF` when the host does not need Toy's test targets.
-There are no installation or package-discovery rules yet.
+Nob's `compile_commands.json` records the concrete commands used by the bundled
+hosts and is a useful reference for another build system.
 
 ## Output and Diagnostics
 
@@ -182,18 +176,19 @@ TOY_MODULE_EXPORT const toy_module_export *toy_module_v1(
 }
 ```
 
-Link the module-support target, not `toy::runtime`. It supplies local forwarding
+Link the module-support archive, not `toy_runtime`. It supplies local forwarding
 functions for the familiar stack, retained-value, resource, error, and
 interruption API:
 
-```cmake
-add_library(toy_sample MODULE sample.c)
-target_link_libraries(toy_sample PRIVATE toy::module_support)
-set_target_properties(toy_sample PROPERTIES
-    PREFIX ""
-    OUTPUT_NAME "toy_sample"
-    C_VISIBILITY_PRESET hidden)
+```powershell
+.\nob.exe module sample sample.c
+$env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
+.\nob.exe run --eval '"sample" require 21 sample.twice print'
 ```
+
+Select the same `--cc` and `--mode` options for both commands when using a
+non-default configuration. Use repeatable `--include`, `--lib-dir`, and `--lib`
+options for additional native dependencies.
 
 `require` first looks for the ordinary source module. If none exists, module
 `sample` maps to `toy_sample` plus the platform's shared-module suffix (for
@@ -315,14 +310,15 @@ than reconstructable source.
 ## Raylib Proof
 
 The optional `bindings/raylib/` adapter is the first real native module built on
-this API. It builds both the static `toy::raylib` adapter and the loadable
-`toy_raylib` module. Its dedicated host registers the static form, while the
+this API. `nob raylib` builds both a statically registered host and the loadable
+`toy_raylib` module. The dedicated host registers the static form, while the
 normal CLI discovers the shared form through `require`. In both cases the
 window loop, close predicate, frame boundaries, and drawing calls are ordinary
 Toy code.
 
-Configure with `-DTOY_BUILD_RAYLIB=ON` after installing Raylib, then build and
-run `toy_raylib_example`. The module currently provides:
+After installing Raylib, build it with `nob raylib` and any required
+`--include`/`--lib-dir` options; see [Build Instructions](./build.md#raylib).
+The module currently provides:
 
 - window lifecycle: `init-window`, `close-window`,
   `window-should-close?`, and `set-target-fps`;

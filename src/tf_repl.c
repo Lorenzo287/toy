@@ -768,7 +768,7 @@ static tf_ret run_source(tf_ctx *ctx, const char *filename, const char *source,
     }
 
     if (show_parsed) {
-        printf("\n=== Stack content after execution ===\n");
+        printf("\n=== Stack after execution ===\n");
         size_t count = 0;
         tf_obj_print(ctx->data_stack, &count);
         printf("\n");

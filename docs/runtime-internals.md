@@ -254,12 +254,11 @@ reuse an invariant surrounding-stack snapshot across iterations.
 Use the benchmark suite rather than isolated impressions:
 
 ```powershell
-cmake -S . -B build-alloc -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DBUILD_MODE=AllocationStats
-cmake --build build-alloc
-.\benchmarks\run.ps1 -Toy .\build-alloc\toy.exe
+.\nob.exe --mode alloc build
+.\benchmarks\run.ps1 -Toy .\build\clang\alloc\toy.exe
 ```
 
-`BUILD_MODE=AllocationStats` reports checked allocation calls and cumulative
+The `alloc` mode reports checked allocation calls and cumulative
 requested bytes. These totals compare identical workloads; they are not live or
 peak memory. Timing and allocation workloads live in `benchmarks/`, including
 `runtime-internals.toy` for continuations, captures, predicate snapshots, and

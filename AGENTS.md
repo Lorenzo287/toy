@@ -43,9 +43,11 @@ navigation and development rules.
 - `tools/toy-lsp/internal/formatter/`: shared formatter used by the CLI
   and LSP formatting method.
 - `tools/vscode-toy/`: VS Code extension and generated grammar metadata.
-- `cmake/RunToyCase.cmake`: isolated CTest process runner for Toy cases.
 - `.github/workflows/`: CI and release automation.
-- `deps/`: vendored `linenoise` and `stb_leakcheck`.
+- `nob.c`: self-contained build entry point for the runtime, CLI, examples,
+  modules, and tests; `tools/nob/build.h` contains compiler and build helpers,
+  while `tools/nob/tests.h` contains the isolated test harness.
+- `deps/`: vendored `linenoise`, `stb_leakcheck`, and `nob`.
 
 ## Fast Context
 
@@ -60,8 +62,8 @@ navigation and development rules.
   `src/toy_module.c`; platform loading: `src/tf_native_loader.c`.
 - Experimental libffi module: `bindings/ffi/toy_ffi.c`; signature and safety
   contract: `docs/ffi.md`.
-- Explicit-manifest binding generator: `tools/generate-binding.js`; CMake
-  helper: `cmake/ToyBinding.cmake`; contract: `docs/bindgen.md`.
+- Explicit-manifest binding generator: `tools/generate-binding.js`; Nob
+  integration: `nob bindgen`; contract: `docs/bindgen.md`.
 - Raylib binding adapter and registration entry point:
   `bindings/raylib/toy_raylib.h`, `bindings/raylib/toy_raylib.c`.
 - Execution engine: `include/tf_exec.h`, `src/tf_exec.c`.
@@ -87,9 +89,9 @@ navigation and development rules.
   data-structure work, read `docs/data-model.md` too.
 - For native word changes, update `builtins.json`, declarations, and focused
   `tests/toy/` cases, then regenerate and commit all generated metadata.
-- Build with `cmake --build build`; run relevant scripts and
-  `ctest --test-dir build -C Release --output-on-failure`. Use `build-leak` for
-  ownership, stack-effect, or execution-flow changes.
+- Bootstrap the build with `clang -std=c11 nob.c -o nob.exe`; use
+  `.\nob.exe build` and run `.\nob.exe test` for the complete suite. Use
+  `--mode leak` for ownership, stack-effect, or execution-flow changes.
 
 ## Development Rules
 

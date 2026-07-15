@@ -110,7 +110,7 @@ done
 LSP_PATH="${INSTALL_DIR}/toy-lsp"
 DAP_PATH="${INSTALL_DIR}/toy-dap"
 TS_PATH="${INSTALL_DIR}/tree-sitter-toy"
-TOY_RUNTIME_PATH="${REPO_ROOT}/build/toy"
+TOY_RUNTIME_PATH="${REPO_ROOT}/build/gcc/release/toy"
 if [ ! -x "${TOY_RUNTIME_PATH}" ]; then
     echo -e "\033[0;33mWarning: Build Toy before using DAP: ${TOY_RUNTIME_PATH}\033[0m"
 fi

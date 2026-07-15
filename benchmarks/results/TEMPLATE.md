@@ -4,7 +4,7 @@
 - Commit:
 - OS / CPU:
 - Compiler / version:
-- CMake configuration:
+- Build configuration:
 - Command:
 - Change under test:
 

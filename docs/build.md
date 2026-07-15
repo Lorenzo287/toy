@@ -1,124 +1,185 @@
 # Build Instructions for Toy
 
-## Build Profiles
+Toy uses a self-contained [Nob](https://github.com/tsoding/nob.h) build. The
+repository vendors `deps/nob/nob.h`; only a C compiler is needed to bootstrap
+the build program.
 
-Builds are configured using default cmake profiles `-DCMAKE_BUILD_TYPE=<Profile>`
-and with custom build modes `-DBUILD_MODE=<Mode>`.
-
-You can use the "Unix Makefiles" Generator (defaults to MinGW on Windows) if you don't have "Ninja" installed.
-
-It's possible to override the default compiler using `-DCMAKE_C_COMPILER=<Compiler>`.
-
-### 1. Release (Optimized)
-
-Optimized build for production usage (works on Windows/Linux).
+On Windows:
 
 ```powershell
-cmake -S . -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-cmake --build build
+clang -std=c11 nob.c -o nob.exe
 ```
 
-The build produces the `toy` CLI and a static `toy_runtime` library. CMake
-hosts can link the `toy::runtime` alias and use the experimental API in
-`include/toy.h`; see [Embedding Toy in C](./embedding.md).
-
-The structured-value embedding example constructs vectors and maps in C,
-passes them through Toy, traverses the result, and invokes a retained quotation:
+On Linux or macOS:
 
 ```powershell
-cmake --build build --target toy_embed_values_example
-.\build\toy_embed_values_example.exe
+cc -std=c11 nob.c -o nob
 ```
 
-The optional Raylib binding is disabled by default. With either a Raylib CMake
-package or an installation prefix containing `include/raylib.h` and its
-library, build the normal CLI and loadable module with:
+After bootstrapping, Nob rebuilds itself whenever its source or included build
+headers change.
+
+## Everyday Commands
 
 ```powershell
-cmake -S . -B build-raylib -DTOY_BUILD_RAYLIB=ON
-cmake --build build-raylib --target toy toy_raylib_module
-$env:TOY_MODULE_PATH = (Resolve-Path .\build-raylib).Path
-.\build-raylib\toy.exe examples\toy\raylib_shapes.toy
+.\nob.exe build
+.\nob.exe test
+.\nob.exe test --filter modules
+.\nob.exe examples
+.\nob.exe run examples\toy\factorial.toy
+.\nob.exe clean
 ```
 
-The texture demo accepts an image path through the normal Toy command line,
-loads it as an opaque Raylib resource, retains it through the drawing loop, and
-drops it before closing the window:
+For `run`, put compiler and mode options before the command. Every argument
+after `run` is forwarded directly to Toy, so no separator is needed:
 
 ```powershell
-.\build-raylib\toy.exe examples\toy\raylib_texture.toy path\to\image.png
+.\nob.exe --mode debug run --tdb program.toy
 ```
 
-`toy_raylib_example` remains available as a static embedding example. Its host
-registers the same adapter directly instead of discovering the shared module:
+`build` produces the Toy CLI, the `toy_runtime` static archive used by C hosts,
+and the `toy_module_support` archive used by loadable native modules. Products
+are kept under `build/<compiler>/<mode>/`; loadable modules go in its
+`modules` directory. The build also writes `compile_commands.json` for editor
+tooling.
+
+The complete `test` command runs isolated positive, negative, and golden-output
+Toy cases, the debugger transport test, C embedding/debugger tests, native
+loader tests, the Raylib adapter test, and both generator tests.
+
+## Compilers and Modes
+
+Select a compiler and mode with:
 
 ```powershell
-cmake --build build-raylib --target toy_raylib_example
-.\build-raylib\toy_raylib_example.exe
+.\nob.exe --cc gcc --mode debug build
 ```
 
-Set `CMAKE_PREFIX_PATH` to that prefix, or use a package-manager toolchain, when
-CMake cannot find Raylib. The compiler must be compatible with the installed
-Raylib binary. This option adds `toy::raylib`; it never downloads the
-dependency. See [Embedding Toy in C](./embedding.md#shared-native-modules) for
-the shared-module filename and ABI contract.
+Supported compilers are `clang`, `gcc`, `msvc`, and `clang-cl`. On Windows,
+`msvc` requires a Visual Studio Developer PowerShell. Supported modes are:
 
-The experimental dynamic FFI module is also optional and requires libffi:
+- `release`: optimized build;
+- `debug`: unoptimized build with debug information;
+- `alloc`: optimized build with allocation counters;
+- `leak`: leak instrumentation (`stb_leakcheck` on Windows, LeakSanitizer on
+  supported Unix compilers);
+- `profile`: optimized build with symbols and frame pointers.
+
+Independent C compilations run in parallel. Use `-j` or `--jobs` to change the
+default worker count.
+
+Examples:
 
 ```powershell
-cmake -S . -B build-ffi -DTOY_BUILD_FFI=ON
-cmake --build build-ffi --target toy toy_ffi_module
-$env:TOY_MODULE_PATH = (Resolve-Path .\build-ffi).Path
-.\build-ffi\toy.exe examples\toy\ffi_strlen.toy msvcrt.dll
+.\nob.exe --mode alloc build
+.\build\clang\alloc\toy.exe benchmarks\dispatch.toy
+
+.\nob.exe --cc clang --mode profile build
+samply record .\build\clang\profile\toy.exe benchmarks\runtime-internals.toy
 ```
 
-See [Experimental Dynamic FFI](./ffi.md) for its explicit signature syntax,
-supported C types, platform examples, and safety limitations.
+Profiling with MinGW GCC on Windows is not supported.
 
-Node.js can generate compiled scalar/string bindings without enabling libffi.
-The included standard-C example is built on demand:
+## C Embedding Examples
+
+Build all three C hosts with:
 
 ```powershell
-cmake --build build --target toy toy_bindgen_clib_example
-$env:TOY_MODULE_PATH = (Resolve-Path .\build).Path
-.\build\toy.exe examples\toy\generated_clib.toy
+.\nob.exe examples
+.\build\clang\release\toy_embed_example.exe
+.\build\clang\release\toy_embed_callbacks_example.exe
+.\build\clang\release\toy_embed_values_example.exe
 ```
 
-See [Generated C Bindings](./bindgen.md) for the JSON manifest and CMake helper.
+Use the directory matching the selected compiler and mode. The examples link
+the same `toy_runtime` archive produced by `build`.
 
-### 2. LeakCheck
+## Native Modules and External Libraries
 
-Development build for tracking leaks.
-
-- **Windows (MSVC/MinGW)**: Defines `STB_LEAKCHECK` (ensure `stb_leakcheck_dumpmem()` is called in main).
-- **Linux/WSL**: Uses AddressSanitizer.
+A dependency-free shared module needs only its logical module name and C file:
 
 ```powershell
-cmake -S . -B build-leak -G "Unix Makefiles" -DBUILD_MODE=LeakCheck
-cmake --build build-leak
+.\nob.exe module sample sample.c
 ```
 
-### 3. Allocation statistics
+For external dependencies, repeat these options as needed:
 
-This mode counts checked allocation calls and cumulative requested bytes. It is
-intended for comparing identical workloads before and after an allocation
-change; requested bytes are not a live-memory or peak-memory measurement.
-
-```powershell
-cmake -S . -B build-alloc -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DBUILD_MODE=AllocationStats
-cmake --build build-alloc
-.\build-alloc\toy.exe benchmarks\dispatch.toy
+```text
+--include <directory>
+--lib-dir <directory>
+--lib <name-or-path>
 ```
 
-### 4. Profiling
-
-Development build for profiling symbols (uses `-O2`).
-
-_Note: On Windows use MSVC or Clang, MinGW is not supported for this mode._
+They work with handwritten and generated modules. For example:
 
 ```powershell
-cmake -S . -B build-prof -G "Ninja" -DBUILD_MODE=Profile -DCMAKE_C_COMPILER=clang
-cmake --build build-prof
-cd build-prof
-samply record toy.exe ../benchmarks/runtime-internals.toy
+.\nob.exe module image image.c `
+    --include C:\deps\image\include `
+    --lib-dir C:\deps\image\lib `
+    --lib image
+```
+
+Names are translated to the compiler's normal library syntax; an absolute or
+relative library file may be passed directly. Toy never downloads external
+dependencies, and the selected compiler must be ABI-compatible with them.
+
+## Generated Bindings
+
+The `bindgen` command runs the Node.js generator and compiles its result as a
+loadable module:
+
+```powershell
+.\nob.exe bindgen clib examples\bindings\clib.json
+$env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
+.\nob.exe run examples\toy\generated_clib.toy
+```
+
+Pass the external include and library options when the manifest refers to a
+third-party C library. See [Generated C Bindings](./bindgen.md) for the manifest
+contract.
+
+## Raylib
+
+After installing Raylib, provide its installation directories if they are not
+already on the compiler's default search path:
+
+```powershell
+.\nob.exe raylib `
+    --include C:\raylib\include `
+    --lib-dir C:\raylib\lib
+$env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
+.\nob.exe run examples\toy\raylib_shapes.toy
+```
+
+`raylib` is the default library name. Use `--lib <name-or-path>` when the
+installed library uses another name. On Windows the required system libraries
+are added automatically. The command builds both
+the loadable `toy_raylib` module and the statically registered
+`toy_raylib_example` C host.
+
+The texture demo accepts an image path:
+
+```powershell
+.\nob.exe run examples\toy\raylib_texture.toy path\to\image.png
+```
+
+## libffi
+
+The optional dynamic FFI module is built similarly:
+
+```powershell
+.\nob.exe ffi `
+    --include C:\libffi\include `
+    --lib-dir C:\libffi\lib
+$env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
+```
+
+The default library name is `ffi`; use `--lib libffi` or a direct library path
+when necessary. See [Experimental Dynamic FFI](./ffi.md) for the runtime
+contract and safety limitations.
+
+Run the optional integration test with the same dependency options:
+
+```powershell
+.\nob.exe ffi-test --include C:\libffi\include --lib-dir C:\libffi\lib
 ```

@@ -1,24 +1,10 @@
 # Build directories
 build/
-build-alloc/
-build-prof/
-build-leak/
-build-linux/
-build-msvc/
-build-raylib/
-build-ffi/
 bin/
 obj/
 
-# CMake artifacts
-CMakeCache.txt
-CMakeFiles/
-CMakeLists.txt.user
-cmake_install.cmake
-install_manifest.txt
+# Generated build metadata
 compile_commands.json
-CTestTestfile.cmake
-_deps/
 
 # Binaries and object files
 *.o
@@ -27,6 +13,7 @@ _deps/
 *.so
 *.dylib
 *.exe
+*.exe.old
 *.out
 toy.out
 toy_forth

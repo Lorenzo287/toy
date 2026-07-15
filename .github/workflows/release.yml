@@ -17,47 +17,38 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
         include:
           - os: ubuntu-latest
-            artifact_name: toy
             asset_name: toy-linux.tar.gz
+            nob_bootstrap: cc -std=c11 nob.c -o nob
+            nob_test: ./nob test
           - os: windows-latest
-            artifact_name: toy.exe
             asset_name: toy-windows.zip
+            nob_bootstrap: clang -std=c11 nob.c -o nob.exe
+            nob_test: .\nob.exe test
           - os: macos-latest
-            artifact_name: toy
             asset_name: toy-macos.tar.gz
+            nob_bootstrap: cc -std=c11 nob.c -o nob
+            nob_test: ./nob test
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Configure CMake (single-config)
-        if: runner.os != 'Windows'
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
-
-      - name: Configure CMake (multi-config)
-        if: runner.os == 'Windows'
-        run: cmake -S . -B build -DBUILD_TESTING=ON
-
-      - name: Build
-        run: cmake --build build --config Release
+      - name: Bootstrap Nob
+        run: ${{ matrix.nob_bootstrap }}
 
       - name: Test
-        run: ctest --test-dir build -C Release --output-on-failure
+        run: ${{ matrix.nob_test }}
 
       - name: Check generated builtin metadata
         run: node tools/generate-builtins.js --check
 
       - name: Package (Unix)
         if: runner.os != 'Windows'
-        run: |
-          cd build
-          tar -czf ../${{ matrix.asset_name }} ${{ matrix.artifact_name }}
+        run: tar -czf ${{ matrix.asset_name }} -C build/gcc/release toy
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
-        run: |
-          cd build/Release
-          compress-archive -Path ${{ matrix.artifact_name }} -DestinationPath ../../${{ matrix.asset_name }}
+        run: Compress-Archive -Path build/clang/release/toy.exe -DestinationPath ${{ matrix.asset_name }}
 
       - name: Release
         uses: softprops/action-gh-release@v2

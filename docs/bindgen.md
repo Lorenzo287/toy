@@ -64,27 +64,27 @@ node tools\generate-binding.js bindings\clib.json build\generated\clib.c
 `--check` compares an existing output with the manifest without rewriting it.
 Generated files start with a do-not-edit marker and are deterministic.
 
-When Toy is part of the same CMake build, `cmake/ToyBinding.cmake` provides a
-helper:
+The Nob `bindgen` command generates the wrapper and builds it as a loadable
+module:
 
-```cmake
-toy_add_generated_binding(toy_clib bindings/clib.json toy_clib)
-target_include_directories(toy_clib PRIVATE path/to/headers)
-target_link_libraries(toy_clib PRIVATE the_c_library)
+```powershell
+.\nob.exe bindgen clib bindings\clib.json `
+    --include path\to\headers `
+    --lib the_c_library
 ```
 
-The helper runs the generator, builds a `MODULE` library, links
-`toy::module_support`, removes the platform `lib` prefix, and assigns the given
-output name. Headers remain in the manifest because they affect generated C.
-Include directories and link libraries remain in CMake because their names and
-locations vary by platform and package manager.
+The first argument determines the output filename (`toy_clib` plus the platform
+shared-library suffix). It should match the module name used by `require`.
+Headers remain in the manifest because they affect generated C; repeatable
+`--include`, `--lib-dir`, and `--lib` options provide platform-specific
+dependency locations without putting them in the manifest.
 
 The curated standard-C example needs no additional library configuration:
 
 ```powershell
-cmake --build build --target toy toy_bindgen_clib_example
-$env:TOY_MODULE_PATH = (Resolve-Path .\build).Path
-.\build\toy.exe examples\toy\generated_clib.toy
+.\nob.exe bindgen clib examples\bindings\clib.json
+$env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
+.\nob.exe run examples\toy\generated_clib.toy
 ```
 
 Toy sees a normal module:

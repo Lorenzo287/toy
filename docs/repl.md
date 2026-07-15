@@ -6,8 +6,7 @@ catalog, ask for a word's docs, try a small expression, and immediately see the
 stack.
 
 ```powershell
-cmake --build build
-.\build\toy.exe
+.\nob.exe run
 ```
 
 ## Interactive Discovery
@@ -144,12 +143,12 @@ earlier REPL inputs or loaded files.
 To debug a file or an evaluated source string directly from PowerShell:
 
 ```powershell
-.\build\toy.exe --tdb program.toy
-.\build\toy.exe --tdb --eval "1 2 + print"
+.\nob.exe run --tdb program.toy
+.\nob.exe run --tdb --eval "1 2 + print"
 ```
 
 The process exits when file or `--eval` execution finishes. Running
-`.\build\toy.exe --tdb` without a file starts the REPL with tdb already armed.
+`.\nob.exe run --tdb` without a file starts the REPL with tdb already armed.
 Inside an existing REPL, `tdb` followed by stepping into a `load` call also
 debugs the loaded file in the same context.
 

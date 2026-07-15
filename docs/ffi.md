@@ -4,13 +4,19 @@ Toy's optional `ffi` native module uses libffi to call functions from shared C
 libraries without compiling a handwritten wrapper for each function. It is an
 experiment on top of the shared-module ABI, not a stable or sandboxed interface.
 
-Configure it after installing libffi:
+Build it after installing libffi. Provide include and library directories when
+they are not already on the compiler's search path:
 
 ```powershell
-cmake -S . -B build-ffi -DTOY_BUILD_FFI=ON
-cmake --build build-ffi --target toy toy_ffi_module
-$env:TOY_MODULE_PATH = (Resolve-Path .\build-ffi).Path
+.\nob.exe ffi --include C:\libffi\include --lib-dir C:\libffi\lib
+$env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
 ```
+
+The default library name is `ffi`; pass `--lib libffi` or a direct library
+path when the installation uses another name.
+
+Use `nob ffi-test` with the same options to build a small foreign library and
+exercise the module against every supported signature category.
 
 The libffi binary itself must also be discoverable by the operating system when
 it is dynamically linked.
@@ -72,7 +78,7 @@ For a concrete example, pass the platform C runtime library to
 `examples/toy/ffi_strlen.toy`:
 
 ```powershell
-.\build-ffi\toy.exe examples\toy\ffi_strlen.toy msvcrt.dll
+.\nob.exe run examples\toy\ffi_strlen.toy msvcrt.dll
 ```
 
 Common Unix C runtime names include `libc.so.6` on Linux and

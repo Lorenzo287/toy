@@ -14,20 +14,26 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            nob_bootstrap: cc -std=c11 nob.c -o nob
+            nob_test: ./nob test
+          - os: windows-latest
+            nob_bootstrap: clang -std=c11 nob.c -o nob.exe
+            nob_test: .\nob.exe test
+          - os: macos-latest
+            nob_bootstrap: cc -std=c11 nob.c -o nob
+            nob_test: ./nob test
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+      - name: Bootstrap Nob
+        run: ${{ matrix.nob_bootstrap }}
 
-      - name: Build
-        run: cmake --build build --config Release
-
-      - name: Test
-        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Test Nob build
+        run: ${{ matrix.nob_test }}
 
   tooling:
     name: Tooling

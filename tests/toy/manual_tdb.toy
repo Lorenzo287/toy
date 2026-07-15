@@ -1,7 +1,7 @@
 \ Manual tdb smoke case.
 \
 \ Run directly from the repository root with:
-\   .\build\toy.exe --tdb tests\toy\manual_tdb.toy
+\   .\nob.exe run --tdb tests\toy\manual_tdb.toy
 \
 \ Try `break 10`, `break tdb-inc`, `next`, `finish`, `stack`, and `bt` while
 \ entering `tdb-inc` and the quotation scheduled by `times`. After its capture

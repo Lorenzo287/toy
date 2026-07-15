@@ -8,26 +8,28 @@ correctness suite.
 
 ## Run the Suite
 
-Configure and build with testing enabled, then run CTest:
+Bootstrap Nob once and run its isolated test harness directly:
 
 ```powershell
-cmake -S . -B build -DBUILD_TESTING=ON
-cmake --build build --config Release
-ctest --test-dir build -C Release --output-on-failure
+clang -std=c11 nob.c -o nob.exe
+.\nob.exe test
+.\nob.exe test --filter native_loader
 ```
 
-`BUILD_TESTING` defaults to `ON`. Each Toy case runs in a fresh process with a
+This is the complete suite: Toy cases, debug-protocol transport,
+embedding/debugger C tests, real loadable modules, the Raylib adapter, and
+generated bindings. It builds incrementally using the selected compiler and
+mode. Each Toy case runs in a fresh process with a
 timeout and an isolated working directory under the build tree. This prevents
 definitions, stack values, environment changes, and temporary files from
 leaking between tests.
 
-Use CTest labels to select a class of case:
+`--filter` selects tests whose names contain the given text:
 
 ```powershell
-ctest --test-dir build -C Release -L positive --output-on-failure
-ctest --test-dir build -C Release -L negative --output-on-failure
-ctest --test-dir build -C Release -L output --output-on-failure
-ctest --test-dir build -C Release -L binding-generator --output-on-failure
+.\nob.exe test --filter native_loader
+.\nob.exe test --filter bindgen
+.\nob.exe test --filter module
 ```
 
 ## File Conventions
@@ -42,7 +44,7 @@ is evaluated:
 - `output_*.toy` must exit successfully and match an adjacent `.stdout` file
   exactly after line-ending normalization.
 - `manual_*.toy` covers interactive or visual behavior and is not registered
-  with CTest.
+  with the automated suite.
 - `testlib.toy` defines shared assertions and is copied beside each case in its
   isolated working directory.
 

@@ -7,8 +7,7 @@ implementation choice.
 Build an optimized interpreter and run the full suite:
 
 ```powershell
-cmake -S . -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release
-cmake --build build
+.\nob.exe build
 .\benchmarks\run.ps1
 ```
 
@@ -16,14 +15,14 @@ Run one workload or use another executable:
 
 ```powershell
 .\benchmarks\run.ps1 -Benchmark vector -Runs 10
-.\benchmarks\run.ps1 -Toy .\build-prof\toy.exe -Benchmark dispatch
+.\benchmarks\run.ps1 -Toy .\build\clang\profile\toy.exe -Benchmark dispatch
 ```
 
 The Toy scripts use `monotonic-ns` and print integer nanosecond durations for
 individual operations. The runner also reports wall time for each fresh process
 and its median. Compare results
 only across the same machine, compiler, build configuration, and workload.
-Use the `AllocationStats` build mode from `docs/build.md` when a change is
+Use the `alloc` build mode from `docs/build.md` when a change is
 expected to reduce allocation calls or requested bytes.
 Before drawing a conclusion:
 
