@@ -13,14 +13,16 @@ extern "C" {
 
 typedef struct tf_ctx toy_state;
 
-typedef enum {
+typedef uint32_t toy_status;
+enum {
     TOY_OK,
     TOY_ERROR,
     TOY_INTERRUPTED,
     TOY_EXIT_REQUESTED
-} toy_status;
+};
 
-typedef enum {
+typedef uint32_t toy_type;
+enum {
     TOY_TYPE_MISSING,
     TOY_TYPE_BOOL,
     TOY_TYPE_INT,
@@ -36,7 +38,7 @@ typedef enum {
     TOY_TYPE_PQUEUE,
     TOY_TYPE_RESOURCE,
     TOY_TYPE_INTERNAL
-} toy_type;
+};
 
 typedef toy_status (*toy_native_fn)(toy_state *state);
 typedef void (*toy_write_fn)(void *userdata, const char *data, size_t length);
@@ -103,7 +105,8 @@ toy_status toy_push_resource(toy_state *state, const char *type_name,
 /* Diagnostics and cooperative interruption. */
 const char *toy_get_error(toy_state *state);
 void toy_clear_error(toy_state *state);
-toy_status toy_set_error(toy_state *state, const char *message);
+/* Store and emit a native diagnostic, then return TOY_ERROR. */
+toy_status toy_fail(toy_state *state, const char *message);
 void toy_interrupt(toy_state *state);
 
 #ifdef __cplusplus

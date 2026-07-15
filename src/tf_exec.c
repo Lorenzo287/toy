@@ -9,6 +9,7 @@
 #include "tf_alloc.h"
 #include "tf_console.h"
 #include "tf_lib.h"  // IWYU pragma: keep
+#include "tf_native_loader.h"
 #include <signal.h>
 
 #define TF_CALL_STACK_INITIAL_CAP 8
@@ -639,6 +640,9 @@ tf_ctx *tf_ctx_new(int argc, char **argv) {
     ctx->module_aliases.len = 0;
     ctx->module_aliases.entries =
         tf_xcalloc(ctx->module_aliases.cap, sizeof(tf_module_alias));
+    ctx->native_libraries.handles = NULL;
+    ctx->native_libraries.len = 0;
+    ctx->native_libraries.cap = 0;
     ctx->argc = argc;
     ctx->argv = argv;
     ctx->error_suppression_depth = 0;
@@ -684,6 +688,7 @@ void tf_ctx_free(tf_ctx *ctx) {
     }
     free(ctx->module_aliases.entries);
     free(ctx->last_error);
+    tf_native_modules_close(ctx);
     free(ctx);
 }
 

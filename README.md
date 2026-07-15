@@ -294,10 +294,14 @@ directions in a complete host and
 captured output and diagnostics.
 
 This boundary is the foundation for handwritten library bindings, such as a
-Raylib integration. The optional Raylib module now demonstrates a window and
-drawing loop controlled entirely by Toy, including owned texture resources.
-Native modules share source-module naming, `require`, and aliases; dynamic
-library loading and general FFI remain exploratory.
+Raylib integration. Versioned shared native modules can use the same API
+through a host function table and are discovered by `require` without linking
+a second Toy runtime. The optional Raylib module demonstrates both static and
+shared builds, a window and drawing loop controlled entirely by Toy, and owned
+texture resources. The optional experimental [`ffi` module](docs/ffi.md) can
+also resolve fixed scalar and string C signatures dynamically through libffi;
+raw pointers, aggregate types, callbacks, and header-driven generation remain
+future work.
 
 ## Built-in Words
 

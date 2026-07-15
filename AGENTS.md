@@ -56,6 +56,10 @@ navigation and development rules.
 - Native declarations: `include/tf_lib.h`.
 - Experimental public C and native-module API: `include/toy.h`, implemented by
   `src/toy.c`.
+- Shared native-module ABI and support layer: `include/toy_module.h`,
+  `src/toy_module.c`; platform loading: `src/tf_native_loader.c`.
+- Experimental libffi module: `bindings/ffi/toy_ffi.c`; signature and safety
+  contract: `docs/ffi.md`.
 - Raylib binding adapter and registration entry point:
   `bindings/raylib/toy_raylib.h`, `bindings/raylib/toy_raylib.c`.
 - Execution engine: `include/tf_exec.h`, `src/tf_exec.c`.

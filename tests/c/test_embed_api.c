@@ -51,10 +51,10 @@ static bool capture_contains(capture_buffer *buffer, const char *expected) {
 static toy_status host_double(toy_state *state) {
     int64_t value = 0;
     if (!toy_get_int(state, 0, &value)) {
-        return toy_set_error(state, "host.double expected an integer");
+        return toy_fail(state, "host.double expected an integer");
     }
     if (!toy_pop(state, 1)) {
-        return toy_set_error(state, "host.double pop failed");
+        return toy_fail(state, "host.double pop failed");
     }
     return toy_push_int(state, value * 2);
 }
@@ -69,7 +69,7 @@ static int failed_resource_destroy_count = 0;
 
 static toy_status host_fail_resource(toy_state *state) {
     int *value = malloc(sizeof(*value));
-    if (!value) return toy_set_error(state, "resource allocation failed");
+    if (!value) return toy_fail(state, "resource allocation failed");
     *value = 99;
     toy_status status = toy_push_resource(
         state, "host.failed", value, destroy_test_resource,
@@ -78,7 +78,7 @@ static toy_status host_fail_resource(toy_state *state) {
         free(value);
         return status;
     }
-    return toy_set_error(state, "failure after creating a resource");
+    return toy_fail(state, "failure after creating a resource");
 }
 
 static const toy_native_word host_words[] = {

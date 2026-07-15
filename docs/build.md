@@ -23,28 +23,49 @@ hosts can link the `toy::runtime` alias and use the experimental API in
 `include/toy.h`; see [Embedding Toy in C](./embedding.md).
 
 The optional Raylib binding is disabled by default. With either a Raylib CMake
-package or an installation prefix containing `include/raylib.h` and its library,
-build the binding and Toy-driven example with:
+package or an installation prefix containing `include/raylib.h` and its
+library, build the normal CLI and loadable module with:
 
 ```powershell
 cmake -S . -B build-raylib -DTOY_BUILD_RAYLIB=ON
-cmake --build build-raylib --target toy_raylib_example
-.\build-raylib\toy_raylib_example.exe
+cmake --build build-raylib --target toy toy_raylib_module
+$env:TOY_MODULE_PATH = (Resolve-Path .\build-raylib).Path
+.\build-raylib\toy.exe examples\toy\raylib_shapes.toy
 ```
 
-The launcher accepts another Toy program followed by string values to place on
-its initial data stack. For example, the texture demo loads an opaque Raylib
-resource from an image path, retains it through the drawing loop, and drops it
-before closing the window:
+The texture demo accepts an image path through the normal Toy command line,
+loads it as an opaque Raylib resource, retains it through the drawing loop, and
+drops it before closing the window:
 
 ```powershell
-.\build-raylib\toy_raylib_example.exe examples\toy\raylib_texture.toy path\to\image.png
+.\build-raylib\toy.exe examples\toy\raylib_texture.toy path\to\image.png
+```
+
+`toy_raylib_example` remains available as a static embedding example. Its host
+registers the same adapter directly instead of discovering the shared module:
+
+```powershell
+cmake --build build-raylib --target toy_raylib_example
+.\build-raylib\toy_raylib_example.exe
 ```
 
 Set `CMAKE_PREFIX_PATH` to that prefix, or use a package-manager toolchain, when
 CMake cannot find Raylib. The compiler must be compatible with the installed
 Raylib binary. This option adds `toy::raylib`; it never downloads the
-dependency.
+dependency. See [Embedding Toy in C](./embedding.md#shared-native-modules) for
+the shared-module filename and ABI contract.
+
+The experimental dynamic FFI module is also optional and requires libffi:
+
+```powershell
+cmake -S . -B build-ffi -DTOY_BUILD_FFI=ON
+cmake --build build-ffi --target toy toy_ffi_module
+$env:TOY_MODULE_PATH = (Resolve-Path .\build-ffi).Path
+.\build-ffi\toy.exe examples\toy\ffi_strlen.toy msvcrt.dll
+```
+
+See [Experimental Dynamic FFI](./ffi.md) for its explicit signature syntax,
+supported C types, platform examples, and safety limitations.
 
 ### 2. LeakCheck
 

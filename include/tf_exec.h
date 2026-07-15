@@ -66,6 +66,12 @@ typedef struct {
 } tf_module_table;
 
 typedef struct {
+    void **handles;
+    size_t len;
+    size_t cap;
+} tf_native_library_table;
+
+typedef struct {
     char *name;
     size_t name_len;
     size_t owner_module_index;
@@ -201,6 +207,7 @@ struct tf_ctx {
     size_t call_stack_cap;
     tf_module_table modules;
     tf_module_alias_table module_aliases;
+    tf_native_library_table native_libraries;
 
     int argc;
     char **argv;
@@ -296,6 +303,8 @@ size_t tf_module_find(tf_ctx *ctx, const char *name, size_t name_len);
 size_t tf_module_begin(tf_ctx *ctx, const char *name, size_t name_len,
                        const char *path);
 size_t tf_module_add_native(tf_ctx *ctx, const char *name, size_t name_len);
+toy_status tf_register_module(tf_ctx *ctx,
+                              const toy_native_module *module);
 void tf_module_finish(tf_ctx *ctx, size_t module_index, tf_ret status);
 const tf_module *tf_module_get(tf_ctx *ctx, size_t module_index);
 size_t tf_module_alias_find(tf_ctx *ctx, size_t owner_module_index,

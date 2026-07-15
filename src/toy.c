@@ -108,10 +108,9 @@ toy_status toy_register_word(toy_state *state, const char *name,
     return TOY_OK;
 }
 
-toy_status toy_register_module(toy_state *state,
-                               const toy_native_module *module) {
+toy_status tf_register_module(toy_state *state,
+                              const toy_native_module *module) {
     if (!state) return TOY_ERROR;
-    if (!state_is_idle(state)) return TOY_ERROR;
     if (!module || !module->name || module->name[0] == '\0') {
         return api_errorf(state, "native module descriptor is invalid");
     }
@@ -193,6 +192,12 @@ toy_status toy_register_module(toy_state *state,
     }
     free_native_names(qualified_names, module->word_count);
     return TOY_OK;
+}
+
+toy_status toy_register_module(toy_state *state,
+                               const toy_native_module *module) {
+    if (!state || !state_is_idle(state)) return TOY_ERROR;
+    return tf_register_module(state, module);
 }
 
 size_t toy_stack_size(toy_state *state) {
@@ -357,7 +362,7 @@ void toy_clear_error(toy_state *state) {
     tf_ctx_clear_error(state);
 }
 
-toy_status toy_set_error(toy_state *state, const char *message) {
+toy_status toy_fail(toy_state *state, const char *message) {
     if (!state) return TOY_ERROR;
     tf_ctx_runtime_errorf(state, "%s\n", message ? message : "native error");
     return TOY_ERROR;

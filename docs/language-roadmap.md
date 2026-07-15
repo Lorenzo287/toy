@@ -52,19 +52,24 @@ as an exploratory interoperability track, not a single general-purpose
 version zero exposes opaque states, primitive and typed resource stack access,
 host-to-Toy calls, and synchronous native-word or native-module registration.
 Native module descriptors reuse source-module names, exports, load state, and
-aliases. The API is not stable yet. A small optional Raylib module now
-exercises the boundary with a Toy-owned window and drawing loop plus
-automatically unloaded texture resources.
+aliases. Shared native-module ABI version one adds a size-tagged host function
+table, a stable entry symbol, platform library discovery through `require`, and
+context-owned library handles. The API is not stable yet. A small optional
+Raylib module exercises both static and shared registration with a Toy-owned
+window, drawing loop, and automatically unloaded texture resources. An optional
+libffi module now experiments with dynamically resolved, explicit signatures
+for booleans, integers, floats, and copied C strings.
 
 Current follow-up candidates are:
 
 1. extend the resource boundary to sounds and similar values when bindings need
    them, preserving explicit type and lifetime rules;
-2. define a versioned shared-library ABI and loader if separately distributed
-   native modules become useful;
-3. use [libffi](https://github.com/libffi/libffi) to experiment with explicit
-   scalar and string signatures resolved at runtime;
-4. consider foreign pointers, output parameters, structs, variadic functions,
+2. exercise shared-module discovery and packaging with another real library
+   before stabilizing installation or search-path rules;
+3. exercise the libffi prototype against real libraries and settle reusable
+   function/library ownership plus error behavior;
+4. consider header-driven binding generation before exposing foreign pointers,
+   output parameters, structs, variadic functions,
    and callbacks only after the basic ownership and VM-boundary rules are
    settled.
 

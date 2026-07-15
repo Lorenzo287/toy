@@ -13,6 +13,7 @@
 #include "tf_alloc.h"
 #include "tf_console.h"
 #include "tf_lexer.h"
+#include "tf_native_loader.h"
 
 static void ctx_output_obj_write(void *userdata, const char *data,
                                  size_t length) {
@@ -483,6 +484,43 @@ static tf_ret require_module(tf_ctx *ctx, tf_obj *name, tf_obj *alias) {
     source_read_status read_status =
         resolve_source_file(ctx, relative, &path, &source);
     free(relative);
+
+    if (read_status == SOURCE_READ_NOT_FOUND) {
+        char *directory = source_directory(ctx);
+        tf_native_module_status native_status = tf_native_module_load(
+            ctx, name->str.ptr, name->str.len, directory);
+        free(directory);
+        if (native_status == TF_NATIVE_MODULE_LOADED) {
+            size_t module_index =
+                tf_module_find(ctx, name->str.ptr, name->str.len);
+            if (module_index == (size_t)-1) {
+                tf_ctx_runtime_errorf(
+                    ctx, "native module '%s' did not register itself\n",
+                    name->str.ptr);
+                free(path);
+                release_require_args(name, alias);
+                return TF_ERR;
+            }
+            if (alias &&
+                !tf_module_alias_add(ctx, owner_module_index, alias->str.ptr,
+                                     alias->str.len, module_index)) {
+                tf_ctx_runtime_errorf(ctx,
+                                      "failed to register module alias '%s'\n",
+                                      alias->str.ptr);
+                free(path);
+                release_require_args(name, alias);
+                return TF_ERR;
+            }
+            free(path);
+            release_require_args(name, alias);
+            return TF_OK;
+        }
+        if (native_status == TF_NATIVE_MODULE_ERROR) {
+            free(path);
+            release_require_args(name, alias);
+            return TF_ERR;
+        }
+    }
 
     if (read_status != SOURCE_READ_OK) {
         tf_ctx_runtime_errorf(

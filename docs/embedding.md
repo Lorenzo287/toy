@@ -137,6 +137,79 @@ previously registered qualified words. The callback functions themselves must
 remain valid for the lifetime of the state. `toy_register_word()` remains
 available for standalone words that do not need module identity.
 
+## Shared Native Modules
+
+`include/toy_module.h` defines shared-module ABI version 1. A module exports the
+fixed `toy_module_v1` entry point, binds the size-tagged host function table,
+and returns a static descriptor:
+
+```c
+#include "toy_module.h"
+
+static toy_status twice(toy_state *state) {
+    int64_t value = 0;
+    if (!toy_get_int(state, 0, &value)) {
+        return toy_fail(state, "sample.twice expected an integer");
+    }
+    if (!toy_pop(state, 1)) {
+        return toy_fail(state, "sample.twice failed to pop its input");
+    }
+    return toy_push_int(state, value * 2);
+}
+
+static const toy_native_word words[] = {
+    {"twice", twice},
+};
+
+static const toy_module_export module = {
+    TOY_MODULE_ABI_VERSION,
+    sizeof(toy_module_export),
+    "sample",
+    words,
+    sizeof(words) / sizeof(words[0]),
+};
+
+TOY_MODULE_EXPORT const toy_module_export *toy_module_v1(
+    const toy_module_api *api) {
+    if (!toy_module_bind(api)) return NULL;
+    return &module;
+}
+```
+
+Link the module-support target, not `toy::runtime`. It supplies local forwarding
+functions for the familiar stack, resource, error, and interruption API:
+
+```cmake
+add_library(toy_sample MODULE sample.c)
+target_link_libraries(toy_sample PRIVATE toy::module_support)
+set_target_properties(toy_sample PROPERTIES
+    PREFIX ""
+    OUTPUT_NAME "toy_sample"
+    C_VISIBILITY_PRESET hidden)
+```
+
+`require` first looks for the ordinary source module. If none exists, module
+`sample` maps to `toy_sample` plus the platform's shared-module suffix (for
+example, `.dll` or `.so`). Dotted names retain their dots, so
+`graphics.window` maps to `toy_graphics.window` plus that suffix. Native
+libraries are searched in the requiring source file's directory, each
+directory in `TOY_MODULE_PATH`, then the process working directory. The normal
+module vocabulary remains unchanged:
+
+```toy
+"sample" 's require-as
+21 s.twice
+```
+
+The entry point and descriptor must report ABI version 1. Structure sizes make
+append-only extensions detectable, while a breaking contract will use a new
+entry symbol and ABI version. Modules must still match the runtime's target
+architecture and C ABI. The host table has process lifetime; the library itself
+remains loaded until state destruction. Stacks, frames, definitions, and
+resource destructors are released before unloading, so destructors implemented
+inside the module remain callable. Shared modules are unrestricted native code
+and must be trusted like any other library loaded into the process.
+
 ## Opaque Foreign Resources
 
 Native code can wrap an owned external handle without exposing pointers or
@@ -181,9 +254,11 @@ than reconstructable source.
 ## Raylib Proof
 
 The optional `bindings/raylib/` adapter is the first real native module built on
-this API. Its host only creates a state, registers `raylib`, and loads
-`examples/toy/raylib.toy`; the window loop, close predicate, frame boundaries,
-and drawing calls are ordinary Toy code.
+this API. It builds both the static `toy::raylib` adapter and the loadable
+`toy_raylib` module. Its dedicated host registers the static form, while the
+normal CLI discovers the shared form through `require`. In both cases the
+window loop, close predicate, frame boundaries, and drawing calls are ordinary
+Toy code.
 
 Configure with `-DTOY_BUILD_RAYLIB=ON` after installing Raylib, then build and
 run `toy_raylib_example`. The module currently provides:
@@ -228,7 +303,7 @@ messages include the source name, line, and column. The pointer is owned by the
 state and remains valid until another execution, `toy_clear_error()`, or state
 destruction.
 
-Native callbacks can use `toy_set_error()` to store a diagnostic and return
+Native callbacks can use `toy_fail()` to store a diagnostic and return
 `TOY_ERROR` in one operation.
 
 Errors unwind the current VM invocation but do not roll back definitions or
@@ -244,6 +319,8 @@ host inspects or repairs its stack.
 - the normal filesystem, environment, process, and shell builtins are enabled;
 - the runtime uses bounded process-global allocation caches;
 - collection values still have no public construction or traversal API;
-- there is no shared-library ABI, loader, or dynamic FFI yet.
+- shared-module installation and package discovery are not defined yet;
+- the optional [dynamic FFI](./ffi.md) currently handles only explicit scalar
+  and copied-string signatures.
 
 The focused C regression is `tests/c/test_embed_api.c`.

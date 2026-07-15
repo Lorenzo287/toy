@@ -52,9 +52,13 @@ Quotations retain their shared source-file record, allowing an escaped
 quotation to recover its lexical module when it is executed later. Raw `load`
 marks the parsed source with the caller's module. Relative `load` and `require`
 paths try that source file's directory before the process working directory.
-Descriptor-registered native modules enter the same registry already marked as
-loaded, and their exported native words use the same scoped dictionary entries
-as source-module exports.
+If no source module exists, `require` searches for a versioned shared native
+module in the requiring source directory, `TOY_MODULE_PATH`, and the working
+directory. Descriptor-registered native modules enter the same registry already
+marked as loaded, and their exported native words use the same scoped
+dictionary entries as source-module exports. Loaded library handles stay in the
+context until final teardown, after stacks, frames, definitions, and resource
+destructors have been released.
 
 ## Embedding Boundary
 
@@ -68,10 +72,20 @@ state as opaque and exposes evaluation, host-to-Toy word calls, synchronous
 native word/module registration, primitive stack access, diagnostics, and
 interruption. Typed resource access wraps external pointers in ordinary
 refcounted objects with copied tags and exactly-once destructors, while keeping
-the pointer and object layout opaque to Toy code.
+the pointer and object layout opaque to Toy code. `include/toy_module.h`
+defines shared-module ABI version 1: an exported descriptor entry point and a
+size-tagged host function table. `toy_module_support` forwards the familiar
+public stack/resource calls through that table, so a plugin does not link a
+second runtime.
 Internal headers continue to expose implementation structures only to the
 runtime and bundled frontends. See the [embedding guide](./embedding.md) for
 the current ownership and execution contracts.
+
+The optional `bindings/ffi/` module is a consumer of this boundary rather than
+part of the VM. It represents loaded libraries and prepared libffi call
+interfaces as typed resources. A prepared function retains its library; Toy
+resource teardown releases the call metadata and closes the foreign library
+before the native `ffi` module itself is unloaded.
 
 ## Debugger Hooks
 

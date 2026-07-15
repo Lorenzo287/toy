@@ -1,5 +1,9 @@
 #include "toy_raylib.h"
 
+#ifdef TOY_SHARED_MODULE
+#include "toy_module.h"
+#endif
+
 #include <raylib.h>
 
 #include <float.h>
@@ -93,36 +97,36 @@ static toy_status raylib_init_window(toy_state *state) {
     if (!get_int32(state, 2, &width) || !get_int32(state, 1, &height) ||
         width <= 0 || height <= 0 ||
         toy_stack_type(state, 0) != TOY_TYPE_STRING) {
-        return toy_set_error(
+        return toy_fail(
             state,
             "raylib.init-window expected positive width and height integers "
             "and a title string");
     }
     if (IsWindowReady()) {
-        return toy_set_error(state, "raylib.init-window window is already open");
+        return toy_fail(state, "raylib.init-window window is already open");
     }
 
     bool contains_nul = false;
     char *title = copy_c_string(state, 0, &contains_nul);
     if (!title) {
         if (contains_nul) {
-            return toy_set_error(
+            return toy_fail(
                 state,
                 "raylib.init-window title contains an embedded NUL byte");
         }
-        return toy_set_error(state,
+        return toy_fail(state,
                              "raylib.init-window could not copy the title");
     }
     if (!toy_pop(state, 3)) {
         free(title);
-        return toy_set_error(state,
+        return toy_fail(state,
                              "raylib.init-window failed to pop its inputs");
     }
 
     InitWindow(width, height, title);
     free(title);
     if (!IsWindowReady()) {
-        return toy_set_error(
+        return toy_fail(
             state, "raylib.init-window failed to initialize the window");
     }
     return TOY_OK;
@@ -141,12 +145,12 @@ static toy_status raylib_window_should_close(toy_state *state) {
 static toy_status raylib_set_target_fps(toy_state *state) {
     int fps = 0;
     if (!get_int32(state, 0, &fps) || fps <= 0) {
-        return toy_set_error(
+        return toy_fail(
             state,
             "raylib.set-target-fps expected a positive FPS integer");
     }
     if (!toy_pop(state, 1)) {
-        return toy_set_error(
+        return toy_fail(
             state, "raylib.set-target-fps failed to pop its input");
     }
     SetTargetFPS(fps);
@@ -172,14 +176,14 @@ static toy_status raylib_rgba(toy_state *state) {
     unsigned char alpha = 0;
     if (!get_byte(state, 3, &red) || !get_byte(state, 2, &green) ||
         !get_byte(state, 1, &blue) || !get_byte(state, 0, &alpha)) {
-        return toy_set_error(
+        return toy_fail(
             state,
             "raylib.rgba expected four integers between 0 and 255");
     }
     uint32_t packed = ((uint32_t)red << 24) | ((uint32_t)green << 16) |
                       ((uint32_t)blue << 8) | alpha;
     if (!toy_pop(state, 4)) {
-        return toy_set_error(state, "raylib.rgba failed to pop its inputs");
+        return toy_fail(state, "raylib.rgba failed to pop its inputs");
     }
     return toy_push_int(state, (int64_t)packed);
 }
@@ -187,11 +191,11 @@ static toy_status raylib_rgba(toy_state *state) {
 static toy_status raylib_clear_background(toy_state *state) {
     Color color = {0};
     if (!get_color(state, 0, &color)) {
-        return toy_set_error(
+        return toy_fail(
             state, "raylib.clear-background expected an RGBA color");
     }
     if (!toy_pop(state, 1)) {
-        return toy_set_error(
+        return toy_fail(
             state, "raylib.clear-background failed to pop its input");
     }
     ClearBackground(color);
@@ -207,12 +211,12 @@ static toy_status raylib_draw_circle(toy_state *state) {
         !get_int32(state, 2, &center_y) ||
         !get_number(state, 1, &radius) || radius < 0.0f ||
         !get_color(state, 0, &color)) {
-        return toy_set_error(
+        return toy_fail(
             state,
             "raylib.draw-circle expected x y radius and an RGBA color");
     }
     if (!toy_pop(state, 4)) {
-        return toy_set_error(state,
+        return toy_fail(state,
                              "raylib.draw-circle failed to pop its inputs");
     }
     DrawCircle(center_x, center_y, radius, color);
@@ -229,13 +233,13 @@ static toy_status raylib_draw_rectangle(toy_state *state) {
         !get_int32(state, 2, &width) ||
         !get_int32(state, 1, &height) || width < 0 || height < 0 ||
         !get_color(state, 0, &color)) {
-        return toy_set_error(
+        return toy_fail(
             state,
             "raylib.draw-rectangle expected x y non-negative width and "
             "height and an RGBA color");
     }
     if (!toy_pop(state, 5)) {
-        return toy_set_error(
+        return toy_fail(
             state, "raylib.draw-rectangle failed to pop its inputs");
     }
     DrawRectangle(x, y, width, height, color);
@@ -251,7 +255,7 @@ static toy_status raylib_draw_text(toy_state *state) {
         !get_int32(state, 3, &x) || !get_int32(state, 2, &y) ||
         !get_int32(state, 1, &font_size) || font_size <= 0 ||
         !get_color(state, 0, &color)) {
-        return toy_set_error(
+        return toy_fail(
             state,
             "raylib.draw-text expected text x y positive-font-size and an "
             "RGBA color");
@@ -261,15 +265,15 @@ static toy_status raylib_draw_text(toy_state *state) {
     char *text = copy_c_string(state, 4, &contains_nul);
     if (!text) {
         if (contains_nul) {
-            return toy_set_error(
+            return toy_fail(
                 state, "raylib.draw-text text contains an embedded NUL byte");
         }
-        return toy_set_error(state,
+        return toy_fail(state,
                              "raylib.draw-text could not copy the text");
     }
     if (!toy_pop(state, 5)) {
         free(text);
-        return toy_set_error(state,
+        return toy_fail(state,
                              "raylib.draw-text failed to pop its inputs");
     }
     DrawText(text, x, y, font_size, color);
@@ -279,11 +283,11 @@ static toy_status raylib_draw_text(toy_state *state) {
 
 static toy_status raylib_load_texture(toy_state *state) {
     if (toy_stack_type(state, 0) != TOY_TYPE_STRING) {
-        return toy_set_error(state,
+        return toy_fail(state,
                              "raylib.load-texture expected a path string");
     }
     if (!IsWindowReady()) {
-        return toy_set_error(state,
+        return toy_fail(state,
                              "raylib.load-texture requires an open window");
     }
 
@@ -291,30 +295,30 @@ static toy_status raylib_load_texture(toy_state *state) {
     char *path = copy_c_string(state, 0, &contains_nul);
     if (!path) {
         if (contains_nul) {
-            return toy_set_error(
+            return toy_fail(
                 state,
                 "raylib.load-texture path contains an embedded NUL byte");
         }
-        return toy_set_error(state,
+        return toy_fail(state,
                              "raylib.load-texture could not copy the path");
     }
     if (!toy_pop(state, 1)) {
         free(path);
-        return toy_set_error(state,
+        return toy_fail(state,
                              "raylib.load-texture failed to pop its input");
     }
 
     Texture2D loaded = LoadTexture(path);
     free(path);
     if (loaded.id == 0) {
-        return toy_set_error(
+        return toy_fail(
             state, "raylib.load-texture failed to load the texture");
     }
 
     Texture2D *texture = malloc(sizeof(*texture));
     if (!texture) {
         UnloadTexture(loaded);
-        return toy_set_error(
+        return toy_fail(
             state, "raylib.load-texture could not allocate its handle");
     }
     *texture = loaded;
@@ -336,7 +340,7 @@ static toy_status raylib_draw_texture(toy_state *state) {
     if (!toy_get_resource(state, 3, RAYLIB_TEXTURE_TYPE, &resource) ||
         !get_int32(state, 2, &x) || !get_int32(state, 1, &y) ||
         !get_color(state, 0, &tint)) {
-        return toy_set_error(
+        return toy_fail(
             state,
             "raylib.draw-texture expected a raylib texture, x, y, and an "
             "RGBA tint");
@@ -344,7 +348,7 @@ static toy_status raylib_draw_texture(toy_state *state) {
     texture = resource;
     DrawTexture(*texture, x, y, tint);
     if (!toy_pop(state, 4)) {
-        return toy_set_error(
+        return toy_fail(
             state, "raylib.draw-texture failed to pop its inputs");
     }
     return TOY_OK;
@@ -381,6 +385,21 @@ static const toy_native_word raylib_words[] = {
     {"frame-time", raylib_frame_time},
 };
 
+#ifdef TOY_SHARED_MODULE
+static const toy_module_export raylib_module = {
+    TOY_MODULE_ABI_VERSION,
+    sizeof(toy_module_export),
+    "raylib",
+    raylib_words,
+    sizeof(raylib_words) / sizeof(raylib_words[0]),
+};
+
+TOY_MODULE_EXPORT const toy_module_export *toy_module_v1(
+    const toy_module_api *api) {
+    if (!toy_module_bind(api)) return NULL;
+    return &raylib_module;
+}
+#else
 static const toy_native_module raylib_module = {
     "raylib",
     raylib_words,
@@ -390,3 +409,4 @@ static const toy_native_module raylib_module = {
 toy_status toy_raylib_register(toy_state *state) {
     return toy_register_module(state, &raylib_module);
 }
+#endif

@@ -1,0 +1,12 @@
+\ Pass a C runtime library as the first argument.
+\ Windows: .\build-ffi\toy.exe examples\toy\ffi_strlen.toy msvcrt.dll
+\ Common Unix names include libc.so.6 and /usr/lib/libSystem.B.dylib.
+
+"ffi" 'c require-as
+
+'c-strlen [
+	argv 1 at c.open
+	"strlen" "usize(cstr)" c.bind c.call
+] def
+
+"Toy speaks C" c-strlen print

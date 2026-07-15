@@ -1,5 +1,5 @@
-\ Pass an image path after this script; the Raylib host puts it on the stack.
-\ .\build-raylib\toy_raylib_example.exe examples\toy\raylib_texture.toy path\to\image.png
+\ Pass an image path after this script. The native host preloads it, while the
+\ normal CLI exposes it through argv.
 
 "raylib" 'rl require-as
 
@@ -10,6 +10,7 @@
 800 450 "Toy texture resource" rl.init-window
 60 rl.set-target-fps
 
+argc 1 > [ argv 1 at ] if
 rl.load-texture
 
 [

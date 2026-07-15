@@ -6,6 +6,7 @@ build-leak/
 build-linux/
 build-msvc/
 build-raylib/
+build-ffi/
 bin/
 obj/
 

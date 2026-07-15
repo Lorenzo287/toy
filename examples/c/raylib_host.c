@@ -18,7 +18,8 @@ static void closeWindow(toy_state *state) {
 }
 
 int main(int argc, char **argv) {
-    const char *script = argc > 1 ? argv[1] : "examples/toy/raylib.toy";
+    const char *script =
+        argc > 1 ? argv[1] : "examples/toy/raylib_shapes.toy";
     toy_state *state = toy_state_new(NULL);
     if (!state) {
         fputs("failed to create Toy state\n", stderr);
