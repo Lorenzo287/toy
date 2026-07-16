@@ -1,0 +1,107 @@
+{
+  "module": "sqlite.generated",
+  "headers": ["sqlite3.h"],
+  "resources": [
+    {
+      "name": "database",
+      "cType": "sqlite3 *",
+      "destructor": "sqlite3_close_v2"
+    },
+    {
+      "name": "statement",
+      "cType": "sqlite3_stmt *",
+      "destructor": "sqlite3_finalize",
+      "dependsOn": "database"
+    }
+  ],
+  "functions": [
+    {
+      "name": "sqlite3_open",
+      "word": "open",
+      "returns": {
+        "status": "i32",
+        "success": [0],
+        "error": {"function": "sqlite3_errmsg", "resource": "database"}
+      },
+      "args": ["cstr", {"outResource": "database"}]
+    },
+    {
+      "name": "sqlite3_exec",
+      "word": "exec",
+      "returns": {
+        "status": "i32",
+        "success": [0],
+        "error": {"function": "sqlite3_errmsg", "resource": "database"}
+      },
+      "args": [
+        {"resource": "database"},
+        "cstr",
+        {"null": true},
+        {"null": true},
+        {"null": true}
+      ]
+    },
+    {
+      "name": "sqlite3_prepare_v2",
+      "word": "prepare",
+      "returns": {
+        "status": "i32",
+        "success": [0],
+        "error": {"function": "sqlite3_errmsg", "resource": "database"}
+      },
+      "args": [
+        {"resource": "database"},
+        "cstr",
+        {"const": "i32", "value": -1},
+        {"outResource": "statement"},
+        {"null": true}
+      ]
+    },
+    {
+      "name": "sqlite3_bind_int64",
+      "word": "bind-int",
+      "returns": {"status": "i32", "success": [0]},
+      "args": [{"resource": "statement"}, "i32", "i64"]
+    },
+    {
+      "name": "sqlite3_bind_text",
+      "word": "bind-text",
+      "returns": {"status": "i32", "success": [0]},
+      "args": [
+        {"resource": "statement"},
+        "i32",
+        {"bytes": {"length": "i32"}},
+        {"cConstant": "SQLITE_TRANSIENT"}
+      ]
+    },
+    {
+      "name": "sqlite3_step",
+      "word": "step",
+      "returns": {"status": "i32", "map": {"100": true, "101": false}},
+      "args": [{"resource": "statement"}]
+    },
+    {
+      "name": "sqlite3_reset",
+      "word": "reset",
+      "returns": {"status": "i32", "success": [0]},
+      "args": [{"resource": "statement"}]
+    },
+    {
+      "name": "sqlite3_column_int64",
+      "word": "column-int",
+      "returns": "i64",
+      "args": [{"resource": "statement"}, "i32"]
+    },
+    {
+      "name": "sqlite3_column_text",
+      "word": "column-text",
+      "returns": {
+        "bytes": {
+          "lengthFunction": "sqlite3_column_bytes",
+          "lengthType": "i32"
+        }
+      },
+      "args": [{"resource": "statement"}, "i32"]
+    }
+  ]
+}

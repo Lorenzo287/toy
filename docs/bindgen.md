@@ -4,9 +4,9 @@
 native module written in C. Generated modules expose ordinary qualified words;
 their users do not interact with `ffi.open`, signatures, or function resources.
 
-The binding generator deliberately reads declared
-function shapes rather than parsing arbitrary C headers. That keeps type and
-ownership decisions visible while the supported boundary is still small.
+The binding generator deliberately reads declared function shapes rather than
+parsing arbitrary C headers. That keeps type and ownership decisions visible
+while the supported boundary is still small.
 
 ## Manifest
 
@@ -52,6 +52,53 @@ NUL-terminated buffers that remain valid only for the duration of the C call.
 A non-null returned `cstr` is treated as borrowed and copied into Toy before the
 wrapper returns. Unsigned results outside Toy's signed 64-bit range are errors.
 
+## Hidden and Length-Aware Arguments
+
+Argument objects can provide C-only values that do not consume the Toy stack:
+
+```json
+"args": [
+  {"resource": "database"},
+  "cstr",
+  {"const": "i32", "value": -1},
+  {"outResource": "statement"},
+  {"null": true}
+]
+```
+
+`const` accepts a supported boolean, integer, or floating type and a matching
+JSON value. `null` emits `NULL`. `cConstant` emits one validated C identifier,
+such as `{"cConstant":"SQLITE_TRANSIENT"}`, whose declaration must come from
+one of the manifest headers. These forms are deliberately expressions rather
+than Toy inputs.
+
+A byte argument expands one binary-safe Toy string into adjacent pointer and
+length C arguments:
+
+```json
+{"bytes": {"length": "i32"}}
+```
+
+The generator passes the string's borrowed bytes directly and range-checks its
+length for the declared integer type. The C function must copy the bytes if it
+keeps them after returning.
+
+A borrowed pointer result can use a companion C function to obtain its length:
+
+```json
+"returns": {
+  "bytes": {
+    "lengthFunction": "widget_result_size",
+    "lengthType": "usize"
+  }
+}
+```
+
+The length function receives the same C arguments as the primary function. The
+generator validates the returned length and copies the bytes into a Toy string
+before consuming resource or string inputs. A null pointer or invalid length is
+an error.
+
 ## Opaque Resources
 
 The optional `resources` array declares owned opaque resources:
@@ -65,6 +112,12 @@ The optional `resources` array declares owned opaque resources:
       "name": "handle",
       "cType": "widget_handle *",
       "destructor": "widget_destroy"
+    },
+    {
+      "name": "view",
+      "cType": "widget_view *",
+      "destructor": "widget_view_destroy",
+      "dependsOn": "handle"
     }
   ],
   "functions": [
@@ -78,6 +131,12 @@ The optional `resources` array declares owned opaque resources:
       "name": "widget_value",
       "word": "value",
       "returns": "i32",
+      "args": [{"resource": "handle"}]
+    },
+    {
+      "name": "widget_view",
+      "word": "view",
+      "returns": {"resource": "view"},
       "args": [{"resource": "handle"}]
     },
     {
@@ -103,11 +162,33 @@ owned handle on success. A function supports at most one output resource and
 must return either `void` or a status declaration.
 
 Direct and output resource declarations promise that the returned handle is a
-new owned value, not an alias of an input. Dependencies between parent and
-child handles are not retained automatically.
+new owned value, not an alias of an input. A resource with `dependsOn` keeps one
+parent resource alive until the child destructor finishes. Every function that
+produces that child must have exactly one resource input of the named parent
+type, avoiding ambiguous lifetime choices.
 
 A status declaration consumes the C result rather than pushing it. `success`
 lists the numeric codes accepted as success; other codes become Toy errors.
+For predicate-like APIs, `map` replaces `success` and maps accepted numeric
+codes to Toy booleans:
+
+```json
+"returns": {"status": "i32", "map": {"100": true, "101": false}}
+```
+
+An optional error accessor adds a borrowed library message:
+
+```json
+"returns": {
+  "status": "i32",
+  "success": [0],
+  "error": {"function": "widget_error", "resource": "handle"}
+}
+```
+
+The selected resource must occur exactly once among the function's resource
+inputs or outputs. The accessor is called before inputs and failed output
+handles are released; its returned C string is copied into Toy's diagnostic.
 Null handles are errors even after a successful status. Handles returned on a
 failed status, or rejected by `toy_push_resource()`, are destroyed
 automatically. Ordinary resource inputs are consumed like other Toy inputs, so
@@ -166,15 +247,15 @@ compiler apply declarations and the target calling convention, but the
 manifest must still match the header semantically. Compatible C conversions can
 hide a mistaken scalar declaration.
 
-Declared opaque pointer resources, their destructors, direct owned returns, and
-one owned output-resource parameter are supported. Arbitrary raw pointers,
-general buffers and output parameters, parent/child handle retention, structs,
-unions, variadic functions, callbacks, and library-specific error strings are
-not. Status handling currently compares numeric codes, and `cstr` remains the
-only borrowed-result policy.
+Declared opaque pointer resources, dependent lifetimes, direct owned returns,
+one owned output-resource parameter, hidden constants and nulls, resource-based
+error accessors, boolean result-code mappings, and adjacent pointer-length
+strings are supported. Arbitrary raw pointers, general output buffers, structs,
+unions, variadic functions, callbacks, and stateful library-specific
+translation are not.
 
-These remaining gaps are why the complete handwritten
-[Raylib and SQLite examples](../examples/interop/) have not been replaced by
-manifests yet. Header parsing is also not implemented. A later libclang
+The generated SQLite example exercises the general policies above. The larger
+handwritten Raylib and SQLite adapters remain useful where calls need custom
+state or validation. Header parsing is not implemented. A later libclang
 frontend can produce the same validated manifest model, but ownership and
 lifetime policy must remain explicit because C declarations cannot infer it.

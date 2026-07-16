@@ -30,6 +30,18 @@ const statusTypes = new Set([
   'i64',
   'isize',
 ]);
+const integerTypes = new Set([
+  'i8',
+  'u8',
+  'i16',
+  'u16',
+  'i32',
+  'u32',
+  'i64',
+  'u64',
+  'isize',
+  'usize',
+]);
 
 function isObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value);
@@ -49,6 +61,10 @@ function requireKeys(value, allowed, field) {
   for (const key of Object.keys(value)) {
     if (!allowed.has(key)) fail(`${field}.${key} is not supported`);
   }
+}
+
+function hasField(value, field) {
+  return Object.prototype.hasOwnProperty.call(value, field);
 }
 
 function validateType(value, field, allowVoid) {
@@ -108,6 +124,52 @@ function validateStatusCode(value, type, field) {
   }
 }
 
+function validateConstantValue(value, type, field) {
+  if (type === 'bool') {
+    if (typeof value !== 'boolean') fail(`${field} must be a boolean`);
+    return;
+  }
+  if (type === 'f32' || type === 'f64') {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      fail(`${field} must be a finite number`);
+    }
+    if (type === 'f32' && Math.abs(value) > 3.402823466e38) {
+      fail(`${field} is outside f32's range`);
+    }
+    return;
+  }
+  if (!integerTypes.has(type)) {
+    fail(`${field} has unsupported constant type '${type}'`);
+  }
+  if (!Number.isSafeInteger(value)) fail(`${field} must be a safe integer`);
+  if ((type === 'u64' || type === 'usize') && value < 0) {
+    fail(`${field} is outside ${type}'s range`);
+  }
+  validateStatusCode(value, type, field);
+}
+
+function validateBytes(value, field, returnValue) {
+  if (!isObject(value)) fail(`${field} must be an object`);
+  if (returnValue) {
+    requireKeys(value, new Set(['lengthFunction', 'lengthType']), field);
+    validateCIdentifier(value.lengthFunction, `${field}.lengthFunction`);
+    validateType(value.lengthType, `${field}.lengthType`, false);
+    if (!integerTypes.has(value.lengthType)) {
+      fail(`${field}.lengthType must be an integer type`);
+    }
+    return;
+  }
+  requireKeys(value, new Set(['length']), field);
+  validateType(value.length, `${field}.length`, false);
+  if (!integerTypes.has(value.length)) {
+    fail(`${field}.length must be an integer type`);
+  }
+}
+
+function validateMappedValue(value, field) {
+  if (typeof value !== 'boolean') fail(`${field} must be a boolean`);
+}
+
 function validateReturn(value, field, resources) {
   if (typeof value === 'string') {
     validateType(value, field, true);
@@ -115,25 +177,59 @@ function validateReturn(value, field, resources) {
   }
   if (!isObject(value)) fail(`${field} must be a type string or object`);
 
-  if (Object.prototype.hasOwnProperty.call(value, 'resource')) {
+  if (hasField(value, 'resource')) {
     requireKeys(value, new Set(['resource']), field);
     requireResource(resources, value.resource, `${field}.resource`);
     return;
   }
 
-  requireKeys(value, new Set(['status', 'success']), field);
+  if (hasField(value, 'bytes')) {
+    requireKeys(value, new Set(['bytes']), field);
+    validateBytes(value.bytes, `${field}.bytes`, true);
+    return;
+  }
+
+  requireKeys(value, new Set(['status', 'success', 'map', 'error']), field);
   validateType(value.status, `${field}.status`, false);
   if (!statusTypes.has(value.status)) {
     fail(`${field}.status must be a supported status integer type`);
   }
-  if (!Array.isArray(value.success) || value.success.length === 0) {
-    fail(`${field}.success must be a non-empty array`);
+  const hasSuccess = value.success !== undefined;
+  const hasMap = value.map !== undefined;
+  if (hasSuccess === hasMap) {
+    fail(`${field} must contain exactly one of success or map`);
   }
   const codes = new Set();
-  for (const [index, code] of value.success.entries()) {
-    validateStatusCode(code, value.status, `${field}.success[${index}]`);
-    if (codes.has(code)) fail(`${field}.success contains duplicate code ${code}`);
-    codes.add(code);
+  if (hasSuccess) {
+    if (!Array.isArray(value.success) || value.success.length === 0) {
+      fail(`${field}.success must be a non-empty array`);
+    }
+    for (const [index, code] of value.success.entries()) {
+      validateStatusCode(code, value.status, `${field}.success[${index}]`);
+      if (codes.has(code)) {
+        fail(`${field}.success contains duplicate code ${code}`);
+      }
+      codes.add(code);
+    }
+  } else {
+    if (!isObject(value.map) || Object.keys(value.map).length === 0) {
+      fail(`${field}.map must be a non-empty object`);
+    }
+    for (const [codeText, mapped] of Object.entries(value.map)) {
+      if (!/^-?(?:0|[1-9][0-9]*)$/.test(codeText)) {
+        fail(`${field}.map key '${codeText}' is not an integer code`);
+      }
+      const code = Number(codeText);
+      validateStatusCode(code, value.status, `${field}.map.${codeText}`);
+      validateMappedValue(mapped, `${field}.map.${codeText}`);
+      codes.add(code);
+    }
+  }
+  if (value.error !== undefined) {
+    if (!isObject(value.error)) fail(`${field}.error must be an object`);
+    requireKeys(value.error, new Set(['function', 'resource']), `${field}.error`);
+    validateCIdentifier(value.error.function, `${field}.error.function`);
+    requireResource(resources, value.error.resource, `${field}.error.resource`);
   }
 }
 
@@ -143,14 +239,44 @@ function validateArgument(value, field, resources) {
     return;
   }
   if (!isObject(value)) fail(`${field} must be a type string or object`);
-  const hasResource = Object.prototype.hasOwnProperty.call(value, 'resource');
-  const hasOutResource = Object.prototype.hasOwnProperty.call(value, 'outResource');
-  if (hasResource === hasOutResource) {
-    fail(`${field} must contain exactly one of resource or outResource`);
+  const kinds = [
+    'resource',
+    'outResource',
+    'const',
+    'null',
+    'cConstant',
+    'bytes',
+  ].filter((key) => hasField(value, key));
+  if (kinds.length !== 1) {
+    fail(`${field} must contain exactly one argument kind`);
   }
-  const key = hasResource ? 'resource' : 'outResource';
-  requireKeys(value, new Set([key]), field);
-  requireResource(resources, value[key], `${field}.${key}`);
+  const kind = kinds[0];
+  switch (kind) {
+    case 'resource':
+    case 'outResource':
+      requireKeys(value, new Set([kind]), field);
+      requireResource(resources, value[kind], `${field}.${kind}`);
+      break;
+    case 'const':
+      requireKeys(value, new Set(['const', 'value']), field);
+      validateType(value.const, `${field}.const`, false);
+      validateConstantValue(value.value, value.const, `${field}.value`);
+      break;
+    case 'null':
+      requireKeys(value, new Set(['null']), field);
+      if (value.null !== true) fail(`${field}.null must be true`);
+      break;
+    case 'cConstant':
+      requireKeys(value, new Set(['cConstant']), field);
+      validateCIdentifier(value.cConstant, `${field}.cConstant`);
+      break;
+    case 'bytes':
+      requireKeys(value, new Set(['bytes']), field);
+      validateBytes(value.bytes, `${field}.bytes`, false);
+      break;
+    default:
+      fail(`internal error: unsupported argument kind '${kind}'`);
+  }
 }
 
 function validateManifest(manifest) {
@@ -188,7 +314,11 @@ function validateManifest(manifest) {
   for (const [index, resource] of (manifest.resources || []).entries()) {
     const field = `resources[${index}]`;
     if (!isObject(resource)) fail(`${field} must be an object`);
-    requireKeys(resource, new Set(['name', 'cType', 'destructor']), field);
+    requireKeys(
+      resource,
+      new Set(['name', 'cType', 'destructor', 'dependsOn']),
+      field
+    );
     validateResourceName(resource.name, `${field}.name`);
     if (resourceNames.has(resource.name)) {
       fail(`duplicate resource '${resource.name}'`);
@@ -196,8 +326,19 @@ function validateManifest(manifest) {
     resourceNames.add(resource.name);
     validateCPointerType(resource.cType, `${field}.cType`);
     validateCIdentifier(resource.destructor, `${field}.destructor`);
+    if (resource.dependsOn !== undefined) {
+      validateResourceName(resource.dependsOn, `${field}.dependsOn`);
+    }
   }
   const resources = resourceMap(manifest);
+  for (const [index, resource] of (manifest.resources || []).entries()) {
+    if (resource.dependsOn === undefined) continue;
+    const field = `resources[${index}].dependsOn`;
+    requireResource(resources, resource.dependsOn, field);
+    if (resource.dependsOn === resource.name) {
+      fail(`${field} cannot reference the resource itself`);
+    }
+  }
 
   if (!Array.isArray(manifest.functions) || manifest.functions.length === 0) {
     fail('functions must be a non-empty array');
@@ -235,6 +376,51 @@ function validateManifest(manifest) {
         !(fn.returns === 'void' ||
           (isObject(fn.returns) && fn.returns.status !== undefined))) {
       fail(`${field} output resources require void or status returns`);
+    }
+    if (outputCount > 0 && isObject(fn.returns) &&
+        fn.returns.map !== undefined) {
+      fail(`${field} mapped status returns cannot use an output resource`);
+    }
+    if (isObject(fn.returns) && fn.returns.bytes !== undefined &&
+        outputCount > 0) {
+      fail(`${field} byte returns cannot also use an output resource`);
+    }
+
+    if (isObject(fn.returns) && fn.returns.error !== undefined) {
+      const errorResource = fn.returns.error.resource;
+      const matches = fn.args.filter((argument) =>
+        isObject(argument) &&
+        (argument.resource === errorResource ||
+         argument.outResource === errorResource)
+      );
+      if (matches.length !== 1) {
+        fail(
+          `${field}.returns.error.resource must match exactly one resource argument`
+        );
+      }
+    }
+
+    const producedNames = [];
+    if (isObject(fn.returns) && fn.returns.resource !== undefined) {
+      producedNames.push(fn.returns.resource);
+    }
+    for (const argument of fn.args) {
+      if (isObject(argument) && argument.outResource !== undefined) {
+        producedNames.push(argument.outResource);
+      }
+    }
+    for (const producedName of producedNames) {
+      const produced = resources.get(producedName);
+      if (!produced.dependsOn) continue;
+      const parents = fn.args.filter((argument) =>
+        isObject(argument) && argument.resource === produced.dependsOn
+      );
+      if (parents.length !== 1) {
+        fail(
+          `${field} producing ${producedName} must have exactly one ` +
+          `${produced.dependsOn} resource input`
+        );
+      }
     }
   }
   return manifest;
@@ -288,12 +474,37 @@ function isOutputResource(argument) {
   return isObject(argument) && argument.outResource !== undefined;
 }
 
+function isConstantArgument(argument) {
+  return isObject(argument) && argument.const !== undefined;
+}
+
+function isNullArgument(argument) {
+  return isObject(argument) && argument.null !== undefined;
+}
+
+function isCConstantArgument(argument) {
+  return isObject(argument) && argument.cConstant !== undefined;
+}
+
+function isBytesArgument(argument) {
+  return isObject(argument) && argument.bytes !== undefined;
+}
+
+function isHiddenArgument(argument) {
+  return isOutputResource(argument) || isConstantArgument(argument) ||
+    isNullArgument(argument) || isCConstantArgument(argument);
+}
+
 function isResourceReturn(value) {
   return isObject(value) && value.resource !== undefined;
 }
 
 function isStatusReturn(value) {
   return isObject(value) && value.status !== undefined;
+}
+
+function isBytesReturn(value) {
+  return isObject(value) && value.bytes !== undefined;
 }
 
 function getResource(manifest, name) {
@@ -315,11 +526,13 @@ function returnCType(manifest, value) {
   if (isResourceReturn(value)) {
     return getResource(manifest, value.resource).cType;
   }
+  if (isBytesReturn(value)) return 'const void *';
   return cType(value.status);
 }
 
 function argumentDescription(manifest, argument) {
   if (typeof argument === 'string') return argument;
+  if (isBytesArgument(argument)) return 'string';
   const resource = getResource(
     manifest,
     argument.resource !== undefined ? argument.resource : argument.outResource
@@ -355,6 +568,15 @@ function emitArgumentDeclarations(lines, manifest, type, index) {
     lines.push(`    ${resourceDeclaration(resource, argument)} = NULL;`);
     return;
   }
+  if (isBytesArgument(type)) {
+    lines.push(
+      `    const char *bytes_data_${index} = NULL;`,
+      `    size_t bytes_size_${index} = 0;`,
+      `    ${cDeclaration(type.bytes.length, `bytes_length_${index}`)} = 0;`
+    );
+    return;
+  }
+  if (isHiddenArgument(type)) return;
   switch (type) {
     case 'bool':
     case 'i64':
@@ -376,6 +598,32 @@ function emitArgumentDeclarations(lines, manifest, type, index) {
       );
       break;
   }
+}
+
+function sizeFitsType(type, value) {
+  if (type === 'u64' || type === 'usize') return 'true';
+  const limits = {
+    i8: 'INT8_MAX',
+    u8: 'UINT8_MAX',
+    i16: 'INT16_MAX',
+    u16: 'UINT16_MAX',
+    i32: 'INT32_MAX',
+    u32: 'UINT32_MAX',
+    i64: 'INT64_MAX',
+    u64: 'UINT64_MAX',
+    isize: 'INTPTR_MAX',
+    usize: 'UINTPTR_MAX',
+  };
+  return `${value} <= ${limits[type]}`;
+}
+
+function nonnegativeLength(type, value) {
+  return type.startsWith('i') ? `${value} >= 0 && ` : '';
+}
+
+function lengthFitsSize(type, value, converted) {
+  const nonnegative = nonnegativeLength(type, value);
+  return `${nonnegative}(uintmax_t)${converted} == (uintmax_t)${value}`;
 }
 
 function emitArgumentConversion(
@@ -405,6 +653,20 @@ function emitArgumentConversion(
       message
     );
     lines.push(`    ${argument} = raw_resource_${index};`);
+    return;
+  }
+  if (isBytesArgument(type)) {
+    emitFailure(
+      lines,
+      `toy_get_string(state, ${depth}, &bytes_data_${index}, ` +
+        `&bytes_size_${index}) && ` +
+        sizeFitsType(type.bytes.length, `bytes_size_${index}`),
+      message
+    );
+    lines.push(
+      `    bytes_length_${index} = ` +
+        `(${cType(type.bytes.length)})bytes_size_${index};`
+    );
     return;
   }
   switch (type) {
@@ -564,35 +826,119 @@ function emitScalarReturn(lines, moduleName, word, type) {
   }
 }
 
-function emitResourcePush(lines, manifest, resource, value, prefix) {
+function emitResourcePush(
+  lines,
+  manifest,
+  resource,
+  value,
+  parent,
+  prefix
+) {
   lines.push(
     `    if (!${value}) {`,
     `        status = toy_fail(state, ${cString(`${prefix} returned a null ${resourceTypeName(manifest, resource)}`)});`,
     '    } else {',
     `        status = toy_push_resource(state, ` +
       `${cString(resourceTypeName(manifest, resource))}, ${value}, ` +
-      `binding_destroy_resource_${resource.index}, NULL);`,
-    `        if (status == TOY_OK) ${value} = NULL;`,
+      `binding_destroy_resource_${resource.index}, ${parent});`,
+    '        if (status == TOY_OK) {',
+    `            ${value} = NULL;`,
+    ...(parent === 'NULL' ? [] : [`            ${parent} = NULL;`]),
+    '        }',
     '    }'
   );
 }
 
 function statusCondition(value) {
-  return value.success
+  const codes = value.success || Object.keys(value.map).map(Number);
+  return codes
     .map((code) => `result == (${cType(value.status)})${code}`)
     .join(' || ');
+}
+
+function emitMappedStatus(lines, value) {
+  const entries = Object.entries(value.map);
+  for (const [index, [code, mapped]] of entries.entries()) {
+    const keyword = index === 0 ? 'if' : 'else if';
+    lines.push(
+      `    ${keyword} (result == (${cType(value.status)})${code}) {`,
+      `        status = toy_push_bool(state, ${mapped ? 'true' : 'false'});`,
+      '    }'
+    );
+  }
+}
+
+function constantExpression(argument) {
+  const type = argument.const;
+  let value;
+  if (type === 'bool') value = argument.value ? 'true' : 'false';
+  else value = String(argument.value);
+  return `(${cType(type)})${value}`;
+}
+
+function callArgumentExpressions(argument, index) {
+  if (isOutputResource(argument)) return [`&argument_${index}`];
+  if (isConstantArgument(argument)) return [constantExpression(argument)];
+  if (isNullArgument(argument)) return ['NULL'];
+  if (isCConstantArgument(argument)) return [argument.cConstant];
+  if (isBytesArgument(argument)) {
+    return [`bytes_data_${index}`, `bytes_length_${index}`];
+  }
+  return [`argument_${index}`];
+}
+
+function producedResourceEntry(manifest, fn) {
+  if (isResourceReturn(fn.returns)) {
+    return {
+      resource: getResource(manifest, fn.returns.resource),
+      value: 'result',
+    };
+  }
+  const entry = fn.args
+    .map((argument, argIndex) => ({argument, argIndex}))
+    .find((candidate) => isOutputResource(candidate.argument));
+  if (!entry) return null;
+  return {
+    resource: getResource(manifest, entry.argument.outResource),
+    value: `argument_${entry.argIndex}`,
+  };
+}
+
+function dependencyInput(fn, resource) {
+  if (!resource.dependsOn) return null;
+  const visible = fn.args.filter((argument) => !isHiddenArgument(argument));
+  const visibleIndex = visible.findIndex(
+    (argument) => isResourceInput(argument) &&
+      argument.resource === resource.dependsOn
+  );
+  return {
+    depth: visible.length - visibleIndex - 1,
+    variable: 'resource_parent',
+  };
+}
+
+function statusErrorExpression(fn) {
+  if (!isStatusReturn(fn.returns) || !fn.returns.error) return 'NULL';
+  const resourceName = fn.returns.error.resource;
+  const index = fn.args.findIndex((argument) =>
+    isObject(argument) &&
+      (argument.resource === resourceName ||
+       argument.outResource === resourceName)
+  );
+  return `argument_${index} ? ` +
+    `${fn.returns.error.function}(argument_${index}) : NULL`;
 }
 
 function renderFunction(manifest, fn, index) {
   const word = fn.word || fn.name;
   const prefix = `${manifest.module}.${word}`;
-  const visibleArgs = fn.args.filter((argument) => !isOutputResource(argument));
-  const outputEntry = fn.args
-    .map((argument, argIndex) => ({argument, argIndex}))
-    .find((entry) => isOutputResource(entry.argument));
-  const directResource = isResourceReturn(fn.returns)
-    ? getResource(manifest, fn.returns.resource)
+  const visibleArgs = fn.args.filter((argument) => !isHiddenArgument(argument));
+  const produced = producedResourceEntry(manifest, fn);
+  const dependency = produced
+    ? dependencyInput(fn, produced.resource)
     : null;
+  const callArguments = fn.args.flatMap(callArgumentExpressions);
+  const call = `${fn.name}(${callArguments.join(', ')})`;
   const lines = [
     `static toy_status binding_word_${index}(toy_state *state) {`,
     '    toy_status status = TOY_ERROR;',
@@ -611,11 +957,22 @@ function renderFunction(manifest, fn, index) {
       '    size_t result_length = 0;'
     );
   }
+  if (isBytesReturn(fn.returns)) {
+    lines.push(
+      `    ${cDeclaration(fn.returns.bytes.lengthType, `result_length_raw`)} = 0;`,
+      '    size_t result_length = 0;',
+      '    char *result_copy = NULL;'
+    );
+  }
+  if (isStatusReturn(fn.returns)) {
+    lines.push('    bool result_succeeded = false;');
+  }
+  if (dependency) lines.push('    toy_value *resource_parent = NULL;');
   if (fn.args.length > 0 || fn.returns !== 'void') lines.push('');
 
   let visibleIndex = 0;
   for (const [argIndex, type] of fn.args.entries()) {
-    if (isOutputResource(type)) continue;
+    if (isHiddenArgument(type)) continue;
     emitArgumentConversion(
       lines,
       manifest,
@@ -627,20 +984,65 @@ function renderFunction(manifest, fn, index) {
     );
     visibleIndex++;
   }
-  const callArguments = fn.args.map((argument, argIndex) =>
-    isOutputResource(argument) ? `&argument_${argIndex}` : `argument_${argIndex}`
-  );
-  const call = `${fn.name}(${callArguments.join(', ')})`;
   if (fn.returns === 'void') lines.push(`    ${call};`);
   else lines.push(`    result = ${call};`);
+  lines.push('    status = TOY_OK;');
 
   if (fn.returns === 'cstr') {
     lines.push(
-      '    if (result) {',
+      '    if (!result) {',
+      `        status = toy_fail(state, ${cString(`${prefix} returned a null cstr`)});`,
+      '    } else {',
       '        result_length = strlen(result);',
       '        result_copy = malloc(result_length + 1);',
-      '        if (result_copy) {',
+      '        if (!result_copy) {',
+      `            status = toy_fail(state, ${cString(`${prefix} could not copy its cstr result`)});`,
+      '        } else {',
       '            memcpy(result_copy, result, result_length + 1);',
+      '        }',
+      '    }'
+    );
+  }
+
+  if (isBytesReturn(fn.returns)) {
+    const bytes = fn.returns.bytes;
+    const lengthCall = `${bytes.lengthFunction}(${callArguments.join(', ')})`;
+    lines.push(
+      `    result_length_raw = ${lengthCall};`,
+      '    result_length = (size_t)result_length_raw;',
+      `    if (!(${lengthFitsSize(bytes.lengthType, 'result_length_raw', 'result_length')})) {`,
+      `        status = toy_fail(state, ${cString(`${prefix} returned an invalid byte length`)});`,
+      '    } else if (!result) {',
+      `        status = toy_fail(state, ${cString(`${prefix} returned null bytes`)});`,
+      '    } else {',
+      '        if (result_length > 0) {',
+      '            result_copy = malloc(result_length);',
+      '            if (!result_copy) {',
+      `                status = toy_fail(state, ${cString(`${prefix} could not copy its byte result`)});`,
+      '            } else {',
+      '                memcpy(result_copy, result, result_length);',
+      '            }',
+      '        }',
+      '    }'
+    );
+  }
+
+  if (isStatusReturn(fn.returns)) {
+    lines.push(
+      `    result_succeeded = ${statusCondition(fn.returns)};`,
+      '    if (!result_succeeded) {',
+      `        status = binding_fail_status(state, ${cString(prefix)}, ` +
+        `(long long)result, ${statusErrorExpression(fn)});`,
+      '    }'
+    );
+  }
+
+  if (dependency) {
+    lines.push(
+      `    if (${produced.value}) {`,
+      `        resource_parent = toy_value_retain(state, ${dependency.depth});`,
+      '        if (!resource_parent && status == TOY_OK) {',
+      `            status = toy_fail(state, ${cString(`${prefix} could not retain its resource dependency`)});`,
       '        }',
       '    }'
     );
@@ -654,32 +1056,27 @@ function renderFunction(manifest, fn, index) {
       '    }'
     );
   }
+  lines.push('    if (status != TOY_OK) goto cleanup;');
 
-  if (isStatusReturn(fn.returns)) {
-    lines.push(
-      `    if (!(${statusCondition(fn.returns)})) {`,
-      `        status = binding_fail_status(state, ${cString(prefix)}, ` +
-        '(long long)result);',
-      '        goto cleanup;',
-      '    }'
-    );
-  }
-
-  if (directResource) {
-    emitResourcePush(lines, manifest, directResource, 'result', prefix);
-  } else if (outputEntry) {
-    const resource = getResource(manifest, outputEntry.argument.outResource);
+  if (produced) {
     emitResourcePush(
       lines,
       manifest,
-      resource,
-      `argument_${outputEntry.argIndex}`,
+      produced.resource,
+      produced.value,
+      dependency ? dependency.variable : 'NULL',
       prefix
+    );
+  } else if (isStatusReturn(fn.returns) && fn.returns.map !== undefined) {
+    emitMappedStatus(lines, fn.returns);
+  } else if (isBytesReturn(fn.returns)) {
+    lines.push(
+      '    status = toy_push_string(state,',
+      '                             result_copy ? result_copy : "",',
+      '                             result_length);'
     );
   } else if (typeof fn.returns === 'string' && fn.returns !== 'void') {
     emitScalarReturn(lines, manifest.module, word, fn.returns);
-  } else {
-    lines.push('    status = TOY_OK;');
   }
   lines.push('    goto cleanup;', '', 'cleanup:');
   for (const [argIndex, type] of fn.args.entries()) {
@@ -689,16 +1086,31 @@ function renderFunction(manifest, fn, index) {
       lines.push(
         `    if (argument_${argIndex}) {`,
         `        binding_destroy_resource_${resource.index}(` +
-          `argument_${argIndex}, NULL);`,
+          `argument_${argIndex}, ` +
+          `${dependency ? dependency.variable : 'NULL'});`,
+        `        argument_${argIndex} = NULL;`,
+        ...(dependency ? [`        ${dependency.variable} = NULL;`] : []),
         '    }'
       );
     }
   }
   if (fn.returns === 'cstr') lines.push('    free(result_copy);');
-  if (directResource) {
+  if (isBytesReturn(fn.returns)) lines.push('    free(result_copy);');
+  if (isResourceReturn(fn.returns)) {
+    const resource = getResource(manifest, fn.returns.resource);
     lines.push(
       '    if (result) {',
-      `        binding_destroy_resource_${directResource.index}(result, NULL);`,
+      `        binding_destroy_resource_${resource.index}(` +
+        `result, ${dependency ? dependency.variable : 'NULL'});`,
+      '        result = NULL;',
+      ...(dependency ? [`        ${dependency.variable} = NULL;`] : []),
+      '    }'
+    );
+  }
+  if (dependency) {
+    lines.push(
+      `    if (${dependency.variable}) {`,
+      `        toy_value_release(${dependency.variable});`,
       '    }'
     );
   }
@@ -748,10 +1160,17 @@ function renderBinding(manifest) {
     lines.push(
       'static toy_status binding_fail_status(toy_state *state,',
       '                                      const char *word,',
-      '                                      long long value) {',
+      '                                      long long value,',
+      '                                      const char *detail) {',
       '    char message[256];',
-      '    snprintf(message, sizeof(message), "%s failed with status %lld",',
-      '             word, value);',
+      '    if (detail && detail[0] != \'\\0\') {',
+      '        snprintf(message, sizeof(message),',
+      '                 "%s failed with status %lld: %s",',
+      '                 word, value, detail);',
+      '    } else {',
+      '        snprintf(message, sizeof(message),',
+      '                 "%s failed with status %lld", word, value);',
+      '    }',
       '    return toy_fail(state, message);',
       '}',
       ''
@@ -762,9 +1181,12 @@ function renderBinding(manifest) {
     lines.push(
       `static void binding_destroy_resource_${index}(void *resource,`,
       '                                       void *userdata) {',
-      '    (void)userdata;',
+      ...(resource.dependsOn ? [] : ['    (void)userdata;']),
       `    ${resourceDeclaration(resource, 'value')} = resource;`,
       `    (void)${resource.destructor}(value);`,
+      ...(resource.dependsOn
+        ? ['    toy_value_release((toy_value *)userdata);']
+        : []),
       '}',
       ''
     );

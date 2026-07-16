@@ -92,6 +92,66 @@ assert(resourceRendered.includes('sample_handle_open(argument_0, &argument_1)'))
 assert(resourceRendered.includes('result == (int32_t)0 || result == (int32_t)1'));
 assert(resourceRendered.includes('binding_destroy_resource_0(argument_1, NULL)'));
 
+const policyManifest = manifest();
+policyManifest.functions[0] = {
+  name: 'sample_policy',
+  word: 'policy',
+  returns: {
+    bytes: {
+      lengthFunction: 'sample_policy_length',
+      lengthType: 'u32',
+    },
+  },
+  args: [
+    {bytes: {length: 'i32'}},
+    {const: 'i32', value: -1},
+    {null: true},
+    {cConstant: 'SAMPLE_COPY'},
+  ],
+};
+const policyRendered = renderBinding(validateManifest(policyManifest));
+assert(policyRendered.includes(
+  'sample_policy(bytes_data_0, bytes_length_0, (int32_t)-1, NULL, SAMPLE_COPY)'
+));
+assert(policyRendered.includes('sample_policy_length('));
+assert(policyRendered.includes('toy_push_string(state,'));
+
+const dependentManifest = resourceManifest();
+dependentManifest.resources.push({
+  name: 'child',
+  cType: 'sample_child *',
+  destructor: 'sample_child_destroy',
+  dependsOn: 'handle',
+});
+dependentManifest.functions.push({
+  name: 'sample_child_open',
+  word: 'open-child',
+  returns: {status: 'i32', success: [0]},
+  args: [{resource: 'handle'}, {outResource: 'child'}],
+});
+const dependentRendered = renderBinding(validateManifest(dependentManifest));
+assert(dependentRendered.includes('toy_value_retain(state, 0)'));
+assert(dependentRendered.includes('toy_value_release((toy_value *)userdata)'));
+
+const detailedStatus = resourceManifest();
+detailedStatus.functions[2].returns.error = {
+  function: 'sample_handle_error',
+  resource: 'handle',
+};
+const detailedRendered = renderBinding(validateManifest(detailedStatus));
+assert(detailedRendered.includes(
+  'argument_1 ? sample_handle_error(argument_1) : NULL'
+));
+
+const mappedStatus = manifest();
+mappedStatus.functions[0].returns = {
+  status: 'i32',
+  map: {'0': false, '1': true},
+};
+const mappedRendered = renderBinding(validateManifest(mappedStatus));
+assert(mappedRendered.includes('toy_push_bool(state, false)'));
+assert(mappedRendered.includes('toy_push_bool(state, true)'));
+
 const duplicateResource = resourceManifest();
 duplicateResource.resources.push({...duplicateResource.resources[0]});
 assert.throws(
@@ -125,3 +185,33 @@ assert.throws(() => validateManifest(outOfRangeSuccess), /outside u8's range/);
 const tooManyOutputs = resourceManifest();
 tooManyOutputs.functions[2].args.push({outResource: 'handle'});
 assert.throws(() => validateManifest(tooManyOutputs), /at most one output/);
+
+const invalidConstant = manifest();
+invalidConstant.functions[0].args = [{const: 'u8', value: -1}];
+assert.throws(() => validateManifest(invalidConstant), /outside u8's range/);
+
+const invalidNull = manifest();
+invalidNull.functions[0].args = [{null: false}];
+assert.throws(() => validateManifest(invalidNull), /null must be true/);
+
+const invalidBytes = manifest();
+invalidBytes.functions[0].args = [{bytes: {length: 'f32'}}];
+assert.throws(() => validateManifest(invalidBytes), /must be an integer type/);
+
+const invalidMappedStatus = manifest();
+invalidMappedStatus.functions[0].returns = {
+  status: 'i32',
+  success: [0],
+  map: {'1': true},
+};
+assert.throws(
+  () => validateManifest(invalidMappedStatus),
+  /exactly one of success or map/
+);
+
+const missingDependency = dependentManifest;
+missingDependency.functions.at(-1).args = [{outResource: 'child'}];
+assert.throws(
+  () => validateManifest(missingDependency),
+  /must have exactly one handle resource input/
+);

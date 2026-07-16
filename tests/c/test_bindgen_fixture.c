@@ -9,8 +9,15 @@ struct test_bindgen_box {
     char label[48];
 };
 
+struct test_bindgen_child {
+    test_bindgen_box *parent;
+};
+
 static int32_t box_destroy_count = 0;
 static int32_t box_live_count = 0;
+static int32_t child_destroy_count = 0;
+static int32_t child_parent_alive_count = 0;
+static const unsigned char binary_value[] = {'A', 0, 'B', 0xff};
 
 static test_bindgen_box *allocate_box(int64_t value) {
     test_bindgen_box *box = malloc(sizeof(*box));
@@ -53,6 +60,31 @@ uint64_t test_bindgen_too_large(void) {
     return UINT64_MAX;
 }
 
+int32_t test_bindgen_hidden_arguments(int32_t value, int32_t offset,
+                                      const void *pointer, int32_t bias) {
+    return pointer ? INT32_MIN : value + offset + bias;
+}
+
+uint32_t test_bindgen_byte_sum(const char *data, uint32_t length) {
+    uint32_t sum = 0;
+    for (uint32_t i = 0; i < length; i++) {
+        sum += (unsigned char)data[i];
+    }
+    return sum;
+}
+
+const unsigned char *test_bindgen_binary(void) {
+    return binary_value;
+}
+
+uint32_t test_bindgen_binary_length(void) {
+    return (uint32_t)sizeof(binary_value);
+}
+
+int32_t test_bindgen_even_status(int64_t value) {
+    return value % 2 == 0 ? 1 : 0;
+}
+
 test_bindgen_box *test_bindgen_box_new(int64_t value) {
     return value == -1 ? NULL : allocate_box(value);
 }
@@ -93,6 +125,10 @@ int32_t test_bindgen_box_set(test_bindgen_box *box, int64_t value) {
     return 0;
 }
 
+const char *test_bindgen_box_error(test_bindgen_box *box) {
+    return box->label;
+}
+
 void test_bindgen_box_destroy(test_bindgen_box *box) {
     box_destroy_count++;
     box_live_count--;
@@ -105,4 +141,40 @@ int32_t test_bindgen_box_destroy_count(void) {
 
 int32_t test_bindgen_box_live_count(void) {
     return box_live_count;
+}
+
+int32_t test_bindgen_child_open(test_bindgen_box *parent,
+                                test_bindgen_child **output) {
+    test_bindgen_child *child = malloc(sizeof(*child));
+    if (!child) {
+        *output = NULL;
+        return 12;
+    }
+    child->parent = parent;
+    *output = child;
+    return 0;
+}
+
+int32_t test_bindgen_child_open_fail(test_bindgen_box *parent,
+                                     test_bindgen_child **output) {
+    int32_t result = test_bindgen_child_open(parent, output);
+    return result == 0 ? 17 : result;
+}
+
+int64_t test_bindgen_child_value(test_bindgen_child *child) {
+    return child->parent->value;
+}
+
+void test_bindgen_child_destroy(test_bindgen_child *child) {
+    child_destroy_count++;
+    if (box_live_count > 0) child_parent_alive_count++;
+    free(child);
+}
+
+int32_t test_bindgen_child_destroy_count(void) {
+    return child_destroy_count;
+}
+
+int32_t test_bindgen_child_parent_alive_count(void) {
+    return child_parent_alive_count;
 }

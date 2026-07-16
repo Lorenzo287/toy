@@ -21,3 +21,21 @@ $env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
 
 These standard-C functions need no additional library configuration. See
 [`docs/bindgen.md`](../../../docs/bindgen.md) for the manifest contract.
+
+`sqlite.json` is a generated third-party binding rather than a Toy-provided
+SQLite integration. It demonstrates hidden C arguments, resource-specific
+errors, binary-safe pointer-length strings, and a statement that retains its
+database:
+
+```powershell
+.\nob.exe bindgen sqlite.generated examples\interop\bindgen\sqlite.json `
+    --include C:\sqlite\include `
+    --lib-dir C:\sqlite\lib `
+    --lib sqlite3
+$env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
+.\nob.exe run examples\interop\bindgen\sqlite-demo.toy
+```
+
+The selected compiler must match the SQLite library's ABI. The separate
+[`examples/interop/sqlite/`](../sqlite/) adapter remains handwritten to show
+custom row-state validation and a more idiomatic Toy interface.

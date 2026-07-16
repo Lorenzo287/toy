@@ -66,19 +66,19 @@ libffi module now experiments with dynamically resolved, explicit signatures
 for booleans, integers, floats, and copied C strings. An explicit-manifest
 generator can compile that safe subset into ordinary loadable module words,
 including typed opaque resources, destructors, exact resource inputs, direct
-owned returns, output handles, numeric success codes, and failure cleanup.
-Automatic header parsing is not implemented yet.
+owned returns, output handles, dependent resource lifetimes, hidden constants
+and nulls, pointer-length strings, numeric success codes, resource-based error
+messages, boolean result-code mappings, and failure cleanup. A generated SQLite
+subset tests these policies without making SQLite a Toy integration. Automatic
+header parsing is not implemented yet.
 
 Current follow-up candidates are:
 
-1. use the handwritten SQLite adapter to drive hidden constant arguments,
-   result-code mapping, length-aware buffers, and dependent-handle lifetime
-   policy without making the generator SQLite-specific;
-2. settle reusable library/package configuration without making the runtime or
+1. settle reusable library/package configuration without making the runtime or
    build program aware of individual third-party libraries;
-3. add a libclang frontend after the resource manifest is explicit enough to
+2. add a libclang frontend after the resource manifest is explicit enough to
    preserve ownership decisions that headers cannot infer;
-4. expose general buffers, structs, variadic functions, and callbacks only
+3. expose general output buffers, structs, variadic functions, and callbacks only
    after their ownership and VM-boundary rules are settled.
 
 The resulting boundary should be reusable by embedders, native modules, and

@@ -5,11 +5,12 @@ boundary. SQLite is not a Toy dependency or built-in integration. The C file is
 a handwritten adapter built with the same generic `module` command available
 to any project.
 
-The adapter is currently handwritten because SQLite relies on opaque
-`sqlite3 *` and `sqlite3_stmt *` handles, output parameters, borrowed result
-buffers, and library-specific cleanup. Toy's manifest generator does not yet
-describe those concepts. The example therefore documents the useful target for
-the generator rather than adding a special SQLite path to Toy.
+The adapter is handwritten because it adds row-state validation, tailored
+errors, and an idiomatic interface beyond direct C calls. The focused
+[`sqlite.json`](../bindgen/sqlite.json) manifest demonstrates that the generic
+generator can cover SQLite's opaque handles, output parameters, dependent
+lifetimes, hidden arguments, and borrowed result buffers without a special
+SQLite path in Toy.
 
 After installing SQLite's development files, provide its include path and
 library. For example:

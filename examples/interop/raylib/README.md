@@ -5,11 +5,11 @@ library as a loadable Toy module. Raylib is not a Toy runtime dependency or a
 built-in integration: the example is built with the same generic `module`
 command available to any handwritten binding.
 
-The C adapter is necessary because this example crosses resource and ownership
-boundaries that the current scalar/string binding generator cannot express.
-It converts ordinary Toy values, wraps `Texture2D` as an owned
-`raylib.texture`, and exports a normal shared native module discovered by
-`require`.
+The C adapter is necessary because this example uses by-value Raylib structs,
+packed color conversion, and coordinated window/GPU lifetime rules that the
+manifest generator does not express. It converts ordinary Toy values, wraps
+`Texture2D` as an owned `raylib.texture`, and exports a normal shared native
+module discovered by `require`.
 
 After installing Raylib, provide the appropriate compiler search paths and
 libraries. A typical Windows build is:

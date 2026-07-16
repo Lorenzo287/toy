@@ -1,0 +1,23 @@
+"sqlite.generated" 'db require-as
+
+":memory:" db.open
+dup "CREATE TABLE people (id INTEGER PRIMARY KEY, name TEXT NOT NULL)" db.exec
+
+dup "INSERT INTO people VALUES (?, ?)" db.prepare
+dup 1 1 db.bind-int
+dup 2 "Ada" db.bind-text
+dup db.step drop
+drop
+
+dup "INSERT INTO people VALUES (2, 'Grace')" db.exec
+dup "SELECT id, name FROM people ORDER BY id" db.prepare
+
+swap drop \ the statement retains the database resource
+[
+	dup db.step
+] [
+	dup 0 db.column-int
+	over 1 db.column-text
+	"{}: {}\n" printf
+] while
+drop

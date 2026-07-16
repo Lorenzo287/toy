@@ -347,11 +347,12 @@ database destruction calls `sqlite3_close_v2`, statement destruction calls
 consumes the statement input.
 
 The adapter is intentionally an example rather than a maintained standard
-library. It is useful because it identifies general binding concepts that the
-current scalar manifest cannot express: opaque handle constructors, output
-parameters, destructors, and borrowed buffers. See the
-[SQLite example README](../examples/interop/sqlite/) for the generic build
-command and a prepared-statement program.
+library. A focused [generated SQLite binding](../examples/interop/bindgen/)
+shows how manifests cover handle constructors, output parameters, dependent
+resources, hidden arguments, status messages, and borrowed buffers. The
+handwritten adapter remains useful for custom row-state validation and a more
+idiomatic interface. See its [README](../examples/interop/sqlite/) for the
+generic build command and a prepared-statement program.
 
 ## Stack and Ownership
 

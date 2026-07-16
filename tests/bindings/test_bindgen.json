@@ -6,6 +6,12 @@
       "name": "box",
       "cType": "test_bindgen_box *",
       "destructor": "test_bindgen_box_destroy"
+    },
+    {
+      "name": "child",
+      "cType": "test_bindgen_child *",
+      "destructor": "test_bindgen_child_destroy",
+      "dependsOn": "box"
     }
   ],
   "functions": [
@@ -58,6 +64,40 @@
       "args": []
     },
     {
+      "name": "test_bindgen_hidden_arguments",
+      "word": "hidden-arguments",
+      "returns": "i32",
+      "args": [
+        "i32",
+        {"const": "i32", "value": -2},
+        {"null": true},
+        {"cConstant": "TEST_BINDGEN_BIAS"}
+      ]
+    },
+    {
+      "name": "test_bindgen_byte_sum",
+      "word": "byte-sum",
+      "returns": "u32",
+      "args": [{"bytes": {"length": "u32"}}]
+    },
+    {
+      "name": "test_bindgen_binary",
+      "word": "binary",
+      "returns": {
+        "bytes": {
+          "lengthFunction": "test_bindgen_binary_length",
+          "lengthType": "u32"
+        }
+      },
+      "args": []
+    },
+    {
+      "name": "test_bindgen_even_status",
+      "word": "even-status?",
+      "returns": {"status": "i32", "map": {"0": false, "1": true}},
+      "args": ["i64"]
+    },
+    {
       "name": "test_bindgen_box_new",
       "word": "make-box",
       "returns": {"resource": "box"},
@@ -78,7 +118,14 @@
     {
       "name": "test_bindgen_box_open_fail",
       "word": "open-box-fail",
-      "returns": {"status": "i32", "success": [0]},
+      "returns": {
+        "status": "i32",
+        "success": [0],
+        "error": {
+          "function": "test_bindgen_box_error",
+          "resource": "box"
+        }
+      },
       "args": ["i64", {"outResource": "box"}]
     },
     {
@@ -114,6 +161,36 @@
     {
       "name": "test_bindgen_box_live_count",
       "word": "box-live-count",
+      "returns": "i32",
+      "args": []
+    },
+    {
+      "name": "test_bindgen_child_open",
+      "word": "open-child",
+      "returns": {"status": "i32", "success": [0]},
+      "args": [{"resource": "box"}, {"outResource": "child"}]
+    },
+    {
+      "name": "test_bindgen_child_value",
+      "word": "child-value",
+      "returns": "i64",
+      "args": [{"resource": "child"}]
+    },
+    {
+      "name": "test_bindgen_child_open_fail",
+      "word": "open-child-fail",
+      "returns": {"status": "i32", "success": [0]},
+      "args": [{"resource": "box"}, {"outResource": "child"}]
+    },
+    {
+      "name": "test_bindgen_child_destroy_count",
+      "word": "child-destroy-count",
+      "returns": "i32",
+      "args": []
+    },
+    {
+      "name": "test_bindgen_child_parent_alive_count",
+      "word": "child-parent-alive-count",
       "returns": "i32",
       "args": []
     }
