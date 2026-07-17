@@ -83,6 +83,7 @@ static const char *core_c_tests[] = {
     "tests/c/test_embed_api.c",
     "tests/c/test_debug_control.c",
     "tests/c/test_debug_inspection.c",
+    "tests/c/test_linenoise.c",
 };
 
 static const char *static_library_path(const Build_Config *config,

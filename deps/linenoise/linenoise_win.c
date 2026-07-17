@@ -43,6 +43,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdint.h>
 #include "linenoise.h"
 
@@ -58,6 +59,7 @@
 
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
 #define LINENOISE_MAX_LINE 4096
+#define LINENOISE_DEFAULT_COLUMNS 80
 
 /* Terminal refresh flags */
 #define REFRESH_CLEAN (1<<0)    /* Clean the old prompt from the screen */
@@ -71,6 +73,8 @@ static linenoiseFreeHintsCallback *freeHintsCallback = NULL;
 
 static DWORD orig_console_in_mode;
 static DWORD orig_console_out_mode;
+static UINT orig_console_output_cp;
+static WCHAR pending_high_surrogate;
 static int rawmode = 0;
 static int mlmode = 0;
 static int maskmode = 0;
@@ -118,8 +122,9 @@ static int enableRawMode(int fd) {
     if (!GetConsoleMode(hOut, &orig_console_out_mode)) goto fatal;
 
     dwInMode = orig_console_in_mode;
-    dwInMode &= ~(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT);
-    dwInMode |= ENABLE_VIRTUAL_TERMINAL_INPUT;
+    dwInMode &= ~(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT |
+                  ENABLE_PROCESSED_INPUT | ENABLE_VIRTUAL_TERMINAL_INPUT);
+    dwInMode |= ENABLE_WINDOW_INPUT;
 
     dwOutMode = orig_console_out_mode;
     dwOutMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING | DISABLE_NEWLINE_AUTO_RETURN;
@@ -128,6 +133,12 @@ static int enableRawMode(int fd) {
     if (!SetConsoleMode(hOut, dwOutMode)) {
         /* Fallback if VT processing is not supported */
         SetConsoleMode(hIn, orig_console_in_mode);
+        goto fatal;
+    }
+    orig_console_output_cp = GetConsoleOutputCP();
+    if (orig_console_output_cp == 0 || !SetConsoleOutputCP(CP_UTF8)) {
+        SetConsoleMode(hIn, orig_console_in_mode);
+        SetConsoleMode(hOut, orig_console_out_mode);
         goto fatal;
     }
 
@@ -148,6 +159,8 @@ static void disableRawMode(int fd) {
     if (rawmode) {
         SetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), orig_console_in_mode);
         SetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), orig_console_out_mode);
+        if (orig_console_output_cp != 0)
+            SetConsoleOutputCP(orig_console_output_cp);
         rawmode = 0;
     }
 }
@@ -156,23 +169,57 @@ static int getColumns(int ifd, int ofd) {
     (void)ifd; (void)ofd;
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     char *cols_env = getenv("LINENOISE_COLS");
-    if (cols_env) return atoi(cols_env);
+    if (cols_env) {
+        char *end = NULL;
+        int saved_errno = errno;
+        long cols;
+
+        errno = 0;
+        cols = strtol(cols_env,&end,10);
+        if (errno != 0 || end == cols_env || *end != '\0' ||
+            cols <= 0 || cols > INT_MAX)
+        {
+            cols = LINENOISE_DEFAULT_COLUMNS;
+        }
+        errno = saved_errno;
+        return (int)cols;
+    }
 
     if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi)) {
         return csbi.srWindow.Right - csbi.srWindow.Left + 1;
     }
-    return 80;
+    return LINENOISE_DEFAULT_COLUMNS;
+}
+
+static void updateColumns(struct linenoiseState *l) {
+    int cols = getColumns(l->ifd,l->ofd);
+    l->cols = cols > 0 ? (size_t)cols : LINENOISE_DEFAULT_COLUMNS;
 }
 
 /* =========================== UTF-8 support ================================ */
 
-static int utf8ByteLen(char c) {
-    unsigned char uc = (unsigned char)c;
-    if ((uc & 0x80) == 0)    return 1;
-    if ((uc & 0xE0) == 0xC0) return 2;
-    if ((uc & 0xF0) == 0xE0) return 3;
-    if ((uc & 0xF8) == 0xF0) return 4;
-    return 1;
+static int utf8EncodeChar(uint32_t cp, char out[4]) {
+    if (cp <= 0x7f) {
+        out[0] = (char)cp;
+        return 1;
+    }
+    if (cp <= 0x7ff) {
+        out[0] = (char)(0xc0 | (cp >> 6));
+        out[1] = (char)(0x80 | (cp & 0x3f));
+        return 2;
+    }
+    if ((cp >= 0xd800 && cp <= 0xdfff) || cp > 0x10ffff) cp = 0xfffd;
+    if (cp <= 0xffff) {
+        out[0] = (char)(0xe0 | (cp >> 12));
+        out[1] = (char)(0x80 | ((cp >> 6) & 0x3f));
+        out[2] = (char)(0x80 | (cp & 0x3f));
+        return 3;
+    }
+    out[0] = (char)(0xf0 | (cp >> 18));
+    out[1] = (char)(0x80 | ((cp >> 12) & 0x3f));
+    out[2] = (char)(0x80 | ((cp >> 6) & 0x3f));
+    out[3] = (char)(0x80 | (cp & 0x3f));
+    return 4;
 }
 
 static uint32_t utf8DecodeChar(const char *s, size_t *len) {
@@ -354,12 +401,41 @@ static void refreshLineWithCompletion(struct linenoiseState *ls, linenoiseComple
     } else {
         refreshLineWithFlags(ls,flags);
     }
-    if (lc != &ctable) freeCompletions(&ctable);
+    if (lc == &ctable) freeCompletions(&ctable);
+}
+
+static void acceptCompletion(struct linenoiseState *ls,
+                             const char *completion) {
+    size_t completion_len = strlen(completion);
+    size_t copy_len = completion_len;
+
+    if (copy_len > ls->buflen) {
+        copy_len = ls->buflen;
+        while (copy_len > 0 &&
+               ((unsigned char)completion[copy_len] & 0xc0) == 0x80)
+        {
+            copy_len--;
+        }
+    }
+    memcpy(ls->buf,completion,copy_len);
+    ls->buf[copy_len] = '\0';
+    ls->len = ls->pos = copy_len;
+}
+
+static void acceptDisplayedCompletion(struct linenoiseState *ls) {
+    linenoiseCompletions lc = { 0, NULL };
+
+    if (!ls->in_completion || completionCallback == NULL) return;
+    completionCallback(ls->buf,&lc);
+    if (ls->completion_idx < lc.len)
+        acceptCompletion(ls,lc.cvec[ls->completion_idx]);
+    ls->in_completion = 0;
+    freeCompletions(&lc);
+    refreshLine(ls);
 }
 
 static int completeLine(struct linenoiseState *ls, int keypressed) {
     linenoiseCompletions lc = { 0, NULL };
-    int nwritten;
     char c = keypressed;
     completionCallback(ls->buf,&lc);
     if (lc.len == 0) {
@@ -385,8 +461,7 @@ static int completeLine(struct linenoiseState *ls, int keypressed) {
                 break;
             default:
                 if (ls->completion_idx < lc.len) {
-                    nwritten = snprintf(ls->buf,ls->buflen,"%s", lc.cvec[ls->completion_idx]);
-                    ls->len = ls->pos = nwritten;
+                    acceptCompletion(ls,lc.cvec[ls->completion_idx]);
                 }
                 ls->in_completion = 0;
                 break;
@@ -470,14 +545,16 @@ static void refreshSingleLine(struct linenoiseState *l, int flags) {
     struct abuf ab;
     poscol = utf8StrWidth(buf, pos);
     lencol = utf8StrWidth(buf, len);
-    while (pwidth + poscol >= l->cols) {
+    while (pos > 0 && pwidth + poscol >= l->cols) {
         size_t clen = utf8NextCharLen(buf, 0, len);
         int cwidth = utf8SingleCharWidth(buf, clen);
+        if (clen == 0 || clen > pos) break;
         buf += clen; len -= clen; pos -= clen; poscol -= cwidth; lencol -= cwidth;
     }
-    while (pwidth + lencol > l->cols) {
+    while (len > 0 && pwidth + lencol > l->cols) {
         size_t clen = utf8PrevCharLen(buf, len);
         int cwidth = utf8SingleCharWidth(buf + len - clen, clen);
+        if (clen == 0) break;
         len -= clen; lencol -= cwidth;
     }
     abInit(&ab);
@@ -551,6 +628,7 @@ static void refreshMultiLine(struct linenoiseState *l, int flags) {
 }
 
 static void refreshLineWithFlags(struct linenoiseState *l, int flags) {
+    updateColumns(l);
     if (mlmode) refreshMultiLine(l,flags);
     else refreshSingleLine(l,flags);
 }
@@ -558,8 +636,7 @@ static void refreshLineWithFlags(struct linenoiseState *l, int flags) {
 static void refreshLine(struct linenoiseState *l) { refreshLineWithFlags(l,REFRESH_ALL); }
 
 void linenoiseHide(struct linenoiseState *l) {
-    if (mlmode) refreshMultiLine(l,REFRESH_CLEAN);
-    else refreshSingleLine(l,REFRESH_CLEAN);
+    refreshLineWithFlags(l,REFRESH_CLEAN);
 }
 
 void linenoiseShow(struct linenoiseState *l) {
@@ -567,14 +644,18 @@ void linenoiseShow(struct linenoiseState *l) {
     else refreshLineWithFlags(l,REFRESH_WRITE);
 }
 
+/* On error writing to the terminal -1 is returned, otherwise 0. */
 int linenoiseEditInsert(struct linenoiseState *l, const char *c, size_t clen) {
     if (l->len + clen <= l->buflen) {
         if (l->len == l->pos) {
             memcpy(l->buf+l->pos, c, clen);
             l->pos += clen; l->len += clen; l->buf[l->len] = '\0';
             if ((!mlmode && utf8StrWidth(l->prompt,l->plen)+utf8StrWidth(l->buf,l->len) < l->cols && !hintsCallback)) {
-                if (maskmode == 1) _write(l->ofd,"*",1);
-                else _write(l->ofd,c,clen);
+                if (maskmode == 1) {
+                    if (_write(l->ofd,"*",1) != 1) return -1;
+                } else if (_write(l->ofd,c,(unsigned int)clen) != (int)clen) {
+                    return -1;
+                }
             } else refreshLine(l);
         } else {
             memmove(l->buf+l->pos+clen, l->buf+l->pos, l->len-l->pos);
@@ -596,16 +677,39 @@ void linenoiseEditMoveHome(struct linenoiseState *l) { if (l->pos != 0) { l->pos
 void linenoiseEditMoveEnd(struct linenoiseState *l) { if (l->pos != l->len) { l->pos = l->len; refreshLine(l); } }
 
 void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
-    if (history_len > 1) {
-        free(history[history_len - 1 - l->history_index]);
-        history[history_len - 1 - l->history_index] = _strdup(l->buf);
+    if (l->history_temp_active && history_len > 1) {
+        int current_index = history_len - 1 - l->history_index;
+        char *copy = _strdup(l->buf);
+        if (copy == NULL) return;
+        free(history[current_index]);
+        history[current_index] = copy;
         l->history_index += (dir == 1) ? 1 : -1;
         if (l->history_index < 0) { l->history_index = 0; return; }
         else if (l->history_index >= history_len) { l->history_index = history_len-1; return; }
         strncpy(l->buf,history[history_len - 1 - l->history_index],l->buflen);
-        l->buf[l->buflen-1] = '\0';
+        l->buf[l->buflen] = '\0';
         l->len = l->pos = strlen(l->buf);
         refreshLine(l);
+    }
+}
+
+static void discardHistoryPlaceholder(struct linenoiseState *l) {
+    if (!l->history_temp_active) return;
+    if (history_len > 0) {
+        history_len--;
+        free(history[history_len]);
+        history[history_len] = NULL;
+    }
+    l->history_temp_active = 0;
+}
+
+static void addHistoryPlaceholder(struct linenoiseState *l) {
+    if (linenoiseHistoryAdd("")) {
+        l->history_temp_active = 1;
+    } else if (history_len > 0 && history[history_len-1] != NULL &&
+               history[history_len-1][0] == '\0')
+    {
+        l->history_temp_active = 1;
     }
 }
 
@@ -649,11 +753,17 @@ void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
 
 int linenoiseEditStart(struct linenoiseState *l, int stdin_fd, int stdout_fd,
                        char *buf, size_t buflen, const char *prompt) {
+    if (l == NULL || buf == NULL || buflen == 0 || prompt == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
     l->in_completion = 0;
     l->ifd = stdin_fd != -1 ? stdin_fd : STDIN_FILENO;
     l->ofd = stdout_fd != -1 ? stdout_fd : STDOUT_FILENO;
     l->buf = buf; l->buflen = buflen; l->prompt = prompt; l->plen = strlen(prompt);
     l->oldpos = l->pos = 0; l->len = 0;
+    l->history_temp_active = 0;
+    pending_high_surrogate = 0;
     /* Always initialize these so linenoiseEditFeed sees valid state
      * even when called on a non-TTY fd. */
     l->cols = 80;
@@ -661,55 +771,111 @@ int linenoiseEditStart(struct linenoiseState *l, int stdin_fd, int stdout_fd,
     l->buf[0] = '\0'; l->buflen--;
 
     if (enableRawMode(l->ifd) == -1) return -1;
-    l->cols = getColumns(stdin_fd, stdout_fd); /* overwrite with real value */
+    l->cols = getColumns(l->ifd,l->ofd); /* overwrite with real value */
 
     if (!_isatty(l->ifd) && !getenv("LINENOISE_ASSUME_TTY")) return 0;
-    linenoiseHistoryAdd("");
-    _write(l->ofd, prompt, l->plen);
+    addHistoryPlaceholder(l);
+    if (_write(l->ofd,prompt,(unsigned int)l->plen) != (int)l->plen) {
+        discardHistoryPlaceholder(l);
+        disableRawMode(l->ifd);
+        return -1;
+    }
     return 0;
 }
 
 char *linenoiseEditMore = "If you see this, you are misusing the API...";
 
-/* NEW HELPER: read one ASCII char from the console using the same
- * ReadConsoleInputA path as the main loop. Returns -1 on failure. */
-static int readConsoleChar(HANDLE hIn) {
-    INPUT_RECORD ir;
-    DWORD count;
-    while (1) {
-        if (!ReadConsoleInputA(hIn, &ir, 1, &count) || count == 0) return -1;
-        if (ir.EventType == KEY_EVENT && ir.Event.KeyEvent.bKeyDown) {
-            char c = ir.Event.KeyEvent.uChar.AsciiChar;
-            if (c != 0) return (unsigned char)c;
-            /* ignore modifier-only or non-character virtual keys here */
-        }
-    }
-}
-
-char *linenoiseEditFeed(struct linenoiseState *l) {
-    if (!_isatty(l->ifd) && !getenv("LINENOISE_ASSUME_TTY")) return linenoiseNoTTY();
-    
-    char c = 0;
+/* Return the next key-down record. Resize events repaint immediately and all
+ * other console events are left out of the character stream. */
+static int readConsoleKey(struct linenoiseState *l, KEY_EVENT_RECORD *key) {
     HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE);
     INPUT_RECORD ir;
     DWORD count;
 
     while (1) {
-        if (!ReadConsoleInputA(hIn, &ir, 1, &count) || count == 0) return NULL;
-        if (ir.EventType == KEY_EVENT && ir.Event.KeyEvent.bKeyDown) {
-            c = ir.Event.KeyEvent.uChar.AsciiChar;
-            if (c != 0) break;
-            
-            /* Handle virtual keys like arrows */
-            WORD vkey = ir.Event.KeyEvent.wVirtualKeyCode;
-            if (vkey == VK_UP) { linenoiseEditHistoryNext(l, 1); return linenoiseEditMore; }
-            if (vkey == VK_DOWN) { linenoiseEditHistoryNext(l, 0); return linenoiseEditMore; }
-            if (vkey == VK_RIGHT) { linenoiseEditMoveRight(l); return linenoiseEditMore; }
-            if (vkey == VK_LEFT) { linenoiseEditMoveLeft(l); return linenoiseEditMore; }
-            if (vkey == VK_HOME) { linenoiseEditMoveHome(l); return linenoiseEditMore; }
-            if (vkey == VK_END) { linenoiseEditMoveEnd(l); return linenoiseEditMore; }
-            if (vkey == VK_DELETE) { linenoiseEditDelete(l); return linenoiseEditMore; }
+        if (!ReadConsoleInputW(hIn,&ir,1,&count) || count == 0) return -1;
+        if (ir.EventType == WINDOW_BUFFER_SIZE_EVENT) {
+            if (l->in_completion && completionCallback != NULL)
+                refreshLineWithCompletion(l,NULL,REFRESH_ALL);
+            else
+                refreshLine(l);
+            continue;
         }
+        if (ir.EventType == KEY_EVENT && ir.Event.KeyEvent.bKeyDown) {
+            *key = ir.Event.KeyEvent;
+            return 1;
+        }
+    }
+}
+
+static int insertCodepoint(struct linenoiseState *l, uint32_t cp) {
+    char utf8[4];
+    int utf8len = utf8EncodeChar(cp,utf8);
+    acceptDisplayedCompletion(l);
+    return linenoiseEditInsert(l,utf8,(size_t)utf8len);
+}
+
+char *linenoiseEditFeed(struct linenoiseState *l) {
+    if (!_isatty(l->ifd) && !getenv("LINENOISE_ASSUME_TTY")) return linenoiseNoTTY();
+
+    char c = 0;
+    KEY_EVENT_RECORD key;
+
+    while (1) {
+        WCHAR wc;
+        WORD vkey;
+
+        if (readConsoleKey(l,&key) == -1) {
+            discardHistoryPlaceholder(l);
+            return NULL;
+        }
+        wc = key.uChar.UnicodeChar;
+        vkey = key.wVirtualKeyCode;
+
+        if (pending_high_surrogate != 0 && !(wc >= 0xdc00 && wc <= 0xdfff)) {
+            if (insertCodepoint(l,0xfffd) == -1) {
+                discardHistoryPlaceholder(l);
+                return NULL;
+            }
+            pending_high_surrogate = 0;
+        }
+        if (wc >= 0xd800 && wc <= 0xdbff) {
+            pending_high_surrogate = wc;
+            return linenoiseEditMore;
+        }
+        if (wc >= 0xdc00 && wc <= 0xdfff) {
+            uint32_t cp = 0xfffd;
+            if (pending_high_surrogate != 0) {
+                cp = 0x10000 +
+                     (((uint32_t)pending_high_surrogate - 0xd800) << 10) +
+                     ((uint32_t)wc - 0xdc00);
+            }
+            pending_high_surrogate = 0;
+            if (insertCodepoint(l,cp) == -1) {
+                discardHistoryPlaceholder(l);
+                return NULL;
+            }
+            return linenoiseEditMore;
+        }
+        if (wc > 0x7f) {
+            if (insertCodepoint(l,wc) == -1) {
+                discardHistoryPlaceholder(l);
+                return NULL;
+            }
+            return linenoiseEditMore;
+        }
+        if (wc != 0) {
+            c = (char)wc;
+            break;
+        }
+
+        if (vkey == VK_UP) { linenoiseEditHistoryNext(l,1); return linenoiseEditMore; }
+        if (vkey == VK_DOWN) { linenoiseEditHistoryNext(l,0); return linenoiseEditMore; }
+        if (vkey == VK_RIGHT) { linenoiseEditMoveRight(l); return linenoiseEditMore; }
+        if (vkey == VK_LEFT) { linenoiseEditMoveLeft(l); return linenoiseEditMore; }
+        if (vkey == VK_HOME) { linenoiseEditMoveHome(l); return linenoiseEditMore; }
+        if (vkey == VK_END) { linenoiseEditMoveEnd(l); return linenoiseEditMore; }
+        if (vkey == VK_DELETE) { linenoiseEditDelete(l); return linenoiseEditMore; }
     }
 
     if ((l->in_completion || c == 9) && completionCallback != NULL) {
@@ -720,7 +886,7 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
     switch(c) {
     case 13: /* Enter (\r) */
     case 10: /* Enter (\n) */
-        history_len--; free(history[history_len]);
+        discardHistoryPlaceholder(l);
         if (mlmode) linenoiseEditMoveEnd(l);
         if (hintsCallback) {
             linenoiseHintsCallback *hc = hintsCallback; hintsCallback = NULL;
@@ -728,84 +894,47 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
         }
         return _strdup(l->buf);
     case 3: /* Ctrl-C */
+        discardHistoryPlaceholder(l);
         errno = EAGAIN; return NULL;
     case 26: /* Ctrl-Z (EOF on Windows) */
-        history_len--; free(history[history_len]);
+        discardHistoryPlaceholder(l);
         errno = ENOENT; return NULL;
     case 127: case 8: linenoiseEditBackspace(l); break;
     case 4: /* Ctrl-D */
         if (l->len > 0) linenoiseEditDelete(l);
-        else { history_len--; free(history[history_len]); errno = ENOENT; return NULL; }
+        else {
+            discardHistoryPlaceholder(l);
+            errno = ENOENT;
+            return NULL;
+        }
         break;
     case 20: /* Ctrl-T */
-		if (l->pos > 0 && l->pos < l->len) {
-			size_t prevlen = utf8PrevCharLen(l->buf, l->pos);
-			size_t currlen = utf8NextCharLen(l->buf, l->pos, l->len);
-			size_t prevstart = l->pos - prevlen;
+        if (l->pos > 0 && l->pos < l->len) {
+            size_t prevlen = utf8PrevCharLen(l->buf,l->pos);
+            size_t currlen = utf8NextCharLen(l->buf,l->pos,l->len);
+            size_t prevstart = l->pos - prevlen;
+            char sbo_buf[64];
+            char *tmp = currlen <= sizeof(sbo_buf) ? sbo_buf : malloc(currlen);
+            if (!tmp) break;
 
-			/* SBO: Use stack for normal clusters, heap for massive ones */
-			char sbo_buf[64];
-			char *tmp = (currlen <= sizeof(sbo_buf)) ? sbo_buf : malloc(currlen);
-			if (!tmp) break; 
-			
-			memcpy(tmp, l->buf + l->pos, currlen);
-			memmove(l->buf + prevstart + currlen, l->buf + prevstart, prevlen);
-			memcpy(l->buf + prevstart, tmp, currlen);
-			
-			if (tmp != sbo_buf) free(tmp);
-
-			if (l->pos + currlen <= l->len) l->pos += currlen;
-			refreshLine(l);
-		}
-		break;
+            memcpy(tmp,l->buf+l->pos,currlen);
+            memmove(l->buf+prevstart+currlen,l->buf+prevstart,prevlen);
+            memcpy(l->buf+prevstart,tmp,currlen);
+            if (tmp != sbo_buf) free(tmp);
+            if (l->pos + currlen <= l->len) l->pos += currlen;
+            refreshLine(l);
+        }
+        break;
     case 2: linenoiseEditMoveLeft(l); break;
     case 6: linenoiseEditMoveRight(l); break;
     case 16: linenoiseEditHistoryNext(l, 1); break;
     case 14: linenoiseEditHistoryNext(l, 0); break;
-	case 27: /* ESC: try to read an ANSI escape sequence */
-        {
-            int s0 = readConsoleChar(hIn);
-            if (s0 == -1) break;
-            int s1 = readConsoleChar(hIn);
-            if (s1 == -1) break;
-            if (s0 == '[') {
-                if (s1 >= '0' && s1 <= '9') {
-                    int s2 = readConsoleChar(hIn);
-                    if (s2 == -1) break;
-                    if (s2 == '~' && s1 == '3') linenoiseEditDelete(l);
-                } else {
-                    switch (s1) {
-                    case 'A': linenoiseEditHistoryNext(l, 1); break;
-                    case 'B': linenoiseEditHistoryNext(l, 0); break;
-                    case 'C': linenoiseEditMoveRight(l); break;
-                    case 'D': linenoiseEditMoveLeft(l); break;
-                    case 'H': linenoiseEditMoveHome(l); break;
-                    case 'F': linenoiseEditMoveEnd(l); break;
-                    }
-                }
-            } else if (s0 == 'O') {
-                switch (s1) {
-                case 'H': linenoiseEditMoveHome(l); break;
-                case 'F': linenoiseEditMoveEnd(l); break;
-                }
-            }
-        }
+    case 27: /* Standalone Escape. Navigation uses virtual-key records. */
         break;
-	default:
-        {
-            char utf8[4];
-            int utf8len = utf8ByteLen(c);
-            utf8[0] = c;
-            
-            for (int i = 1; i < utf8len; i++) {
-                /* Trust the burst: if it's valid UTF-8, the bytes are there.
-                 * If readConsoleChar returns -1, the console handle is likely 
-                 * closed or invalid. */
-                int next = readConsoleChar(hIn);
-                if (next == -1) goto done; 
-                utf8[i] = (char)next;
-            }
-            if (linenoiseEditInsert(l, utf8, utf8len)) return NULL;
+    default:
+        if (linenoiseEditInsert(l,&c,1) == -1) {
+            discardHistoryPlaceholder(l);
+            return NULL;
         }
         break;
     case 21: l->buf[0] = '\0'; l->pos = l->len = 0; refreshLine(l); break;
@@ -815,11 +944,11 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
     case 12: linenoiseClearScreen(); refreshLine(l); break;
     case 23: linenoiseEditDeletePrevWord(l); break;
     }
-done:
     return linenoiseEditMore;
 }
 
 void linenoiseEditStop(struct linenoiseState *l) {
+    discardHistoryPlaceholder(l);
     if (!_isatty(l->ifd) && !getenv("LINENOISE_ASSUME_TTY")) return;
     disableRawMode(l->ifd);
     printf("\n");
@@ -828,7 +957,8 @@ void linenoiseEditStop(struct linenoiseState *l) {
 static char *linenoiseBlockingEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, const char *prompt) {
     struct linenoiseState l;
     if (buflen == 0) { errno = EINVAL; return NULL; }
-    linenoiseEditStart(&l,stdin_fd,stdout_fd,buf,buflen,prompt);
+    if (linenoiseEditStart(&l,stdin_fd,stdout_fd,buf,buflen,prompt) == -1)
+        return NULL;
     char *res;
     while((res = linenoiseEditFeed(&l)) == linenoiseEditMore);
     linenoiseEditStop(&l);

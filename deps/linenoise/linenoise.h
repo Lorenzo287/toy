@@ -67,6 +67,7 @@ struct linenoiseState {
     size_t oldrows;     /* Rows used by last refrehsed line (multiline mode) */
     int oldrpos;        /* Cursor row from last refresh (for multiline clearing). */
     int history_index;  /* The history index we are currently editing. */
+    int history_temp_active; /* The last history entry belongs to this edit. */
 };
 
 typedef struct linenoiseCompletions {
