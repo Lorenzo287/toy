@@ -378,14 +378,12 @@ static bool build_native_loader_test(const Build_Config *config,
     File_Paths objects = {0};
     if (ok) {
         da_append(&objects, plugin_object);
-        ok = link_shared_module(config, plugin_module, &objects,
-                                config->module_support_lib, false);
+        ok = link_shared_module(config, plugin_module, &objects, false);
         objects.count = 0;
     }
     if (ok) {
         da_append(&objects, bad_plugin_object);
-        ok = link_shared_module(config, bad_plugin_module, &objects, NULL,
-                                false);
+        ok = link_shared_module(config, bad_plugin_module, &objects, false);
         objects.count = 0;
     }
     if (ok) {
@@ -453,8 +451,7 @@ static bool build_raylib_test(const Build_Config *config,
                                       config->test_module_dir,
                                       TOY_SHARED_SUFFIX_VALUE);
     if (ok) {
-        ok = link_shared_module(config, module, &module_objects,
-                                config->module_support_lib, false);
+        ok = link_shared_module(config, module, &module_objects, false);
     }
     if (ok) {
         ok = link_executable(config, *executable_out, &test_objects, true);
@@ -520,8 +517,7 @@ static bool build_bindgen_test(const Build_Config *config,
                                       config->test_module_dir,
                                       TOY_SHARED_SUFFIX_VALUE);
     if (ok) {
-        ok = link_shared_module(config, module, &module_objects,
-                                config->module_support_lib, false);
+        ok = link_shared_module(config, module, &module_objects, false);
     }
     *executable_out = temp_sprintf("%s/tests/test_bindgen_module%s",
                                    config->build_dir, TOY_EXE_SUFFIX);
@@ -626,8 +622,7 @@ static bool run_ffi_integration_test(const Build_Config *config,
                                        config->module_dir,
                                        TOY_SHARED_SUFFIX_VALUE);
     if (ok) {
-        ok = link_shared_module(config, fixture, &fixture_objects, NULL,
-                                false);
+        ok = link_shared_module(config, fixture, &fixture_objects, false);
     }
     const char *executable = temp_sprintf("%s/tests/test_ffi_module%s",
                                           config->build_dir, TOY_EXE_SUFFIX);

@@ -56,7 +56,9 @@ registration.
 Native module descriptors reuse source-module names, exports, load state, and
 aliases. Shared native-module ABI version one adds a size-tagged host function
 table, a stable entry symbol, platform library discovery through `require`, and
-context-owned library handles. The API is not stable yet. A Raylib interop
+context-owned library handles. Its standalone implementation-macro header lets
+modules compile without linking the runtime or a separate support library. The
+API is not stable yet. A Raylib interop
 example exercises the generic shared-module path with a Toy-owned window,
 drawing loop, and automatically unloaded texture resources. A SQLite example
 exercises opaque database and statement handles, prepared parameters, copied
@@ -72,13 +74,13 @@ messages, boolean result-code mappings, and failure cleanup. A generated SQLite
 subset tests these policies without making SQLite a Toy integration. Automatic
 header parsing is not implemented yet.
 
-Current follow-up candidates are:
+Keep distribution deliberately small: the executable, the standalone module
+header, and the optional dependency-free generator script. Current follow-up
+candidates are:
 
-1. settle reusable library/package configuration without making the runtime or
-   build program aware of individual third-party libraries;
-2. add a libclang frontend after the resource manifest is explicit enough to
+1. add a libclang frontend after the resource manifest is explicit enough to
    preserve ownership decisions that headers cannot infer;
-3. expose general output buffers, structs, variadic functions, and callbacks only
+2. expose general output buffers, structs, variadic functions, and callbacks only
    after their ownership and VM-boundary rules are settled.
 
 The resulting boundary should be reusable by embedders, native modules, and

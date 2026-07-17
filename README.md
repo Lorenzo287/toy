@@ -303,7 +303,9 @@ This boundary is the foundation for handwritten library bindings. The
 same general shared-module path; neither library is a Toy dependency or a
 built-in integration. Versioned shared native modules use the API through a
 host function table and are discovered by `require` without linking a second
-Toy runtime. The optional
+Toy runtime. A module needs only the standalone `toy_module.h`, its C source,
+and the foreign library it wraps; there is no Toy support library to link. The
+optional
 experimental [`ffi` module](docs/ffi.md) can
 also resolve fixed scalar and string C signatures dynamically through libffi;
 the [binding generator](docs/bindgen.md) can instead compile explicit manifests

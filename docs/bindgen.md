@@ -208,9 +208,20 @@ node tools\generate-binding.js path\to\clib.json build\generated\clib.c
 
 `--check` compares an existing output with the manifest without rewriting it.
 Generated files start with a do-not-edit marker and are deterministic.
+They instantiate the standalone `toy_module.h` implementation, so the result
+can be compiled with an ordinary C compiler and the target C library alone:
+
+```powershell
+clang -std=c11 -shared -I include build\generated\clib.c `
+    -o toy_clib.dll -lthe_c_library
+```
+
+No Toy runtime or module-support library participates in that link. On Linux,
+add `-fPIC` and use the `.so` suffix.
 
 The Nob `bindgen` command generates the wrapper and builds it as a loadable
-module:
+module in one step; it is a convenience around the same generator and compiler
+invocation:
 
 ```powershell
 .\nob.exe bindgen clib path\to\clib.json `

@@ -1,3 +1,4 @@
+#define TOY_MODULE_IMPLEMENTATION
 #include "toy_module.h"
 
 #include <stdint.h>

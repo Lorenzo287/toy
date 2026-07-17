@@ -144,6 +144,7 @@ fixed `toy_module_init` entry point, accepts the ABI version and size-tagged hos
 function table, and returns a static descriptor:
 
 ```c
+#define TOY_MODULE_IMPLEMENTATION
 #include "toy_module.h"
 
 static toy_status twice(toy_state *state) {
@@ -175,9 +176,19 @@ TOY_MODULE_EXPORT const toy_module_export *toy_module_init(
 }
 ```
 
-Link the module-support archive, not `toy_runtime`. It supplies local forwarding
-functions for the familiar stack, retained-value, resource, error, and
-interruption API:
+`TOY_MODULE_IMPLEMENTATION` emits the small forwarding layer in that C file.
+For a multi-file module, define it in exactly one translation unit. The header
+is otherwise self-contained: copy `toy_module.h` beside the source and compile
+the shared library without linking Toy or a Toy support library:
+
+```powershell
+clang -std=c11 -shared sample.c -o toy_sample.dll
+```
+
+On Linux, add `-fPIC` and name the result `toy_sample.so`. Put the result beside
+the requiring Toy source or in a directory listed by `TOY_MODULE_PATH`; the
+ordinary Toy executable can then load it. Nob offers the same operation as a
+repository convenience:
 
 ```powershell
 .\nob.exe module sample sample.c
@@ -185,9 +196,9 @@ $env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
 .\nob.exe run --eval '"sample" require 21 sample.twice print'
 ```
 
-Select the same `--cc` and `--mode` options for both commands when using a
-non-default configuration. Use repeatable `--include`, `--lib-dir`, and `--lib`
-options for additional native dependencies.
+Use repeatable `--include`, `--lib-dir`, and `--lib` options for additional
+native dependencies. The module must still use a compiler and foreign library
+whose architecture and C ABI match the Toy executable.
 
 `require` first looks for the ordinary source module. If none exists, module
 `sample` maps to `toy_sample` plus the platform's shared-module suffix (for

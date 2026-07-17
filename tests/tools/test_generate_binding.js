@@ -20,6 +20,7 @@ function manifest() {
 }
 
 const rendered = renderBinding(validateManifest(manifest()));
+assert(rendered.includes('#define TOY_MODULE_IMPLEMENTATION'));
 assert(rendered.includes('"sample.generated"'));
 assert(rendered.includes('{"length", binding_word_0}'));
 assert(rendered.includes('sample_length(argument_0)'));

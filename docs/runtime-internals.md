@@ -75,11 +75,11 @@ values retain their internal object but remain state-bound, so C cannot expose
 or transfer `tf_obj` layouts between runtimes. Typed resource access wraps
 external pointers in ordinary refcounted objects with copied tags and
 exactly-once destructors, while keeping the pointer and object layout opaque to
-Toy code. `include/toy_module.h`
-defines shared-module ABI version 1: an exported descriptor entry point and a
-size-tagged host function table. `toy_module_support` forwards the familiar
-public stack/resource calls through that table, so a plugin does not link a
-second runtime.
+Toy code. `include/toy_module.h` defines shared-module ABI version 1: an
+exported descriptor entry point, a size-tagged host function table, and an
+implementation-macro forwarding layer for the familiar public stack/resource
+calls. A plugin includes that single header and does not link a second runtime
+or a separate Toy support library.
 Internal headers continue to expose implementation structures only to the
 runtime and bundled frontends. See the [embedding guide](./embedding.md) for
 the current ownership and execution contracts.
@@ -92,9 +92,9 @@ before the native `ffi` module itself is unloaded.
 
 Generated bindings take the other route through the same module boundary.
 `tools/generate-binding.js` emits ordinary native callbacks that perform
-range-checked stack conversion and direct C calls. The resulting module links
-`toy_module_support`, so generated code still shares the host VM without
-linking another runtime.
+range-checked stack conversion and direct C calls. The generated translation
+unit instantiates `toy_module.h` itself, so it can be compiled directly against
+the foreign library while still sharing the host VM.
 
 ## Debugger Hooks
 

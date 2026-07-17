@@ -1127,6 +1127,7 @@ function renderBinding(manifest) {
   );
   const lines = [
     `/* ${generatedComment} */`,
+    '#define TOY_MODULE_IMPLEMENTATION',
     '#include "toy_module.h"',
     '',
     ...manifest.headers.map((header) => `#include "${header}"`),

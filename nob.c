@@ -199,7 +199,12 @@ int main(int argc, char **argv) {
 
     const char *root = get_current_dir_temp();
     Compile_Commands compile_commands = {0};
-    bool ok = build_core(&config, &compile_commands);
+    bool needs_core = strcmp(command, "build") == 0 ||
+                      strcmp(command, "test") == 0 ||
+                      strcmp(command, "examples") == 0 ||
+                      strcmp(command, "ffi-test") == 0 ||
+                      strcmp(command, "run") == 0;
+    bool ok = !needs_core || build_core(&config, &compile_commands);
     if (ok && strcmp(command, "test") == 0) {
         ok = run_all_tests(&config, root, &compile_commands);
     }

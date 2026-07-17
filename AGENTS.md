@@ -61,8 +61,8 @@ navigation and development rules.
 - Native declarations: `include/tf_lib.h`.
 - Experimental public C and native-module API: `include/toy.h`, implemented by
   `src/toy.c`.
-- Shared native-module ABI and support layer: `include/toy_module.h`,
-  `src/toy_module.c`; platform loading: `src/tf_native_loader.c`.
+- Standalone shared native-module API and implementation:
+  `include/toy_module.h`; platform loading: `src/tf_native_loader.c`.
 - Experimental libffi module: `modules/ffi/toy_ffi.c`; signature and safety
   contract: `docs/ffi.md`.
 - Explicit-manifest binding generator: `tools/generate-binding.js`; Nob

@@ -28,7 +28,6 @@ typedef struct {
     const char *module_dir;
     const char *test_module_dir;
     const char *runtime_lib;
-    const char *module_support_lib;
     const char *toy_exe;
     File_Paths include_dirs;
     File_Paths library_dirs;
@@ -144,7 +143,7 @@ static void print_usage(const char *program) {
     fprintf(stderr, "Usage: %s [options] <command> [command args]\n\n",
             program);
     fprintf(stderr, "Commands:\n");
-    fprintf(stderr, "  build                 Build runtime, module support, and Toy CLI\n");
+    fprintf(stderr, "  build                 Build the runtime and Toy CLI\n");
     fprintf(stderr, "  test                  Run the complete test suite\n");
     fprintf(stderr, "  examples              Build the C embedding examples\n");
     fprintf(stderr, "  module <name> <file>  Build a native module\n");
@@ -240,8 +239,6 @@ static bool configure_paths(Build_Config *config) {
     config->test_module_dir = temp_sprintf("%s/test-modules",
                                            config->build_dir);
     config->runtime_lib = static_library_path(config, "toy_runtime");
-    config->module_support_lib = static_library_path(
-        config, "toy_module_support");
     config->toy_exe = temp_sprintf("%s/toy%s", config->build_dir,
                                    TOY_EXE_SUFFIX);
 
@@ -610,13 +607,8 @@ static bool archive_library(const Build_Config *config, const char *output,
 static bool link_shared_module(const Build_Config *config,
                                const char *output,
                                const File_Paths *objects,
-                               const char *support_library,
                                bool with_external_libraries) {
-    File_Paths inputs = {0};
-    da_append_many(&inputs, objects->items, objects->count);
-    if (support_library) da_append(&inputs, support_library);
-    int rebuild = needs_rebuild(output, inputs.items, inputs.count);
-    da_free(inputs);
+    int rebuild = needs_rebuild(output, objects->items, objects->count);
     if (rebuild < 0) return false;
     if (!rebuild) return true;
 
@@ -625,7 +617,6 @@ static bool link_shared_module(const Build_Config *config,
     if (is_msvc_style(config->compiler)) {
         cmd_append(&command, "/nologo", "/LD");
         da_append_many(&command, objects->items, objects->count);
-        if (support_library) cmd_append(&command, support_library);
         cmd_append(&command, temp_sprintf("/Fe:%s", output));
     } else {
 #ifdef __APPLE__
@@ -634,7 +625,6 @@ static bool link_shared_module(const Build_Config *config,
         cmd_append(&command, "-shared");
 #endif
         da_append_many(&command, objects->items, objects->count);
-        if (support_library) cmd_append(&command, support_library);
         cmd_append(&command, "-o", output);
     }
     append_link_flags(&command, config, with_external_libraries);
@@ -684,8 +674,7 @@ static bool build_module(const Build_Config *config, const char *name,
     }
     if (!procs_flush(&processes)) ok = false;
     if (ok) {
-        ok = link_shared_module(config, output, &objects,
-                                config->module_support_lib, true);
+        ok = link_shared_module(config, output, &objects, true);
     }
     if (ok) nob_log(INFO, "built native module %s", output);
 
@@ -801,7 +790,6 @@ static bool build_core(const Build_Config *config,
     File_Paths headers = {0};
     File_Paths runtime_objects = {0};
     File_Paths cli_objects = {0};
-    File_Paths module_support_objects = {0};
     Procs processes = {0};
     bool ok = collect_header_dependencies(config, &headers);
 
@@ -817,20 +805,9 @@ static bool build_core(const Build_Config *config,
         ok = schedule_compile(config, cli_sources[i], output, &headers,
                               compile_commands, &processes);
     }
-    if (ok) {
-        const char *source = "src/toy_module.c";
-        const char *output = object_path(config, source);
-        da_append(&module_support_objects, output);
-        ok = schedule_compile_ex(config, source, output, &headers,
-                                 compile_commands, &processes, true);
-    }
     if (!procs_flush(&processes)) ok = false;
     if (ok) {
         ok = archive_library(config, config->runtime_lib, &runtime_objects);
-    }
-    if (ok) {
-        ok = archive_library(config, config->module_support_lib,
-                             &module_support_objects);
     }
     if (ok) ok = link_executable(config, config->toy_exe, &cli_objects, true);
 
@@ -838,11 +815,9 @@ static bool build_core(const Build_Config *config,
     da_free(headers);
     da_free(runtime_objects);
     da_free(cli_objects);
-    da_free(module_support_objects);
     if (ok) {
         nob_log(INFO, "built %s", config->toy_exe);
         nob_log(INFO, "built %s", config->runtime_lib);
-        nob_log(INFO, "built %s", config->module_support_lib);
     }
     return ok;
 }

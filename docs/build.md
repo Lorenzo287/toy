@@ -37,11 +37,10 @@ after `run` is forwarded directly to Toy, so no separator is needed:
 .\nob.exe --mode debug run --tdb program.toy
 ```
 
-`build` produces the Toy CLI, the `toy_runtime` static archive used by C hosts,
-and the `toy_module_support` archive used by loadable native modules. Products
-are kept under `build/<compiler>/<mode>/`; loadable modules go in its
-`modules` directory. The build also writes `compile_commands.json` for editor
-tooling.
+`build` produces the Toy CLI and the `toy_runtime` static archive used by C
+hosts. Products are kept under `build/<compiler>/<mode>/`; loadable modules go
+in its `modules` directory. The build also writes `compile_commands.json` for
+editor tooling.
 
 The complete `test` command runs isolated positive, negative, and golden-output
 Toy cases, the debugger transport test, C embedding/debugger tests, native
@@ -99,11 +98,24 @@ the same `toy_runtime` archive produced by `build`.
 
 ## Native Modules and External Libraries
 
-A dependency-free shared module needs only its logical module name and C file:
+A shared module needs one copy of `include/toy_module.h`. Define
+`TOY_MODULE_IMPLEMENTATION` before including it in exactly one C file; the
+header supplies the small host-table forwarding layer, so there is no Toy
+library to link. A dependency-free module can be compiled directly:
+
+```powershell
+clang -std=c11 -shared sample.c -o toy_sample.dll
+```
+
+That command assumes `toy_module.h` is beside `sample.c`; `-I` can point to it
+instead. On Linux, add `-fPIC` and use the `.so` suffix. The Nob command is a
+convenience for the same compile and link step:
 
 ```powershell
 .\nob.exe module sample sample.c
 ```
+
+Unlike `build`, `module` does not build the Toy runtime or CLI first.
 
 For external dependencies, repeat these options as needed:
 
@@ -162,7 +174,8 @@ $env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
 
 The default library name is `ffi`; use `--lib libffi` or a direct library path
 when necessary. See [Experimental Dynamic FFI](./ffi.md) for the runtime
-contract and safety limitations.
+contract and safety limitations. The selected compiler must match the libffi
+distribution; use `--cc gcc` for MSYS2/MinGW libffi.
 
 Run the optional integration test with the same dependency options:
 

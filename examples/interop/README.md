@@ -16,6 +16,10 @@ Raylib and SQLite are deliberately examples rather than Toy-maintained library
 packages. They have no dedicated host executable, build command, or core
 runtime dependency.
 
+Handwritten adapters use the single `toy_module.h` interface. They can be
+compiled with an ordinary C compiler and the foreign library alone; Nob's
+`module` command is only a convenience for choosing flags and the output name.
+
 Today, projects have three increasingly flexible choices:
 
 1. use `bindgen` for declared scalar/string functions, owned and dependent

@@ -14,4 +14,5 @@ $env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
 
 Use the appropriate C runtime library name on other platforms. See
 [`docs/ffi.md`](../../../docs/ffi.md) for supported signatures and safety
-constraints.
+constraints. When using MSYS2/MinGW libffi on Windows, add `--cc gcc` and use
+the matching `build\gcc\...` module directory.
