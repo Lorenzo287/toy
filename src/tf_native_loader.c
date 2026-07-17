@@ -212,7 +212,7 @@ static tf_native_module_status load_candidate(tf_ctx *ctx, const char *name,
         exported->words,
         exported->word_count,
     };
-    if (tf_register_module(ctx, &module) != TOY_OK) {
+    if (tf_install_native_module(ctx, &module) != TOY_OK) {
         library_close(handle);
         return TF_NATIVE_MODULE_ERROR;
     }

@@ -5,7 +5,7 @@ Toy language server. It normalizes indentation and horizontal whitespace but
 does not decide whether a quotation should be inline or multiline.
 
 Tree-sitter validates the source structure. Before rendering, a lossless
-lexical pass follows the runtime lexer's token-boundary rules so formatting
+lexical pass follows the runtime parser's token-boundary rules so formatting
 cannot turn operators into signed numbers or split symbols that contain `/`.
 
 ## Formatting Policy

@@ -7,9 +7,9 @@
 
 #include "tf_alloc.h"
 #include "tf_exec.h"
-#include "tf_lib.h"
+#include "tf_builtins.h"
 #include "tf_obj.h"
-#include "tf_runtime.h"
+#include "tf_parser.h"
 
 struct toy_value {
     toy_state *state;
@@ -140,7 +140,19 @@ toy_status toy_eval(toy_state *state, const char *source_name,
                     const char *source) {
     if (!state || !source) return TOY_ERROR;
     if (!state_is_idle(state)) return TOY_ERROR;
-    return tf_eval_source(state, source_name ? source_name : "<eval>", source);
+
+    tf_ctx_clear_error(state);
+    tf_obj *program = tf_parse_source(state, source_name, source);
+    if (!program) {
+        if (!tf_ctx_last_error(state)) {
+            tf_ctx_set_error(state, "source parsing failed");
+        }
+        return TOY_ERROR;
+    }
+
+    toy_status result = tf_vm_exec(state, program);
+    tf_obj_release(program);
+    return result;
 }
 
 toy_status toy_call(toy_state *state, const char *word) {
@@ -167,8 +179,8 @@ toy_status toy_register_word(toy_state *state, const char *name,
     return TOY_OK;
 }
 
-toy_status tf_register_module(toy_state *state,
-                              const toy_native_module *module) {
+toy_status tf_install_native_module(toy_state *state,
+                                    const toy_native_module *module) {
     if (!state) return TOY_ERROR;
     if (!module || !module->name || module->name[0] == '\0') {
         return api_errorf(state, "native module descriptor is invalid");
@@ -256,7 +268,7 @@ toy_status tf_register_module(toy_state *state,
 toy_status toy_register_module(toy_state *state,
                                const toy_native_module *module) {
     if (!state || !state_is_idle(state)) return TOY_ERROR;
-    return tf_register_module(state, module);
+    return tf_install_native_module(state, module);
 }
 
 size_t toy_stack_size(toy_state *state) {

@@ -1,6 +1,6 @@
 "testlib.toy" load
 
-\ Regression tests for boundary-aware lexing.
+\ Regression tests for parser token boundaries.
 
 [ 1 2 + ] [ 1 2 + ] == check
 3 [ 1 2 ] cons [ 3 1 2 ] == check

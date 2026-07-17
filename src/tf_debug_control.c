@@ -170,16 +170,8 @@ void tf_debug_control_clear_breakpoints(tf_debug_control *control) {
     control->last_breakpoint_id = 0;
 }
 
-size_t tf_debug_control_breakpoint_count(const tf_debug_control *control) {
-    return control->breakpoint_count;
-}
-
 const tf_debug_breakpoint *tf_debug_control_breakpoint_at(
     const tf_debug_control *control, size_t index) {
     if (index >= control->breakpoint_count) return NULL;
     return &control->breakpoints[index];
-}
-
-size_t tf_debug_control_last_breakpoint(const tf_debug_control *control) {
-    return control->last_breakpoint_id;
 }

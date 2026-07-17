@@ -13,10 +13,12 @@ navigation and development rules.
 
 - `builtins.json`: canonical builtin metadata used to generate registry, docs,
   runtime help, LSP data, Tree-sitter word lists, and VS Code grammar data.
-- `src/`: interpreter implementation.
-- `src/tf_builtins.inc`, `src/tf_docs.c`, `src/tf_repl_builtins.inc`:
-  generated builtin/runtime-doc files; do not hand-edit.
-- `include/`: internal APIs; read these before engine, lexer, object, or native edits.
+- `src/`: interpreter implementation and private `tf_*.h` APIs; read the
+  relevant private headers before engine, parser, object, or native edits.
+- `src/cli/`: standalone executable, REPL, and debugger-protocol frontend.
+- `src/generated/`: generated builtin declarations/registry, runtime docs, and
+  REPL word tables; do not hand-edit.
+- `include/`: public embedding and standalone native-module headers.
 - `examples/programs/`: standalone Toy programs; formatting-sensitive quines
   live under `examples/programs/quines/`.
 - `examples/embedding/`: C hosts that embed and call the Toy runtime.
@@ -56,9 +58,11 @@ navigation and development rules.
 
 - Builtin source of truth: `builtins.json`; run
   `node tools/generate-builtins.js` after edits and use `--check` in validation.
-- Native word registry: generated grouped tables in `src/tf_builtins.inc`,
-  included by `src/tf_exec.c` and registered by `tf_ctx_new()`.
-- Native declarations: `include/tf_lib.h`.
+- Native word registry: generated grouped tables in
+  `src/generated/tf_builtins.inc`,
+  included by `src/tf_context.c` and registered by `tf_ctx_new()`.
+- Native declarations: `src/tf_builtins.h`; implementations are grouped in
+  `src/tf_builtins_*.c`.
 - Experimental public C and native-module API: `include/toy.h`, implemented by
   `src/toy.c`.
 - Standalone shared native-module API and implementation:
@@ -69,16 +73,21 @@ navigation and development rules.
   integration: `nob bindgen`; contract: `docs/bindgen.md`.
 - External shared-module examples: `examples/interop/raylib/toy_raylib.c` and
   `examples/interop/sqlite/toy_sqlite.c`.
-- Execution engine: `include/tf_exec.h`, `src/tf_exec.c`.
-- Module registry and scoped lookup: `include/tf_exec.h`, `src/tf_exec.c`;
-  module loading and path resolution: `src/tf_lib_io.c`.
-- Shared debugger run control: `include/tf_debug_control.h`,
-  `src/tf_debug_control.c`.
-- Read-only debugger frame, capture, and word views: `include/tf_exec.h`,
+- Context lifecycle and builtin registration: `src/tf_context.c`; stack,
+  frames, diagnostics, captures, and VM dispatch: `src/tf_exec.h`,
   `src/tf_exec.c`.
-- Objects/ownership: `include/tf_obj.h`, `src/tf_obj.c`, `include/tf_alloc.h`.
-- Lexer: `include/tf_lexer.h`, `src/tf_lexer.c`.
-- REPL: `include/tf_repl.h`, `src/tf_repl.c`.
+- Dictionary lookup: `src/tf_dictionary.c`; module registry:
+  `src/tf_modules.c`; module loading and path resolution:
+  `src/tf_builtins_io.c`.
+- Shared debugger run control: `src/tf_debug_control.h`,
+  `src/tf_debug_control.c`.
+- Read-only debugger frame, capture, and word views: `src/tf_exec.h`,
+  `src/tf_debug_inspect.c`.
+- Objects/ownership: `src/tf_obj.h`, `src/tf_obj.c`, `src/tf_alloc.h`.
+- Parser: `src/tf_parser.h`, `src/tf_parser.c`.
+- Terminal capability and ANSI color handling: `src/tf_terminal.h`,
+  `src/tf_terminal.c`.
+- REPL: `src/cli/tf_repl.h`, `src/cli/tf_repl.c`.
 - Language plan: `docs/language-roadmap.md`.
 - Data model reference: `docs/data-model.md`.
 - Test conventions: `docs/testing.md`.
@@ -123,9 +132,10 @@ navigation and development rules.
 - Numeric behavior: integers are signed 64-bit values and floats are doubles.
   Mixed comparisons must preserve exact integer ordering where possible.
 - Tooling: builtin metadata is generated from `builtins.json`; do not hand-edit
-  generated registry, runtime-doc, LSP, Tree-sitter word-list, VS Code grammar,
-  or README table outputs. Regenerate the Tree-sitter parser after generated
-  word-list changes when the CLI is available. Use `npm run generate` from
+  generated C declarations/registry, runtime docs, LSP data, Tree-sitter word
+  lists, VS Code grammar, or README table outputs. Regenerate the Tree-sitter
+  parser after generated word-list changes when the CLI is available. Use
+  `npm run generate` from
   `tools/tree-sitter-toy`; it also synchronizes `parser.c` into the Go
   parser package so normal Go cache invalidation remains correct.
 - Docs: README and its focused references describe current user-visible

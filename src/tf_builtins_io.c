@@ -1,4 +1,4 @@
-#include "tf_lib.h"
+#include "tf_builtins.h"
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
@@ -11,8 +11,8 @@
 #include "tf_obj.h"
 #include "tf_exec.h"
 #include "tf_alloc.h"
-#include "tf_console.h"
-#include "tf_lexer.h"
+#include "tf_terminal.h"
+#include "tf_parser.h"
 #include "tf_native_loader.h"
 
 static void ctx_output_obj_write(void *userdata, const char *data,
@@ -151,7 +151,7 @@ tf_ret tf_dot(tf_ctx *ctx) {
 
 tf_ret tf_stack(tf_ctx *ctx) {
     size_t len = tf_stack_len(ctx);
-    bool color = tf_ctx_output_is_console(ctx) && tf_console_use_color();
+    bool color = tf_ctx_output_is_console(ctx) && tf_terminal_use_color();
     tf_ctx_outputf(ctx, "<%zu> ", len);
     for (size_t i = 0; i < len; i++) {
         ctx_write_value(ctx, tf_stack_peek(ctx, len - 1 - i), color);
@@ -163,7 +163,7 @@ tf_ret tf_stack(tf_ctx *ctx) {
 
 tf_ret tf_stack_source(tf_ctx *ctx) {
     size_t len = tf_stack_len(ctx);
-    bool color = tf_ctx_output_is_console(ctx) && tf_console_use_color();
+    bool color = tf_ctx_output_is_console(ctx) && tf_terminal_use_color();
     tf_ctx_outputf(ctx, "<%zu> ", len);
     for (size_t i = 0; i < len; i++) {
         tf_obj_write_source(tf_stack_peek(ctx, len - 1 - i),
@@ -347,7 +347,7 @@ tf_ret tf_load(tf_ctx *ctx) {
         return TF_ERR;
     }
 
-    tf_obj *prg = tf_lexer_parse_ctx(ctx, resolved, source);
+    tf_obj *prg = tf_parse_source(ctx, resolved, source);
     free(source);
     free(resolved);
     if (!prg) {
@@ -535,7 +535,7 @@ static tf_ret require_module(tf_ctx *ctx, tf_obj *name, tf_obj *alias) {
 
     size_t module_index = tf_module_begin(ctx, name->str.ptr, name->str.len,
                                           path);
-    tf_obj *program = tf_lexer_parse_ctx(ctx, path, source);
+    tf_obj *program = tf_parse_source(ctx, path, source);
     free(source);
     free(path);
     if (!program) {

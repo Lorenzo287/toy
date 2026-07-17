@@ -48,27 +48,30 @@ typedef struct {
 
 static const char *runtime_sources[] = {
     "src/tf_alloc.c",
-    "src/tf_console.c",
+    "src/tf_terminal.c",
+    "src/tf_context.c",
     "src/tf_debug_control.c",
-    "src/tf_docs.c",
+    "src/tf_debug_inspect.c",
+    "src/tf_dictionary.c",
+    "src/generated/tf_docs.c",
     "src/tf_exec.c",
-    "src/tf_lexer.c",
-    "src/tf_lib_control.c",
-    "src/tf_lib_core.c",
-    "src/tf_lib_data.c",
-    "src/tf_lib_io.c",
-    "src/tf_lib_meta.c",
-    "src/tf_lib_sys.c",
+    "src/tf_parser.c",
+    "src/tf_builtins_control.c",
+    "src/tf_builtins_core.c",
+    "src/tf_builtins_data.c",
+    "src/tf_builtins_io.c",
+    "src/tf_builtins_meta.c",
+    "src/tf_builtins_sys.c",
+    "src/tf_modules.c",
     "src/tf_native_loader.c",
     "src/tf_obj.c",
-    "src/tf_runtime.c",
     "src/toy.c",
 };
 
 static const char *cli_sources[] = {
-    "src/main.c",
-    "src/tf_debug_protocol.c",
-    "src/tf_repl.c",
+    "src/cli/main.c",
+    "src/cli/tf_debug_protocol.c",
+    "src/cli/tf_repl.c",
 #ifdef _WIN32
     "deps/linenoise/linenoise_win.c",
 #else
@@ -291,7 +294,9 @@ static bool collect_header_dependencies(const Build_Config *config,
     da_append(dependencies, "tools/nob/build.h");
     da_append(dependencies, "deps/nob/nob.h");
     if (!collect_matching_files("include", ".h", dependencies)) return false;
-    if (!collect_matching_files("src", ".inc", dependencies)) return false;
+    if (!collect_matching_files("src", ".h", dependencies)) return false;
+    if (!collect_matching_files("src/cli", ".h", dependencies)) return false;
+    if (!collect_matching_files("src/generated", ".inc", dependencies)) return false;
     da_append(dependencies, "deps/linenoise/linenoise.h");
     if (config->mode == MODE_LEAK && file_exists("deps/stb_leakcheck/stb_leakcheck.h")) {
         da_append(dependencies, "deps/stb_leakcheck/stb_leakcheck.h");
@@ -341,12 +346,12 @@ static void append_compile_flags(Cmd *command, const Build_Config *config) {
     cmd_append(command, compiler_executable(config->compiler));
     if (is_msvc_style(config->compiler)) {
         cmd_append(command, "/nologo", "/std:c11", "/W3",
-                   "/D_CRT_SECURE_NO_WARNINGS", "/Iinclude",
+                   "/D_CRT_SECURE_NO_WARNINGS", "/Iinclude", "/Isrc",
                    "/Ideps/linenoise",
                    "/DTOY_SHARED_SUFFIX=\"" TOY_SHARED_SUFFIX_VALUE "\"");
     } else {
         cmd_append(command, "-std=c11", "-Wall", "-Wextra", "-Wpedantic",
-                   "-Iinclude", "-Ideps/linenoise",
+                   "-Iinclude", "-Isrc", "-Ideps/linenoise",
                    "-DTOY_SHARED_SUFFIX=\"" TOY_SHARED_SUFFIX_VALUE "\"");
 #if defined(_WIN32)
         if (config->compiler == COMPILER_CLANG) {

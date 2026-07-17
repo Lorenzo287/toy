@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "tf_alloc.h"
-#include "tf_console.h"
+#include "tf_terminal.h"
 
 #define TF_MAP_INITIAL_CAP 4
 #define TF_MAP_INITIAL_BUCKET_CAP 8
@@ -1356,10 +1356,6 @@ static void fprint_escaped_string(FILE *output, const char *s, size_t len) {
     }
 }
 
-static void print_escaped_string(const char *s, size_t len) {
-    fprint_escaped_string(stdout, s, len);
-}
-
 // Debug printer: includes type tags and is intended for developer inspection
 void tf_obj_print(tf_obj *o, size_t *count) {
     (*count)++;
@@ -1381,7 +1377,7 @@ void tf_obj_print(tf_obj *o, size_t *count) {
         break;
     case TF_OBJ_TYPE_STR:
         printf("(string:\"");
-        print_escaped_string(o->str.ptr, o->str.len);
+        fprint_escaped_string(stdout, o->str.ptr, o->str.len);
         printf("\")");
         break;
     case TF_OBJ_TYPE_BOOL:
@@ -1694,7 +1690,7 @@ void tf_obj_print_value(tf_obj *o) {
 
 void tf_obj_print_value_colored(tf_obj *o) {
     obj_writer writer = {.write = file_write, .userdata = stdout};
-    write_value_like(&writer, o, tf_console_use_color());
+    write_value_like(&writer, o, tf_terminal_use_color());
 }
 
 void tf_obj_write_value(tf_obj *o, tf_obj_write_fn write, void *userdata,
@@ -1916,7 +1912,7 @@ void tf_obj_fprint_display(FILE *output, tf_obj *o) {
 
 void tf_obj_print_display_colored(tf_obj *o) {
     obj_writer writer = {.write = file_write, .userdata = stdout};
-    write_source_like(&writer, o, true, tf_console_use_color());
+    write_source_like(&writer, o, true, tf_terminal_use_color());
 }
 
 void tf_obj_print_source(tf_obj *o) {
@@ -1926,7 +1922,7 @@ void tf_obj_print_source(tf_obj *o) {
 
 void tf_obj_print_source_colored(tf_obj *o) {
     obj_writer writer = {.write = file_write, .userdata = stdout};
-    write_source_like(&writer, o, false, tf_console_use_color());
+    write_source_like(&writer, o, false, tf_terminal_use_color());
 }
 
 void tf_obj_write_display(tf_obj *o, tf_obj_write_fn write, void *userdata,

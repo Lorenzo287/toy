@@ -35,6 +35,12 @@ the C call stack. The main loop keeps processing frames until no work remains.
 This model keeps Toy-level recursion and higher-order combinators independent
 from the C call stack.
 
+The implementation follows those boundaries: `tf_context.c` owns context
+lifecycle and builtin registration, `tf_exec.c` owns stack/frame execution and
+diagnostics, `tf_dictionary.c` owns word storage and lookup, `tf_modules.c`
+owns the module and alias registries, and `tf_debug_inspect.c` provides
+read-only debugger views.
+
 ## Module Lookup
 
 `require` records source modules in a per-context registry and schedules their
@@ -224,9 +230,11 @@ Builtin metadata is generated from `builtins.json`.
 
 Generated outputs include:
 
-- grouped native registration tables in `src/tf_builtins.inc`;
-- runtime docs in `src/tf_docs.c`;
-- REPL builtin declarations in `src/tf_repl_builtins.inc`;
+- native entry-point declarations in
+  `src/generated/tf_builtins_decls.inc`;
+- grouped native registration tables in `src/generated/tf_builtins.inc`;
+- runtime docs in `src/generated/tf_docs.c`;
+- REPL builtin declarations in `src/generated/tf_repl_builtins.inc`;
 - README builtin tables;
 - LSP builtin docs;
 - Tree-sitter and VS Code builtin word lists.

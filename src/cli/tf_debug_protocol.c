@@ -24,10 +24,6 @@ static tf_debug_action debug_protocol_hook(tf_ctx *ctx,
                                             const tf_debug_event *event,
                                             void *userdata);
 
-FILE *tf_debug_protocol_open_output(void) {
-    return stdout;
-}
-
 tf_debug_protocol *tf_debug_protocol_new(FILE *output,
                                          const char *program_path) {
     if (!output || !program_path) return NULL;

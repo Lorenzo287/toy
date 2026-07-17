@@ -58,7 +58,7 @@ tests/toy/output_repr.stdout
 ```
 
 Use value assertions for language semantics and stack effects. Use expected
-failure cases for lexer, CLI, diagnostic, and unhandled-error behavior. Golden
+failure cases for parser, CLI, diagnostic, and unhandled-error behavior. Golden
 output should be limited to words whose output is the public contract.
 
 ## Manual and Integration Behavior

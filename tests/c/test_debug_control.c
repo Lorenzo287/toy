@@ -59,8 +59,7 @@ int main(void) {
     size_t word_id =
         tf_debug_control_add_word_breakpoint(&control, "update");
     CHECK(line_id == 1 && word_id == 2, "stable breakpoint ids");
-    CHECK(tf_debug_control_breakpoint_count(&control) == 2,
-          "breakpoint count");
+    CHECK(control.breakpoint_count == 2, "breakpoint count");
     size_t current_id = tf_debug_control_add_line_breakpoint(
         &control, "program.toy", event.span.line, &event);
     CHECK(current_id == 3 &&
@@ -81,8 +80,7 @@ int main(void) {
     CHECK(tf_debug_control_on_event(&control, &event, "<program>") ==
               TF_DEBUG_STOP_BREAKPOINT,
           "line breakpoint stop");
-    CHECK(tf_debug_control_last_breakpoint(&control) == line_id,
-          "line breakpoint id");
+    CHECK(control.last_breakpoint_id == line_id, "line breakpoint id");
     CHECK(tf_debug_control_breakpoint_at(&control, 0)->resolved,
           "line breakpoint resolution");
 
@@ -96,16 +94,14 @@ int main(void) {
     CHECK(tf_debug_control_on_event(&control, &event, "update") ==
               TF_DEBUG_STOP_BREAKPOINT,
           "word breakpoint stop");
-    CHECK(tf_debug_control_last_breakpoint(&control) == word_id,
-          "word breakpoint id");
+    CHECK(control.last_breakpoint_id == word_id, "word breakpoint id");
 
     CHECK(tf_debug_control_remove_breakpoint(&control, line_id),
           "remove breakpoint");
     CHECK(!tf_debug_control_remove_breakpoint(&control, line_id),
           "removed breakpoint is absent");
     tf_debug_control_clear_breakpoints(&control);
-    CHECK(tf_debug_control_breakpoint_count(&control) == 0,
-          "clear breakpoints");
+    CHECK(control.breakpoint_count == 0, "clear breakpoints");
 
     tf_debug_control_dispose(&control);
     tf_source_file_release(source);

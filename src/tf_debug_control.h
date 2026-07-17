@@ -62,9 +62,7 @@ size_t tf_debug_control_add_word_breakpoint(tf_debug_control *control,
                                             const char *word_name);
 bool tf_debug_control_remove_breakpoint(tf_debug_control *control, size_t id);
 void tf_debug_control_clear_breakpoints(tf_debug_control *control);
-size_t tf_debug_control_breakpoint_count(const tf_debug_control *control);
 const tf_debug_breakpoint *tf_debug_control_breakpoint_at(
     const tf_debug_control *control, size_t index);
-size_t tf_debug_control_last_breakpoint(const tf_debug_control *control);
 
 #endif  // TF_DEBUG_CONTROL_H

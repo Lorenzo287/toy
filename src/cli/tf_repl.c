@@ -1,17 +1,17 @@
 #include "tf_repl.h"
 #include <ctype.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include "tf_alloc.h"
-#include "tf_console.h"
+#include "tf_terminal.h"
 #include "tf_debug_control.h"
 #include "tf_docs.h"
 #include "tf_exec.h"
-#include "tf_lexer.h"
+#include "tf_parser.h"
 #include "tf_obj.h"
-#include "tf_runtime.h"
 #include <linenoise.h>
 
 typedef struct {
@@ -46,6 +46,16 @@ static tf_debug_control debugger_control;
 static int hints_color = 90;  // Bright black / Gray
 static int history_atexit_registered = 0;
 
+static void repl_message(const char *label, const char *color,
+                         const char *format, ...) {
+    fprintf(stderr, "%s%s:%s ", tf_terminal_color(color), label,
+            tf_terminal_color(TF_CLR_RESET));
+    va_list args;
+    va_start(args, format);
+    vfprintf(stderr, format, args);
+    va_end(args);
+}
+
 static void save_history_atexit(void) {
     if (history_path) { linenoiseHistorySave(history_path); }
 }
@@ -53,7 +63,6 @@ static void save_history_atexit(void) {
 static char *get_history_path(void);
 static void repl_completion(const char *buf, linenoiseCompletions *lc);
 static char *repl_hints(const char *buf, int *color, int *bold);
-static void repl_free_hints(void *ptr);
 static char *doc_stack_hint(const tf_doc_entry *doc);
 static tf_ret help_show(tf_ctx *ctx);
 static tf_ret hints_toggle(tf_ctx *ctx);
@@ -65,7 +74,7 @@ static tf_debug_action repl_debug_hook(tf_ctx *ctx,
                                         const tf_debug_event *event,
                                         void *userdata);
 
-#include "tf_repl_builtins.inc"
+#include "generated/tf_repl_builtins.inc"
 
 tf_ret tf_run_file(tf_ctx *ctx, const char *filename, bool show_parsed) {
     FILE *fp = fopen(filename, "r");
@@ -91,16 +100,16 @@ tf_ret tf_run_file(tf_ctx *ctx, const char *filename, bool show_parsed) {
 static tf_ret hints_toggle(tf_ctx *ctx) {
     (void)ctx;
     hints_enabled = !hints_enabled;
-    printf("%shints: %s%s\n", tf_console_clr(TF_CLR_INFO),
-           tf_console_clr(TF_CLR_RESET), hints_enabled ? "on" : "off");
+    printf("%shints: %s%s\n", tf_terminal_color(TF_CLR_INFO),
+           tf_terminal_color(TF_CLR_RESET), hints_enabled ? "on" : "off");
     return TF_OK;
 }
 
 static tf_ret trace_toggle(tf_ctx *ctx) {
     (void)ctx;
     trace_enabled = !trace_enabled;
-    printf("%strace: %s%s\n", tf_console_clr(TF_CLR_INFO),
-           tf_console_clr(TF_CLR_RESET), trace_enabled ? "on" : "off");
+    printf("%strace: %s%s\n", tf_terminal_color(TF_CLR_INFO),
+           tf_terminal_color(TF_CLR_RESET), trace_enabled ? "on" : "off");
     return TF_OK;
 }
 
@@ -146,8 +155,8 @@ static void debug_print_span(tf_source_span span) {
 
 static void debug_print_stack(tf_ctx *ctx) {
     size_t len = tf_stack_len(ctx);
-    printf("%sstack <%zu>%s", tf_console_clr(TF_CLR_INFO), len,
-           tf_console_clr(TF_CLR_RESET));
+    printf("%sstack <%zu>%s", tf_terminal_color(TF_CLR_INFO), len,
+           tf_terminal_color(TF_CLR_RESET));
     if (len > 0) printf(" ");
     for (size_t i = 0; i < len; i++) {
         tf_obj_print_display_colored(tf_stack_peek(ctx, len - 1 - i));
@@ -183,8 +192,8 @@ static void debug_print_pause(tf_ctx *ctx, const tf_debug_event *event) {
         word_name = frame.word_name;
         program_len = frame.program_len;
     }
-    printf("%spaused:%s ", tf_console_clr(TF_CLR_INFO),
-           tf_console_clr(TF_CLR_RESET));
+    printf("%spaused:%s ", tf_terminal_color(TF_CLR_INFO),
+           tf_terminal_color(TF_CLR_RESET));
     debug_print_span(event->span);
     printf(" in %s (pc %zu/%zu, depth %zu)\n", word_name, event->pc,
            program_len, event->frame_depth);
@@ -232,9 +241,9 @@ static void debug_print_locals(tf_ctx *ctx, const char *target) {
 
     size_t count = tf_debug_capture_count(ctx, depth);
     printf("%scaptures for frame %zu (%s)%s\n",
-           tf_console_clr(TF_CLR_INFO), depth,
+           tf_terminal_color(TF_CLR_INFO), depth,
            frame.word_name ? frame.word_name : "<native continuation>",
-           tf_console_clr(TF_CLR_RESET));
+           tf_terminal_color(TF_CLR_RESET));
     if (count == 0) {
         printf("  <none>\n");
         return;
@@ -355,7 +364,7 @@ static void debug_add_breakpoint(const tf_debug_event *event,
 }
 
 static void debug_print_breakpoints(void) {
-    size_t count = tf_debug_control_breakpoint_count(&debugger_control);
+    size_t count = debugger_control.breakpoint_count;
     if (count == 0) {
         printf("no breakpoints\n");
         return;
@@ -399,9 +408,9 @@ static tf_debug_action repl_debug_hook(tf_ctx *ctx,
         &debugger_control, event, word_name);
     if (stop == TF_DEBUG_STOP_NONE) return TF_DEBUG_STEP;
     if (stop == TF_DEBUG_STOP_BREAKPOINT) {
-        printf("%sbreakpoint %zu hit%s\n", tf_console_clr(TF_CLR_INFO),
-               tf_debug_control_last_breakpoint(&debugger_control),
-               tf_console_clr(TF_CLR_RESET));
+        printf("%sbreakpoint %zu hit%s\n", tf_terminal_color(TF_CLR_INFO),
+               debugger_control.last_breakpoint_id,
+               tf_terminal_color(TF_CLR_RESET));
     }
     debug_print_pause(ctx, event);
 
@@ -442,8 +451,7 @@ static tf_debug_action repl_debug_hook(tf_ctx *ctx,
         if (strcmp(command, "c") == 0 || strcmp(command, "continue") == 0) {
             tf_debug_control_resume(&debugger_control, TF_DEBUG_RUN_CONTINUE,
                                     event->frame_depth);
-            bool has_breakpoints =
-                tf_debug_control_breakpoint_count(&debugger_control) > 0;
+            bool has_breakpoints = debugger_control.breakpoint_count > 0;
             linenoiseFree(line);
             return has_breakpoints ? TF_DEBUG_STEP : TF_DEBUG_CONTINUE;
         }
@@ -560,17 +568,15 @@ static void print_word_grid(const char *title, const char **names, size_t count)
     }
 
     size_t column_width = longest + 2;
-    size_t console_width = tf_console_width();
+    size_t console_width = tf_terminal_width();
     size_t available = console_width > 2 ? console_width - 2 : 1;
     size_t columns = available / column_width;
     if (columns == 0) columns = 1;
     if (columns > count) columns = count;
     size_t rows = (count + columns - 1) / columns;
 
-    // int padding = (tf_console_width() - strlen(form_title)) / 2 + strlen(form_title);
-    // printf("%s%*s%s\n", tf_console_clr(TF_CLR_PROMPT), padding, form_title,
-    printf("%s%s%s\n", tf_console_clr(TF_CLR_RESET), title,
-           tf_console_clr(TF_CLR_RESET));
+    printf("%s%s%s\n", tf_terminal_color(TF_CLR_RESET), title,
+           tf_terminal_color(TF_CLR_RESET));
     for (size_t row = 0; row < rows; row++) {
         printf("  ");
         for (size_t column = 0; column < columns; column++) {
@@ -640,18 +646,18 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool show_parsed) {
 
     reset_state(&state);
     init_repl_ui(ctx);
-    printf("%sToy REPL%s\n", tf_console_clr(TF_CLR_RESET),
-           tf_console_clr(TF_CLR_RESET));
+    printf("%sToy REPL%s\n", tf_terminal_color(TF_CLR_RESET),
+           tf_terminal_color(TF_CLR_RESET));
     printf(
         "%sType 'help' for words; 'hints', 'trace', and 'tdb' toggle REPL "
         "features.%s\n",
-        tf_console_clr(TF_CLR_INFO), tf_console_clr(TF_CLR_RESET));
+        tf_terminal_color(TF_CLR_INFO), tf_terminal_color(TF_CLR_RESET));
 #ifdef _WIN32
-    printf("%sPress Ctrl-Z to exit.%s\n", tf_console_clr(TF_CLR_INFO),
-           tf_console_clr(TF_CLR_RESET));
+    printf("%sPress Ctrl-Z to exit.%s\n", tf_terminal_color(TF_CLR_INFO),
+           tf_terminal_color(TF_CLR_RESET));
 #else
-    printf("%sPress Ctrl-D to exit.%s\n", tf_console_clr(TF_CLR_INFO),
-           tf_console_clr(TF_CLR_RESET));
+    printf("%sPress Ctrl-D to exit.%s\n", tf_terminal_color(TF_CLR_INFO),
+           tf_terminal_color(TF_CLR_RESET));
 #endif
 
     while (1) {
@@ -664,13 +670,15 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool show_parsed) {
                 len = 0;
                 if (source) source[0] = '\0';
                 reset_state(&state);
-                tf_console_interruptf("press Ctrl-C again to exit REPL\n");
+                repl_message("interrupt", TF_CLR_WARN,
+                             "press Ctrl-C again to exit REPL\n");
                 ctrl_c_exit_armed = true;
                 continue;
             }
             if (len > 0) {
                 fprintf(stderr, "\n%sIncomplete input discarded.%s\n",
-                        tf_console_clr(TF_CLR_ERR), tf_console_clr(TF_CLR_RESET));
+                        tf_terminal_color(TF_CLR_ERR),
+                        tf_terminal_color(TF_CLR_RESET));
             } else {
                 printf("\n");
             }
@@ -690,7 +698,8 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool show_parsed) {
             !append_text(&source, &len, &cap, "\n")) {
             linenoiseFree(line);
             free(source);
-            tf_console_contextf("failed to grow REPL buffer\n");
+            repl_message("context", TF_CLR_ERR,
+                         "failed to grow REPL buffer\n");
             return TF_ERR;
         }
 
@@ -722,8 +731,8 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool show_parsed) {
         } else {
             if (trace_enabled) {
                 size_t stack_len = tf_stack_len(ctx);
-                printf("%s<%zu>%s", tf_console_clr(TF_CLR_OK), stack_len,
-                       tf_console_clr(TF_CLR_RESET));
+                printf("%s<%zu>%s", tf_terminal_color(TF_CLR_OK), stack_len,
+                       tf_terminal_color(TF_CLR_RESET));
                 if (stack_len > 0) printf(" ");
                 for (size_t i = 0; i < stack_len; i++) {
                     tf_obj_print_display_colored(tf_stack_peek(ctx, stack_len - 1 - i));
@@ -731,8 +740,8 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool show_parsed) {
                 }
                 printf("\n");
             } else {
-                printf("%sok%s\n", tf_console_clr(TF_CLR_OK),
-                       tf_console_clr(TF_CLR_RESET));
+                printf("%sok%s\n", tf_terminal_color(TF_CLR_OK),
+                       tf_terminal_color(TF_CLR_RESET));
             }
         }
         fflush(stdout);
@@ -750,7 +759,7 @@ tf_ret tf_run_repl(tf_ctx *ctx, bool show_parsed) {
 
 static tf_ret run_source(tf_ctx *ctx, const char *filename, const char *source,
                          bool show_parsed) {
-    tf_obj *prg = tf_parse_source(filename, source);
+    tf_obj *prg = tf_parse_source(NULL, filename, source);
     if (!prg) return TF_ERR;
 
     if (show_parsed) {
@@ -762,7 +771,7 @@ static tf_ret run_source(tf_ctx *ctx, const char *filename, const char *source,
 
     tf_ret result = tf_vm_exec(ctx, prg);
     if (result == TF_INTERRUPTED) {
-        tf_console_interruptf("execution interrupted\n");
+        repl_message("interrupt", TF_CLR_WARN, "execution interrupted\n");
         tf_obj_release(prg);
         return TF_INTERRUPTED;
     }
@@ -872,10 +881,6 @@ static char *doc_stack_hint(const tf_doc_entry *doc) {
     return hint;
 }
 
-static void repl_free_hints(void *ptr) {
-    free(ptr);
-}
-
 static char *read_repl_line(bool complete) {
     errno = 0;
     if (!complete) {
@@ -982,7 +987,7 @@ static void feed_state(repl_state *state, const char *text) {
             continue;
         }
         if (isspace((unsigned char)c)) continue;
-        if (tf_lexer_is_symbol_char((unsigned char)c)) continue;
+        if (tf_parser_is_symbol_char((unsigned char)c)) continue;
     }
 }
 
@@ -1014,11 +1019,12 @@ static void init_repl_ui(tf_ctx *ctx) {
     linenoiseHistorySetMaxLen(256);
     linenoiseSetCompletionCallback(repl_completion);
     linenoiseSetHintsCallback(repl_hints);
-    linenoiseSetFreeHintsCallback(repl_free_hints);
+    linenoiseSetFreeHintsCallback(free);
     if (history_path) {
         int history_status = linenoiseHistoryLoad(history_path);
         if (history_status == -1 && errno != ENOENT) {
-            tf_console_contextf("failed to load REPL history\n");
+            repl_message("context", TF_CLR_ERR,
+                         "failed to load REPL history\n");
         }
     }
 }
@@ -1027,7 +1033,8 @@ static void free_repl_ui(tf_ctx *ctx) {
     tf_tdb_set_enabled(ctx, false);
     if (history_path) {
         if (linenoiseHistorySave(history_path) == -1) {
-            tf_console_contextf("failed to save REPL history\n");
+            repl_message("context", TF_CLR_ERR,
+                         "failed to save REPL history\n");
         }
         free(history_path);
         history_path = NULL;

@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// sourceLexer mirrors the token-boundary rules in src/tf_lexer.c. Tree-sitter
+// sourceLexer mirrors the token-boundary rules in src/tf_parser.c. Tree-sitter
 // remains the formatter's structural parser, but its lexical choices are not
 // lossless for adjacency such as 1-2 or foo.bar. Rendering from these spans
 // ensures that inserting whitespace cannot split or merge runtime tokens.

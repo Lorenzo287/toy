@@ -3,9 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "tf_lib.h"
+#include "tf_builtins.h"
 #include "tf_obj.h"
-#include "tf_runtime.h"
+#include "tf_parser.h"
 
 #ifdef STB_LEAKCHECK
 #include "tf_alloc.h"
@@ -85,7 +85,7 @@ int main(void) {
     const char *source =
         "'inspect [ 20 | inner | $outer $inner + ] def "
         "10 | outer | inspect";
-    tf_obj *program = tf_parse_source("<debug-inspection>", source);
+    tf_obj *program = tf_parse_source(NULL, "<debug-inspection>", source);
     CHECK(program != NULL, "source parsing");
 
     inspection_state state = {0};

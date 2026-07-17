@@ -6,9 +6,6 @@
 
 typedef struct tf_debug_protocol tf_debug_protocol;
 
-/* Use stdout for record-separated protocol events alongside Toy output. */
-FILE *tf_debug_protocol_open_output(void);
-
 /* Install a blocking machine debugger frontend on a context. */
 tf_debug_protocol *tf_debug_protocol_new(FILE *output,
                                          const char *program_path);

@@ -3,10 +3,10 @@
 #include <string.h>
 #include <signal.h>
 #include "tf_alloc.h"
-#include "tf_console.h"
+#include "tf_terminal.h"
 #include "tf_debug_protocol.h"
 #include "tf_exec.h"
-#include "tf_lib.h"
+#include "tf_builtins.h"
 #include "tf_repl.h"
 
 typedef struct {
@@ -45,15 +45,7 @@ int main(int argc, char **argv) {
         return ret;
     }
 
-    FILE *protocol_output = NULL;
-    if (config.debug_protocol) {
-        protocol_output = tf_debug_protocol_open_output();
-        if (!protocol_output) {
-            fprintf(stderr, "failed to open debug protocol output\n");
-            return TF_ERR;
-        }
-    }
-    tf_console_init();
+    tf_terminal_init();
 
     tf_ctx *ctx = tf_ctx_new(config.script_argc, config.script_argv);
     if (!ctx) return TF_ERR;
@@ -61,7 +53,7 @@ int main(int argc, char **argv) {
 
     tf_debug_protocol *protocol = NULL;
     if (config.debug_protocol) {
-        protocol = tf_debug_protocol_new(protocol_output, config.filename);
+        protocol = tf_debug_protocol_new(stdout, config.filename);
         if (!protocol) {
             signal_ctx = NULL;
             tf_ctx_free(ctx);

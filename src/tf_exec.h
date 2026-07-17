@@ -87,9 +87,9 @@ typedef struct {
 /*
  * Global dictionary entry.
  *
- * Native words point at C functions. User words point at Toy quotations. Names
- * are stored as refcounted symbol objects so dictionary ownership follows the
- * same rules as the rest of the runtime.
+ * Native words point at C functions. User words point at Toy quotations.
+ * Builtin names may be borrowed static strings; dynamically registered and
+ * user-defined names are copied when `owns_name` is true.
  */
 typedef struct {
     const char *name;
@@ -303,8 +303,9 @@ size_t tf_module_find(tf_ctx *ctx, const char *name, size_t name_len);
 size_t tf_module_begin(tf_ctx *ctx, const char *name, size_t name_len,
                        const char *path);
 size_t tf_module_add_native(tf_ctx *ctx, const char *name, size_t name_len);
-toy_status tf_register_module(tf_ctx *ctx,
-                              const toy_native_module *module);
+/* Validate and install a native module without requiring an idle VM. */
+toy_status tf_install_native_module(tf_ctx *ctx,
+                                    const toy_native_module *module);
 void tf_module_finish(tf_ctx *ctx, size_t module_index, tf_ret status);
 const tf_module *tf_module_get(tf_ctx *ctx, size_t module_index);
 size_t tf_module_alias_find(tf_ctx *ctx, size_t owner_module_index,

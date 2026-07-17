@@ -107,6 +107,16 @@ function renderCRegistry(manifest) {
   return lines.join('\n');
 }
 
+function renderCDeclarations(manifest) {
+  const lines = [`/* ${generatedComment} */`];
+  const functions = new Set(nativeWords(manifest).map((word) => word.cFunction));
+  for (const cFunction of functions) {
+    lines.push(`tf_ret ${cFunction}(tf_ctx *ctx);`);
+  }
+  lines.push('');
+  return lines.join('\n');
+}
+
 function renderReplRegistry(manifest) {
   const lines = [
     `/* ${generatedComment} */`,
@@ -308,9 +318,10 @@ function main() {
   const manifest = loadManifest();
   const readmePath = path.join(root, 'README.md');
   const targets = new Map([
-    ['src/tf_builtins.inc', renderCRegistry(manifest)],
-    ['src/tf_repl_builtins.inc', renderReplRegistry(manifest)],
-    ['src/tf_docs.c', renderRuntimeDocs(manifest)],
+    ['src/generated/tf_builtins_decls.inc', renderCDeclarations(manifest)],
+    ['src/generated/tf_builtins.inc', renderCRegistry(manifest)],
+    ['src/generated/tf_repl_builtins.inc', renderReplRegistry(manifest)],
+    ['src/generated/tf_docs.c', renderRuntimeDocs(manifest)],
     ['tools/toy-lsp/internal/analysis/builtin_docs_generated.go', renderLspDocs(manifest)],
     ['tools/tree-sitter-toy/builtin-words.js', renderTreeSitterWords(manifest)],
     ['tools/vscode-toy/syntaxes/toy.tmLanguage.json', renderVsCodeGrammar(manifest)],
