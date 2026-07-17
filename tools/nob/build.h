@@ -144,12 +144,10 @@ static void print_usage(const char *program) {
             program);
     fprintf(stderr, "Commands:\n");
     fprintf(stderr, "  build                 Build the runtime and Toy CLI\n");
-    fprintf(stderr, "  test                  Run the complete test suite\n");
+    fprintf(stderr, "  test                  Run the default test suite\n");
     fprintf(stderr, "  examples              Build the C embedding examples\n");
     fprintf(stderr, "  module <name> <file>  Build a native module\n");
     fprintf(stderr, "  bindgen <name> <json> Generate and build a native module\n");
-    fprintf(stderr, "  ffi                   Build the optional libffi module\n");
-    fprintf(stderr, "  ffi-test              Build and test the libffi module\n");
     fprintf(stderr, "  run                   Build and run the Toy CLI\n");
     fprintf(stderr, "  clean                 Remove build outputs\n");
     fprintf(stderr, "  help                  Show this help\n\n");
@@ -163,14 +161,12 @@ static void print_usage(const char *program) {
     fprintf(stderr, "  --lib-dir <directory> Add a library search directory\n");
     fprintf(stderr, "  --lib <name-or-path>  Link a library\n\n");
     fprintf(stderr, "Examples:\n");
-    fprintf(stderr, "  %s --mode debug build\n", program);
-    fprintf(stderr, "  %s --mode debug run --tdb program.toy\n", program);
-    fprintf(stderr, "  %s test --filter modules\n", program);
-    fprintf(stderr, "  %s module sample.native path/to/module.c\n", program);
-    fprintf(stderr, "  %s bindgen clib examples/interop/bindgen/clib.json\n",
-            program);
-    fprintf(stderr, "  %s ffi --lib ffi\n", program);
-    fprintf(stderr, "  %s run examples/programs/factorial.toy\n", program);
+    fprintf(stderr, "  nob --mode debug build\n");
+    fprintf(stderr, "  nob --mode debug run --tdb program.toy\n");
+    fprintf(stderr, "  nob test --filter modules\n");
+    fprintf(stderr, "  nob module sample.native path/to/module.c\n");
+    fprintf(stderr, "  nob bindgen clib examples/interop/bindgen/clib.json\n");
+    fprintf(stderr, "  nob run examples/programs/factorial.toy\n");
 }
 
 static bool parse_compiler(const char *value, Compiler *compiler) {

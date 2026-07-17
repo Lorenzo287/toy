@@ -406,64 +406,6 @@ static const char *named_test_object(const Build_Config *config,
 #endif
 }
 
-static bool build_raylib_test(const Build_Config *config,
-                              Compile_Commands *compile_commands,
-                              const char **executable_out) {
-    *executable_out = NULL;
-    if (!test_matches_filter(config, "test_raylib_module")) return true;
-
-    File_Paths headers = {0};
-    File_Paths includes = {0};
-    File_Paths module_objects = {0};
-    File_Paths test_objects = {0};
-    Procs processes = {0};
-    da_append(&includes, "tests/c/stubs");
-    const char *test_object = named_test_object(config, "test_raylib_module");
-    const char *adapter_object = named_test_object(config,
-                                                   "test_raylib_adapter");
-    const char *fixture_object = named_test_object(config,
-                                                   "test_raylib_fixture");
-    da_append(&test_objects, test_object);
-    da_append(&module_objects, adapter_object);
-    da_append(&module_objects, fixture_object);
-    *executable_out = temp_sprintf("%s/tests/test_raylib_module%s",
-                                   config->build_dir, TOY_EXE_SUFFIX);
-
-    bool ok = collect_header_dependencies(config, &headers);
-    if (ok) {
-        da_append(&headers, "tests/c/stubs/raylib.h");
-        ok = schedule_compile(config, "tests/c/test_raylib_module.c",
-                              test_object, &headers, compile_commands,
-                              &processes);
-    }
-    if (ok) {
-        ok = schedule_compile_options(
-            config, "examples/interop/raylib/toy_raylib.c", adapter_object,
-            &headers, compile_commands, &processes, true, &includes, NULL);
-    }
-    if (ok) {
-        ok = schedule_compile_options(
-            config, "tests/c/test_raylib_fixture.c", fixture_object, &headers,
-            compile_commands, &processes, true, &includes, NULL);
-    }
-    if (!procs_flush(&processes)) ok = false;
-    const char *module = temp_sprintf("%s/toy_raylib%s",
-                                      config->test_module_dir,
-                                      TOY_SHARED_SUFFIX_VALUE);
-    if (ok) {
-        ok = link_shared_module(config, module, &module_objects, false);
-    }
-    if (ok) {
-        ok = link_executable(config, *executable_out, &test_objects, true);
-    }
-    da_free(processes);
-    da_free(test_objects);
-    da_free(module_objects);
-    da_free(includes);
-    da_free(headers);
-    return ok;
-}
-
 static bool build_bindgen_test(const Build_Config *config,
                                Compile_Commands *compile_commands,
                                const char **executable_out) {
@@ -596,6 +538,11 @@ static bool run_binding_generator_test(const Build_Config *config) {
 static bool run_ffi_integration_test(const Build_Config *config,
                                      const char *root,
                                      Compile_Commands *compile_commands) {
+    if (!build_module(config, "ffi", "modules/ffi/toy_ffi.c",
+                      compile_commands)) {
+        return false;
+    }
+
     File_Paths headers = {0};
     File_Paths fixture_objects = {0};
     File_Paths test_objects = {0};
@@ -682,10 +629,6 @@ static bool run_all_tests(const Build_Config *config, const char *root,
         build_ok = build_native_loader_test(config, compile_commands,
                                             &native_loader);
     }
-    const char *raylib_test = NULL;
-    if (build_ok) {
-        build_ok = build_raylib_test(config, compile_commands, &raylib_test);
-    }
     const char *bindgen_test = NULL;
     if (build_ok) {
         build_ok = build_bindgen_test(config, compile_commands,
@@ -705,12 +648,6 @@ static bool run_all_tests(const Build_Config *config, const char *root,
         if (!run_c_test(config, root, native_loader, module_dir)) c_ok = false;
         ++c_test_count;
     }
-    if (raylib_test) {
-        const char *module_dir = temp_sprintf("%s/%s", root,
-                                              config->test_module_dir);
-        if (!run_c_test(config, root, raylib_test, module_dir)) c_ok = false;
-        ++c_test_count;
-    }
     if (bindgen_test) {
         const char *module_dir = temp_sprintf("%s/%s", root,
                                               config->test_module_dir);
@@ -720,14 +657,22 @@ static bool run_all_tests(const Build_Config *config, const char *root,
     bool generator_ok = run_binding_generator_test(config);
     size_t generator_test_count = test_matches_filter(
         config, "test_binding_generator_js") ? 1 : 0;
-    bool ok = toy_ok && c_ok && generator_ok;
-    if (toy_test_count + c_test_count + generator_test_count == 0) {
+    bool ffi_ok = true;
+    size_t ffi_test_count = 0;
+    if (config->test_filter &&
+        strstr("optional_ffi", config->test_filter) != NULL) {
+        ffi_ok = run_ffi_integration_test(config, root, compile_commands);
+        ffi_test_count = 1;
+    }
+    bool ok = toy_ok && c_ok && generator_ok && ffi_ok;
+    size_t test_count = toy_test_count + c_test_count + generator_test_count +
+                        ffi_test_count;
+    if (test_count == 0) {
         nob_log(ERROR, "no tests matched filter '%s'",
                 config->test_filter ? config->test_filter : "");
         ok = false;
     } else if (ok) {
-        nob_log(INFO, "%zu tests passed",
-                toy_test_count + c_test_count + generator_test_count);
+        nob_log(INFO, "%zu tests passed", test_count);
     }
     da_free(c_test_artifacts);
     return ok;

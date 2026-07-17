@@ -39,11 +39,7 @@ int main(int argc, char **argv) {
     const char *command = NULL;
 
     Build_Config config = {
-#ifdef _WIN32
-        .compiler = COMPILER_CLANG,
-#else
         .compiler = COMPILER_GCC,
-#endif
         .mode = MODE_RELEASE,
         .jobs = (size_t)nprocs(),
         .test_filter = NULL,
@@ -141,9 +137,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (!command) command = "build";
-
-    if (strcmp(command, "help") == 0 || strcmp(command, "-h") == 0 ||
+    if (!command || strcmp(command, "help") == 0 || strcmp(command, "-h") == 0 ||
         strcmp(command, "--help") == 0) {
         print_usage(program);
         return 0;
@@ -159,8 +153,7 @@ int main(int argc, char **argv) {
     if (strcmp(command, "build") != 0 && strcmp(command, "test") != 0 &&
         strcmp(command, "examples") != 0 &&
         strcmp(command, "module") != 0 &&
-        strcmp(command, "bindgen") != 0 && strcmp(command, "ffi") != 0 &&
-        strcmp(command, "ffi-test") != 0 && strcmp(command, "run") != 0) {
+        strcmp(command, "bindgen") != 0 && strcmp(command, "run") != 0) {
         nob_log(ERROR, "unknown command: %s", command);
         print_usage(program);
         return 1;
@@ -171,11 +164,6 @@ int main(int argc, char **argv) {
         nob_log(ERROR, "%s requires a module name and %s file", command,
                 strcmp(command, "module") == 0 ? "C source" : "JSON manifest");
         return 1;
-    }
-    if ((strcmp(command, "ffi") == 0 ||
-         strcmp(command, "ffi-test") == 0) &&
-        config.libraries.count == 0) {
-        da_append(&config.libraries, "ffi");
     }
     if (!program_on_path(compiler_executable(config.compiler))) {
         nob_log(ERROR, "compiler '%s' was not found on PATH",
@@ -202,7 +190,6 @@ int main(int argc, char **argv) {
     bool needs_core = strcmp(command, "build") == 0 ||
                       strcmp(command, "test") == 0 ||
                       strcmp(command, "examples") == 0 ||
-                      strcmp(command, "ffi-test") == 0 ||
                       strcmp(command, "run") == 0;
     bool ok = !needs_core || build_core(&config, &compile_commands);
     if (ok && strcmp(command, "test") == 0) {
@@ -215,14 +202,6 @@ int main(int argc, char **argv) {
     if (ok && strcmp(command, "bindgen") == 0) {
         ok = build_generated_module(&config, target_name, target_source,
                                     &compile_commands);
-    }
-    if (ok && (strcmp(command, "ffi") == 0 ||
-               strcmp(command, "ffi-test") == 0)) {
-        ok = build_module(&config, "ffi", "modules/ffi/toy_ffi.c",
-                          &compile_commands);
-    }
-    if (ok && strcmp(command, "ffi-test") == 0) {
-        ok = run_ffi_integration_test(&config, root, &compile_commands);
     }
     if (ok && strcmp(command, "examples") == 0) {
         ok = build_examples(&config, &compile_commands);

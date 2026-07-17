@@ -44,7 +44,7 @@ editor tooling.
 
 The complete `test` command runs isolated positive, negative, and golden-output
 Toy cases, the debugger transport test, C embedding/debugger tests, native
-loader tests, the Raylib adapter test, and both generator tests.
+loader tests, and both generator tests.
 
 ## Compilers and Modes
 
@@ -166,19 +166,23 @@ commands or host executables. The normal Toy CLI loads both through `require`.
 The optional dynamic FFI module is built similarly:
 
 ```powershell
-.\nob.exe ffi `
+.\nob.exe module ffi modules\ffi\toy_ffi.c `
     --include C:\libffi\include `
-    --lib-dir C:\libffi\lib
+    --lib-dir C:\libffi\lib `
+    --lib ffi
 $env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
 ```
 
-The default library name is `ffi`; use `--lib libffi` or a direct library path
-when necessary. See [Experimental Dynamic FFI](./ffi.md) for the runtime
-contract and safety limitations. The selected compiler must match the libffi
-distribution; use `--cc gcc` for MSYS2/MinGW libffi.
+Use `--lib libffi` or a direct library path when the installation uses another
+name. See [Experimental Dynamic FFI](./ffi.md) for the runtime contract and
+safety limitations. The selected compiler must match the libffi distribution;
+use `--cc gcc` for MSYS2/MinGW libffi.
 
 Run the optional integration test with the same dependency options:
 
 ```powershell
-.\nob.exe ffi-test --include C:\libffi\include --lib-dir C:\libffi\lib
+.\nob.exe test --filter ffi `
+    --include C:\libffi\include `
+    --lib-dir C:\libffi\lib `
+    --lib ffi
 ```

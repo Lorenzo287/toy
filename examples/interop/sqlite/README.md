@@ -12,26 +12,36 @@ generator can cover SQLite's opaque handles, output parameters, dependent
 lifetimes, hidden arguments, and borrowed result buffers without a special
 SQLite path in Toy.
 
-After installing SQLite's development files, provide its include path and
-library. For example:
+After installing a SQLite build compatible with your compiler, compile the
+adapter directly. A typical Windows Clang command run from the repository root
+is:
+
+```powershell
+clang -std=c11 -shared -Iinclude -IC:\sqlite\include `
+    examples\interop\sqlite\toy_sqlite.c C:\sqlite\lib\sqlite3.lib `
+    -o toy_sqlite.dll
+```
+
+The equivalent generic Nob command is:
 
 ```powershell
 .\nob.exe module sqlite examples\interop\sqlite\toy_sqlite.c `
-    --include C:\sqlite\include `
-    --lib-dir C:\sqlite\lib `
-    --lib sqlite3
+    --include C:\sqlite\include --lib C:\sqlite\lib\sqlite3.lib
 ```
 
-You can also pass a library file directly. Using a static SQLite archive makes
-the resulting Toy module self-contained; using an import/shared library means
-SQLite's runtime library must also be discoverable by the operating system.
+Using a static SQLite archive makes the resulting Toy module self-contained;
+using an import/shared library means SQLite's runtime library must also be
+discoverable by the operating system.
 
 Point Toy at the generated module and run the example:
 
 ```powershell
-$env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
+$env:TOY_MODULE_PATH = (Resolve-Path .).Path
 .\nob.exe run examples\interop\sqlite\people.toy
 ```
+
+When using `nob module`, point `TOY_MODULE_PATH` at the matching
+`build\<compiler>\<mode>\modules` directory instead.
 
 `open` and `prepare` return typed Toy resources. The database uses
 `sqlite3_close_v2` and statements use `sqlite3_finalize`, so `drop`, collection

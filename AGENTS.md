@@ -93,7 +93,7 @@ navigation and development rules.
 - For native word changes, update `builtins.json`, declarations, and focused
   `tests/toy/` cases, then regenerate and commit all generated metadata.
 - Bootstrap the build with `clang -std=c11 nob.c -o nob.exe`; use
-  `.\nob.exe build` and run `.\nob.exe test` for the complete suite. Use
+  `.\nob.exe build` and run `.\nob.exe test` for the default suite. Use
   `--mode leak` for ownership, stack-effect, or execution-flow changes.
 
 ## Development Rules

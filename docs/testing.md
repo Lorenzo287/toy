@@ -16,10 +16,10 @@ clang -std=c11 nob.c -o nob.exe
 .\nob.exe test --filter native_loader
 ```
 
-This is the complete suite: Toy cases, debug-protocol transport,
-embedding/debugger C tests, real loadable modules, the Raylib adapter, and
-generated bindings. It builds incrementally using the selected compiler and
-mode. Each Toy case runs in a fresh process with a
+The default dependency-free suite covers Toy cases, debug-protocol transport,
+embedding/debugger C tests, real loadable modules, and generated bindings. It
+builds incrementally using the selected compiler and mode. Each Toy case runs
+in a fresh process with a
 timeout and an isolated working directory under the build tree. This prevents
 definitions, stack values, environment changes, and temporary files from
 leaking between tests.

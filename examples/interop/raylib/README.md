@@ -11,31 +11,35 @@ manifest generator does not express. It converts ordinary Toy values, wraps
 `Texture2D` as an owned `raylib.texture`, and exports a normal shared native
 module discovered by `require`.
 
-After installing Raylib, provide the appropriate compiler search paths and
-libraries. A typical Windows build is:
+After installing a Raylib build compatible with your compiler, the adapter can
+be compiled directly. A typical Windows Clang command run from the repository
+root is:
+
+```powershell
+clang -std=c11 -shared -Iinclude -IC:\raylib\include `
+    examples\interop\raylib\toy_raylib.c C:\raylib\lib\raylib.lib `
+    opengl32.lib gdi32.lib winmm.lib shell32.lib -o toy_raylib.dll
+```
+
+Static Raylib builds or other platforms may require different system libraries
+documented by their Raylib package. The equivalent generic Nob command is:
 
 ```powershell
 .\nob.exe module raylib examples\interop\raylib\toy_raylib.c `
-    --include C:\raylib\include `
-    --lib-dir C:\raylib\lib `
-    --lib raylib `
-    --lib opengl32 `
-    --lib gdi32 `
-    --lib winmm `
-    --lib shell32
+    --include C:\raylib\include --lib C:\raylib\lib\raylib.lib `
+    --lib opengl32 --lib gdi32 --lib winmm --lib shell32
 ```
-
-Use direct library paths when that is more convenient. Static Raylib builds or
-other platforms may require additional system libraries documented by their
-Raylib package.
 
 Point Toy at the generated module and run either program:
 
 ```powershell
-$env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
+$env:TOY_MODULE_PATH = (Resolve-Path .).Path
 .\nob.exe run examples\interop\raylib\shapes.toy
 .\nob.exe run examples\interop\raylib\texture.toy path\to\image.png
 ```
+
+When using `nob module`, point `TOY_MODULE_PATH` at the matching
+`build\<compiler>\<mode>\modules` directory instead.
 
 The example deliberately uses the ordinary Toy executable. There is no custom
 Raylib host executable and no Raylib-specific build-system path.

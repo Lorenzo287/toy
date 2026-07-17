@@ -5,9 +5,10 @@ runtime. Build the module with the libffi development files appropriate for
 your compiler:
 
 ```powershell
-.\nob.exe ffi `
+.\nob.exe module ffi modules\ffi\toy_ffi.c `
     --include C:\libffi\include `
-    --lib-dir C:\libffi\lib
+    --lib-dir C:\libffi\lib `
+    --lib ffi
 $env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
 .\nob.exe run examples\interop\ffi\strlen.toy msvcrt.dll
 ```

@@ -10,22 +10,26 @@ Build it after installing libffi. Provide include and library directories when
 they are not already on the compiler's search path:
 
 ```powershell
-.\nob.exe ffi --include C:\libffi\include --lib-dir C:\libffi\lib
+.\nob.exe module ffi modules\ffi\toy_ffi.c `
+    --include C:\libffi\include `
+    --lib-dir C:\libffi\lib `
+    --lib ffi
 $env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
 ```
 
-The default library name is `ffi`; pass `--lib libffi` or a direct library
-path when the installation uses another name.
+Pass `--lib libffi` or a direct library path when the installation uses another
+name.
 
 The compiler must match the libffi distribution. In particular, use
 `--cc gcc` with an MSYS2/MinGW installation such as `C:\msys64\ucrt64`; the
 default Windows Clang target uses the Visual Studio C runtime and cannot parse
-or link those headers and libraries correctly. Building the `ffi` target also
-records the matching command in `build\compile_commands.json` for C language
-servers.
+or link those headers and libraries correctly. The generic `module` command
+records the matching compilation in `build\compile_commands.json` for C
+language servers.
 
-Use `nob ffi-test` with the same options to build a small foreign library and
-exercise the module against every supported signature category.
+Use `nob test --filter ffi` with the same dependency options to build a small
+foreign library and exercise the module against every supported signature
+category. This optional test is not part of the dependency-free default suite.
 
 The libffi binary itself must also be discoverable by the operating system when
 it is dynamically linked.
