@@ -16,8 +16,9 @@ clang -std=c11 nob.c -o nob.exe
 .\nob.exe test --filter native_loader
 ```
 
-The default dependency-free suite covers Toy cases, debug-protocol transport,
-embedding/debugger C tests, real loadable modules, and generated bindings. It
+The default suite covers Toy cases, directory packages, debug-protocol
+transport, embedding/debugger C tests, real loadable packages, `core:ffi`, and
+generated bindings. It
 builds incrementally using the selected compiler and mode. Each Toy case runs
 in a fresh process with a
 timeout and an isolated working directory under the build tree. This prevents
@@ -29,7 +30,7 @@ leaking between tests.
 ```powershell
 .\nob.exe test --filter native_loader
 .\nob.exe test --filter bindgen
-.\nob.exe test --filter module
+.\nob.exe test --filter package
 ```
 
 ## File Conventions
@@ -47,6 +48,10 @@ is evaluated:
   with the automated suite.
 - `testlib.toy` defines shared assertions and is copied beside each case in its
   isolated working directory.
+
+Directory-package integration fixtures live under `tests/packages/` and cover
+multi-file definitions, aliases, core imports, visibility, cycles, declaration
+rules, and executable-package validation.
 
 For example:
 
@@ -68,5 +73,5 @@ belong in `manual_*.toy`. Filesystem, environment, and process regressions may
 remain automated when they are deterministic and portable; the isolated test
 working directory is available for their temporary files.
 
-Do not combine cases by loading every test into one VM. Tests may define the
+Do not combine cases by evaluating every test in one VM. Tests may define the
 same words, and a shared stack or dictionary would make results order-dependent.

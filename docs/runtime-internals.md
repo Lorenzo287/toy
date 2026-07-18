@@ -20,11 +20,9 @@ the C call stack. The main loop keeps processing frames until no work remains.
   callers and otherwise resolve user bodies through the dictionary.
 - Program traversal dispatches call instructions. Symbols are pushed as name
   values; a word such as `exec` may later use a symbol to choose code to run.
-- Resolved call and symbol objects use a 64-entry direct-mapped lookup cache.
-  Cache entries store stable dense dictionary indexes rather than pointers into
-  the movable entry array. Hits verify the current name bytes because released
-  objects may later reuse the same address; redefining a word updates its
-  existing indexed entry and remains visible through the cache.
+- Dictionary lookup hashes the lexical package index together with the local
+  word name. Keeping lookup stateless ensures dynamically created calls and
+  later root redefinitions always observe the current dictionary.
 - Native continuation frames resume C native words after a callable has run.
 - New native words that execute user code should schedule frames or
   continuations, not call `tf_vm_exec()` recursively.
@@ -37,34 +35,37 @@ from the C call stack.
 
 The implementation follows those boundaries: `tf_context.c` owns context
 lifecycle and builtin registration, `tf_exec.c` owns stack/frame execution and
-diagnostics, `tf_dictionary.c` owns word storage and lookup, `tf_modules.c`
-owns the module and alias registries, and `tf_debug_inspect.c` provides
+diagnostics, `tf_dictionary.c` owns word storage and lookup, `tf_packages.c`
+owns the package and import registries, `tf_package_loader.c` scans package
+directories, and `tf_debug_inspect.c` provides
 read-only debugger views.
 
-## Module Lookup
+## Package Lookup
 
-`require` records source modules in a per-context registry and schedules their
-programs on the existing VM frame stack. A registry entry is marked loading,
-loaded, or failed, which provides load-once behavior and detects cyclic
-dependencies without recursively entering the VM.
+An import resolves one exact directory, canonicalizes it, and records a
+per-context package entry as loading, loaded, or failed. That identity provides
+load-once behavior and cycle detection. Relative paths use the importing
+package directory; `core:` uses the configured core directory. There is no
+fallback or environment search.
 
-The dictionary remains one hash table. Module definitions are stored under
-canonical `module.word` keys, while each program frame carries its lexical
-module. Unqualified lookup checks that module first and then the root native
-words; qualified lookup exposes only explicitly exported words from loaded
-modules. A separate alias table maps a short prefix to a module index within one
-importing module, so aliases do not copy or rename dictionary entries.
-Quotations retain their shared source-file record, allowing an escaped
-quotation to recover its lexical module when it is executed later. Raw `load`
-marks the parsed source with the caller's module. Relative `load` and `require`
-paths try that source file's directory before the process working directory.
-If no source module exists, `require` searches for a versioned shared native
-module in the requiring source directory, `TOY_MODULE_PATH`, and the working
-directory. Descriptor-registered native modules enter the same registry already
-marked as loaded, and their exported native words use the same scoped
-dictionary entries as source-module exports. Loaded library handles stay in the
-context until final teardown, after stacks, frames, definitions, and resource
-destructors have been released.
+The loader parses every direct `.toy` child, verifies one common package name,
+and accepts only package, import, definition, and privacy declarations at top
+level. It installs all imports, then native-manifest words, source definitions,
+and privacy flags. Consequently source filename order cannot affect package
+semantics.
+
+The dictionary remains one open-addressed table keyed by `(package index,
+local name)`. Each program frame recovers its lexical package from the shared
+source-file record. Unqualified lookup checks that package and then root native
+words. Qualified lookup resolves an alias owned by the lexical package, looks
+up the target's local word, and checks its public flag. Aliases therefore do not
+copy or rename dictionary entries, and imports are not transitively visible.
+
+If a directory has `toy.package`, the loader opens its exact `native` path and
+adds the exported callbacks to the same package scope before source
+definitions. Host-registered packages use the same registry already marked as
+loaded. Library handles stay in the context until final teardown, after stacks,
+frames, definitions, and resource destructors have been released.
 
 ## Embedding Boundary
 
@@ -75,31 +76,32 @@ runtime target.
 
 `include/toy.h` is the experimental public boundary. It treats the interpreter
 state as opaque and exposes evaluation, host-to-Toy word calls, synchronous
-native word/module registration, primitive stack access, persistent value
-references, basic collection access, diagnostics, and interruption. Persistent
+native word/package registration, package import and execution, primitive
+stack access, persistent value references, basic collection access,
+diagnostics, and interruption. Persistent
 values retain their internal object but remain state-bound, so C cannot expose
 or transfer `tf_obj` layouts between runtimes. Typed resource access wraps
 external pointers in ordinary refcounted objects with copied tags and
 exactly-once destructors, while keeping the pointer and object layout opaque to
-Toy code. `include/toy_module.h` defines shared-module ABI version 1: an
+Toy code. `include/toy_package.h` defines shared-package ABI version 1: an
 exported descriptor entry point, a size-tagged host function table, and an
 implementation-macro forwarding layer for the familiar public stack/resource
-calls. A plugin includes that single header and does not link a second runtime
+calls. A native package includes that single header and does not link a second runtime
 or a separate Toy support library.
 Internal headers continue to expose implementation structures only to the
 runtime and bundled frontends. See the [embedding guide](./embedding.md) for
 the current ownership and execution contracts.
 
-The optional `modules/ffi/` module is a consumer of this boundary rather than
+The official `core/ffi/` package is a consumer of this boundary rather than
 part of the VM. It represents loaded libraries and prepared libffi call
 interfaces as typed resources. A prepared function retains its library; Toy
 resource teardown releases the call metadata and closes the foreign library
-before the native `ffi` module itself is unloaded.
+before the native `ffi` package itself is unloaded.
 
-Generated bindings take the other route through the same module boundary.
+Generated bindings take the other route through the same package boundary.
 `tools/generate-binding.js` emits ordinary native callbacks that perform
 range-checked stack conversion and direct C calls. The generated translation
-unit instantiates `toy_module.h` itself, so it can be compiled directly against
+unit instantiates `toy_package.h` itself, so it can be compiled directly against
 the foreign library while still sharing the host VM.
 
 ## Debugger Hooks

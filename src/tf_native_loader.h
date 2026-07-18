@@ -3,15 +3,9 @@
 
 #include "tf_exec.h"
 
-typedef enum {
-    TF_NATIVE_MODULE_LOADED,
-    TF_NATIVE_MODULE_NOT_FOUND,
-    TF_NATIVE_MODULE_ERROR
-} tf_native_module_status;
-
-tf_native_module_status tf_native_module_load(tf_ctx *ctx, const char *name,
-                                              size_t name_len,
-                                              const char *source_directory);
-void tf_native_modules_close(tf_ctx *ctx);
+/* Load the exact shared library named by a package manifest. */
+tf_ret tf_native_package_load(tf_ctx *ctx, size_t package_index,
+                              const char *path);
+void tf_native_packages_close(tf_ctx *ctx);
 
 #endif  // TF_NATIVE_LOADER_H

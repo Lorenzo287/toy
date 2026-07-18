@@ -1,0 +1,5 @@
+'main package
+
+"core:../ffi" import
+
+'main [] def

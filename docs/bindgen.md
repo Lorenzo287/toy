@@ -1,7 +1,7 @@
 # Generated C Bindings
 
-`tools/generate-binding.js` turns an explicit JSON manifest into a loadable Toy
-native module written in C. Generated modules expose ordinary qualified words;
+`tools/generate-binding.js` turns an explicit JSON manifest into an importable
+Toy native package written in C. Generated packages expose ordinary qualified words;
 their users do not interact with `ffi.open`, signatures, or function resources.
 
 The binding generator deliberately reads declared function shapes rather than
@@ -10,12 +10,12 @@ while the supported boundary is still small.
 
 ## Manifest
 
-The manifest names the Toy module, the C headers used to compile its wrappers,
+The manifest names the Toy package, the C headers used to compile its wrappers,
 and the exported functions:
 
 ```json
 {
-  "module": "clib",
+  "package": "clib",
   "headers": ["string.h"],
   "functions": [
     {
@@ -33,9 +33,9 @@ and the exported functions:
 }
 ```
 
-`name` is the C identifier. Optional `word` changes the local Toy export name;
-otherwise the C name is used. Module and word names follow the normal native
-module rules. Duplicate words, unsafe header paths, unknown fields, unsupported
+`name` is the C identifier. Optional `word` changes the public Toy word name;
+otherwise the C name is used. Package and word names follow the normal native
+package rules. Duplicate words, unsafe header paths, unknown fields, unsupported
 types, and `void` arguments are rejected before C is emitted.
 
 The supported types match the scalar/string FFI experiment:
@@ -105,7 +105,7 @@ The optional `resources` array declares owned opaque resources:
 
 ```json
 {
-  "module": "widget",
+  "package": "widget",
   "headers": ["widget.h"],
   "resources": [
     {
@@ -149,7 +149,7 @@ The optional `resources` array declares owned opaque resources:
 }
 ```
 
-A resource name is local to the module; `handle` above becomes the exact Toy
+A resource name is local to the package; `handle` above becomes the exact Toy
 type `widget.handle`. `cType` must be a C pointer type and `destructor` must be a
 C function name. The generator adapts the destructor to Toy's resource
 callback, ignoring any C return value.
@@ -207,8 +207,10 @@ node tools\generate-binding.js path\to\clib.json build\generated\clib.c
 ```
 
 `--check` compares an existing output with the manifest without rewriting it.
+`--package name` additionally verifies the manifest package when another build
+system owns the output directory.
 Generated files start with a do-not-edit marker and are deterministic.
-They instantiate the standalone `toy_module.h` implementation, so the result
+They instantiate the standalone `toy_package.h` implementation, so the result
 can be compiled with an ordinary C compiler and the target C library alone:
 
 ```powershell
@@ -216,21 +218,22 @@ clang -std=c11 -shared -I include build\generated\clib.c `
     -o toy_clib.dll -lthe_c_library
 ```
 
-No Toy runtime or module-support library participates in that link. On Linux,
+No Toy runtime or package-support library participates in that link. On Linux,
 add `-fPIC` and use the `.so` suffix.
 
-The Nob `bindgen` command generates the wrapper and builds it as a loadable
-module in one step; it is a convenience around the same generator and compiler
-invocation:
+The Nob `bindgen` command generates the wrapper, builds it, and writes a
+`toy.package` manifest in one step. It is a convenience around the same
+generator and compiler invocation:
 
 ```powershell
-.\nob.exe bindgen clib path\to\clib.json `
+.\nob.exe bindgen vendor\clib path\to\clib.json `
     --include path\to\headers `
     --lib the_c_library
 ```
 
-The first argument determines the output filename (`toy_clib` plus the platform
-shared-library suffix). It should match the module name used by `require`.
+The first argument is the package directory. Its basename determines the
+output filename (`toy_clib` plus the platform shared-library suffix) and must
+match the manifest's `package` value.
 Headers remain in the manifest because they affect generated C; repeatable
 `--include`, `--lib-dir`, and `--lib` options provide platform-specific
 dependency locations without putting them in the manifest.
@@ -238,15 +241,15 @@ dependency locations without putting them in the manifest.
 The curated standard-C example needs no additional library configuration:
 
 ```powershell
-.\nob.exe bindgen clib examples\interop\bindgen\clib.json
-$env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
-.\nob.exe run examples\interop\bindgen\demo.toy
+.\nob.exe bindgen examples\interop\bindgen\clib `
+    examples\interop\bindgen\clib\clib.json
+.\nob.exe run examples\interop\bindgen\demos\clib
 ```
 
-Toy sees a normal module:
+Toy sees a normal package:
 
 ```toy
-"clib" 'c require-as
+"../../clib" 'c import-as
 "Toy speaks generated C" c.strlen print
 "alpha" "beta" c.strcmp 0 < print
 ```

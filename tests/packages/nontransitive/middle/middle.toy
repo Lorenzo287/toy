@@ -1,0 +1,5 @@
+'middle package
+
+"../leaf" import
+
+'value [ leaf.value ] def

@@ -1,4 +1,4 @@
-#include "toy_module.h"
+#include "toy_package.h"
 
 static toy_status unavailable(toy_state *state) {
     (void)state;
@@ -9,15 +9,15 @@ static const toy_native_word words[] = {
     {"unavailable", unavailable},
 };
 
-static const toy_module_export plugin = {
-    sizeof(toy_module_export) + 1,
-    "test.bad",
+static const toy_package_export plugin = {
+    sizeof(toy_package_export) + 1,
+    "bad",
     words,
     sizeof(words) / sizeof(words[0]),
 };
 
-TOY_MODULE_EXPORT const toy_module_export *toy_module_init(
-    uint32_t abi_version, const toy_module_api *api) {
+TOY_PACKAGE_EXPORT const toy_package_export *toy_package_init(
+    uint32_t abi_version, const toy_package_api *api) {
     (void)abi_version;
     (void)api;
     return &plugin;

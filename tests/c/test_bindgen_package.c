@@ -1,0 +1,300 @@
+#ifdef _WIN32
+#include <stdlib.h>
+#else
+#define _POSIX_C_SOURCE 200809L
+#include <stdlib.h>
+#endif
+
+#include "toy.h"
+
+#include <stdio.h>
+#include <string.h>
+
+#ifdef STB_LEAKCHECK
+#include "tf_alloc.h"
+#endif
+
+#define CHECK(condition, message)                                          \
+    do {                                                                   \
+        if (!(condition)) {                                                \
+            fprintf(stderr, "generated binding check failed: %s\n", message); \
+            return 1;                                                      \
+        }                                                                  \
+    } while (0)
+
+static void discard_diagnostic(void *userdata, const char *data,
+                               size_t length) {
+    (void)userdata;
+    (void)data;
+    (void)length;
+}
+
+static bool package_path(char *output, size_t capacity, const char *parent) {
+    int written = snprintf(output, capacity, "%s/bindgen", parent);
+    return written > 0 && (size_t)written < capacity;
+}
+
+int main(int argc, char **argv) {
+    CHECK(argc == 2, "package parent directory argument");
+    char path[1024];
+    CHECK(package_path(path, sizeof(path), argv[1]),
+          "construct generated package path");
+
+    toy_state_config config = {
+        .diagnostic = discard_diagnostic,
+    };
+    toy_state *state = toy_state_new(&config);
+    CHECK(state, "state creation");
+    CHECK(toy_import_package(state, path, "b") == TOY_OK,
+          "import generated package");
+
+    int64_t integer = 0;
+    CHECK(toy_eval(state, "<bindgen-add>", "20 22 b.add") == TOY_OK,
+          "call generated integer wrapper");
+    CHECK(toy_get_int(state, 0, &integer) && integer == 42,
+          "generated integer result");
+    CHECK(toy_pop(state, 1), "pop generated integer result");
+
+    CHECK(toy_eval(state, "<bindgen-narrow>", "b.negative-i8") == TOY_OK,
+          "call generated narrow wrapper");
+    CHECK(toy_get_int(state, 0, &integer) && integer == -7,
+          "generated narrow result");
+    CHECK(toy_pop(state, 1), "pop generated narrow result");
+
+    CHECK(toy_eval(state, "<bindgen-float>", "2.5 4 b.scale") == TOY_OK,
+          "call generated floating wrapper");
+    double floating = 0.0;
+    CHECK(toy_get_float(state, 0, &floating) && floating == 10.5,
+          "generated floating result");
+    CHECK(toy_pop(state, 1), "pop generated floating result");
+
+    CHECK(toy_eval(state, "<bindgen-string-argument>",
+                   "\"hello\" b.text-length") == TOY_OK,
+          "call generated string wrapper");
+    CHECK(toy_get_int(state, 0, &integer) && integer == 5,
+          "generated string length result");
+    CHECK(toy_pop(state, 1), "pop generated string length");
+
+    CHECK(toy_eval(state, "<bindgen-string-result>", "b.greeting") == TOY_OK,
+          "call generated string-return wrapper");
+    const char *text = NULL;
+    size_t text_length = 0;
+    CHECK(toy_get_string(state, 0, &text, &text_length) &&
+              text_length == strlen("hello from generated C") &&
+              memcmp(text, "hello from generated C", text_length) == 0,
+          "generated string result");
+    CHECK(toy_pop(state, 1), "pop generated string result");
+
+    CHECK(toy_eval(state, "<bindgen-bool>", "true b.not") == TOY_OK,
+          "call generated bool wrapper");
+    bool boolean = true;
+    CHECK(toy_get_bool(state, 0, &boolean) && !boolean,
+          "generated bool result");
+    CHECK(toy_pop(state, 1), "pop generated bool result");
+
+    CHECK(toy_eval(state, "<bindgen-void>", "7 b.ignore") == TOY_OK,
+          "call generated void wrapper");
+    CHECK(toy_stack_size(state) == 0, "generated void result");
+
+    CHECK(toy_eval(state, "<bindgen-type-error>",
+                   "\"bad\" 2 b.add") == TOY_ERROR,
+          "generated wrapper rejects a bad argument");
+    CHECK(toy_get_error(state) && strstr(toy_get_error(state),
+                                         "argument 1 expected i32"),
+          "generated argument diagnostic");
+    CHECK(toy_pop(state, 2), "pop rejected generated inputs");
+
+    CHECK(toy_eval(state, "<bindgen-return-range>", "b.too-large") ==
+              TOY_ERROR,
+          "generated wrapper rejects an unrepresentable result");
+    CHECK(toy_get_error(state) &&
+              strstr(toy_get_error(state), "outside Toy's range"),
+          "generated return range diagnostic");
+    CHECK(toy_stack_size(state) == 0, "generated return failure stack");
+
+    CHECK(toy_eval(state, "<bindgen-hidden-arguments>",
+                   "42 b.hidden-arguments") == TOY_OK,
+          "generated hidden constant and null arguments");
+    CHECK(toy_get_int(state, 0, &integer) && integer == 45,
+          "hidden arguments result");
+    CHECK(toy_pop(state, 1), "pop hidden arguments result");
+
+    static const char binary_input[] = {'A', 0, 'B', (char)0xff};
+    CHECK(toy_push_string(state, binary_input, sizeof(binary_input)) == TOY_OK,
+          "push binary string argument");
+    CHECK(toy_call(state, "b.byte-sum") == TOY_OK,
+          "generated pointer-length string argument");
+    CHECK(toy_get_int(state, 0, &integer) && integer == 386,
+          "binary string argument preserves embedded NUL");
+    CHECK(toy_pop(state, 1), "pop byte sum result");
+
+    CHECK(toy_eval(state, "<bindgen-byte-result>", "b.binary") == TOY_OK,
+          "generated pointer-length byte result");
+    CHECK(toy_get_string(state, 0, &text, &text_length) &&
+              text_length == sizeof(binary_input) &&
+              memcmp(text, binary_input, text_length) == 0,
+          "binary result preserves its explicit length");
+    CHECK(toy_pop(state, 1), "pop byte result");
+
+    CHECK(toy_eval(state, "<bindgen-status-map>",
+                   "42 b.even-status?") == TOY_OK,
+          "generated status code mapping");
+    CHECK(toy_get_bool(state, 0, &boolean) && boolean,
+          "mapped status boolean result");
+    CHECK(toy_pop(state, 1), "pop mapped status result");
+
+    CHECK(toy_eval(state, "<bindgen-resource-create>",
+                   "42 b.make-box") == TOY_OK,
+          "generated owned resource return");
+    CHECK(toy_stack_type(state, 0) == TOY_TYPE_RESOURCE,
+          "generated resource result type");
+    const char *resource_type = NULL;
+    CHECK(toy_get_resource_type(state, 0, &resource_type) &&
+              strcmp(resource_type, "bindgen.box") == 0,
+          "generated resource type name");
+    CHECK(toy_eval(state, "<bindgen-resource-use>",
+                   "dup b.box-value") == TOY_OK,
+          "generated resource argument");
+    CHECK(toy_get_int(state, 0, &integer) && integer == 42,
+          "generated resource value");
+    CHECK(toy_pop(state, 1), "pop generated resource value");
+
+    CHECK(toy_eval(state, "<bindgen-resource-status>",
+                   "dup 84 b.set-box dup b.box-value") == TOY_OK,
+          "generated status return consumes resource argument");
+    CHECK(toy_get_int(state, 0, &integer) && integer == 84,
+          "generated status mutation result");
+    CHECK(toy_pop(state, 1), "pop generated status result");
+    CHECK(toy_eval(state, "<bindgen-borrowed-result>",
+                   "b.box-label") == TOY_OK,
+          "copy borrowed result before consuming resource");
+    CHECK(toy_get_string(state, 0, &text, &text_length) &&
+              text_length == strlen("box-84") &&
+              memcmp(text, "box-84", text_length) == 0,
+          "generated borrowed string result");
+    CHECK(toy_pop(state, 1), "pop generated borrowed result");
+    CHECK(toy_eval(state, "<bindgen-resource-destroyed>",
+                   "b.box-destroy-count b.box-live-count") == TOY_OK,
+          "generated resource destructor counters");
+    CHECK(toy_get_int(state, 1, &integer) && integer == 1,
+          "generated destructor called once");
+    CHECK(toy_get_int(state, 0, &integer) && integer == 0,
+          "generated resource no longer live");
+    CHECK(toy_pop(state, 2), "pop generated resource counters");
+
+    CHECK(toy_eval(state, "<bindgen-output-resource>",
+                   "7 b.open-box b.box-label") == TOY_OK,
+          "generated output resource");
+    CHECK(toy_get_string(state, 0, &text, &text_length) &&
+              text_length == strlen("box-7") &&
+              memcmp(text, "box-7", text_length) == 0,
+          "generated output resource value");
+    CHECK(toy_pop(state, 1), "pop output resource result");
+    CHECK(toy_eval(state, "<bindgen-output-destroyed>",
+                   "b.box-destroy-count") == TOY_OK,
+          "output resource destructor count");
+    CHECK(toy_get_int(state, 0, &integer) && integer == 2,
+          "output resource destroyed once");
+    CHECK(toy_pop(state, 1), "pop output destructor count");
+
+    CHECK(toy_eval(state, "<bindgen-alternate-success>",
+                   "8 b.open-box-alternate b.box-value") == TOY_OK,
+          "generated alternate success status");
+    CHECK(toy_get_int(state, 0, &integer) && integer == 8,
+          "alternate success output value");
+    CHECK(toy_pop(state, 1), "pop alternate success value");
+
+    CHECK(toy_eval(state, "<bindgen-output-status-failure>",
+                   "9 b.open-box-fail") == TOY_ERROR,
+          "generated output status failure");
+    CHECK(toy_get_error(state) &&
+              strstr(toy_get_error(state),
+                     "failed with status 17: box-9"),
+          "generated library status failure diagnostic");
+    CHECK(toy_stack_size(state) == 0,
+          "status failure consumes valid inputs");
+    CHECK(toy_eval(state, "<bindgen-failed-output-cleanup>",
+                   "b.box-destroy-count b.box-live-count") == TOY_OK,
+          "failed output resource cleanup counters");
+    CHECK(toy_get_int(state, 1, &integer) && integer == 4,
+          "failed output resource destroyed");
+    CHECK(toy_get_int(state, 0, &integer) && integer == 0,
+          "failed output resource no longer live");
+    CHECK(toy_pop(state, 2), "pop failed output counters");
+
+    CHECK(toy_eval(state, "<bindgen-null-resource-return>",
+                   "-1 b.make-box") == TOY_ERROR,
+          "generated null owned return rejected");
+    CHECK(toy_get_error(state) &&
+              strstr(toy_get_error(state), "null bindgen.box"),
+          "generated null owned return diagnostic");
+    CHECK(toy_stack_size(state) == 0,
+          "null owned return leaves no resource");
+    CHECK(toy_eval(state, "<bindgen-null-output-resource>",
+                   "b.open-box-empty") == TOY_ERROR,
+          "generated null output rejected");
+    CHECK(toy_get_error(state) &&
+              strstr(toy_get_error(state), "null bindgen.box"),
+          "generated null output diagnostic");
+
+    int foreign_box = 0;
+    CHECK(toy_push_resource(state, "host.box", &foreign_box, NULL, NULL) ==
+              TOY_OK,
+          "push mismatched resource");
+    CHECK(toy_eval(state, "<bindgen-wrong-resource>",
+                   "b.box-value") == TOY_ERROR,
+          "generated exact resource type check");
+    CHECK(toy_get_error(state) &&
+              strstr(toy_get_error(state),
+                     "argument 1 expected bindgen.box"),
+          "generated resource argument diagnostic");
+    CHECK(toy_pop(state, 1), "pop rejected resource");
+
+    CHECK(toy_eval(state, "<bindgen-dependent-failure>",
+                   "54 b.make-box b.open-child-fail") == TOY_ERROR,
+          "failed dependent resource output");
+    CHECK(toy_get_error(state) &&
+              strstr(toy_get_error(state), "failed with status 17"),
+          "failed dependent resource diagnostic");
+    CHECK(toy_stack_size(state) == 0,
+          "failed dependent resource consumes its parent");
+
+    CHECK(toy_eval(state, "<bindgen-dependent-resource>",
+                   "55 b.make-box b.open-child") == TOY_OK,
+          "generated dependent resource");
+    CHECK(toy_eval(state, "<bindgen-dependent-value>",
+                   "dup b.child-value") == TOY_OK,
+          "dependent resource uses retained parent");
+    CHECK(toy_get_int(state, 0, &integer) && integer == 55,
+          "dependent resource value");
+    CHECK(toy_pop(state, 1), "pop dependent resource value");
+    CHECK(toy_eval(state, "<bindgen-dependent-parent-live>",
+                   "b.box-live-count") == TOY_OK,
+          "inspect retained parent");
+    CHECK(toy_get_int(state, 0, &integer) && integer == 1,
+          "parent remains alive through child");
+    CHECK(toy_pop(state, 1), "pop retained parent count");
+    CHECK(toy_eval(state, "<bindgen-dependent-release>",
+                   "b.child-value") == TOY_OK,
+          "release final dependent resource reference");
+    CHECK(toy_get_int(state, 0, &integer) && integer == 55,
+          "dependent value survives release");
+    CHECK(toy_pop(state, 1), "pop released dependent value");
+    CHECK(toy_eval(state, "<bindgen-dependent-counters>",
+                   "b.child-destroy-count "
+                   "b.child-parent-alive-count b.box-live-count") == TOY_OK,
+          "dependent resource destruction counters");
+    CHECK(toy_get_int(state, 2, &integer) && integer == 2,
+          "successful and failed children destroyed exactly once");
+    CHECK(toy_get_int(state, 1, &integer) && integer == 2,
+          "child destructors ran before parent destructors");
+    CHECK(toy_get_int(state, 0, &integer) && integer == 0,
+          "retained parent released after child");
+    CHECK(toy_pop(state, 3), "pop dependent resource counters");
+
+    toy_state_free(state);
+#ifdef STB_LEAKCHECK
+    stb_leakcheck_dumpmem();
+#endif
+    return 0;
+}

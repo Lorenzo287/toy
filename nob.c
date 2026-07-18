@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
     };
     char **program_arguments = NULL;
     int program_argument_count = 0;
-    const char *target_name = NULL;
+    const char *target_directory = NULL;
     const char *target_source = NULL;
 
     while (argc > 0) {
@@ -120,13 +120,13 @@ int main(int argc, char **argv) {
                    strcmp(argument, "--help") == 0) {
             print_usage(program);
             return 0;
-        } else if (command && (strcmp(command, "module") == 0 ||
+        } else if (command && (strcmp(command, "package") == 0 ||
                               strcmp(command, "bindgen") == 0) &&
                    argument[0] != '-') {
-            if (!target_name) target_name = argument;
+            if (!target_directory) target_directory = argument;
             else if (!target_source) target_source = argument;
             else {
-                nob_log(ERROR, "%s accepts exactly one name and input file",
+                nob_log(ERROR, "%s accepts exactly one directory and input file",
                         command);
                 return 1;
             }
@@ -152,17 +152,17 @@ int main(int argc, char **argv) {
     }
     if (strcmp(command, "build") != 0 && strcmp(command, "test") != 0 &&
         strcmp(command, "examples") != 0 &&
-        strcmp(command, "module") != 0 &&
+        strcmp(command, "package") != 0 &&
         strcmp(command, "bindgen") != 0 && strcmp(command, "run") != 0) {
         nob_log(ERROR, "unknown command: %s", command);
         print_usage(program);
         return 1;
     }
-    if ((strcmp(command, "module") == 0 ||
+    if ((strcmp(command, "package") == 0 ||
          strcmp(command, "bindgen") == 0) &&
-        (!target_name || !target_source)) {
-        nob_log(ERROR, "%s requires a module name and %s file", command,
-                strcmp(command, "module") == 0 ? "C source" : "JSON manifest");
+        (!target_directory || !target_source)) {
+        nob_log(ERROR, "%s requires a package directory and %s file", command,
+                strcmp(command, "package") == 0 ? "C source" : "JSON manifest");
         return 1;
     }
     if (!program_on_path(compiler_executable(config.compiler))) {
@@ -195,13 +195,13 @@ int main(int argc, char **argv) {
     if (ok && strcmp(command, "test") == 0) {
         ok = run_all_tests(&config, root, &compile_commands);
     }
-    if (ok && strcmp(command, "module") == 0) {
-        ok = build_module(&config, target_name, target_source,
-                          &compile_commands);
+    if (ok && strcmp(command, "package") == 0) {
+        ok = build_package(&config, target_directory, target_source,
+                           &compile_commands);
     }
     if (ok && strcmp(command, "bindgen") == 0) {
-        ok = build_generated_module(&config, target_name, target_source,
-                                    &compile_commands);
+        ok = build_generated_package(&config, target_directory, target_source,
+                                     &compile_commands);
     }
     if (ok && strcmp(command, "examples") == 0) {
         ok = build_examples(&config, &compile_commands);

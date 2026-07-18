@@ -1,6 +1,7 @@
 # Toy REPL
 
-Running `toy` without a file starts an interactive REPL. The REPL is a good
+Running `toy` without a package or evaluation option starts an interactive
+REPL. The REPL is a good
 place to learn Toy because the language can document itself: inspect the word
 catalog, ask for a word's docs, try a small expression, and immediately see the
 stack.
@@ -124,8 +125,8 @@ until deleted or tdb is disabled.
 Native words are single instructions. If a native combinator schedules Toy
 code, stepping enters the scheduled quotation on the next pause. `next` skips
 Toy frames entered by the current instruction, and `finish` stops in its
-caller. `continue` also applies to nested file execution started by the current
-input. The debugger remains enabled for the next REPL input unless `off` or
+caller. `continue` also applies to quotations scheduled by the current input.
+The debugger remains enabled for the next REPL input unless `off` or
 `tdb` turns it off. Standalone REPL controls such as `tdb`, `trace`, `hints`,
 and `help` are handled outside VM evaluation, so toggling tdb does not stop to
 debug the toggle itself.
@@ -138,19 +139,20 @@ continuations, and the root program. Frame zero is the current frame, so
 belong to the frame where their `| ... |` list executed, while `print $name`
 searches outward through active frames just like Toy's `$name` instruction.
 `words` and `see` inspect the current context, including definitions created by
-earlier REPL inputs or loaded files.
+earlier REPL inputs and qualified words from imported packages.
 
 To debug a file or an evaluated source string directly from PowerShell:
 
 ```powershell
-.\nob.exe run --tdb program.toy
+.\nob.exe run --tdb --eval-file program.toy
+.\nob.exe run --tdb examples\programs\factorial
 .\nob.exe run --tdb --eval "1 2 + print"
 ```
 
-The process exits when file or `--eval` execution finishes. Running
-`.\nob.exe run --tdb` without a file starts the REPL with tdb already armed.
-Inside an existing REPL, `tdb` followed by stepping into a `load` call also
-debugs the loaded file in the same context.
+The process exits when package, file, or `--eval` execution finishes. Running
+`.\nob.exe run --tdb` without one starts the REPL with tdb already armed. In an
+existing REPL, import a package and call one of its qualified words to step
+through that package's source.
 
 ## Multiline Input
 

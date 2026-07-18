@@ -76,7 +76,7 @@ func startDebugSession(config sessionConfig) (*debugSession, machineEvent, error
 		return nil, machineEvent{}, fmt.Errorf("runtimeExecutable is required")
 	}
 
-	args := []string{"--debug-protocol", program}
+	args := []string{"--debug-protocol", "--eval-file", program}
 	args = append(args, config.Args...)
 	cmd := exec.Command(runtimeExecutable, args...)
 	cmd.Dir = config.Cwd

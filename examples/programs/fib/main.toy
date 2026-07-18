@@ -1,0 +1,15 @@
+'main package
+
+'fib [ | n |
+	[ $n 1 <= ]
+	[
+		$n
+	]
+	[
+		$n 1 - fib
+		$n 2 - fib
+		+
+	] ifelse
+] def
+
+'main [ 7 fib print ] def

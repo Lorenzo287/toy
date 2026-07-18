@@ -534,8 +534,8 @@ static int name_ptr_cmp(const void *a, const void *b) {
 }
 
 static bool native_word_is_active(tf_ctx *ctx, const tf_builtin_word *builtin) {
-    tf_word *word =
-        tf_dict_lookup_name(ctx, builtin->name, strlen(builtin->name));
+    tf_word *word = tf_dict_lookup_scoped(
+        ctx, TF_ROOT_PACKAGE, builtin->name, strlen(builtin->name));
     return word && word->type == TF_WORD_NATIVE && word->native_impl == builtin->cb;
 }
 
@@ -773,6 +773,8 @@ static tf_ret run_source(tf_ctx *ctx, const char *filename, const char *source,
     if (result == TF_INTERRUPTED) {
         repl_message("interrupt", TF_CLR_WARN, "execution interrupted\n");
         tf_obj_release(prg);
+        ctx->current_span = (tf_source_span){0};
+        ctx->current_word = NULL;
         return TF_INTERRUPTED;
     }
 
@@ -784,6 +786,8 @@ static tf_ret run_source(tf_ctx *ctx, const char *filename, const char *source,
     }
 
     tf_obj_release(prg);
+    ctx->current_span = (tf_source_span){0};
+    ctx->current_word = NULL;
     return result;
 }
 
@@ -791,12 +795,34 @@ tf_ret tf_run_string(tf_ctx *ctx, const char *source, bool show_parsed) {
     return run_source(ctx, "<eval>", source, show_parsed);
 }
 
+typedef struct {
+    const char *buf;
+    const char *stem;
+    size_t stem_len;
+    size_t head_len;
+    linenoiseCompletions *completions;
+} repl_completion_state;
+
+static void add_word_completion(const char *name, size_t name_len,
+                                tf_word *word, void *userdata) {
+    (void)word;
+    repl_completion_state *state = userdata;
+    if (state->stem_len > name_len ||
+        memcmp(name, state->stem, state->stem_len) != 0) {
+        return;
+    }
+    char *completion = tf_xmalloc(state->head_len + name_len + 1);
+    memcpy(completion, state->buf, state->head_len);
+    memcpy(completion + state->head_len, name, name_len);
+    completion[state->head_len + name_len] = '\0';
+    linenoiseAddCompletion(state->completions, completion);
+    free(completion);
+}
+
 static void repl_completion(const char *buf, linenoiseCompletions *lc) {
     if (!completion_ctx) return;
 
     const char *token = buf;
-    const char *prefix = "";
-    size_t prefix_len = 0;
 
     for (const char *p = buf; *p != '\0'; p++) {
         if (isspace((unsigned char)*p) || *p == '[' || *p == ']' || *p == '|' ||
@@ -806,31 +832,13 @@ static void repl_completion(const char *buf, linenoiseCompletions *lc) {
     }
 
     if (*token == '\'' || *token == '$') {
-        prefix = token;
         token++;
-        prefix_len = 1;
     }
 
-    size_t stem_len = strlen(token);
-    size_t head_len = (size_t)(token - buf);
-
-    for (size_t i = 0; i < completion_ctx->words.capacity; i++) {
-        size_t entry = completion_ctx->words.buckets[i];
-        tf_word *func =
-            entry ? &completion_ctx->words.entries[entry - 1] : NULL;
-        if (!func) continue;
-
-        if (strncmp(func->name, token, stem_len) != 0) continue;
-
-        size_t word_len = func->name_len;
-        char *completion = tf_xmalloc(head_len + prefix_len + word_len + 1);
-        memcpy(completion, buf, head_len);
-        if (prefix_len) memcpy(completion + head_len, prefix, prefix_len);
-        memcpy(completion + head_len + prefix_len, func->name, word_len);
-        completion[head_len + prefix_len + word_len] = '\0';
-        linenoiseAddCompletion(lc, completion);
-        free(completion);
-    }
+    repl_completion_state state = {
+        buf, token, strlen(token), (size_t)(token - buf), lc,
+    };
+    tf_dict_each_visible(completion_ctx, add_word_completion, &state);
 }
 
 static char *repl_hints(const char *buf, int *color, int *bold) {

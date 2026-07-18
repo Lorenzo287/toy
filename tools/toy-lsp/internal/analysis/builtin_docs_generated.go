@@ -686,9 +686,9 @@ var builtinDocs = map[string]builtinDoc{
 		StackEffect: "'name block --",
 		Description: "Bind a symbol to a block definition.",
 	},
-	"export": {
+	"private": {
 		StackEffect: "'name --",
-		Description: "Make a word from the current module visible through its qualified name.",
+		Description: "Make a package word private. Package definitions are public by default.",
 	},
 	"word?": {
 		StackEffect: "symbol -- bool",
@@ -766,17 +766,17 @@ var builtinDocs = map[string]builtinDoc{
 		StackEffect: "--",
 		Description: "Clear the terminal screen.",
 	},
-	"load": {
+	"package": {
+		StackEffect: "'name --",
+		Description: "Declare the package name at directory scope.",
+	},
+	"import": {
 		StackEffect: "path --",
-		Description: "Load and execute a Toy source file in the current context, resolving relative paths beside the loading source first.",
+		Description: "Import one package from an explicit directory path or core: locator. In package source this is a top-level declaration; in the REPL it executes immediately.",
 	},
-	"require": {
-		StackEffect: "module --",
-		Description: "Load a named Toy module once and make its exports available through qualified names.",
-	},
-	"require-as": {
-		StackEffect: "module 'alias --",
-		Description: "Load a named Toy module once and bind a qualified-name alias in the current module.",
+	"import-as": {
+		StackEffect: "path 'alias --",
+		Description: "Import one package under an explicit local alias. In package source this is a top-level declaration; in the REPL it executes immediately.",
 	},
 	"read-file": {
 		StackEffect: "path -- string",

@@ -90,7 +90,7 @@ function cString(value) {
 function renderCRegistry(manifest) {
   const lines = [
     `/* ${generatedComment} */`,
-    '/* Categories organize help output by language concept, not C module. */',
+    '/* Categories organize help output by language concept, not C file. */',
   ];
   for (const category of manifest.categories) {
     lines.push(`static const tf_builtin_word ${category.cArray}[] = {`);

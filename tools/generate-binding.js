@@ -285,13 +285,13 @@ function validateManifest(manifest) {
   }
   requireKeys(
     manifest,
-    new Set(['module', 'headers', 'resources', 'functions']),
+    new Set(['package', 'headers', 'resources', 'functions']),
     'manifest'
   );
 
-  requireString(manifest.module, 'module');
-  if (!/^[A-Za-z_][A-Za-z0-9_-]*(?:\.[A-Za-z_][A-Za-z0-9_-]*)*$/.test(manifest.module)) {
-    fail(`invalid Toy module name '${manifest.module}'`);
+  requireString(manifest.package, 'package');
+  if (!/^[A-Za-z_][A-Za-z0-9_-]*$/.test(manifest.package)) {
+    fail(`invalid Toy package name '${manifest.package}'`);
   }
 
   if (!Array.isArray(manifest.headers) || manifest.headers.length === 0) {
@@ -514,7 +514,7 @@ function getResource(manifest, name) {
 }
 
 function resourceTypeName(manifest, resource) {
-  return `${manifest.module}.${resource.name}`;
+  return `${manifest.package}.${resource.name}`;
 }
 
 function resourceDeclaration(resource, name) {
@@ -638,7 +638,7 @@ function emitArgumentConversion(
   const argument = `argument_${index}`;
   const raw = `raw_argument_${index}`;
   const message = argumentMessage(
-    manifest.module,
+    manifest.package,
     word,
     visibleIndex,
     argumentDescription(manifest, type)
@@ -768,7 +768,7 @@ function emitArgumentConversion(
       lines.push(
         `    ${argument} = malloc(string_length_${index} + 1);`,
         `    if (!${argument}) {`,
-        `        status = toy_fail(state, ${cString(`${manifest.module}.${word} could not copy argument ${visibleIndex + 1}`)});`,
+        `        status = toy_fail(state, ${cString(`${manifest.package}.${word} could not copy argument ${visibleIndex + 1}`)});`,
         '        goto cleanup;',
         '    }',
         `    memcpy(${argument}, string_data_${index}, string_length_${index});`,
@@ -931,7 +931,7 @@ function statusErrorExpression(fn) {
 
 function renderFunction(manifest, fn, index) {
   const word = fn.word || fn.name;
-  const prefix = `${manifest.module}.${word}`;
+  const prefix = `${manifest.package}.${word}`;
   const visibleArgs = fn.args.filter((argument) => !isHiddenArgument(argument));
   const produced = producedResourceEntry(manifest, fn);
   const dependency = produced
@@ -1076,7 +1076,7 @@ function renderFunction(manifest, fn, index) {
       '                             result_length);'
     );
   } else if (typeof fn.returns === 'string' && fn.returns !== 'void') {
-    emitScalarReturn(lines, manifest.module, word, fn.returns);
+    emitScalarReturn(lines, manifest.package, word, fn.returns);
   }
   lines.push('    goto cleanup;', '', 'cleanup:');
   for (const [argIndex, type] of fn.args.entries()) {
@@ -1127,8 +1127,8 @@ function renderBinding(manifest) {
   );
   const lines = [
     `/* ${generatedComment} */`,
-    '#define TOY_MODULE_IMPLEMENTATION',
-    '#include "toy_module.h"',
+    '#define TOY_PACKAGE_IMPLEMENTATION',
+    '#include "toy_package.h"',
     '',
     ...manifest.headers.map((header) => `#include "${header}"`),
     '',
@@ -1204,17 +1204,17 @@ function renderBinding(manifest) {
   lines.push(
     '};',
     '',
-    'static const toy_module_export binding_module = {',
-    '    sizeof(toy_module_export),',
-    `    ${cString(manifest.module)},`,
+    'static const toy_package_export binding_package = {',
+    '    sizeof(toy_package_export),',
+    `    ${cString(manifest.package)},`,
     '    binding_words,',
     '    sizeof(binding_words) / sizeof(binding_words[0]),',
     '};',
     '',
-    'TOY_MODULE_EXPORT const toy_module_export *toy_module_init(',
-    '    uint32_t abi_version, const toy_module_api *api) {',
-    '    if (!toy_module_bind(abi_version, api)) return NULL;',
-    '    return &binding_module;',
+    'TOY_PACKAGE_EXPORT const toy_package_export *toy_package_init(',
+    '    uint32_t abi_version, const toy_package_api *api) {',
+    '    if (!toy_package_bind(abi_version, api)) return NULL;',
+    '    return &binding_package;',
     '}',
     ''
   );
@@ -1223,19 +1223,35 @@ function renderBinding(manifest) {
 
 function main() {
   const args = process.argv.slice(2);
-  const check = args[0] === '--check';
-  const expectedLength = check ? 3 : 2;
-  if (args.length !== expectedLength) {
+  let check = false;
+  let expectedPackage = null;
+  const positional = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--check') {
+      check = true;
+    } else if (args[i] === '--package' && i + 1 < args.length) {
+      expectedPackage = args[++i];
+    } else {
+      positional.push(args[i]);
+    }
+  }
+  if (positional.length !== 2) {
     console.error(
-      'usage: node tools/generate-binding.js [--check] <manifest.json> <output.c>'
+      'usage: node tools/generate-binding.js [--check] [--package name] <manifest.json> <output.c>'
     );
     process.exitCode = 2;
     return;
   }
 
-  const manifestPath = path.resolve(args[check ? 1 : 0]);
-  const outputPath = path.resolve(args[check ? 2 : 1]);
-  const expected = renderBinding(loadManifest(manifestPath));
+  const manifestPath = path.resolve(positional[0]);
+  const outputPath = path.resolve(positional[1]);
+  const manifest = loadManifest(manifestPath);
+  if (expectedPackage !== null && manifest.package !== expectedPackage) {
+    fail(
+      `manifest package '${manifest.package}' does not match directory package '${expectedPackage}'`
+    );
+  }
+  const expected = renderBinding(manifest);
   if (check) {
     const actual = fs.existsSync(outputPath)
       ? fs.readFileSync(outputPath, 'utf8')

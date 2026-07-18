@@ -23,13 +23,14 @@ It uses the Tree-sitter parser for indexing and providing IDE features.
 - **Documentation**: Leading `\ comment` lines are extracted for hovers.
 - **Workspace files**: Toy sources under the initialized workspace folders are
   indexed from disk; unsaved open buffers override their disk copies.
-- **Modules**: Literal `require`, `require-as`, and `export` forms resolve with
-  source-relative paths, aliases, transitive imports, and export visibility.
-  Literal `load` dependencies also participate in unqualified navigation. Go
-  to definition on a module or load string opens its source file.
+- **Packages**: Directory peers share definitions and privacy declarations.
+  Literal `import` and `import-as` forms resolve exact relative or absolute
+  directories, local aliases, public visibility, and qualified calls. Go to
+  definition on an import string opens package source. `core:` navigation uses
+  a `core` directory beneath an initialized workspace root when source exists.
 
-Imports and loads assembled dynamically at runtime cannot be inferred
-statically. Native modules have no source definition to jump to. Completion,
+Imports assembled dynamically in root evaluation cannot be inferred
+statically. Native packages have no Toy source definition to jump to. Completion,
 diagnostics, semantic tokens, and workspace-symbol search are not implemented
 yet.
 

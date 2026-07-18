@@ -1,7 +1,7 @@
 #ifndef TOY_H
 #define TOY_H
 
-#include "toy_module.h"
+#include "toy_package.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -15,14 +15,15 @@ typedef struct {
     void *output_userdata;
     toy_write_fn diagnostic;
     void *diagnostic_userdata;
+    const char *core_package_path;
 } toy_state_config;
 
-/* Native module and word names are copied during successful registration. */
+/* Native package and word names are copied during successful registration. */
 typedef struct {
     const char *name;
     const toy_native_word *words;
     size_t word_count;
-} toy_native_module;
+} toy_native_package;
 
 /* A null config selects default output. States are not safe for concurrent
  * use. */
@@ -35,9 +36,15 @@ toy_status toy_eval(toy_state *state, const char *source_name,
 toy_status toy_call(toy_state *state, const char *word);
 toy_status toy_register_word(toy_state *state, const char *name,
                              toy_native_fn function);
-/* Registers every word atomically and marks the module loaded. */
-toy_status toy_register_module(toy_state *state,
-                               const toy_native_module *module);
+/* Registers every word atomically and imports the package into the host root. */
+toy_status toy_register_package(toy_state *state,
+                                const toy_native_package *package);
+
+/* Load a directory package into the host root. A null alias uses the package
+ * declaration. `toy_run_package` additionally invokes its public `main` word. */
+toy_status toy_import_package(toy_state *state, const char *path,
+                              const char *alias);
+toy_status toy_run_package(toy_state *state, const char *path);
 
 #ifdef __cplusplus
 }

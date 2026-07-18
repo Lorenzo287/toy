@@ -41,6 +41,57 @@ tf_ret tf_callable_q(tf_ctx *ctx) {
     return TF_OK;
 }
 
+static tf_ret package_declaration_only(tf_ctx *ctx) {
+    tf_ctx_runtime_errorf(
+        ctx, "'%s' is only valid as a top-level package declaration\n",
+        ctx->current_word);
+    return TF_ERR;
+}
+
+tf_ret tf_package_declaration(tf_ctx *ctx) {
+    return package_declaration_only(ctx);
+}
+
+tf_ret tf_import_declaration(tf_ctx *ctx) {
+    if (tf_current_package_index(ctx) != TF_ROOT_PACKAGE) {
+        return package_declaration_only(ctx);
+    }
+    if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_STR)) return TF_ERR;
+    tf_obj *path = tf_stack_pop_type(ctx, TF_OBJ_TYPE_STR);
+    tf_ret status = TF_ERR;
+    if (path->str.len != strlen(path->str.ptr)) {
+        tf_ctx_runtime_errorf(ctx, "package import paths cannot contain NUL bytes\n");
+    } else {
+        status = tf_package_load(ctx, path->str.ptr, TF_ROOT_PACKAGE,
+                                 NULL, 0, NULL);
+    }
+    tf_obj_release(path);
+    return status;
+}
+
+tf_ret tf_import_as_declaration(tf_ctx *ctx) {
+    if (tf_current_package_index(ctx) != TF_ROOT_PACKAGE) {
+        return package_declaration_only(ctx);
+    }
+    if (!tf_ctx_require_stack(ctx, 2) ||
+        !tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_SYMBOL) ||
+        !tf_ctx_require_type(ctx, 1, TF_OBJ_TYPE_STR)) {
+        return TF_ERR;
+    }
+    tf_obj *alias = tf_stack_pop_type(ctx, TF_OBJ_TYPE_SYMBOL);
+    tf_obj *path = tf_stack_pop_type(ctx, TF_OBJ_TYPE_STR);
+    tf_ret status = TF_ERR;
+    if (path->str.len != strlen(path->str.ptr)) {
+        tf_ctx_runtime_errorf(ctx, "package import paths cannot contain NUL bytes\n");
+    } else {
+        status = tf_package_load(ctx, path->str.ptr, TF_ROOT_PACKAGE,
+                                 alias->str.ptr, alias->str.len, NULL);
+    }
+    tf_obj_release(path);
+    tf_obj_release(alias);
+    return status;
+}
+
 tf_ret tf_nan_q(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
@@ -249,15 +300,48 @@ tf_ret tf_typeof(tf_ctx *ctx) {
     return TF_OK;
 }
 
-static int word_name_cmp(const void *a, const void *b) {
-    tf_word *const *fa = a;
-    tf_word *const *fb = b;
-    size_t min_len = (*fa)->name_len < (*fb)->name_len ? (*fa)->name_len
-                                                       : (*fb)->name_len;
-    int cmp = memcmp((*fa)->name, (*fb)->name, min_len);
+typedef struct {
+    char *name;
+    size_t name_len;
+    tf_word *word;
+} word_view;
+
+typedef struct {
+    word_view *items;
+    size_t len;
+    size_t cap;
+} word_view_table;
+
+static int word_view_cmp(const void *a, const void *b) {
+    const word_view *left = a;
+    const word_view *right = b;
+    size_t min_len = left->name_len < right->name_len ? left->name_len
+                                                       : right->name_len;
+    int cmp = memcmp(left->name, right->name, min_len);
     if (cmp != 0) return cmp;
-    return ((*fa)->name_len > (*fb)->name_len) -
-           ((*fa)->name_len < (*fb)->name_len);
+    return (left->name_len > right->name_len) -
+           (left->name_len < right->name_len);
+}
+
+static void collect_word_view(const char *display_name,
+                              size_t display_name_len, tf_word *word,
+                              void *userdata) {
+    word_view_table *views = userdata;
+    if (views->len >= views->cap) {
+        views->cap = views->cap ? views->cap * 2 : 64;
+        views->items = tf_xrealloc(views->items,
+                                   sizeof(word_view) * views->cap);
+    }
+    char *name = tf_xmalloc(display_name_len + 1);
+    memcpy(name, display_name, display_name_len);
+    name[display_name_len] = '\0';
+    views->items[views->len++] =
+        (word_view){name, display_name_len, word};
+}
+
+static void word_views_dispose(word_view_table *views) {
+    for (size_t i = 0; i < views->len; i++) free(views->items[i].name);
+    free(views->items);
 }
 
 typedef struct {
@@ -515,27 +599,15 @@ static bool word_matches_query(tf_word *word, const char *query,
 }
 
 tf_ret tf_words(tf_ctx *ctx) {
-    size_t count = ctx->words.count;
-    tf_obj *result = tf_obj_new_vector_with_capacity(count);
-    if (count == 0) {
-        tf_stack_push(ctx, result);
-        return TF_OK;
+    word_view_table views = {0};
+    tf_dict_each_visible(ctx, collect_word_view, &views);
+    qsort(views.items, views.len, sizeof(word_view), word_view_cmp);
+    tf_obj *result = tf_obj_new_vector_with_capacity(views.len);
+    for (size_t i = 0; i < views.len; i++) {
+        tf_vector_push(result, tf_obj_new_symbol(views.items[i].name,
+                                                views.items[i].name_len));
     }
-
-    tf_word **words = tf_xmalloc(sizeof(tf_word *) * count);
-    size_t j = 0;
-    for (size_t i = 0; i < ctx->words.capacity; i++) {
-        size_t entry = ctx->words.buckets[i];
-        tf_word *word = entry ? &ctx->words.entries[entry - 1] : NULL;
-        if (tf_dict_word_visible(ctx, word)) words[j++] = word;
-    }
-
-    qsort(words, j, sizeof(tf_word *), word_name_cmp);
-    for (size_t i = 0; i < j; i++) {
-        tf_vector_push(result,
-                       tf_obj_new_symbol(words[i]->name, words[i]->name_len));
-    }
-    free(words);
+    word_views_dispose(&views);
     tf_stack_push(ctx, result);
     return TF_OK;
 }
@@ -609,29 +681,29 @@ tf_ret tf_apropos(tf_ctx *ctx) {
     }
     query = tf_stack_pop(ctx);
 
-    tf_word **matches = NULL;
+    word_view_table views = {0};
+    tf_dict_each_visible(ctx, collect_word_view, &views);
     size_t match_count = 0;
-    if (ctx->words.count > 0) {
-        matches = tf_xmalloc(sizeof(tf_word *) * ctx->words.count);
-        for (size_t i = 0; i < ctx->words.capacity; i++) {
-            size_t entry = ctx->words.buckets[i];
-            tf_word *word = entry ? &ctx->words.entries[entry - 1] : NULL;
-            if (!tf_dict_word_visible(ctx, word)) continue;
-            if (word_matches_query(word, query->str.ptr, query->str.len)) {
-                matches[match_count++] = word;
-            }
+    for (size_t i = 0; i < views.len; i++) {
+        word_view *view = &views.items[i];
+        if (!word_matches_query(view->word, query->str.ptr, query->str.len) &&
+            !contains_ascii_casefold(view->name, view->name_len,
+                                     query->str.ptr, query->str.len)) {
+            free(view->name);
+            continue;
         }
-        qsort(matches, match_count, sizeof(tf_word *), word_name_cmp);
+        views.items[match_count++] = *view;
+    }
+    views.len = match_count;
+    qsort(views.items, views.len, sizeof(word_view), word_view_cmp);
+
+    tf_obj *result = tf_obj_new_vector_with_capacity(views.len);
+    for (size_t i = 0; i < views.len; i++) {
+        tf_vector_push(result, tf_obj_new_symbol(views.items[i].name,
+                                                views.items[i].name_len));
     }
 
-    tf_obj *result = tf_obj_new_vector_with_capacity(match_count);
-    for (size_t i = 0; i < match_count; i++) {
-        tf_vector_push(result,
-                       tf_obj_new_symbol(matches[i]->name,
-                                         matches[i]->name_len));
-    }
-
-    free(matches);
+    word_views_dispose(&views);
     tf_obj_release(query);
     tf_stack_push(ctx, result);
     return TF_OK;
@@ -661,10 +733,10 @@ tf_ret tf_def(tf_ctx *ctx) {
     return defined ? TF_OK : TF_ERR;
 }
 
-tf_ret tf_export(tf_ctx *ctx) {
+tf_ret tf_private(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_SYMBOL)) return TF_ERR;
     tf_obj *name = tf_stack_pop_type(ctx, TF_OBJ_TYPE_SYMBOL);
-    bool exported = tf_dict_export(ctx, name);
+    bool hidden = tf_dict_make_private(ctx, name);
     tf_obj_release(name);
-    return exported ? TF_OK : TF_ERR;
+    return hidden ? TF_OK : TF_ERR;
 }

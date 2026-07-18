@@ -1,5 +1,5 @@
 {
-  "module": "test.bindgen",
+  "package": "bindgen",
   "headers": ["test_bindgen_fixture.h"],
   "resources": [
     {

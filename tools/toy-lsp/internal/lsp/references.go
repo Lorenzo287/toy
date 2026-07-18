@@ -51,15 +51,15 @@ func (s *Server) wordOccurrences(target definitionTarget, includeDeclaration boo
 			})
 		}
 
-		for _, exported := range doc.Index.Exports {
-			resolved, ok := s.exportedDefinition(doc, exported.Name)
+		for _, private := range doc.Index.Privates {
+			resolved, ok := s.packageDefinition(doc, private.Name)
 			if !ok || !sameDefinition(resolved, target) {
 				continue
 			}
 			appendOccurrence(wordOccurrence{
 				URI:         doc.URI,
-				Range:       exported.Range,
-				RenameRange: exported.Range,
+				Range:       private.Range,
+				RenameRange: private.Range,
 			})
 		}
 	}

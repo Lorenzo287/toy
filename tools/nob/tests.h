@@ -1,7 +1,7 @@
 #ifndef TOY_NOB_TESTS_H
 #define TOY_NOB_TESTS_H
 
-/* Isolated Toy cases plus C API and loadable-module regressions. */
+/* Isolated Toy cases plus C API and loadable-package regressions. */
 
 static bool wait_for_process(Proc process, uint64_t timeout_ms,
                              int *exit_code) {
@@ -161,7 +161,8 @@ static bool run_toy_case(const Build_Config *config, const char *root,
     const char *toy_absolute = temp_sprintf("%s/%s", root, config->toy_exe);
     if (!set_current_dir(work_absolute)) return false;
     Cmd command = {0};
-    cmd_append(&command, toy_absolute, filename);
+    cmd_append(&command, toy_absolute, "--eval-file", "testlib.toy",
+               "--eval-file", filename);
     int exit_code = 0;
     bool ran = run_captured(&command, NULL, "stdout.txt", "stderr.txt",
                             &exit_code);
@@ -239,7 +240,8 @@ static bool run_debug_protocol_test(const Build_Config *config,
         "%s/tests/toy/test_debug_protocol.toy", root);
     if (!set_current_dir(work_absolute)) return false;
     Cmd command = {0};
-    cmd_append(&command, toy_absolute, "--debug-protocol", source_absolute);
+    cmd_append(&command, toy_absolute, "--debug-protocol", "--eval-file",
+               source_absolute);
     int exit_code = 0;
     bool ran = run_captured(&command, "commands.txt", "stdout.txt",
                             "stderr.txt", &exit_code);
@@ -270,6 +272,69 @@ static bool run_debug_protocol_test(const Build_Config *config,
     return ok;
 }
 
+typedef struct {
+    const char *name;
+    const char *path;
+    int exit_code;
+    const char *stdout_text;
+    const char *diagnostic;
+} Package_Test_Case;
+
+static const Package_Test_Case package_test_cases[] = {
+    {"test_package_basic", "tests/packages/basic/app", 0, "40\n42\n", NULL},
+    {"test_package_core_ffi", "tests/packages/core-ffi", 0, "true\n", NULL},
+    {"fail_package_private", "tests/packages/private/app", 1, NULL,
+     "undefined word 'secrets.hidden'"},
+    {"fail_package_cycle", "tests/packages/cycle/app", 1, NULL,
+     "cyclic package dependency"},
+    {"fail_package_top_level", "tests/packages/top-level", 1, NULL,
+     "package-level code may only declare imports, definitions, or privacy"},
+    {"fail_package_inconsistent", "tests/packages/inconsistent", 1, NULL,
+     "all files in a directory must declare the same package"},
+    {"fail_package_missing_main", "tests/packages/missing-main", 1, NULL,
+     "must define a public 'main' word"},
+    {"fail_package_wrong_name", "tests/packages/wrong-name", 1, NULL,
+     "must be named 'main'"},
+    {"fail_package_unknown_prefix", "tests/packages/unknown-prefix", 1, NULL,
+     "unknown package path prefix"},
+    {"fail_package_core_escape", "tests/packages/core-escape", 1, NULL,
+     "invalid core package path"},
+    {"fail_package_nontransitive", "tests/packages/nontransitive/app", 1,
+     NULL, "undefined word 'leaf.value'"},
+};
+
+static bool run_package_case(const Build_Config *config, const char *root,
+                             const Package_Test_Case *test) {
+    const char *toy = temp_sprintf("%s/%s", root, config->toy_exe);
+    const char *package = temp_sprintf("%s/%s", root, test->path);
+    const char *stdout_path = temp_sprintf("%s/test-work/%s.stdout",
+                                           config->build_dir, test->name);
+    const char *stderr_path = temp_sprintf("%s/test-work/%s.stderr",
+                                           config->build_dir, test->name);
+    Cmd command = {0};
+    cmd_append(&command, toy, package);
+    int exit_code = 0;
+    bool ran = run_captured(&command, NULL, stdout_path, stderr_path,
+                            &exit_code);
+    String_Builder output = {0};
+    String_Builder diagnostic = {0};
+    bool ok = ran && read_normalized(stdout_path, &output) &&
+              read_normalized(stderr_path, &diagnostic) &&
+              exit_code == test->exit_code;
+    if (ok && test->stdout_text) {
+        ok = strcmp(output.items, test->stdout_text) == 0 &&
+             diagnostic.count == 1;
+    }
+    if (ok && test->diagnostic) {
+        ok = strstr(diagnostic.items, test->diagnostic) != NULL;
+    }
+    fprintf(stderr, "[%s] %s\n", ok ? "PASS" : "FAIL", test->name);
+    if (!ok) print_test_streams(&output, &diagnostic);
+    da_free(output);
+    da_free(diagnostic);
+    return ok;
+}
+
 static bool run_toy_tests(const Build_Config *config, const char *root,
                           size_t *selected_out) {
     File_Paths entries = {0};
@@ -294,6 +359,12 @@ static bool run_toy_tests(const Build_Config *config, const char *root,
     if (test_matches_filter(config, "test_debug_protocol_transport")) {
         ++selected;
         if (!run_debug_protocol_test(config, root)) ok = false;
+    }
+    for (size_t i = 0; i < ARRAY_LEN(package_test_cases); ++i) {
+        const Package_Test_Case *test = &package_test_cases[i];
+        if (!test_matches_filter(config, test->name)) continue;
+        ++selected;
+        if (!run_package_case(config, root, test)) ok = false;
     }
     da_free(entries);
     *selected_out = selected;
@@ -349,12 +420,28 @@ static bool build_native_loader_test(const Build_Config *config,
     const char *plugin_object = object_path(config, plugin_source);
     const char *bad_plugin_object = object_path(config, bad_plugin_source);
     const char *loader_object = object_path(config, loader_source);
-    const char *plugin_module = temp_sprintf(
-        "%s/toy_test.plugin%s", config->test_module_dir,
-        TOY_SHARED_SUFFIX_VALUE);
-    const char *bad_plugin_module = temp_sprintf(
-        "%s/toy_test.bad%s", config->test_module_dir,
-        TOY_SHARED_SUFFIX_VALUE);
+    const char *plugin_directory = temp_sprintf(
+        "%s/plugin", config->test_package_dir);
+    const char *bad_plugin_directory = temp_sprintf(
+        "%s/bad", config->test_package_dir);
+    if (!ensure_directory(plugin_directory) ||
+        !ensure_directory(bad_plugin_directory)) {
+        return false;
+    }
+    const char *plugin_file = temp_sprintf(
+        "toy_plugin%s", TOY_SHARED_SUFFIX_VALUE);
+    const char *bad_plugin_file = temp_sprintf(
+        "toy_bad%s", TOY_SHARED_SUFFIX_VALUE);
+    const char *plugin_library = temp_sprintf(
+        "%s/%s", plugin_directory, plugin_file);
+    const char *bad_plugin_library = temp_sprintf(
+        "%s/%s", bad_plugin_directory, bad_plugin_file);
+    if (!write_native_package_manifest(plugin_directory, "plugin",
+                                       plugin_file) ||
+        !write_native_package_manifest(bad_plugin_directory, "bad",
+                                       bad_plugin_file)) {
+        return false;
+    }
     *loader_executable = temp_sprintf("%s/tests/test_native_loader%s",
                                       config->build_dir, TOY_EXE_SUFFIX);
 
@@ -378,12 +465,12 @@ static bool build_native_loader_test(const Build_Config *config,
     File_Paths objects = {0};
     if (ok) {
         da_append(&objects, plugin_object);
-        ok = link_shared_module(config, plugin_module, &objects, false);
+        ok = link_shared_package(config, plugin_library, &objects, false);
         objects.count = 0;
     }
     if (ok) {
         da_append(&objects, bad_plugin_object);
-        ok = link_shared_module(config, bad_plugin_module, &objects, false);
+        ok = link_shared_package(config, bad_plugin_library, &objects, false);
         objects.count = 0;
     }
     if (ok) {
@@ -410,19 +497,19 @@ static bool build_bindgen_test(const Build_Config *config,
                                Compile_Commands *compile_commands,
                                const char **executable_out) {
     *executable_out = NULL;
-    if (!test_matches_filter(config, "test_bindgen_module")) return true;
+    if (!test_matches_filter(config, "test_bindgen_package")) return true;
 
     const char *generated = temp_sprintf(
         "%s/generated/test_generated_binding.c", config->build_dir);
     if (!run_generator(config, "tests/bindings/test_bindgen.json",
-                       generated)) {
+                       generated, "bindgen")) {
         return false;
     }
 
     File_Paths headers = {0};
     File_Paths includes = {0};
     File_Paths definitions = {0};
-    File_Paths module_objects = {0};
+    File_Paths shared_objects = {0};
     File_Paths test_objects = {0};
     Procs processes = {0};
     da_append(&includes, "tests/c");
@@ -431,9 +518,9 @@ static bool build_bindgen_test(const Build_Config *config,
         config, "test_generated_binding");
     const char *fixture_object = named_test_object(
         config, "test_bindgen_fixture");
-    const char *test_object = named_test_object(config, "test_bindgen_module");
-    da_append(&module_objects, generated_object);
-    da_append(&module_objects, fixture_object);
+    const char *test_object = named_test_object(config, "test_bindgen_package");
+    da_append(&shared_objects, generated_object);
+    da_append(&shared_objects, fixture_object);
     da_append(&test_objects, test_object);
 
     bool ok = collect_header_dependencies(config, &headers);
@@ -450,25 +537,33 @@ static bool build_bindgen_test(const Build_Config *config,
             &definitions);
     }
     if (ok) {
-        ok = schedule_compile(config, "tests/c/test_bindgen_module.c",
+        ok = schedule_compile(config, "tests/c/test_bindgen_package.c",
                               test_object, &headers, compile_commands,
                               &processes);
     }
     if (!procs_flush(&processes)) ok = false;
-    const char *module = temp_sprintf("%s/toy_test.bindgen%s",
-                                      config->test_module_dir,
-                                      TOY_SHARED_SUFFIX_VALUE);
-    if (ok) {
-        ok = link_shared_module(config, module, &module_objects, false);
+    const char *package_directory = temp_sprintf(
+        "%s/bindgen", config->test_package_dir);
+    if (!ensure_directory(package_directory)) return false;
+    const char *native_file = temp_sprintf(
+        "toy_bindgen%s", TOY_SHARED_SUFFIX_VALUE);
+    const char *package_library = temp_sprintf("%s/%s", package_directory,
+                                               native_file);
+    if (!write_native_package_manifest(package_directory, "bindgen",
+                                       native_file)) {
+        return false;
     }
-    *executable_out = temp_sprintf("%s/tests/test_bindgen_module%s",
+    if (ok) {
+        ok = link_shared_package(config, package_library, &shared_objects, false);
+    }
+    *executable_out = temp_sprintf("%s/tests/test_bindgen_package%s",
                                    config->build_dir, TOY_EXE_SUFFIX);
     if (ok) {
         ok = link_executable(config, *executable_out, &test_objects, true);
     }
     da_free(processes);
     da_free(test_objects);
-    da_free(module_objects);
+    da_free(shared_objects);
     da_free(definitions);
     da_free(includes);
     da_free(headers);
@@ -538,17 +633,12 @@ static bool run_binding_generator_test(const Build_Config *config) {
 static bool run_ffi_integration_test(const Build_Config *config,
                                      const char *root,
                                      Compile_Commands *compile_commands) {
-    if (!build_module(config, "ffi", "modules/ffi/toy_ffi.c",
-                      compile_commands)) {
-        return false;
-    }
-
     File_Paths headers = {0};
     File_Paths fixture_objects = {0};
     File_Paths test_objects = {0};
     Procs processes = {0};
     const char *fixture_object = named_test_object(config, "test_ffi_fixture");
-    const char *test_object = named_test_object(config, "test_ffi_module");
+    const char *test_object = named_test_object(config, "test_ffi_package");
     da_append(&fixture_objects, fixture_object);
     da_append(&test_objects, test_object);
 
@@ -559,19 +649,19 @@ static bool run_ffi_integration_test(const Build_Config *config,
                                  &processes, true);
     }
     if (ok) {
-        ok = schedule_compile(config, "tests/c/test_ffi_module.c",
+        ok = schedule_compile(config, "tests/c/test_ffi_package.c",
                               test_object, &headers, compile_commands,
                               &processes);
     }
     if (!procs_flush(&processes)) ok = false;
 
     const char *fixture = temp_sprintf("%s/toy_ffi_fixture%s",
-                                       config->module_dir,
+                                       config->native_artifact_dir,
                                        TOY_SHARED_SUFFIX_VALUE);
     if (ok) {
-        ok = link_shared_module(config, fixture, &fixture_objects, false);
+        ok = link_shared_package(config, fixture, &fixture_objects, false);
     }
-    const char *executable = temp_sprintf("%s/tests/test_ffi_module%s",
+    const char *executable = temp_sprintf("%s/tests/test_ffi_package%s",
                                           config->build_dir, TOY_EXE_SUFFIX);
     if (ok) {
         ok = link_executable(config, executable, &test_objects, true);
@@ -580,7 +670,7 @@ static bool run_ffi_integration_test(const Build_Config *config,
     if (ok) {
         Cmd command = {0};
         cmd_append(&command, temp_sprintf("%s/%s", root, executable),
-                   temp_sprintf("%s/%s", root, config->module_dir),
+                   temp_sprintf("%s/%s", root, config->core_package_dir),
                    temp_sprintf("%s/%s", root, fixture));
         const char *stdout_path = temp_sprintf("%s/test-work/ffi.stdout",
                                                config->build_dir);
@@ -590,7 +680,7 @@ static bool run_ffi_integration_test(const Build_Config *config,
         bool ran = run_captured(&command, NULL, stdout_path, stderr_path,
                                 &exit_code);
         ok = ran && exit_code == 0;
-        fprintf(stderr, "[%s] test_ffi_module\n", ok ? "PASS" : "FAIL");
+        fprintf(stderr, "[%s] test_ffi_package\n", ok ? "PASS" : "FAIL");
         if (!ok) {
             String_Builder stdout_text = {0};
             String_Builder stderr_text = {0};
@@ -643,15 +733,15 @@ static bool run_all_tests(const Build_Config *config, const char *root,
     bool c_ok = run_c_tests(config, root, &c_test_artifacts);
     size_t c_test_count = c_test_artifacts.count / 2;
     if (native_loader) {
-        const char *module_dir = temp_sprintf("%s/%s", root,
-                                              config->test_module_dir);
-        if (!run_c_test(config, root, native_loader, module_dir)) c_ok = false;
+        const char *native_artifact_dir = temp_sprintf("%s/%s", root,
+                                              config->test_package_dir);
+        if (!run_c_test(config, root, native_loader, native_artifact_dir)) c_ok = false;
         ++c_test_count;
     }
     if (bindgen_test) {
-        const char *module_dir = temp_sprintf("%s/%s", root,
-                                              config->test_module_dir);
-        if (!run_c_test(config, root, bindgen_test, module_dir)) c_ok = false;
+        const char *native_artifact_dir = temp_sprintf("%s/%s", root,
+                                              config->test_package_dir);
+        if (!run_c_test(config, root, bindgen_test, native_artifact_dir)) c_ok = false;
         ++c_test_count;
     }
     bool generator_ok = run_binding_generator_test(config);

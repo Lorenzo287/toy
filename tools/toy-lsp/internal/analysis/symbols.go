@@ -56,15 +56,9 @@ type LocalBinding struct {
 	ScopeDepth int
 }
 
-type ModuleImport struct {
-	Module      string
-	Alias       string
-	Range       Range
-	SourceRange Range
-}
-
-type SourceLoad struct {
+type PackageImport struct {
 	Path        string
+	Alias       string
 	Range       Range
 	SourceRange Range
 }
@@ -72,8 +66,7 @@ type SourceLoad struct {
 type SourceReferenceKind int
 
 const (
-	SourceReferenceModule SourceReferenceKind = iota
-	SourceReferenceLoad
+	SourceReferencePackage SourceReferenceKind = iota
 )
 
 type SourceReference struct {
@@ -82,19 +75,20 @@ type SourceReference struct {
 	Range  Range
 }
 
-type Export struct {
+type Privacy struct {
 	Name  string
 	Range Range
 }
 
 type DocumentIndex struct {
-	Symbols     []Symbol
-	Definitions map[string]Symbol
-	WordTokens  []Token
-	Locals      []LocalBinding
-	Imports     []ModuleImport
-	Loads       []SourceLoad
-	Exports     []Export
+	Symbols      []Symbol
+	Definitions  map[string]Symbol
+	WordTokens   []Token
+	Locals       []LocalBinding
+	PackageName  string
+	PackageRange Range
+	Imports      []PackageImport
+	Privates     []Privacy
 }
 
 const (
@@ -120,7 +114,7 @@ func IndexDocument(src string) DocumentIndex {
 	source := []byte(src)
 	positions := newPositionMapper(source)
 	collectTopLevelDefinitions(root, source, &index, positions)
-	collectModuleDirectives(root, source, &index, positions)
+	collectPackageDirectives(root, source, &index, positions)
 	collectTokensAndLocals(root, source, &index, []Range{positions.nodeRange(root)}, positions)
 
 	return index
@@ -140,31 +134,22 @@ func LookupTokenAt(index DocumentIndex, pos Position) (Token, bool) {
 	return tok, ok
 }
 
-func (index DocumentIndex) IsExported(name string) bool {
-	for _, exported := range index.Exports {
-		if exported.Name == name {
-			return true
+func (index DocumentIndex) IsPublic(name string) bool {
+	for _, private := range index.Privates {
+		if private.Name == name {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 func LookupSourceReferenceAt(index DocumentIndex, pos Position) (SourceReference, bool) {
 	for _, imported := range index.Imports {
 		if containsPosition(imported.SourceRange, pos) {
 			return SourceReference{
-				Kind:   SourceReferenceModule,
-				Target: imported.Module,
+				Kind:   SourceReferencePackage,
+				Target: imported.Path,
 				Range:  imported.SourceRange,
-			}, true
-		}
-	}
-	for _, loaded := range index.Loads {
-		if containsPosition(loaded.SourceRange, pos) {
-			return SourceReference{
-				Kind:   SourceReferenceLoad,
-				Target: loaded.Path,
-				Range:  loaded.SourceRange,
 			}, true
 		}
 	}
@@ -201,7 +186,7 @@ func LookupDefinition(index DocumentIndex, pos Position) (Symbol, bool) {
 	}
 	if tok.Kind == tokenKindSymbol {
 		sym, ok := index.Definitions[word]
-		if !ok || (!sameRange(tok.Range, sym.SelectionRange) && !isExportRange(index, word, tok.Range)) {
+		if !ok || (!sameRange(tok.Range, sym.SelectionRange) && !isPrivacyRange(index, word, tok.Range)) {
 			return Symbol{}, false
 		}
 		return sym, true
@@ -227,7 +212,7 @@ func LookupReferences(index DocumentIndex, pos Position, includeDeclaration bool
 		}
 		return localReferences(index, local, includeDeclaration)
 	}
-	if tok.Kind == tokenKindSymbol && !isExportRange(index, word, tok.Range) && !isDefinitionRange(index, word, tok.Range) {
+	if tok.Kind == tokenKindSymbol && !isPrivacyRange(index, word, tok.Range) && !isDefinitionRange(index, word, tok.Range) {
 		return nil
 	}
 
@@ -249,9 +234,9 @@ func LookupReferences(index DocumentIndex, pos Position, includeDeclaration bool
 		}
 		refs = append(refs, candidate.Range)
 	}
-	for _, exported := range index.Exports {
-		if exported.Name == sym.Name {
-			refs = append(refs, exported.Range)
+	for _, private := range index.Privates {
+		if private.Name == sym.Name {
+			refs = append(refs, private.Range)
 		}
 	}
 	return refs
@@ -273,7 +258,7 @@ func LookupRenameEdits(index DocumentIndex, pos Position) []Range {
 		}
 		return localReferences(index, local, true)
 	}
-	if tok.Kind == tokenKindSymbol && !isExportRange(index, word, tok.Range) && !isDefinitionRange(index, word, tok.Range) {
+	if tok.Kind == tokenKindSymbol && !isPrivacyRange(index, word, tok.Range) && !isDefinitionRange(index, word, tok.Range) {
 		return nil
 	}
 
@@ -293,9 +278,9 @@ func LookupRenameEdits(index DocumentIndex, pos Position) []Range {
 		}
 		edits = append(edits, candidate.Range)
 	}
-	for _, exported := range index.Exports {
-		if exported.Name == sym.Name {
-			edits = append(edits, exported.Range)
+	for _, private := range index.Privates {
+		if private.Name == sym.Name {
+			edits = append(edits, private.Range)
 		}
 	}
 	return edits
@@ -444,13 +429,13 @@ func indexDefDefinition(root *tree_sitter.Node, i uint, doc string, src []byte, 
 	}, true
 }
 
-func collectModuleDirectives(node *tree_sitter.Node, src []byte, index *DocumentIndex, positions *positionMapper) {
-	if node == nil {
+func collectPackageDirectives(root *tree_sitter.Node, src []byte, index *DocumentIndex, positions *positionMapper) {
+	if root == nil {
 		return
 	}
 
-	for i := uint(0); i < node.NamedChildCount(); i++ {
-		child := node.NamedChild(i)
+	for i := uint(0); i < root.NamedChildCount(); i++ {
+		child := root.NamedChild(i)
 		if child == nil {
 			continue
 		}
@@ -462,31 +447,19 @@ func collectModuleDirectives(node *tree_sitter.Node, src []byte, index *Document
 				break
 			}
 
-			secondIndex, second := nextExpressionChild(node, i+1)
+			secondIndex, second := nextExpressionChild(root, i+1)
 			if second == nil {
 				break
 			}
-			if second.Kind() == "builtin_word" {
-				switch second.Utf8Text(src) {
-				case "require":
-					index.Imports = append(index.Imports, ModuleImport{
-						Module:      value,
-						SourceRange: positions.nodeRange(child),
-						Range: Range{
-							Start: positions.nodeRange(child).Start,
-							End:   positions.nodeRange(second).End,
-						},
-					})
-				case "load":
-					index.Loads = append(index.Loads, SourceLoad{
-						Path:        value,
-						SourceRange: positions.nodeRange(child),
-						Range: Range{
-							Start: positions.nodeRange(child).Start,
-							End:   positions.nodeRange(second).End,
-						},
-					})
-				}
+			if second.Kind() == "builtin_word" && second.Utf8Text(src) == "import" {
+				index.Imports = append(index.Imports, PackageImport{
+					Path:        value,
+					SourceRange: positions.nodeRange(child),
+					Range: Range{
+						Start: positions.nodeRange(child).Start,
+						End:   positions.nodeRange(second).End,
+					},
+				})
 				break
 			}
 
@@ -497,12 +470,12 @@ func collectModuleDirectives(node *tree_sitter.Node, src []byte, index *Document
 			if aliasNode == nil || aliasNode.Kind() != "symbol_name" {
 				break
 			}
-			_, third := nextExpressionChild(node, secondIndex+1)
-			if third == nil || third.Kind() != "builtin_word" || third.Utf8Text(src) != "require-as" {
+			_, third := nextExpressionChild(root, secondIndex+1)
+			if third == nil || third.Kind() != "builtin_word" || third.Utf8Text(src) != "import-as" {
 				break
 			}
-			index.Imports = append(index.Imports, ModuleImport{
-				Module:      value,
+			index.Imports = append(index.Imports, PackageImport{
+				Path:        value,
 				Alias:       aliasNode.Utf8Text(src),
 				SourceRange: positions.nodeRange(child),
 				Range: Range{
@@ -516,19 +489,23 @@ func collectModuleDirectives(node *tree_sitter.Node, src []byte, index *Document
 			if nameNode == nil || nameNode.Kind() != "symbol_name" {
 				break
 			}
-			_, second := nextExpressionChild(node, i+1)
-			if second == nil || second.Kind() != "builtin_word" || second.Utf8Text(src) != "export" {
+			_, second := nextExpressionChild(root, i+1)
+			if second == nil || second.Kind() != "builtin_word" {
 				break
 			}
-			index.Exports = append(index.Exports, Export{
-				Name:  nameNode.Utf8Text(src),
-				Range: positions.nodeRange(nameNode),
-			})
+			switch second.Utf8Text(src) {
+			case "package":
+				if index.PackageName == "" {
+					index.PackageName = nameNode.Utf8Text(src)
+					index.PackageRange = positions.nodeRange(nameNode)
+				}
+			case "private":
+				index.Privates = append(index.Privates, Privacy{
+					Name:  nameNode.Utf8Text(src),
+					Range: positions.nodeRange(nameNode),
+				})
+			}
 		}
-	}
-
-	for i := uint(0); i < node.NamedChildCount(); i++ {
-		collectModuleDirectives(node.NamedChild(i), src, index, positions)
 	}
 }
 
@@ -713,9 +690,9 @@ func isDefinitionRange(index DocumentIndex, name string, rng Range) bool {
 	return ok && sameRange(sym.SelectionRange, rng)
 }
 
-func isExportRange(index DocumentIndex, name string, rng Range) bool {
-	for _, exported := range index.Exports {
-		if exported.Name == name && sameRange(exported.Range, rng) {
+func isPrivacyRange(index DocumentIndex, name string, rng Range) bool {
+	for _, private := range index.Privates {
+		if private.Name == name && sameRange(private.Range, rng) {
 			return true
 		}
 	}

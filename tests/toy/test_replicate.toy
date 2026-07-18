@@ -1,4 +1,3 @@
-"testlib.toy" load
 
 5 [ 0 ] replicate [ 0 0 0 0 0 ] == check
 10 [ rand 100 % ] replicate len 10 == check

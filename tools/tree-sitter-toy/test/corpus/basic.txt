@@ -15,7 +15,7 @@ pq-peek
 math.answer
 'math.answer
 . .s .S
-require-as
+import-as
 
 ---
 

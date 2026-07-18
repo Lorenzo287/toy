@@ -6,7 +6,7 @@ const {
 
 function manifest() {
   return {
-    module: 'sample.generated',
+    package: 'sample',
     headers: ['sample.h'],
     functions: [
       {
@@ -20,14 +20,14 @@ function manifest() {
 }
 
 const rendered = renderBinding(validateManifest(manifest()));
-assert(rendered.includes('#define TOY_MODULE_IMPLEMENTATION'));
-assert(rendered.includes('"sample.generated"'));
+assert(rendered.includes('#define TOY_PACKAGE_IMPLEMENTATION'));
+assert(rendered.includes('"sample"'));
 assert(rendered.includes('{"length", binding_word_0}'));
 assert(rendered.includes('sample_length(argument_0)'));
 assert(rendered.includes("memchr(string_data_0, '\\0', string_length_0)"));
-assert(rendered.includes('*toy_module_init('));
-assert(rendered.includes('toy_module_bind(abi_version, api)'));
-assert(!rendered.includes('TOY_MODULE_ABI_VERSION'));
+assert(rendered.includes('*toy_package_init('));
+assert(rendered.includes('toy_package_bind(abi_version, api)'));
+assert(!rendered.includes('TOY_PACKAGE_ABI_VERSION'));
 assert(!rendered.includes('\0'));
 
 const badHeader = manifest();
@@ -53,7 +53,7 @@ assert.throws(() => validateManifest(unknownField), /not supported/);
 
 function resourceManifest() {
   return {
-    module: 'sample.generated',
+    package: 'sample',
     headers: ['sample.h'],
     resources: [
       {
@@ -86,7 +86,7 @@ function resourceManifest() {
 }
 
 const resourceRendered = renderBinding(validateManifest(resourceManifest()));
-assert(resourceRendered.includes('"sample.generated.handle"'));
+assert(resourceRendered.includes('"sample.handle"'));
 assert(resourceRendered.includes('sample_handle_destroy(value)'));
 assert(resourceRendered.includes('toy_get_resource(state, 0'));
 assert(resourceRendered.includes('sample_handle_open(argument_0, &argument_1)'));

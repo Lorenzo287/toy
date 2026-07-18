@@ -24,7 +24,7 @@ static const toy_native_word host_words[] = {
     {"log", hostLog},
 };
 
-static const toy_native_module host_module = {
+static const toy_native_package host_package = {
     "host",
     host_words,
     sizeof(host_words) / sizeof(host_words[0]),
@@ -45,7 +45,7 @@ int main(void) {
         return 1;
     }
 
-    toy_status status = toy_register_module(state, &host_module);
+    toy_status status = toy_register_package(state, &host_package);
     if (status != TOY_OK) {
         int result = reportError(state, "native registration", status);
         toy_state_free(state);
@@ -54,8 +54,7 @@ int main(void) {
 
     const char *program =
         "'score [ 2 * 10 + ] def\n"
-        "\"host\" 'h require-as\n"
-        "\"runtime initialized\" h.log";
+        "\"runtime initialized\" host.log";
     status = toy_eval(state, "embed.toy", program);
     if (status != TOY_OK) {
         int result = reportError(state, "Toy evaluation", status);

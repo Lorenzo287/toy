@@ -1,45 +1,31 @@
 # Raylib Interop Example
 
-This directory demonstrates how an application can expose an external C
-library as a loadable Toy module. Raylib is not a Toy runtime dependency or a
-built-in integration: the example is built with the same generic `module`
-command available to any handwritten binding.
+This directory exposes Raylib as an ordinary native Toy package. Raylib is not
+a Toy runtime dependency or core integration.
 
-The C adapter is necessary because this example uses by-value Raylib structs,
-packed color conversion, and coordinated window/GPU lifetime rules that the
-manifest generator does not express. It converts ordinary Toy values, wraps
-`Texture2D` as an owned `raylib.texture`, and exports a normal shared native
-module discovered by `require`.
+The C adapter is handwritten because it translates by-value structs and packed
+colors and coordinates window/GPU lifetimes. It wraps `Texture2D` as an owned
+`raylib.texture` resource.
 
-After installing a Raylib build compatible with your compiler, the adapter can
-be compiled directly. A typical Windows Clang command run from the repository
-root is:
+After installing a Raylib build compatible with your compiler, build the
+package in place. A typical Windows command is:
 
 ```powershell
-clang -std=c11 -shared -Iinclude -IC:\raylib\include `
-    examples\interop\raylib\toy_raylib.c C:\raylib\lib\raylib.lib `
-    opengl32.lib gdi32.lib winmm.lib shell32.lib -o toy_raylib.dll
-```
-
-Static Raylib builds or other platforms may require different system libraries
-documented by their Raylib package. The equivalent generic Nob command is:
-
-```powershell
-.\nob.exe module raylib examples\interop\raylib\toy_raylib.c `
-    --include C:\raylib\include --lib C:\raylib\lib\raylib.lib `
+.\nob.exe package examples\interop\raylib `
+    examples\interop\raylib\toy_raylib.c `
+    --include C:\raylib\include `
+    --lib C:\raylib\lib\raylib.lib `
     --lib opengl32 --lib gdi32 --lib winmm --lib shell32
 ```
 
-Point Toy at the generated module and run either program:
+Static Raylib builds or other platforms may need the system libraries
+documented by their Raylib distribution. The command writes the native library
+and `toy.package` into this directory. Run either package:
 
 ```powershell
-$env:TOY_MODULE_PATH = (Resolve-Path .).Path
-.\nob.exe run examples\interop\raylib\shapes.toy
-.\nob.exe run examples\interop\raylib\texture.toy path\to\image.png
+.\nob.exe run examples\interop\raylib\demos\shapes
+.\nob.exe run examples\interop\raylib\demos\texture path\to\image.png
 ```
 
-When using `nob module`, point `TOY_MODULE_PATH` at the matching
-`build\<compiler>\<mode>\modules` directory instead.
-
-The example deliberately uses the ordinary Toy executable. There is no custom
-Raylib host executable and no Raylib-specific build-system path.
+Both demos import `../..`, so no global installation or search path is needed.
+There is no custom Raylib host executable.

@@ -3,7 +3,10 @@
 Examples are grouped by what they demonstrate rather than by implementation
 language:
 
-- [`programs/`](./programs/) contains standalone Toy programs and algorithms;
+- [`programs/`](./programs/) contains executable Toy package directories and
+  algorithms;
+- [`eval/`](./eval/) contains raw evaluation examples such as
+  formatting-sensitive quines;
 - [`embedding/`](./embedding/) contains C applications that embed the Toy
   runtime;
 - [`interop/`](./interop/) contains dynamic, generated, and handwritten ways

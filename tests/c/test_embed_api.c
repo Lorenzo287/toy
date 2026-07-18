@@ -86,7 +86,7 @@ static const toy_native_word host_words[] = {
     {"fail-resource", host_fail_resource},
 };
 
-static const toy_native_module host_module = {
+static const toy_native_package host_package = {
     "host",
     host_words,
     sizeof(host_words) / sizeof(host_words[0]),
@@ -96,8 +96,8 @@ static const toy_native_word host_tools_words[] = {
     {"double", host_double},
 };
 
-static const toy_native_module host_tools_module = {
-    "host.tools",
+static const toy_native_package host_tools_package = {
+    "tools",
     host_tools_words,
     sizeof(host_tools_words) / sizeof(host_tools_words[0]),
 };
@@ -107,7 +107,7 @@ static const toy_native_word invalid_atomic_words[] = {
     {"bad.name", host_double},
 };
 
-static const toy_native_module invalid_atomic_module = {
+static const toy_native_package invalid_atomic_package = {
     "atomic",
     invalid_atomic_words,
     sizeof(invalid_atomic_words) / sizeof(invalid_atomic_words[0]),
@@ -117,7 +117,7 @@ static const toy_native_word atomic_words[] = {
     {"ok", host_double},
 };
 
-static const toy_native_module atomic_module = {
+static const toy_native_package atomic_package = {
     "atomic",
     atomic_words,
     sizeof(atomic_words) / sizeof(atomic_words[0]),
@@ -177,28 +177,20 @@ int main(void) {
           "arithmetic result value");
     CHECK(toy_pop(first, 1), "pop arithmetic result");
 
-    CHECK(toy_register_module(first, &host_module) == TOY_OK,
-          "register native module");
-    CHECK(toy_eval(first, "<native>",
-                   "\"host\" require 21 host.double") == TOY_OK,
-          "require and call native module");
+    CHECK(toy_register_package(first, &host_package) == TOY_OK,
+          "register native package");
+    CHECK(toy_eval(first, "<native>", "21 host.double") == TOY_OK,
+          "call registered native package");
     CHECK(toy_get_int(first, 0, &integer) && integer == 42,
           "native word result");
     CHECK(toy_pop(first, 1), "pop native result");
-    CHECK(toy_eval(first, "<native-alias>",
-                   "\"host\" 'h require-as 21 h.double") == TOY_OK,
-          "alias native module");
+    CHECK(toy_register_package(first, &host_tools_package) == TOY_OK,
+          "register second native package");
+    CHECK(toy_eval(first, "<second-native>", "21 tools.double") == TOY_OK,
+          "call second native package");
     CHECK(toy_get_int(first, 0, &integer) && integer == 42,
-          "aliased native word result");
-    CHECK(toy_pop(first, 1), "pop aliased native result");
-    CHECK(toy_register_module(first, &host_tools_module) == TOY_OK,
-          "register nested native module");
-    CHECK(toy_eval(first, "<nested-native>",
-                   "\"host.tools\" 'ht require-as 21 ht.double") == TOY_OK,
-          "alias nested native module");
-    CHECK(toy_get_int(first, 0, &integer) && integer == 42,
-          "nested native module result");
-    CHECK(toy_pop(first, 1), "pop nested native module result");
+          "second native package result");
+    CHECK(toy_pop(first, 1), "pop second native package result");
     CHECK(toy_eval(first, "<native-error>", "\"bad\" host.double") ==
               TOY_ERROR,
           "native word error status");
@@ -208,53 +200,51 @@ int main(void) {
           "native word diagnostic");
     CHECK(toy_pop(first, 1), "pop rejected native input");
 
-    CHECK(toy_register_module(first, &host_module) == TOY_ERROR,
-          "reject duplicate native module");
+    CHECK(toy_register_package(first, &host_package) == TOY_ERROR,
+          "reject duplicate native package");
     CHECK(toy_get_error(first) &&
               strstr(toy_get_error(first), "already registered"),
-          "duplicate native module diagnostic");
+          "duplicate native package diagnostic");
     CHECK(toy_register_word(first, "host.extra", host_double) == TOY_ERROR,
-          "standalone registration cannot enter a module namespace");
+          "standalone registration requires a local name");
     CHECK(toy_get_error(first) &&
-              strstr(toy_get_error(first), "belongs to registered module"),
-          "native module namespace diagnostic");
+              strstr(toy_get_error(first), "invalid standalone"),
+          "standalone native word diagnostic");
 
-    CHECK(toy_register_module(first, &invalid_atomic_module) == TOY_ERROR,
-          "reject invalid native module atomically");
+    CHECK(toy_register_package(first, &invalid_atomic_package) == TOY_ERROR,
+          "reject invalid native package atomically");
     CHECK(toy_get_error(first) &&
               strstr(toy_get_error(first), "invalid native word name"),
           "invalid native word diagnostic");
     CHECK(toy_call(first, "atomic.ok") == TOY_ERROR,
-          "invalid module left no partial word");
-    CHECK(toy_register_module(first, &atomic_module) == TOY_OK,
-          "invalid module left no registry entry");
-    CHECK(toy_eval(first, "<atomic-native>",
-                   "\"atomic\" require 21 atomic.ok") == TOY_OK,
-          "call module after atomic retry");
+          "invalid package left no partial word");
+    CHECK(toy_register_package(first, &atomic_package) == TOY_OK,
+          "invalid package left no registry entry");
+    CHECK(toy_eval(first, "<atomic-native>", "21 atomic.ok") == TOY_OK,
+          "call package after atomic retry");
     CHECK(toy_get_int(first, 0, &integer) && integer == 42,
           "atomic retry result");
     CHECK(toy_pop(first, 1), "pop atomic retry result");
 
-    char copied_module_name[] = "copied";
+    char copied_package_name[] = "copied";
     char copied_word_name[] = "double";
     toy_native_word copied_words[] = {
         {copied_word_name, host_double},
     };
-    toy_native_module copied_module = {
-        copied_module_name,
+    toy_native_package copied_package = {
+        copied_package_name,
         copied_words,
         sizeof(copied_words) / sizeof(copied_words[0]),
     };
-    CHECK(toy_register_module(first, &copied_module) == TOY_OK,
-          "register module with transient names");
-    copied_module_name[0] = 'X';
+    CHECK(toy_register_package(first, &copied_package) == TOY_OK,
+          "register package with transient names");
+    copied_package_name[0] = 'X';
     copied_word_name[0] = 'X';
-    CHECK(toy_eval(first, "<copied-native>",
-                   "\"copied\" require 21 copied.double") == TOY_OK,
-          "native module copied descriptor names");
+    CHECK(toy_eval(first, "<copied-native>", "21 copied.double") == TOY_OK,
+          "native package copied descriptor names");
     CHECK(toy_get_int(first, 0, &integer) && integer == 42,
-          "copied native module result");
-    CHECK(toy_pop(first, 1), "pop copied native module result");
+          "copied native package result");
+    CHECK(toy_pop(first, 1), "pop copied native package result");
 
     CHECK(toy_register_word(first, "legacy-double", host_double) == TOY_OK,
           "register standalone native word");
@@ -279,7 +269,7 @@ int main(void) {
               strstr(toy_get_error(second), "undefined word 'update'"),
           "undefined-word diagnostic");
     CHECK(toy_call(second, "host.double") == TOY_ERROR,
-          "native modules remain state-local");
+          "native packages remain state-local");
     CHECK(second_diagnostic.length > 0,
           "second state receives its own diagnostics");
 

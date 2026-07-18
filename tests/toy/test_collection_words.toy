@@ -1,4 +1,3 @@
-"testlib.toy" load
 
 [ 1 2 3 4 5 ] 1 4 slice [ 2 3 4 ] == check
 "ToyLanguage" 0 3 slice "Toy" == check

@@ -1,7 +1,7 @@
 #ifndef TOY_NOB_BUILD_H
 #define TOY_NOB_BUILD_H
 
-/* Compiler configuration, incremental build graph, and module linking. */
+/* Compiler configuration, incremental build graph, and native packages. */
 
 typedef enum {
     COMPILER_GCC,
@@ -25,8 +25,9 @@ typedef struct {
     const char *test_filter;
     const char *build_dir;
     const char *object_dir;
-    const char *module_dir;
-    const char *test_module_dir;
+    const char *native_artifact_dir;
+    const char *test_package_dir;
+    const char *core_package_dir;
     const char *runtime_lib;
     const char *toy_exe;
     File_Paths include_dirs;
@@ -62,7 +63,8 @@ static const char *runtime_sources[] = {
     "src/tf_builtins_io.c",
     "src/tf_builtins_meta.c",
     "src/tf_builtins_sys.c",
-    "src/tf_modules.c",
+    "src/tf_packages.c",
+    "src/tf_package_loader.c",
     "src/tf_native_loader.c",
     "src/tf_obj.c",
     "src/toy.c",
@@ -150,8 +152,8 @@ static void print_usage(const char *program) {
     fprintf(stderr, "  build                 Build the runtime and Toy CLI\n");
     fprintf(stderr, "  test                  Run the default test suite\n");
     fprintf(stderr, "  examples              Build the C embedding examples\n");
-    fprintf(stderr, "  module <name> <file>  Build a native module\n");
-    fprintf(stderr, "  bindgen <name> <json> Generate and build a native module\n");
+    fprintf(stderr, "  package <dir> <file> Build a native package in its directory\n");
+    fprintf(stderr, "  bindgen <dir> <json>  Generate and build a native package\n");
     fprintf(stderr, "  run                   Build and run the Toy CLI\n");
     fprintf(stderr, "  clean                 Remove build outputs\n");
     fprintf(stderr, "  help                  Show this help\n\n");
@@ -167,10 +169,10 @@ static void print_usage(const char *program) {
     fprintf(stderr, "Examples:\n");
     fprintf(stderr, "  nob --mode debug build\n");
     fprintf(stderr, "  nob --mode debug run --tdb program.toy\n");
-    fprintf(stderr, "  nob test --filter modules\n");
-    fprintf(stderr, "  nob module sample.native path/to/module.c\n");
-    fprintf(stderr, "  nob bindgen clib examples/interop/bindgen/clib.json\n");
-    fprintf(stderr, "  nob run examples/programs/factorial.toy\n");
+    fprintf(stderr, "  nob test --filter package\n");
+    fprintf(stderr, "  nob package vendor/sqlite vendor/sqlite/toy_sqlite.c\n");
+    fprintf(stderr, "  nob bindgen vendor/clib vendor/clib/clib.json\n");
+    fprintf(stderr, "  nob run examples/programs/factorial\n");
 }
 
 static bool parse_compiler(const char *value, Compiler *compiler) {
@@ -235,9 +237,10 @@ static bool configure_paths(Build_Config *config) {
                                      compiler_name(config->compiler),
                                      mode_name(config->mode));
     config->object_dir = temp_sprintf("%s/obj", config->build_dir);
-    config->module_dir = temp_sprintf("%s/modules", config->build_dir);
-    config->test_module_dir = temp_sprintf("%s/test-modules",
+    config->native_artifact_dir = temp_sprintf("%s/native-packages", config->build_dir);
+    config->test_package_dir = temp_sprintf("%s/test-packages",
                                            config->build_dir);
+    config->core_package_dir = temp_sprintf("%s/core", config->build_dir);
     config->runtime_lib = static_library_path(config, "toy_runtime");
     config->toy_exe = temp_sprintf("%s/toy%s", config->build_dir,
                                    TOY_EXE_SUFFIX);
@@ -249,8 +252,9 @@ static bool configure_paths(Build_Config *config) {
     }
     if (!ensure_directory(config->build_dir)) return false;
     if (!ensure_directory(config->object_dir)) return false;
-    if (!ensure_directory(config->module_dir)) return false;
-    if (!ensure_directory(config->test_module_dir)) return false;
+    if (!ensure_directory(config->native_artifact_dir)) return false;
+    if (!ensure_directory(config->test_package_dir)) return false;
+    if (!ensure_directory(config->core_package_dir)) return false;
     if (!ensure_directory(temp_sprintf("%s/tests", config->build_dir))) {
         return false;
     }
@@ -512,7 +516,7 @@ static bool source_needs_rebuild(const char *output, const char *source,
 static bool schedule_compile_options(
     const Build_Config *config, const char *source, const char *output,
     const File_Paths *headers, Compile_Commands *compile_commands,
-    Procs *processes, bool module_object,
+    Procs *processes, bool shared_object,
     const File_Paths *additional_include_dirs,
     const File_Paths *definitions) {
     Cmd command = {0};
@@ -521,7 +525,7 @@ static bool schedule_compile_options(
         starts_with(source, "deps/linenoise/")) {
         cmd_append(&command, "/wd4267");
     }
-    if (module_object && !is_msvc_style(config->compiler)) {
+    if (shared_object && !is_msvc_style(config->compiler)) {
 #ifndef _WIN32
         cmd_append(&command, "-fPIC");
 #endif
@@ -565,10 +569,10 @@ static bool schedule_compile_ex(const Build_Config *config,
                                 const char *source, const char *output,
                                 const File_Paths *headers,
                                 Compile_Commands *compile_commands,
-                                Procs *processes, bool module_object) {
+                                Procs *processes, bool shared_object) {
     return schedule_compile_options(config, source, output, headers,
                                     compile_commands, processes,
-                                    module_object, NULL, NULL);
+                                    shared_object, NULL, NULL);
 }
 
 static bool schedule_compile(const Build_Config *config, const char *source,
@@ -606,7 +610,7 @@ static bool archive_library(const Build_Config *config, const char *output,
     return cmd_run(&command, .dont_reset = false);
 }
 
-static bool link_shared_module(const Build_Config *config,
+static bool link_shared_package(const Build_Config *config,
                                const char *output,
                                const File_Paths *objects,
                                bool with_external_libraries) {
@@ -633,27 +637,28 @@ static bool link_shared_module(const Build_Config *config,
     return cmd_run(&command, .dont_reset = false);
 }
 
-static bool valid_module_name(const char *name) {
+static bool valid_package_name(const char *name) {
     if (!name || name[0] == '\0') return false;
-    for (const unsigned char *cursor = (const unsigned char *)name;
-         *cursor; ++cursor) {
-        if (!isalnum(*cursor) && *cursor != '.' && *cursor != '_' &&
-            *cursor != '-') {
+    const unsigned char *cursor = (const unsigned char *)name;
+    if (!isalpha(*cursor) && *cursor != '_') return false;
+    for (cursor++; *cursor; ++cursor) {
+        if (!isalnum(*cursor) && *cursor != '_' && *cursor != '-') {
             return false;
         }
     }
     return true;
 }
 
-static bool build_module(const Build_Config *config, const char *name,
-                         const char *source,
-                         Compile_Commands *compile_commands) {
-    if (!valid_module_name(name)) {
-        nob_log(ERROR, "module name must contain only letters, digits, '.', '_', or '-'");
-        return false;
-    }
+static bool write_native_package_manifest(const char *directory,
+                                          const char *name,
+                                          const char *native_file);
+
+static bool build_native_source(const Build_Config *config,
+                                const char *source, const char *output,
+                                Compile_Commands *compile_commands,
+                                bool force_object_rebuild) {
     if (!file_exists(source)) {
-        nob_log(ERROR, "module source does not exist: %s", source);
+        nob_log(ERROR, "native package source does not exist: %s", source);
         return false;
     }
 
@@ -661,28 +666,52 @@ static bool build_module(const Build_Config *config, const char *name,
     File_Paths objects = {0};
     Procs processes = {0};
     const char *object = object_path(config, source);
-    const char *output = temp_sprintf("%s/toy_%s%s", config->module_dir,
-                                      name, TOY_SHARED_SUFFIX_VALUE);
     da_append(&objects, object);
 
     bool ok = collect_header_dependencies(config, &headers);
-    /* External include/link options are not timestamped inputs. Rebuild the
-       small module object on each explicit module command so changed options
-       cannot silently reuse an incompatible object or shared library. */
-    if (ok && file_exists(object)) ok = delete_file(object);
+    if (ok && force_object_rebuild && file_exists(object)) {
+        ok = delete_file(object);
+    }
     if (ok) {
         ok = schedule_compile_ex(config, source, object, &headers,
                                  compile_commands, &processes, true);
     }
     if (!procs_flush(&processes)) ok = false;
-    if (ok) {
-        ok = link_shared_module(config, output, &objects, true);
-    }
-    if (ok) nob_log(INFO, "built native module %s", output);
+    if (ok) ok = link_shared_package(config, output, &objects, true);
 
     da_free(processes);
     da_free(headers);
     da_free(objects);
+    return ok;
+}
+
+static bool build_package(const Build_Config *config, const char *directory,
+                          const char *source,
+                          Compile_Commands *compile_commands) {
+    if (!file_exists(directory) || get_file_type(directory) != FILE_DIRECTORY) {
+        nob_log(ERROR, "package directory does not exist: %s", directory);
+        return false;
+    }
+    const char *name = path_name(directory);
+    if (!valid_package_name(name)) {
+        nob_log(ERROR, "package directory name must be a Toy identifier");
+        return false;
+    }
+    if (!file_exists(source)) {
+        nob_log(ERROR, "package source does not exist: %s", source);
+        return false;
+    }
+
+    const char *native_file = temp_sprintf("toy_%s%s", name,
+                                           TOY_SHARED_SUFFIX_VALUE);
+    const char *output = temp_sprintf("%s/%s", directory, native_file);
+    /* External include/link options are not timestamped inputs. Rebuild the
+       small package object on each explicit command so changed options cannot
+       silently reuse an incompatible object or shared library. */
+    bool ok = build_native_source(config, source, output, compile_commands,
+                                  true);
+    if (ok) ok = write_native_package_manifest(directory, name, native_file);
+    if (ok) nob_log(INFO, "built native package %s", output);
     return ok;
 }
 
@@ -720,33 +749,35 @@ static bool link_executable(const Build_Config *config, const char *output,
 }
 
 static bool run_generator(const Build_Config *config, const char *manifest,
-                          const char *output) {
+                          const char *output, const char *package_name) {
     (void)config;
-    const char *inputs[] = {manifest, "tools/generate-binding.js"};
-    int rebuild = needs_rebuild(output, inputs, ARRAY_LEN(inputs));
-    if (rebuild < 0) return false;
-    if (!rebuild) return true;
     if (!program_on_path("node")) {
         nob_log(ERROR, "Node.js is required to generate C bindings");
         return false;
     }
     Cmd command = {0};
-    cmd_append(&command, "node", "tools/generate-binding.js", manifest,
-               output);
+    cmd_append(&command, "node", "tools/generate-binding.js", "--package",
+               package_name, manifest, output);
     return cmd_run(&command, .dont_reset = false);
 }
 
-static bool build_generated_module(const Build_Config *config,
-                                   const char *name, const char *manifest,
-                                   Compile_Commands *compile_commands) {
+static bool build_generated_package(const Build_Config *config,
+                                    const char *directory,
+                                    const char *manifest,
+                                    Compile_Commands *compile_commands) {
     if (!file_exists(manifest)) {
         nob_log(ERROR, "binding manifest does not exist: %s", manifest);
         return false;
     }
+    const char *name = path_name(directory);
+    if (!valid_package_name(name)) {
+        nob_log(ERROR, "package directory name must be a Toy identifier");
+        return false;
+    }
     const char *generated = temp_sprintf("%s/generated/toy_%s.c",
                                          config->build_dir, name);
-    if (!run_generator(config, manifest, generated)) return false;
-    return build_module(config, name, generated, compile_commands);
+    if (!run_generator(config, manifest, generated, name)) return false;
+    return build_package(config, directory, generated, compile_commands);
 }
 
 static bool build_examples(const Build_Config *config,
@@ -787,6 +818,45 @@ static bool build_examples(const Build_Config *config,
     return ok;
 }
 
+static bool write_native_package_manifest(const char *directory,
+                                          const char *name,
+                                          const char *native_file) {
+    const char *path = temp_sprintf("%s/toy.package", directory);
+    FILE *file = fopen(path, "wb");
+    if (!file) {
+        nob_log(ERROR, "could not write %s: %s", path, strerror(errno));
+        return false;
+    }
+    bool ok = fprintf(file, "name = %s\nnative = %s\n", name,
+                      native_file) >= 0;
+    if (fclose(file) != 0) ok = false;
+    if (!ok) nob_log(ERROR, "could not write %s", path);
+    return ok;
+}
+
+static bool build_core_ffi(const Build_Config *config,
+                           Compile_Commands *compile_commands) {
+    const char *directory = temp_sprintf("%s/ffi", config->core_package_dir);
+    if (!ensure_directory(directory)) return false;
+    const char *native_file = temp_sprintf("toy_ffi%s",
+                                           TOY_SHARED_SUFFIX_VALUE);
+
+    Build_Config ffi_config = *config;
+    ffi_config.libraries = (File_Paths){0};
+    da_append_many(&ffi_config.libraries, config->libraries.items,
+                   config->libraries.count);
+    if (ffi_config.libraries.count == 0) {
+        da_append(&ffi_config.libraries, "ffi");
+    }
+    const char *output = temp_sprintf("%s/%s", directory, native_file);
+    bool ok = build_native_source(&ffi_config, "core/ffi/toy_ffi.c", output,
+                                  compile_commands, false);
+    if (ok) ok = write_native_package_manifest(directory, "ffi", native_file);
+    da_free(ffi_config.libraries);
+    if (ok) nob_log(INFO, "built core package %s", output);
+    return ok;
+}
+
 static bool build_core(const Build_Config *config,
                        Compile_Commands *compile_commands) {
     File_Paths headers = {0};
@@ -812,6 +882,7 @@ static bool build_core(const Build_Config *config,
         ok = archive_library(config, config->runtime_lib, &runtime_objects);
     }
     if (ok) ok = link_executable(config, config->toy_exe, &cli_objects, true);
+    if (ok) ok = build_core_ffi(config, compile_commands);
 
     da_free(processes);
     da_free(headers);

@@ -4,7 +4,7 @@ Toy builds a static `toy_runtime` library alongside the `toy` command-line
 executable. The experimental API in `include/toy.h` lets a C host
 create an interpreter state, evaluate source, call Toy words, inspect primitive
 or opaque resource stack values, retain arbitrary Toy values, traverse basic
-collections, and register synchronous native words or modules.
+collections, and register synchronous native words or packages.
 
 The API is intentionally small and may change freely while experimental.
 
@@ -86,6 +86,12 @@ toy_push_int(state, 41);
 toy_call(state, "update");
 ```
 
+`toy_import_package()` loads a directory package into the host root, with an
+optional qualifier alias. `toy_run_package()` loads an executable package and
+invokes its public `main` word. Both are idle-state operations. Set
+`toy_state_config.core_package_path` when imported code may use `core:`; unlike
+the CLI, an embedder has no implied installation directory.
+
 Both entry points require an idle state. A native word must not recursively call
 `toy_eval()` or `toy_call()` on the state that is currently executing. Native
 continuations remain an internal VM facility.
@@ -98,9 +104,9 @@ The main statuses are:
 - `TOY_EXIT_REQUESTED`: Toy executed `exit`; the host decides whether its
   process should terminate.
 
-## Native Modules
+## Host-Registered Native Packages
 
-A descriptor groups local C word names under one Toy module:
+A descriptor groups local C word names under one Toy package:
 
 ```c
 static const toy_native_word host_words[] = {
@@ -108,44 +114,41 @@ static const toy_native_word host_words[] = {
     {"double", host_double},
 };
 
-static const toy_native_module host_module = {
+static const toy_native_package host_package = {
     "host",
     host_words,
     sizeof(host_words) / sizeof(host_words[0]),
 };
 
-toy_register_module(state, &host_module);
+toy_register_package(state, &host_package);
 ```
 
-Module descriptor names may contain dotted namespace segments; word entries are
-local names and therefore cannot contain dots.
+Package descriptor names are single identifiers; word entries are local names
+and cannot contain dots.
 
 Registration copies the names, validates the entire descriptor before making
-changes, exports every word, and marks the module loaded. Toy can therefore use
-the ordinary module vocabulary without a `host.toy` file:
+changes, makes every word public, and imports the package into the host root.
+Evaluated Toy code can call it immediately:
 
 ```toy
-"host" require
 21 host.double
-
-"host" 'h require-as
-"ready" h.log
+"ready" host.log
 ```
 
-Module names and namespace ownership cannot collide with source modules or
+Package names and namespace ownership cannot collide with imported packages or
 previously registered qualified words. The callback functions themselves must
 remain valid for the lifetime of the state. `toy_register_word()` remains
-available for standalone words that do not need module identity.
+available for standalone root words that do not need package identity.
 
-## Shared Native Modules
+## Shared Native Packages
 
-`include/toy_module.h` defines shared-module ABI version 1. A module exports the
-fixed `toy_module_init` entry point, accepts the ABI version and size-tagged host
-function table, and returns a static descriptor:
+`include/toy_package.h` defines shared-package ABI version 1. A package exports
+the fixed `toy_package_init` entry point, accepts the ABI version and size-tagged
+host function table, and returns a static descriptor:
 
 ```c
-#define TOY_MODULE_IMPLEMENTATION
-#include "toy_module.h"
+#define TOY_PACKAGE_IMPLEMENTATION
+#include "toy_package.h"
 
 static toy_status twice(toy_state *state) {
     int64_t value = 0;
@@ -162,64 +165,62 @@ static const toy_native_word words[] = {
     {"twice", twice},
 };
 
-static const toy_module_export module = {
-    sizeof(toy_module_export),
+static const toy_package_export package = {
+    sizeof(toy_package_export),
     "sample",
     words,
     sizeof(words) / sizeof(words[0]),
 };
 
-TOY_MODULE_EXPORT const toy_module_export *toy_module_init(
-    uint32_t abi_version, const toy_module_api *api) {
-    if (!toy_module_bind(abi_version, api)) return NULL;
-    return &module;
+TOY_PACKAGE_EXPORT const toy_package_export *toy_package_init(
+    uint32_t abi_version, const toy_package_api *api) {
+    if (!toy_package_bind(abi_version, api)) return NULL;
+    return &package;
 }
 ```
 
-`TOY_MODULE_IMPLEMENTATION` emits the small forwarding layer in that C file.
-For a multi-file module, define it in exactly one translation unit. The header
-is otherwise self-contained: copy `toy_module.h` beside the source and compile
+`TOY_PACKAGE_IMPLEMENTATION` emits the small forwarding layer in that C file.
+For a multi-file package, define it in exactly one translation unit. The header
+is otherwise self-contained: copy `toy_package.h` beside the source and compile
 the shared library without linking Toy or a Toy support library:
 
 ```powershell
 clang -std=c11 -shared sample.c -o toy_sample.dll
 ```
 
-On Linux, add `-fPIC` and name the result `toy_sample.so`. Put the result beside
-the requiring Toy source or in a directory listed by `TOY_MODULE_PATH`; the
-ordinary Toy executable can then load it. Nob offers the same operation as a
+On Linux, add `-fPIC` and name the result `toy_sample.so`. The package directory
+also needs an exact `toy.package` manifest:
+
+```text
+name = sample
+native = toy_sample.dll
+```
+
+Use the platform suffix in the real manifest. Nob creates both artifacts as a
 repository convenience:
 
 ```powershell
-.\nob.exe module sample sample.c
-$env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
-.\nob.exe run --eval '"sample" require 21 sample.twice print'
+.\nob.exe package vendor\sample vendor\sample\sample.c
 ```
 
 Use repeatable `--include`, `--lib-dir`, and `--lib` options for additional
-native dependencies. The module must still use a compiler and foreign library
+native dependencies. The package must still use a compiler and foreign library
 whose architecture and C ABI match the Toy executable.
 
-`require` first looks for the ordinary source module. If none exists, module
-`sample` maps to `toy_sample` plus the platform's shared-module suffix (for
-example, `.dll` or `.so`). Dotted names retain their dots, so
-`graphics.window` maps to `toy_graphics.window` plus that suffix. Native
-libraries are searched in the requiring source file's directory, each
-directory in `TOY_MODULE_PATH`, then the process working directory. The normal
-module vocabulary remains unchanged:
+Import the directory exactly as any source package:
 
 ```toy
-"sample" 's require-as
+"../vendor/sample" 's import-as
 21 s.twice
 ```
 
 The loader passes ABI version 1 to the entry point, and both structure sizes
 must match exactly. These checks reject stale or mismatched native binaries
-before their function tables are used. Modules must still match the runtime's
+before their function tables are used. Packages must still match the runtime's
 target architecture and C ABI. The host table has process lifetime; the library
 itself remains loaded until state destruction. Stacks, frames, definitions, and
 resource destructors are released before unloading, so destructors implemented
-inside the module remain callable. Shared modules are unrestricted native code
+inside the package remain callable. Shared packages are unrestricted native code
 and must be trusted like any other library loaded into the process.
 
 ## Persistent Values and Collections
@@ -242,7 +243,7 @@ toy_value_release(callback);
 Values are state-bound. Passing one to `toy_push_value()` or
 `toy_call_value()` with another state is an error. Every retained value,
 including items returned by the collection accessors, must be released exactly
-once and before its state is destroyed. This ordering keeps quotation module
+once and before its state is destroyed. This ordering keeps quotation package
 context and native resource destructors valid. A retained value is a reference,
 not a serialized copy.
 
@@ -256,7 +257,7 @@ strings. A string item is a copied one-byte string, matching Toy's language
 semantics. `toy_map_size()` and `toy_map_entry()` traverse maps in insertion
 order; each successful entry access returns two new retained values.
 
-Construction remains stack-oriented so hosts and native modules can reuse the
+Construction remains stack-oriented so hosts and native packages can reuse the
 primitive push API:
 
 ```c
@@ -293,7 +294,7 @@ toy_status status = toy_push_resource(state, "host.widget", value,
 if (status != TOY_OK) widget_close(value);
 ```
 
-Resource type names follow module-name syntax and are copied during a
+Resource type names use dotted identifier segments and are copied during a
 successful push. The pointer must be non-null. Ownership transfers to Toy only
 when `toy_push_resource()` succeeds; the destructor may be null for a borrowed
 or externally managed handle.
@@ -319,14 +320,14 @@ than reconstructable source.
 
 ## Raylib Interop Example
 
-`examples/interop/raylib/` demonstrates a real native module built on this API.
+`examples/interop/raylib/` demonstrates a real native package built on this API.
 It is an external-library example rather than a runtime feature: the generic
-`nob module` command builds `toy_raylib`, and the normal CLI discovers it
-through `require`. The window loop, close predicate, frame boundaries, and
+`nob package` command builds it in its directory, and the normal CLI imports
+that exact path. The window loop, close predicate, frame boundaries, and
 drawing calls are ordinary Toy code.
 
 After installing Raylib, build it with the required include and library options;
-see the [example README](../examples/interop/raylib/README.md). The module
+see the [example README](../examples/interop/raylib/README.md). The package
 currently provides:
 
 - window lifecycle: `init-window`, `close-window`,
@@ -351,7 +352,7 @@ rl.close-window
 
 ## SQLite Interop Example
 
-`examples/interop/sqlite/` applies the same generic module contract to a very
+`examples/interop/sqlite/` applies the same generic package contract to a very
 different library. Its database and statement pointers become typed resources;
 database destruction calls `sqlite3_close_v2`, statement destruction calls
 `sqlite3_finalize`, and borrowed column text is copied before a native word
@@ -403,7 +404,7 @@ host inspects or repairs its stack.
 - retained values must be released manually before their state is destroyed;
 - public construction and traversal currently cover vectors, maps, and
   vector/list/string sequence access rather than every collection family;
-- shared-module installation and package discovery are not defined yet;
+- the shared-package ABI remains experimental and versioned as one unit;
 - the optional [dynamic FFI](./ffi.md) currently handles only explicit scalar
   and copied-string signatures.
 

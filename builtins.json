@@ -1463,11 +1463,11 @@
           "syntaxClass": "builtin"
         },
         {
-          "name": "export",
-          "cFunction": "tf_export",
+          "name": "private",
+          "cFunction": "tf_private",
           "stackEffect": "'name --",
           "syntax": "",
-          "description": "Make a word from the current module visible through its qualified name.",
+          "description": "Make a package word private. Package definitions are public by default.",
           "syntaxClass": "builtin"
         },
         {
@@ -1631,33 +1631,39 @@
       ]
     },
     {
+      "name": "Packages",
+      "cArray": "native_package_words",
+      "words": [
+        {
+          "name": "package",
+          "cFunction": "tf_package_declaration",
+          "stackEffect": "'name --",
+          "syntax": "",
+          "description": "Declare the package name at directory scope.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "import",
+          "cFunction": "tf_import_declaration",
+          "stackEffect": "path --",
+          "syntax": "",
+          "description": "Import one package from an explicit directory path or core: locator. In package source this is a top-level declaration; in the REPL it executes immediately.",
+          "syntaxClass": "builtin"
+        },
+        {
+          "name": "import-as",
+          "cFunction": "tf_import_as_declaration",
+          "stackEffect": "path 'alias --",
+          "syntax": "",
+          "description": "Import one package under an explicit local alias. In package source this is a top-level declaration; in the REPL it executes immediately.",
+          "syntaxClass": "builtin"
+        }
+      ]
+    },
+    {
       "name": "Files",
       "cArray": "native_file_words",
       "words": [
-        {
-          "name": "load",
-          "cFunction": "tf_load",
-          "stackEffect": "path --",
-          "syntax": "",
-          "description": "Load and execute a Toy source file in the current context, resolving relative paths beside the loading source first.",
-          "syntaxClass": "builtin"
-        },
-        {
-          "name": "require",
-          "cFunction": "tf_require",
-          "stackEffect": "module --",
-          "syntax": "",
-          "description": "Load a named Toy module once and make its exports available through qualified names.",
-          "syntaxClass": "builtin"
-        },
-        {
-          "name": "require-as",
-          "cFunction": "tf_require_as",
-          "stackEffect": "module 'alias --",
-          "syntax": "",
-          "description": "Load a named Toy module once and bind a qualified-name alias in the current module.",
-          "syntaxClass": "builtin"
-        },
         {
           "name": "read-file",
           "cFunction": "tf_readf",

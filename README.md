@@ -35,20 +35,22 @@ discovered it yet. Toy's REPL also uses antirez's
 
 ## Getting Started
 
-Bootstrap the self-contained build, then start the REPL or run a source file:
+Bootstrap the self-contained build, then start the REPL, run a package, or
+evaluate a standalone file:
 
 ```powershell
 clang -std=c11 -O3 nob.c -o nob.exe
 .\nob.exe build
 
 .\nob.exe run # REPL
-.\nob.exe run program.toy
+.\nob.exe run examples\programs\factorial
+.\nob.exe run --eval-file script.toy
 .\nob.exe run --eval "1 2 + print"
 .\nob.exe run --tdb # Debugger
 ```
 
 See the [build instructions](./docs/build.md) to have more control over
-the compiler, build mode, examples, and external modules, the
+the compiler, build mode, examples, and external packages, the
 [REPL guide](./docs/repl.md) for interactive use,
 and the [examples](./examples/) for complete programs. Release
 binaries are also available from the
@@ -240,44 +242,43 @@ pwd print
 
 The display words `.`, `.s`, and `.S` are observers: they print without
 changing the stack. `repr` returns an escaped, source-like string
-(makes me think of [quines](examples/programs/quines/quine.toy)).
+(makes me think of [quines](examples/eval/quines/quine.toy)).
 `print` writes one value literally with a newline; `printf` interprets `{}` 
 placeholders and adds no newline. Comments use `\` to the end of a line 
 or `/* ... */` for a block.
 
-## Modules
+## Packages
 
-`require` loads a Toy source module once. Definitions are private by default;
-`export` makes selected words available through `.` qualified names:
+Toy packages are directories. Every `.toy` file directly inside a package
+begins with the same declaration, definitions are public by default, and an
+imported package is accessed through its declared name:
 
 ```toy
-\ math.toy
+\ math/arithmetic.toy
+'math package
 'double [ 2 * ] def
 'helper [ 1 + ] def
-'double export
-
-\ app.toy
-"math" require
-21 math.double print   \ 42
-
-\ An alias is local to this importing file/module.
-"math" 'm require-as
-21 m.double print      \ 42
+'helper private
 ```
 
-The module name maps to its source path, so `"util.math" require` looks for
-`util/math.toy`, first beside the importing file and then from the current
-working directory. Code inside a module uses its own words without a prefix,
-and quotations keep that module context when passed elsewhere. Cyclic imports
-and access to private words are errors. `load` remains available when a file
-should simply execute in the caller's context without module isolation or
-load-once behavior; its relative paths use the same source-directory-first
-resolution. This also makes `tdb` followed by `"program.toy" load` useful for
-repeated edit–reload–debug sessions in the REPL.
+```toy
+\ app/main.toy
+'main package
+"../math" import
 
-The dot is reserved for qualification, so definitions and captures use local
-names without dots. The root display words `.`, `.s`, and `.S` remain explicit
-exceptions.
+'main [ 21 math.double print ] def
+```
+
+Run it with `.\nob.exe run app`. Use `"../math" 'm import-as` when a local
+alias is useful. Relative and absolute imports name exact directories;
+`"core:ffi" import` uses Toy's fixed core-package directory. There are no
+fallback search paths or environment-variable lookups.
+
+Package top level is declaration-only, so files can be split without creating
+an execution order. The CLI invokes the public `main` word of a package named
+`main`; initialization elsewhere is explicit. See the
+[package reference](./docs/packages.md) for the full model, standalone
+evaluation, and native-library workflows.
 
 ## Embedding and Native Interop
 
@@ -285,7 +286,7 @@ Toy can be embedded as a static C runtime. The API currently lets
 a host create interpreter states, evaluate Toy source, call Toy words,
 exchange primitive and opaque resource stack values, retain arbitrary values,
 traverse or construct basic collections, and register C functions individually
-or as native modules. Resource values let bindings carry typed, automatically
+or as native packages. Resource values let bindings carry typed, automatically
 released foreign handles without exposing pointers to Toy.
 State-local callbacks can redirect Toy output and detailed parser/runtime
 diagnostics into host logs or user interfaces. The
@@ -300,16 +301,15 @@ values and a retained Toy quotation crossing the boundary.
 
 This boundary is the foundation for handwritten library bindings. The
 [interop examples](./examples/interop/) use Raylib and SQLite to exercise the
-same general shared-module path; neither library is a Toy dependency or a
-built-in integration. Versioned shared native modules use the API through a
-host function table and are discovered by `require` without linking a second
-Toy runtime. A module needs only the standalone `toy_module.h`, its C source,
-and the foreign library it wraps; there is no Toy support library to link. The
-optional
-experimental [`ffi` module](docs/ffi.md) can
-also resolve fixed scalar and string C signatures dynamically through libffi;
+same general shared-package path; neither library is a Toy dependency or a
+built-in integration. Versioned shared native packages use the API through a
+host function table and an explicit `toy.package` manifest without linking a
+second Toy runtime. A package needs only the standalone `toy_package.h`, its C
+source, and the foreign library it wraps; there is no Toy support library to
+link. The official experimental [`ffi` package](docs/ffi.md) can also resolve
+fixed scalar and string C signatures dynamically through libffi;
 the [binding generator](docs/bindgen.md) can instead compile explicit manifests
-into loadable modules with ordinary Toy words. Generated bindings now support
+into importable packages with ordinary Toy words. Generated bindings now support
 owned opaque resources, dependent lifetimes, resource arguments and outputs,
 hidden C constants and nulls, resource-based errors, and binary-safe
 pointer-length strings. Status codes can also map directly to Toy booleans.
@@ -336,9 +336,10 @@ header parsing remain future work.
 | Set Algebra                 | `union`, `intersection`, `difference`, `symmetric-difference`, `subset?`, `proper-subset?`, `superset?`, `proper-superset?`, `disjoint?` |
 | Priority Queues             | `>pqueue`, `pq-push`, `pq-peek`, `pq-pop` |
 | Types                       | `type-of`, `bool?`, `int?`, `float?`, `string?`, `symbol?`, `call?`, `vector?`, `list?`, `map?`, `set?`, `deque?`, `pqueue?`, `resource?`, `number?`, `sequence?`, `callable?` |
-| Definitions / Introspection | `def`, `export`, `word?`, `var?`, `body`, `>symbol`, `>call`, `name`, `words`, `see`, `doc`, `search-words`, `repr` |
+| Definitions / Introspection | `def`, `private`, `word?`, `var?`, `body`, `>symbol`, `>call`, `name`, `words`, `see`, `doc`, `search-words`, `repr` |
 | Console                     | `printf`, `print`, `.`, `.s`, `.S`, `read-key`, `read-line`, `clear` |
-| Files                       | `load`, `require`, `require-as`, `read-file`, `write-file`, `delete-file`, `read-lines`, `file-exists?` |
+| Packages                    | `package`, `import`, `import-as` |
+| Files                       | `read-file`, `write-file`, `delete-file`, `read-lines`, `file-exists?` |
 | Environment / Processes     | `argc`, `argv`, `env?`, `get-env`, `set-env`, `pwd`, `shell`, `exit` |
 | Time                        | `sleep`, `unix-time`, `local-time`, `utc-time`, `cpu-time`, `monotonic-ns` |
 <!-- END GENERATED BUILTIN TABLE -->

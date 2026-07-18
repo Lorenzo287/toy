@@ -1,27 +1,21 @@
 #include "tf_native_loader.h"
 
 #include "tf_alloc.h"
-#include "toy_module.h"
+#include "toy_package.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#ifndef TOY_SHARED_SUFFIX
-#define TOY_SHARED_SUFFIX ".dll"
-#endif
-#define TOY_PATH_SEPARATOR ';'
-
 static void *library_open(const char *path) {
     return (void *)LoadLibraryA(path);
 }
 
-static toy_module_entry library_entry(void *handle) {
-    FARPROC symbol = GetProcAddress((HMODULE)handle, TOY_MODULE_ENTRY_SYMBOL);
-    toy_module_entry entry = NULL;
+static toy_package_entry library_entry(void *handle) {
+    FARPROC symbol = GetProcAddress((HMODULE)handle, TOY_PACKAGE_ENTRY_SYMBOL);
+    toy_package_entry entry = NULL;
     _Static_assert(sizeof(entry) == sizeof(symbol),
                    "function pointer size mismatch");
     memcpy(&entry, &symbol, sizeof(entry));
@@ -46,23 +40,14 @@ static void library_close(void *handle) {
 }
 #else
 #include <dlfcn.h>
-#ifndef TOY_SHARED_SUFFIX
-#ifdef __APPLE__
-#define TOY_SHARED_SUFFIX ".dylib"
-#else
-#define TOY_SHARED_SUFFIX ".so"
-#endif
-#endif
-#define TOY_PATH_SEPARATOR ':'
-
 static void *library_open(const char *path) {
     return dlopen(path, RTLD_NOW | RTLD_LOCAL);
 }
 
-static toy_module_entry library_entry(void *handle) {
+static toy_package_entry library_entry(void *handle) {
     dlerror();
-    void *symbol = dlsym(handle, TOY_MODULE_ENTRY_SYMBOL);
-    toy_module_entry entry = NULL;
+    void *symbol = dlsym(handle, TOY_PACKAGE_ENTRY_SYMBOL);
+    toy_package_entry entry = NULL;
     _Static_assert(sizeof(entry) == sizeof(symbol),
                    "function pointer size mismatch");
     memcpy(&entry, &symbol, sizeof(entry));
@@ -79,8 +64,8 @@ static void library_close(void *handle) {
 }
 #endif
 
-static const toy_module_api module_api = {
-    .struct_size = sizeof(toy_module_api),
+static const toy_package_api package_api = {
+    .struct_size = sizeof(toy_package_api),
     .stack_size = toy_stack_size,
     .stack_type = toy_stack_type,
     .get_bool = toy_get_bool,
@@ -118,40 +103,6 @@ static const toy_module_api module_api = {
     .call_value = toy_call_value,
 };
 
-static bool file_exists(const char *path) {
-    FILE *file = fopen(path, "rb");
-    if (!file) return false;
-    fclose(file);
-    return true;
-}
-
-static char *join_path(const char *directory, const char *filename) {
-    size_t directory_len = strlen(directory);
-    size_t filename_len = strlen(filename);
-    bool needs_separator = directory_len > 0 &&
-                           directory[directory_len - 1] != '/' &&
-                           directory[directory_len - 1] != '\\';
-    char *path = tf_xmalloc(directory_len + (needs_separator ? 1 : 0) +
-                            filename_len + 1);
-    memcpy(path, directory, directory_len);
-    size_t out = directory_len;
-    if (needs_separator) path[out++] = '/';
-    memcpy(path + out, filename, filename_len + 1);
-    return path;
-}
-
-static char *module_filename(const char *name, size_t name_len) {
-    static const char prefix[] = "toy_";
-    size_t prefix_len = sizeof(prefix) - 1;
-    size_t suffix_len = sizeof(TOY_SHARED_SUFFIX) - 1;
-    char *filename = tf_xmalloc(prefix_len + name_len + suffix_len + 1);
-    memcpy(filename, prefix, prefix_len);
-    memcpy(filename + prefix_len, name, name_len);
-    memcpy(filename + prefix_len + name_len, TOY_SHARED_SUFFIX,
-           suffix_len + 1);
-    return filename;
-}
-
 static void remember_library(tf_ctx *ctx, void *handle) {
     tf_native_library_table *libraries = &ctx->native_libraries;
     if (libraries->len >= libraries->cap) {
@@ -162,114 +113,57 @@ static void remember_library(tf_ctx *ctx, void *handle) {
     libraries->handles[libraries->len++] = handle;
 }
 
-static tf_native_module_status load_candidate(tf_ctx *ctx, const char *name,
-                                              const char *path) {
-    if (!file_exists(path)) return TF_NATIVE_MODULE_NOT_FOUND;
-
+tf_ret tf_native_package_load(tf_ctx *ctx, size_t package_index,
+                              const char *path) {
     void *handle = library_open(path);
     if (!handle) {
-        tf_ctx_runtime_errorf(ctx, "failed to open native module '%s': %s\n",
+        tf_ctx_runtime_errorf(ctx, "failed to open native package '%s': %s\n",
                               path, library_error());
-        return TF_NATIVE_MODULE_ERROR;
+        return TF_ERR;
     }
 
-    toy_module_entry entry = library_entry(handle);
+    toy_package_entry entry = library_entry(handle);
     if (!entry) {
         tf_ctx_runtime_errorf(
-            ctx, "native module '%s' does not export %s: %s\n", path,
-            TOY_MODULE_ENTRY_SYMBOL, library_error());
+            ctx, "native package '%s' does not export %s: %s\n", path,
+            TOY_PACKAGE_ENTRY_SYMBOL, library_error());
         library_close(handle);
-        return TF_NATIVE_MODULE_ERROR;
+        return TF_ERR;
     }
 
-    const toy_module_export *exported =
-        entry(TOY_MODULE_ABI_VERSION, &module_api);
+    const toy_package_export *exported =
+        entry(TOY_PACKAGE_ABI_VERSION, &package_api);
     if (!exported) {
         tf_ctx_runtime_errorf(ctx,
-                              "native module '%s' rejected the host ABI\n",
+                              "native package '%s' rejected the host ABI\n",
                               path);
         library_close(handle);
-        return TF_NATIVE_MODULE_ERROR;
+        return TF_ERR;
     }
-    if (exported->struct_size != sizeof(toy_module_export)) {
+    if (exported->struct_size != sizeof(toy_package_export)) {
         tf_ctx_runtime_errorf(ctx,
-                              "native module '%s' has an incompatible "
+                              "native package '%s' has an incompatible "
                               "descriptor\n",
                               path);
         library_close(handle);
-        return TF_NATIVE_MODULE_ERROR;
-    }
-    if (!exported->name || strcmp(exported->name, name) != 0) {
-        tf_ctx_runtime_errorf(
-            ctx, "native module '%s' exports '%s', expected '%s'\n", path,
-            exported->name ? exported->name : "<missing>", name);
-        library_close(handle);
-        return TF_NATIVE_MODULE_ERROR;
+        return TF_ERR;
     }
 
-    toy_native_module module = {
+    toy_native_package package = {
         exported->name,
         exported->words,
         exported->word_count,
     };
-    if (tf_install_native_module(ctx, &module) != TOY_OK) {
+    if (tf_install_native_package(ctx, package_index, &package) != TOY_OK) {
         library_close(handle);
-        return TF_NATIVE_MODULE_ERROR;
+        return TF_ERR;
     }
 
     remember_library(ctx, handle);
-    return TF_NATIVE_MODULE_LOADED;
+    return TF_OK;
 }
 
-static tf_native_module_status load_from_directory(tf_ctx *ctx,
-                                                   const char *name,
-                                                   const char *directory,
-                                                   const char *filename) {
-    if (!directory || directory[0] == '\0') {
-        return TF_NATIVE_MODULE_NOT_FOUND;
-    }
-    char *path = join_path(directory, filename);
-    tf_native_module_status status = load_candidate(ctx, name, path);
-    free(path);
-    return status;
-}
-
-tf_native_module_status tf_native_module_load(tf_ctx *ctx, const char *name,
-                                              size_t name_len,
-                                              const char *source_directory) {
-    char *filename = module_filename(name, name_len);
-    tf_native_module_status status = load_from_directory(
-        ctx, name, source_directory, filename);
-    if (status != TF_NATIVE_MODULE_NOT_FOUND) {
-        free(filename);
-        return status;
-    }
-
-    const char *search_path = getenv("TOY_MODULE_PATH");
-    const char *segment = search_path;
-    while (segment && *segment) {
-        const char *end = strchr(segment, TOY_PATH_SEPARATOR);
-        size_t length = end ? (size_t)(end - segment) : strlen(segment);
-        if (length > 0) {
-            char *directory = tf_xmalloc(length + 1);
-            memcpy(directory, segment, length);
-            directory[length] = '\0';
-            status = load_from_directory(ctx, name, directory, filename);
-            free(directory);
-            if (status != TF_NATIVE_MODULE_NOT_FOUND) {
-                free(filename);
-                return status;
-            }
-        }
-        segment = end ? end + 1 : NULL;
-    }
-
-    status = load_from_directory(ctx, name, ".", filename);
-    free(filename);
-    return status;
-}
-
-void tf_native_modules_close(tf_ctx *ctx) {
+void tf_native_packages_close(tf_ctx *ctx) {
     if (!ctx) return;
     tf_native_library_table *libraries = &ctx->native_libraries;
     while (libraries->len > 0) {

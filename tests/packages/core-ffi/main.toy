@@ -1,0 +1,7 @@
+'main package
+
+"core:ffi" import
+
+'main [
+	'ffi.open word? print
+] def

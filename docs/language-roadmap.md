@@ -18,17 +18,6 @@ history rather than this roadmap.
 
 ## Work in Progress
 
-### Modules and Namespaces
-
-**Status: In progress**
-
-Source modules now provide load-once `require`, private definitions, explicit
-exports, relative dependency loading, module-scoped aliases, and `.` qualified
-names. Keep the model small while real programs establish whether configurable
-search paths or additional module metadata are worthwhile. Native modules
-should reuse this namespace and load-state machinery rather than introduce a
-parallel system.
-
 ### Performance Work
 
 **Status: In progress**
@@ -51,22 +40,22 @@ as an exploratory interoperability track, not a single general-purpose
 `call-c` word. The CLI now links a reusable static runtime, and the experimental
 public API exposes opaque states, primitive and typed resource stack access,
 state-bound persistent values, basic collection construction and traversal,
-host-to-Toy value calls, and synchronous native-word or native-module
-registration.
-Native module descriptors reuse source-module names, exports, load state, and
-aliases. Shared native-module ABI version one adds a size-tagged host function
-table, a stable entry symbol, platform library discovery through `require`, and
-context-owned library handles. Its standalone implementation-macro header lets
-modules compile without linking the runtime or a separate support library. The
-API is not stable yet. A Raylib interop
-example exercises the generic shared-module path with a Toy-owned window,
+host-to-Toy value calls, package import and execution, and synchronous native
+word or package registration.
+Native package descriptors reuse directory-package names, load state,
+visibility, and aliases. Shared native-package ABI version one adds a
+size-tagged host function table, a stable entry symbol, exact manifest library
+paths, and context-owned library handles. Its standalone implementation-macro
+header lets packages compile without linking the runtime or a separate support
+library. The API is not stable yet. A Raylib interop
+example exercises the generic shared-package path with a Toy-owned window,
 drawing loop, and automatically unloaded texture resources. A SQLite example
 exercises opaque database and statement handles, prepared parameters, copied
 row data, and automatic finalization. Both remain external-library examples,
 not Toy-provided integrations. An optional
-libffi module now experiments with dynamically resolved, explicit signatures
+`core:ffi` package experiments with dynamically resolved, explicit signatures
 for booleans, integers, floats, and copied C strings. An explicit-manifest
-generator can compile that safe subset into ordinary loadable module words,
+generator can compile that safe subset into ordinary package words,
 including typed opaque resources, destructors, exact resource inputs, direct
 owned returns, output handles, dependent resource lifetimes, hidden constants
 and nulls, pointer-length strings, numeric success codes, resource-based error
@@ -74,8 +63,9 @@ messages, boolean result-code mappings, and failure cleanup. A generated SQLite
 subset tests these policies without making SQLite a Toy integration. Automatic
 header parsing is not implemented yet.
 
-Keep distribution deliberately small: the executable, the standalone module
-header, and the optional dependency-free generator script. Current follow-up
+Keep distribution deliberately small: the executable with its core directory,
+the standalone package header, and the dependency-free generator script.
+Current follow-up
 candidates are:
 
 1. add a libclang frontend after the resource manifest is explicit enough to
@@ -83,7 +73,7 @@ candidates are:
 2. expose general output buffers, structs, variadic functions, and callbacks only
    after their ownership and VM-boundary rules are settled.
 
-The resulting boundary should be reusable by embedders, native modules, and
+The resulting boundary should be reusable by embedders, native packages, and
 compiled Toy code. Native calls that schedule Toy code must preserve the
 iterative VM execution model.
 

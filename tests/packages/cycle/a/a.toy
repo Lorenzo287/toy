@@ -1,0 +1,5 @@
+'a package
+
+"../b" import
+
+'value [ b.value ] def

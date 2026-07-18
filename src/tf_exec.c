@@ -58,30 +58,30 @@ static bool frame_is_program(tf_frame_kind kind) {
     return kind != TF_FRAME_NATIVE;
 }
 
-size_t tf_current_module_index(tf_ctx *ctx) {
+size_t tf_current_package_index(tf_ctx *ctx) {
     for (size_t i = ctx->call_stack_len; i > 0; i--) {
         tf_frame *frame = &ctx->call_stack[i - 1];
         if (frame_is_program(frame->kind)) {
-            return frame->as.program.module_index;
+            return frame->as.program.package_index;
         }
     }
-    return TF_ROOT_MODULE;
+    return TF_ROOT_PACKAGE;
 }
 
-static size_t program_module_index(tf_ctx *ctx, tf_obj *program) {
+static size_t program_package_index(tf_ctx *ctx, tf_obj *program) {
     if (program && program->span.source) {
-        return tf_source_file_module(program->span.source);
+        return tf_source_file_package(program->span.source);
     }
-    return tf_current_module_index(ctx);
+    return tf_current_package_index(ctx);
 }
 
 static void frame_push_program_kind(tf_ctx *ctx, tf_obj *program,
-                                    tf_frame_kind kind, size_t module_index) {
+                                    tf_frame_kind kind, size_t package_index) {
     ensure_call_stack_slot(ctx);
     ctx->call_stack[ctx->call_stack_len].kind = kind;
     ctx->call_stack[ctx->call_stack_len].as.program.program = program;
     ctx->call_stack[ctx->call_stack_len].as.program.pc = 0;
-    ctx->call_stack[ctx->call_stack_len].as.program.module_index = module_index;
+    ctx->call_stack[ctx->call_stack_len].as.program.package_index = package_index;
     ctx->call_stack[ctx->call_stack_len].as.program.vars.vars = NULL;
     ctx->call_stack[ctx->call_stack_len].as.program.vars.len = 0;
     ctx->call_stack[ctx->call_stack_len].as.program.vars.cap = 0;
@@ -92,12 +92,12 @@ static void frame_push_program_kind(tf_ctx *ctx, tf_obj *program,
 
 void tf_frame_push_program(tf_ctx *ctx, tf_obj *program) {
     frame_push_program_kind(ctx, program, TF_FRAME_PROGRAM,
-                            program_module_index(ctx, program));
+                            program_package_index(ctx, program));
 }
 
-void tf_frame_push_program_module(tf_ctx *ctx, tf_obj *program,
-                                  size_t module_index) {
-    frame_push_program_kind(ctx, program, TF_FRAME_PROGRAM, module_index);
+void tf_frame_push_program_package(tf_ctx *ctx, tf_obj *program,
+                                   size_t package_index) {
+    frame_push_program_kind(ctx, program, TF_FRAME_PROGRAM, package_index);
 }
 
 void tf_frame_push_native_handler(tf_ctx *ctx, tf_frame_step_fn step,
@@ -612,7 +612,7 @@ void tf_ctx_interrupt(tf_ctx *ctx) {
 static tf_ret dict_call_resolved(tf_ctx *ctx, tf_word *word) {
     if (word->type == TF_WORD_USER) {
         frame_push_program_kind(ctx, word->user_impl, TF_FRAME_PROGRAM_USER,
-                                word->module_index);
+                                word->package_index);
         return TF_OK;
     }
     return word->native_impl(ctx);
@@ -623,7 +623,8 @@ static tf_ret dict_call_resolved(tf_ctx *ctx, tf_word *word) {
  * Instead of recursive C calls, it uses an explicit `call_stack` of frames.
  * This ensures deep user-defined word recursion does not overflow the C stack.
  */
-tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
+tf_ret tf_vm_exec_package(tf_ctx *ctx, tf_obj *program,
+                          size_t package_index) {
     tf_ctx_clear_error(ctx);
     ctx->current_span = program ? program->span : (tf_source_span){0};
     if (program->type != TF_OBJ_TYPE_VECTOR) {
@@ -641,7 +642,7 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
     ctx->error_reported = false;
     ctx->program_error = false;
     frame_push_program_kind(ctx, program, TF_FRAME_PROGRAM_ROOT,
-                            TF_ROOT_MODULE);
+                            package_index);
 
     while (ctx->call_stack_len > entry_depth) {
         if (ctx->interrupted) {
@@ -767,6 +768,10 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
         }
     }
     return TF_OK;
+}
+
+tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
+    return tf_vm_exec_package(ctx, program, TF_ROOT_PACKAGE);
 }
 
 bool tf_obj_is_callable(tf_obj *o) {

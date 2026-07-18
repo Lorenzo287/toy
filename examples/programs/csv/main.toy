@@ -1,0 +1,42 @@
+\ File & String Processing Example: CSV Parser
+
+'main package
+
+'main [
+	"Step 1: Creating users.csv..." print
+	"users.csv"
+	"name,age,city
+Alice,30,New York
+Bob,25,Los Angeles
+Charlie,35,Chicago" write-file
+
+	"users.csv" file-exists? [
+		"Step 2: File exists. Reading and parsing content..." print "\n" printf
+
+		"users.csv" read-file
+		"\n" split \ obtain vector of strings (lines)
+
+		\ Process lines: skip header, then split each data line
+		uncons nip \ remove header, keep tail (the data rows)
+
+		[
+			trim
+			[ len 0 > ] [ \ Only process non-empty lines
+				"," split
+				| record |
+				" - " printf
+				$record 0 at printf \ name
+				" (" printf
+				$record 1 at printf \ age
+				") lives in " printf
+				$record 2 at print \ city
+			] if
+		] each
+
+		"\n" printf "Step 3: Cleaning up..." print
+		"users.csv" delete-file
+		"Done." print
+	] [
+		"FAILED: File users.csv was not found." print
+	] ifelse
+] def

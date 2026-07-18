@@ -31,7 +31,7 @@ func LookupHover(index DocumentIndex, pos Position) (Hover, bool) {
 	}
 	if tok.Kind == tokenKindSymbol {
 		sym, ok := index.Definitions[word]
-		if !ok || (!sameRange(tok.Range, sym.SelectionRange) && !isExportRange(index, word, tok.Range)) {
+		if !ok || (!sameRange(tok.Range, sym.SelectionRange) && !isPrivacyRange(index, word, tok.Range)) {
 			return Hover{}, false
 		}
 		return DefinitionHover(word, sym, tok.Range), true

@@ -12,45 +12,39 @@ import (
 	"toy-lsp/internal/analysis"
 )
 
-func TestResolveDefinitionAcrossModulesAndAliases(t *testing.T) {
+func TestResolveDefinitionAcrossDirectoryPackagesAndAliases(t *testing.T) {
 	root := t.TempDir()
-	mathPath := writeToyFile(t, root, "math.toy", `\ math words
+	mathPath := writeToyFile(t, root, filepath.Join("math", "arithmetic.toy"), `'math package
+\ math words
 'double [ 2 * ] def
-'private [ 1 + ] def
-'double export
 `)
-	appPath := writeToyFile(t, root, "app.toy", `"math" require
+	writeToyFile(t, root, filepath.Join("math", "internal.toy"), `'math package
+'hidden [ 1 + ] def
+'hidden private
+`)
+	appPath := writeToyFile(t, root, filepath.Join("app", "main.toy"), `'main package
+"../math" import
 21 math.double
-math.private
-"math" 'm require-as
+math.hidden
+"../math" 'm import-as
 21 m.double
 `)
 
 	server := NewServer(log.New(io.Discard, "", 0))
 	server.docs.configureWorkspace(initializeParams{RootURI: testFileURI(root)})
 	appURI := testFileURI(appPath)
-	appSource, err := os.ReadFile(appPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	server.docs.open(appURI, string(appSource), 1)
 
-	canonical, ok := server.resolveDefinition(appURI, analysis.Position{Line: 1, Character: 9})
-	if !ok {
-		t.Fatal("canonical module call did not resolve")
+	canonical, ok := server.resolveDefinition(appURI, analysis.Position{Line: 2, Character: 9})
+	if !ok || canonical.URI != testFileURI(mathPath) || canonical.Symbol.Name != "double" {
+		t.Fatalf("canonical target = %+v, %v", canonical, ok)
 	}
-	if canonical.URI != testFileURI(mathPath) || canonical.Symbol.Name != "double" {
-		t.Fatalf("canonical target = %+v", canonical)
-	}
-	if canonical.Symbol.SelectionRange.Start != (analysis.Position{Line: 1, Character: 1}) {
+	if canonical.Symbol.SelectionRange.Start != (analysis.Position{Line: 2, Character: 1}) {
 		t.Fatalf("canonical target range = %+v", canonical.Symbol.SelectionRange)
 	}
-
-	if _, ok := server.resolveDefinition(appURI, analysis.Position{Line: 2, Character: 6}); ok {
-		t.Fatal("private module word unexpectedly resolved")
+	if _, ok := server.resolveDefinition(appURI, analysis.Position{Line: 3, Character: 7}); ok {
+		t.Fatal("private package word unexpectedly resolved")
 	}
-
-	alias, ok := server.resolveDefinition(appURI, analysis.Position{Line: 4, Character: 6})
+	alias, ok := server.resolveDefinition(appURI, analysis.Position{Line: 5, Character: 5})
 	if !ok || alias.URI != canonical.URI || alias.Symbol.Name != "double" {
 		t.Fatalf("alias target = %+v, %v", alias, ok)
 	}
@@ -58,7 +52,8 @@ math.private
 
 func TestInitializeIndexesWorkspaceFiles(t *testing.T) {
 	root := t.TempDir()
-	path := writeToyFile(t, root, "indexed.toy", `'indexed [ 1 ] def`)
+	path := writeToyFile(t, root, "indexed.toy", `'main package
+'indexed [ 1 ] def`)
 	params, err := json.Marshal(initializeParams{RootURI: testFileURI(root)})
 	if err != nil {
 		t.Fatal(err)
@@ -74,99 +69,83 @@ func TestInitializeIndexesWorkspaceFiles(t *testing.T) {
 	}
 }
 
-func TestOpenModuleBufferOverridesDiskUntilClose(t *testing.T) {
+func TestOpenPackageBufferOverridesDiskUntilClose(t *testing.T) {
 	root := t.TempDir()
-	mathPath := writeToyFile(t, root, "math.toy", `'disk-word [ 1 ] def 'disk-word export`)
-	appPath := writeToyFile(t, root, "app.toy", `"math" require math.buffer-word`)
+	mathPath := writeToyFile(t, root, filepath.Join("math", "math.toy"), `'math package
+'disk-word [ 1 ] def`)
+	appPath := writeToyFile(t, root, filepath.Join("app", "main.toy"), `'main package
+"../math" import
+math.buffer-word`)
 	server := NewServer(log.New(io.Discard, "", 0))
 	server.docs.configureWorkspace(initializeParams{RootURI: testFileURI(root)})
 
 	mathURI := testFileURI(mathPath)
-	server.docs.open(mathURI, `'buffer-word [ 2 ] def 'buffer-word export`, 1)
-	if _, ok := server.resolveDefinition(testFileURI(appPath), analysis.Position{Line: 0, Character: 24}); !ok {
-		t.Fatal("unsaved module definition did not override disk index")
+	server.docs.open(mathURI, `'math package
+'buffer-word [ 2 ] def`, 1)
+	if _, ok := server.resolveDefinition(testFileURI(appPath), analysis.Position{Line: 2, Character: 8}); !ok {
+		t.Fatal("unsaved package definition did not override disk index")
 	}
 	server.docs.close(mathURI)
-	if _, ok := server.resolveDefinition(testFileURI(appPath), analysis.Position{Line: 0, Character: 24}); ok {
-		t.Fatal("closed module buffer did not fall back to disk index")
+	if _, ok := server.resolveDefinition(testFileURI(appPath), analysis.Position{Line: 2, Character: 8}); ok {
+		t.Fatal("closed package buffer did not fall back to disk index")
 	}
 }
 
-func TestResolveDefinitionThroughTransitiveModuleAndLoad(t *testing.T) {
+func TestPackageImportsAreNotTransitive(t *testing.T) {
 	root := t.TempDir()
-	dependencyPath := writeToyFile(t, root, "dependency.toy", `'value [ 5 ] def
-'value export
-`)
-	writeToyFile(t, root, "consumer.toy", `"dependency" 'dep require-as
-'combined [ dep.value 2 * ] def
-'combined export
-`)
-	loadedPath := writeToyFile(t, root, "shared.toy", `'loaded [ 9 ] def
-`)
-	appPath := writeToyFile(t, root, "app.toy", `"consumer" require
+	writeToyFile(t, root, filepath.Join("dependency", "dependency.toy"), `'dependency package
+'value [ 5 ] def`)
+	consumerPath := writeToyFile(t, root, filepath.Join("consumer", "consumer.toy"), `'consumer package
+"../dependency" 'dep import-as
+'combined [ dep.value 2 * ] def`)
+	appPath := writeToyFile(t, root, filepath.Join("app", "main.toy"), `'main package
+"../consumer" import
 consumer.combined
-dependency.value
-"shared.toy" load
-loaded
-`)
+dependency.value`)
 
 	server := NewServer(log.New(io.Discard, "", 0))
 	server.docs.configureWorkspace(initializeParams{RootURI: testFileURI(root)})
 	appURI := testFileURI(appPath)
-
-	transitive, ok := server.resolveDefinition(appURI, analysis.Position{Line: 2, Character: 12})
-	if !ok || transitive.URI != testFileURI(dependencyPath) || transitive.Symbol.Name != "value" {
-		t.Fatalf("transitive target = %+v, %v", transitive, ok)
+	target, ok := server.resolveDefinition(appURI, analysis.Position{Line: 2, Character: 12})
+	if !ok || target.URI != testFileURI(consumerPath) || target.Symbol.Name != "combined" {
+		t.Fatalf("consumer target = %+v, %v", target, ok)
 	}
-
-	loaded, ok := server.resolveDefinition(appURI, analysis.Position{Line: 4, Character: 2})
-	if !ok || loaded.URI != testFileURI(loadedPath) || loaded.Symbol.Name != "loaded" {
-		t.Fatalf("loaded target = %+v, %v", loaded, ok)
+	if _, ok := server.resolveDefinition(appURI, analysis.Position{Line: 3, Character: 12}); ok {
+		t.Fatal("transitive package unexpectedly became visible")
 	}
 }
 
-func TestResolveDefinitionExportedAfterModuleLoad(t *testing.T) {
+func TestResolvePackageUsesExactRelativeDirectory(t *testing.T) {
 	root := t.TempDir()
-	extensionPath := writeToyFile(t, root, "extension.toy", `'loaded-word [ 12 ] def`)
-	writeToyFile(t, root, "loader.toy", `"extension.toy" load
-'loaded-word export`)
-	appPath := writeToyFile(t, root, "app.toy", `"loader" require loader.loaded-word`)
+	writeToyFile(t, root, filepath.Join("math", "math.toy"), `'math package
+'value [ 1 ] def`)
+	nestedMath := writeToyFile(t, root, filepath.Join("nested", "math", "math.toy"), `'math package
+'value [ 2 ] def`)
+	appPath := writeToyFile(t, root, filepath.Join("nested", "app", "main.toy"), `'main package
+"../math" import
+math.value`)
 
 	server := NewServer(log.New(io.Discard, "", 0))
 	server.docs.configureWorkspace(initializeParams{RootURI: testFileURI(root)})
-	target, ok := server.resolveDefinition(testFileURI(appPath), analysis.Position{Line: 0, Character: 25})
-	if !ok || target.URI != testFileURI(extensionPath) || target.Symbol.Name != "loaded-word" {
-		t.Fatalf("loaded module export target = %+v, %v", target, ok)
-	}
-	if occurrences := server.wordOccurrences(target, true); len(occurrences) != 3 {
-		t.Fatalf("loaded module export occurrences = %+v, want declaration, export, and call", occurrences)
-	}
-}
-
-func TestResolveModulePrefersImporterDirectory(t *testing.T) {
-	root := t.TempDir()
-	writeToyFile(t, root, "math.toy", `'value [ 1 ] def 'value export`)
-	nestedMath := writeToyFile(t, root, filepath.Join("nested", "math.toy"), `'value [ 2 ] def 'value export`)
-	appPath := writeToyFile(t, root, filepath.Join("nested", "app.toy"), `"math" require math.value`)
-
-	server := NewServer(log.New(io.Discard, "", 0))
-	server.docs.configureWorkspace(initializeParams{RootURI: testFileURI(root)})
-	target, ok := server.resolveDefinition(testFileURI(appPath), analysis.Position{Line: 0, Character: 18})
+	target, ok := server.resolveDefinition(testFileURI(appPath), analysis.Position{Line: 2, Character: 6})
 	if !ok || target.URI != testFileURI(nestedMath) {
-		t.Fatalf("relative module target = %+v, %v", target, ok)
+		t.Fatalf("relative package target = %+v, %v", target, ok)
 	}
 }
 
 func TestDefinitionResponseReturnsTargetDocumentURI(t *testing.T) {
 	root := t.TempDir()
-	mathPath := writeToyFile(t, root, "math.toy", `'double [ 2 * ] def 'double export`)
-	appPath := writeToyFile(t, root, "app.toy", `"math" require math.double`)
+	mathPath := writeToyFile(t, root, filepath.Join("math", "math.toy"), `'math package
+'double [ 2 * ] def`)
+	appPath := writeToyFile(t, root, filepath.Join("app", "main.toy"), `'main package
+"../math" import
+math.double`)
 
 	server := NewServer(log.New(io.Discard, "", 0))
 	server.docs.configureWorkspace(initializeParams{RootURI: testFileURI(root)})
 	params, err := json.Marshal(definitionParams{
 		TextDocument: textDocumentIdentifier{URI: testFileURI(appPath)},
-		Position:     lspPosition{Line: 0, Character: 20},
+		Position:     lspPosition{Line: 2, Character: 7},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -180,83 +159,70 @@ func TestDefinitionResponseReturnsTargetDocumentURI(t *testing.T) {
 	if err := json.Unmarshal(response.Result, &target); err != nil {
 		t.Fatal(err)
 	}
-	if target.URI != testFileURI(mathPath) || target.Range.Start != (lspPosition{Line: 0, Character: 1}) {
+	if target.URI != testFileURI(mathPath) || target.Range.Start != (lspPosition{Line: 1, Character: 1}) {
 		t.Fatalf("definition response = %+v", target)
 	}
 }
 
-func TestDefinitionResponseFollowsLoadAndModuleSourceStrings(t *testing.T) {
+func TestDefinitionResponseFollowsImportSourceStrings(t *testing.T) {
 	root := t.TempDir()
-	mathPath := writeToyFile(t, root, "math.toy", `'value [ 1 ] def 'value export`)
-	sharedPath := writeToyFile(t, root, "shared.toy", `'shared [ 2 ] def`)
-	appPath := writeToyFile(t, root, "app.toy", `"math" require
-"math" 'm require-as
-"shared.toy" load`)
+	mathPath := writeToyFile(t, root, filepath.Join("math", "math.toy"), `'math package
+'value [ 1 ] def`)
+	appPath := writeToyFile(t, root, filepath.Join("app", "main.toy"), `'main package
+"../math" import
+"../math" 'm import-as`)
 
 	server := NewServer(log.New(io.Discard, "", 0))
 	server.docs.configureWorkspace(initializeParams{RootURI: testFileURI(root)})
-	tests := []struct {
-		name     string
-		position lspPosition
-		wantURI  string
-	}{
-		{name: "require", position: lspPosition{Line: 0, Character: 2}, wantURI: testFileURI(mathPath)},
-		{name: "require-as", position: lspPosition{Line: 1, Character: 2}, wantURI: testFileURI(mathPath)},
-		{name: "load", position: lspPosition{Line: 2, Character: 3}, wantURI: testFileURI(sharedPath)},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			params, err := json.Marshal(definitionParams{
-				TextDocument: textDocumentIdentifier{URI: testFileURI(appPath)},
-				Position:     test.position,
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			var output bytes.Buffer
-			if err := server.handleDefinition(&output, request{ID: json.RawMessage("1"), Params: params}); err != nil {
-				t.Fatal(err)
-			}
-			response := decodeTestResponse(t, output.Bytes())
-			var target location
-			if err := json.Unmarshal(response.Result, &target); err != nil {
-				t.Fatal(err)
-			}
-			if target.URI != test.wantURI || target.Range != (lspRange{}) {
-				t.Fatalf("source definition response = %+v", target)
-			}
+	for _, position := range []lspPosition{{Line: 1, Character: 3}, {Line: 2, Character: 3}} {
+		params, err := json.Marshal(definitionParams{
+			TextDocument: textDocumentIdentifier{URI: testFileURI(appPath)},
+			Position:     position,
 		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var output bytes.Buffer
+		if err := server.handleDefinition(&output, request{ID: json.RawMessage("1"), Params: params}); err != nil {
+			t.Fatal(err)
+		}
+		response := decodeTestResponse(t, output.Bytes())
+		var target location
+		if err := json.Unmarshal(response.Result, &target); err != nil {
+			t.Fatal(err)
+		}
+		if target.URI != testFileURI(mathPath) || target.Range != (lspRange{}) {
+			t.Fatalf("source definition response = %+v", target)
+		}
 	}
 }
 
-func TestReferencesAndRenameFollowModuleIdentity(t *testing.T) {
+func TestReferencesAndRenameFollowPackageIdentity(t *testing.T) {
 	root := t.TempDir()
-	mathPath := writeToyFile(t, root, "math.toy", `'double [ 2 * ] def
-'use-double [ double ] def
-'double export
-`)
-	appPath := writeToyFile(t, root, "app.toy", `"math" require
+	mathPath := writeToyFile(t, root, filepath.Join("math", "math.toy"), `'math package
+'double [ 2 * ] def
+'use-double [ double ] def`)
+	appPath := writeToyFile(t, root, filepath.Join("app", "main.toy"), `'main package
+"../math" import
 math.double
-"math" 'm require-as
-m.double
-`)
+"../math" 'm import-as
+m.double`)
 
 	server := NewServer(log.New(io.Discard, "", 0))
 	server.docs.configureWorkspace(initializeParams{RootURI: testFileURI(root)})
 	appURI := testFileURI(appPath)
-	target, ok := server.resolveDefinition(appURI, analysis.Position{Line: 1, Character: 7})
+	target, ok := server.resolveDefinition(appURI, analysis.Position{Line: 2, Character: 7})
 	if !ok {
-		t.Fatal("module call did not resolve")
+		t.Fatal("package call did not resolve")
 	}
 	occurrences := server.wordOccurrences(target, true)
-	if len(occurrences) != 5 {
-		t.Fatalf("occurrences = %+v, want declaration, internal call, export, and two module calls", occurrences)
+	if len(occurrences) != 4 {
+		t.Fatalf("occurrences = %+v, want declaration, internal call, and two package calls", occurrences)
 	}
 
 	params, err := json.Marshal(renameParams{
 		TextDocument: textDocumentIdentifier{URI: appURI},
-		Position:     lspPosition{Line: 3, Character: 4},
+		Position:     lspPosition{Line: 4, Character: 4},
 		NewName:      "twice",
 	})
 	if err != nil {
@@ -273,7 +239,7 @@ m.double
 	}
 	mathEdits := edit.Changes[testFileURI(mathPath)]
 	appEdits := edit.Changes[appURI]
-	if len(mathEdits) != 3 || len(appEdits) != 2 {
+	if len(mathEdits) != 2 || len(appEdits) != 2 {
 		t.Fatalf("rename changes = %+v", edit.Changes)
 	}
 	for _, change := range append(append([]textEdit(nil), mathEdits...), appEdits...) {
@@ -281,11 +247,23 @@ m.double
 			t.Fatalf("rename edit = %+v", change)
 		}
 	}
-	if appEdits[0].Range != (lspRange{Start: lspPosition{Line: 1, Character: 5}, End: lspPosition{Line: 1, Character: 11}}) {
-		t.Fatalf("canonical rename range = %+v", appEdits[0].Range)
+}
+
+func TestSafeCorePackagePath(t *testing.T) {
+	tests := map[string]bool{
+		"ffi":           true,
+		"text/format":   true,
+		"text\\format":  true,
+		"":              false,
+		"../ffi":        false,
+		"text/./format": false,
+		"text//format":  false,
+		"other:ffi":     false,
 	}
-	if appEdits[1].Range != (lspRange{Start: lspPosition{Line: 3, Character: 2}, End: lspPosition{Line: 3, Character: 8}}) {
-		t.Fatalf("alias rename range = %+v", appEdits[1].Range)
+	for path, want := range tests {
+		if got := safeCorePackagePath(path); got != want {
+			t.Errorf("safeCorePackagePath(%q) = %v, want %v", path, got, want)
+		}
 	}
 }
 

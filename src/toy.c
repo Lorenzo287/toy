@@ -1,5 +1,6 @@
 #include "toy.h"
 
+#include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,7 +35,7 @@ static toy_status api_errorf(toy_state *state, const char *format, ...) {
     va_end(count_args);
     if (length < 0) {
         va_end(args);
-        tf_ctx_set_error(state, "native module registration failed");
+        tf_ctx_set_error(state, "native package registration failed");
         return TOY_ERROR;
     }
 
@@ -44,26 +45,6 @@ static toy_status api_errorf(toy_state *state, const char *format, ...) {
     tf_ctx_set_error(state, message);
     free(message);
     return TOY_ERROR;
-}
-
-static void free_native_names(char **names, size_t count) {
-    if (!names) return;
-    for (size_t i = 0; i < count; i++) free(names[i]);
-    free(names);
-}
-
-static const tf_module *qualified_word_owner(toy_state *state,
-                                             const char *name,
-                                             size_t name_len) {
-    for (size_t i = 1; i < state->modules.len; i++) {
-        const tf_module *module = &state->modules.entries[i];
-        if (name_len <= module->name_len + 1) continue;
-        if (memcmp(name, module->name, module->name_len) == 0 &&
-            name[module->name_len] == '.') {
-            return module;
-        }
-    }
-    return NULL;
 }
 
 static toy_type value_type(tf_obj *value) {
@@ -126,6 +107,7 @@ toy_state *toy_state_new(const toy_state_config *config) {
     tf_ctx_set_output(state, config->output, config->output_userdata);
     tf_ctx_set_diagnostic(state, config->diagnostic,
                           config->diagnostic_userdata);
+    tf_ctx_set_core_package_path(state, config->core_package_path);
     return state;
 }
 
@@ -152,6 +134,8 @@ toy_status toy_eval(toy_state *state, const char *source_name,
 
     toy_status result = tf_vm_exec(state, program);
     tf_obj_release(program);
+    state->current_span = (tf_source_span){0};
+    state->current_word = NULL;
     return result;
 }
 
@@ -163,6 +147,8 @@ toy_status toy_call(toy_state *state, const char *word) {
     tf_vector_push(program, tf_obj_new_call(word, strlen(word)));
     tf_ret result = tf_vm_exec(state, program);
     tf_obj_release(program);
+    state->current_span = (tf_source_span){0};
+    state->current_word = NULL;
     return result;
 }
 
@@ -170,105 +156,144 @@ toy_status toy_register_word(toy_state *state, const char *name,
                              toy_native_fn function) {
     if (!state || !name || name[0] == '\0' || !function) return TOY_ERROR;
     if (!state_is_idle(state)) return TOY_ERROR;
-    const tf_module *owner = qualified_word_owner(state, name, strlen(name));
-    if (owner) {
-        return api_errorf(state, "word '%s' belongs to registered module '%s'",
-                          name, owner->name);
+    if (!tf_package_word_name_valid(name, strlen(name))) {
+        return api_errorf(state, "invalid standalone native word name '%s'",
+                          name);
     }
     tf_dict_set_native_copy(state, name, function);
     return TOY_OK;
 }
 
-toy_status tf_install_native_module(toy_state *state,
-                                    const toy_native_module *module) {
+static toy_status validate_native_package(toy_state *state,
+                                          const toy_native_package *package) {
     if (!state) return TOY_ERROR;
-    if (!module || !module->name || module->name[0] == '\0') {
-        return api_errorf(state, "native module descriptor is invalid");
+    if (!package || !package->name || package->name[0] == '\0') {
+        return api_errorf(state, "native package descriptor is invalid");
     }
 
-    size_t module_name_len = strlen(module->name);
-    if (!tf_module_name_valid(module->name, module_name_len)) {
-        return api_errorf(state, "invalid native module name '%s'",
-                          module->name);
+    size_t package_name_len = strlen(package->name);
+    if (!tf_package_name_valid(package->name, package_name_len)) {
+        return api_errorf(state, "invalid native package name '%s'",
+                          package->name);
     }
-    if (!module->words || module->word_count == 0) {
-        return api_errorf(state, "native module '%s' has no words",
-                          module->name);
+    if (!package->words || package->word_count == 0) {
+        return api_errorf(state, "native package '%s' has no words",
+                          package->name);
     }
-    if (tf_module_find(state, module->name, module_name_len) != (size_t)-1) {
-        return api_errorf(state, "module '%s' is already registered",
-                          module->name);
-    }
-    tf_word *namespace_conflict =
-        tf_dict_namespace_conflict(state, module->name, module_name_len);
-    if (namespace_conflict) {
-        return api_errorf(state,
-                          "native module '%s' conflicts with existing word '%s'",
-                          module->name, namespace_conflict->name);
-    }
-
-    char **qualified_names =
-        tf_xcalloc(module->word_count, sizeof(char *));
-    for (size_t i = 0; i < module->word_count; i++) {
-        const toy_native_word *word = &module->words[i];
+    for (size_t i = 0; i < package->word_count; i++) {
+        const toy_native_word *word = &package->words[i];
         if (!word->name || !word->callback) {
-            free_native_names(qualified_names, module->word_count);
             return api_errorf(state,
-                              "native module '%s' has an invalid word descriptor",
-                              module->name);
+                              "native package '%s' has an invalid word descriptor",
+                              package->name);
         }
 
         size_t word_name_len = strlen(word->name);
-        if (!tf_module_word_name_valid(word->name, word_name_len)) {
-            free_native_names(qualified_names, module->word_count);
-            return api_errorf(state, "invalid native word name '%s' in module '%s'",
-                              word->name, module->name);
+        if (!tf_package_word_name_valid(word->name, word_name_len)) {
+            return api_errorf(state,
+                              "invalid native word name '%s' in package '%s'",
+                              word->name, package->name);
         }
-        if (module_name_len > SIZE_MAX - 2 ||
-            word_name_len > SIZE_MAX - module_name_len - 2) {
-            free_native_names(qualified_names, module->word_count);
-            return api_errorf(state, "native module word name is too long");
-        }
-
-        size_t qualified_len = module_name_len + 1 + word_name_len;
-        char *qualified = tf_xmalloc(qualified_len + 1);
-        memcpy(qualified, module->name, module_name_len);
-        qualified[module_name_len] = '.';
-        memcpy(qualified + module_name_len + 1, word->name,
-               word_name_len + 1);
-        qualified_names[i] = qualified;
-
         for (size_t j = 0; j < i; j++) {
-            if (strcmp(qualified_names[j], qualified) == 0) {
-                toy_status status = api_errorf(
-                    state, "native module word '%s' is duplicated", qualified);
-                free_native_names(qualified_names, module->word_count);
-                return status;
+            if (strcmp(package->words[j].name, word->name) == 0) {
+                return api_errorf(state,
+                                  "native package word '%s.%s' is duplicated",
+                                  package->name, word->name);
             }
         }
-        if (tf_dict_lookup_name(state, qualified, qualified_len)) {
-            toy_status status =
-                api_errorf(state, "word '%s' is already defined", qualified);
-            free_native_names(qualified_names, module->word_count);
-            return status;
-        }
     }
-
-    size_t module_index =
-        tf_module_add_native(state, module->name, module_name_len);
-    for (size_t i = 0; i < module->word_count; i++) {
-        tf_dict_add_native_scoped(state, qualified_names[i],
-                                  strlen(qualified_names[i]), module_index,
-                                  module->words[i].callback);
-    }
-    free_native_names(qualified_names, module->word_count);
     return TOY_OK;
 }
 
-toy_status toy_register_module(toy_state *state,
-                               const toy_native_module *module) {
+toy_status tf_install_native_package(toy_state *state, size_t package_index,
+                                     const toy_native_package *package) {
+    toy_status validation = validate_native_package(state, package);
+    if (validation != TOY_OK) return validation;
+
+    size_t package_name_len = strlen(package->name);
+    const tf_package *registered = tf_package_get(state, package_index);
+    if (!registered || registered->name_len != package_name_len ||
+        memcmp(registered->name, package->name, package_name_len) != 0) {
+        return api_errorf(state,
+                          "native package exports '%s', expected '%s'",
+                          package->name,
+                          registered ? registered->name : "<missing>");
+    }
+
+    for (size_t i = 0; i < package->word_count; i++) {
+        const toy_native_word *word = &package->words[i];
+        if (tf_dict_lookup_scoped(state, package_index, word->name,
+                                  strlen(word->name))) {
+            return api_errorf(state, "word '%s.%s' is already defined",
+                              package->name, word->name);
+        }
+    }
+
+    for (size_t i = 0; i < package->word_count; i++) {
+        tf_dict_add_native_scoped(state, package->words[i].name,
+                                  strlen(package->words[i].name),
+                                  package_index,
+                                  package->words[i].callback);
+    }
+    return TOY_OK;
+}
+
+toy_status toy_register_package(toy_state *state,
+                                const toy_native_package *package) {
     if (!state || !state_is_idle(state)) return TOY_ERROR;
-    return tf_install_native_module(state, module);
+    toy_status validation = validate_native_package(state, package);
+    if (validation != TOY_OK) return validation;
+    if (tf_package_import_find(state, TF_ROOT_PACKAGE, package->name,
+                               strlen(package->name)) != (size_t)-1) {
+        return api_errorf(state, "native package '%s' is already registered",
+                          package->name);
+    }
+    char *identity = tf_xmalloc(strlen(package->name) + 6);
+    sprintf(identity, "host:%s", package->name);
+    if (tf_package_find_path(state, identity) != (size_t)-1) {
+        free(identity);
+        return api_errorf(state, "package '%s' is already registered",
+                          package->name);
+    }
+    size_t index = tf_package_add_registered(state, package->name,
+                                             strlen(package->name), identity);
+    free(identity);
+    toy_status status = tf_install_native_package(state, index, package);
+    if (status != TOY_OK) {
+        tf_package_finish(state, index, TF_ERR);
+        return status;
+    }
+    if (!tf_package_import_add(state, TF_ROOT_PACKAGE, package->name,
+                               strlen(package->name), index)) {
+        tf_package_finish(state, index, TF_ERR);
+        return api_errorf(state, "failed to import package '%s'",
+                          package->name);
+    }
+    return TOY_OK;
+}
+
+toy_status toy_import_package(toy_state *state, const char *path,
+                              const char *alias) {
+    if (!state || !path || !state_is_idle(state)) return TOY_ERROR;
+    tf_ctx_clear_error(state);
+    state->current_span = (tf_source_span){0};
+    state->current_word = NULL;
+    toy_status result = tf_package_load(state, path, TF_ROOT_PACKAGE, alias,
+                                        alias ? strlen(alias) : 0, NULL);
+    state->current_span = (tf_source_span){0};
+    state->current_word = NULL;
+    return result;
+}
+
+toy_status toy_run_package(toy_state *state, const char *path) {
+    if (!state || !path || !state_is_idle(state)) return TOY_ERROR;
+    tf_ctx_clear_error(state);
+    state->current_span = (tf_source_span){0};
+    state->current_word = NULL;
+    toy_status result = tf_package_run_main(state, path);
+    state->current_span = (tf_source_span){0};
+    state->current_word = NULL;
+    return result;
 }
 
 size_t toy_stack_size(toy_state *state) {
@@ -379,7 +404,22 @@ toy_status toy_push_resource(toy_state *state, const char *type_name,
         return api_errorf(state, "resource type name must not be empty");
     }
     size_t type_len = strlen(type_name);
-    if (!tf_module_name_valid(type_name, type_len)) {
+    bool segment_start = true;
+    bool valid_type = true;
+    for (size_t i = 0; i < type_len; i++) {
+        unsigned char c = (unsigned char)type_name[i];
+        if (c == '.') {
+            if (segment_start) valid_type = false;
+            segment_start = true;
+        } else if (segment_start) {
+            if (!(isalpha(c) || c == '_')) valid_type = false;
+            segment_start = false;
+        } else if (!(isalnum(c) || c == '_' || c == '-')) {
+            valid_type = false;
+        }
+    }
+    if (segment_start) valid_type = false;
+    if (!valid_type) {
         return api_errorf(state, "resource type name '%s' is invalid",
                           type_name);
     }

@@ -43,27 +43,26 @@ typedef struct {
 } tf_builtin_group;
 
 typedef enum { TF_WORD_NATIVE, TF_WORD_USER } tf_word_kind;
-#define TF_WORD_LOOKUP_CACHE_CAP 64
-#define TF_ROOT_MODULE 0
+#define TF_ROOT_PACKAGE 0
 
 typedef enum {
-    TF_MODULE_LOADING,
-    TF_MODULE_LOADED,
-    TF_MODULE_FAILED
-} tf_module_state;
+    TF_PACKAGE_LOADING,
+    TF_PACKAGE_LOADED,
+    TF_PACKAGE_FAILED
+} tf_package_state;
 
 typedef struct {
     char *name;
     size_t name_len;
     char *path;
-    tf_module_state state;
-} tf_module;
+    tf_package_state state;
+} tf_package;
 
 typedef struct {
-    tf_module *entries;
+    tf_package *entries;
     size_t len;
     size_t cap;
-} tf_module_table;
+} tf_package_table;
 
 typedef struct {
     void **handles;
@@ -74,15 +73,15 @@ typedef struct {
 typedef struct {
     char *name;
     size_t name_len;
-    size_t owner_module_index;
-    size_t target_module_index;
-} tf_module_alias;
+    size_t owner_package_index;
+    size_t target_package_index;
+} tf_package_import;
 
 typedef struct {
-    tf_module_alias *entries;
+    tf_package_import *entries;
     size_t len;
     size_t cap;
-} tf_module_alias_table;
+} tf_package_import_table;
 
 /*
  * Global dictionary entry.
@@ -95,8 +94,8 @@ typedef struct {
     const char *name;
     size_t name_len;
     bool owns_name;
-    size_t module_index;
-    bool exported;
+    size_t package_index;
+    bool is_public;
     tf_word_kind type;
     union {
         tf_native_fn native_impl;
@@ -104,15 +103,16 @@ typedef struct {
     };
 } tf_word;
 
+typedef void (*tf_visible_word_fn)(const char *display_name,
+                                   size_t display_name_len, tf_word *word,
+                                   void *userdata);
+
 /*
  * Open-addressed global word dictionary.
  *
  * Definitions live in a dense array; buckets store one-based entry indexes.
- * The direct-mapped lookup cache also stores entry indexes because the dense
- * array may move during dictionary mutation. Cache keys are non-owning object
- * addresses stored as integers so released objects are never dereferenced.
- * A tf_word* returned by tf_dict_lookup() is transient and must not be retained
- * across dictionary mutation.
+ * A tf_word* returned by lookup is transient and must not be retained across
+ * dictionary mutation.
  */
 typedef struct {
     tf_word *entries;
@@ -120,11 +120,6 @@ typedef struct {
     size_t *buckets;
     size_t capacity;
     size_t count;
-    struct {
-        uintptr_t key;
-        size_t module_index;
-        size_t entry_index;
-    } lookup_cache[TF_WORD_LOOKUP_CACHE_CAP];
 } tf_word_table;
 
 typedef struct {
@@ -149,7 +144,7 @@ typedef enum {
 typedef struct {
     tf_obj *program;
     size_t pc;
-    size_t module_index;
+    size_t package_index;
     tf_var_table vars;
 } tf_program_frame;
 
@@ -205,9 +200,10 @@ struct tf_ctx {
     tf_frame *call_stack;  // explicit execution stack
     size_t call_stack_len;
     size_t call_stack_cap;
-    tf_module_table modules;
-    tf_module_alias_table module_aliases;
+    tf_package_table packages;
+    tf_package_import_table package_imports;
     tf_native_library_table native_libraries;
+    char *core_package_path;
 
     int argc;
     char **argv;
@@ -254,8 +250,8 @@ bool tf_ctx_require_callable(tf_ctx *ctx, size_t depth);
 
 /* Execution frame scheduling. Native words schedule work here, then return. */
 void tf_frame_push_program(tf_ctx *ctx, tf_obj *program);
-void tf_frame_push_program_module(tf_ctx *ctx, tf_obj *program,
-                                  size_t module_index);
+void tf_frame_push_program_package(tf_ctx *ctx, tf_obj *program,
+                                   size_t package_index);
 void tf_frame_push_native(tf_ctx *ctx, tf_frame_step_fn step,
                           tf_frame_cleanup_fn cleanup, void *state);
 void tf_frame_push_native_handler(tf_ctx *ctx, tf_frame_step_fn step,
@@ -286,42 +282,55 @@ const tf_builtin_group *tf_builtin_groups(size_t *count);
 void tf_dict_set_native(tf_ctx *ctx, const char *name, tf_native_fn cb);
 void tf_dict_set_native_copy(tf_ctx *ctx, const char *name, tf_native_fn cb);
 void tf_dict_add_native_scoped(tf_ctx *ctx, const char *name, size_t name_len,
-                               size_t module_index, tf_native_fn cb);
+                               size_t package_index, tf_native_fn cb);
 bool tf_dict_set_user(tf_ctx *ctx, tf_obj *name, tf_obj *uf);
-bool tf_dict_export(tf_ctx *ctx, tf_obj *name);
+bool tf_dict_set_user_in_package(tf_ctx *ctx, size_t package_index,
+                                 tf_obj *name, tf_obj *uf);
+bool tf_dict_make_private(tf_ctx *ctx, tf_obj *name);
+bool tf_dict_make_private_in_package(tf_ctx *ctx, size_t package_index,
+                                     tf_obj *name);
 tf_word *tf_dict_lookup(tf_ctx *ctx, tf_obj *name);
-tf_word *tf_dict_lookup_name(tf_ctx *ctx, const char *name, size_t len);
-tf_word *tf_dict_namespace_conflict(tf_ctx *ctx, const char *module_name,
-                                    size_t module_name_len);
-bool tf_dict_word_visible(tf_ctx *ctx, tf_word *word);
+tf_word *tf_dict_lookup_scoped(tf_ctx *ctx, size_t package_index,
+                               const char *name, size_t len);
+void tf_dict_each_visible(tf_ctx *ctx, tf_visible_word_fn visit,
+                          void *userdata);
 
-/* Module registry and active lexical module. */
-size_t tf_current_module_index(tf_ctx *ctx);
-bool tf_module_name_valid(const char *name, size_t name_len);
-bool tf_module_word_name_valid(const char *name, size_t name_len);
-size_t tf_module_find(tf_ctx *ctx, const char *name, size_t name_len);
-size_t tf_module_begin(tf_ctx *ctx, const char *name, size_t name_len,
-                       const char *path);
-size_t tf_module_add_native(tf_ctx *ctx, const char *name, size_t name_len);
-/* Validate and install a native module without requiring an idle VM. */
-toy_status tf_install_native_module(tf_ctx *ctx,
-                                    const toy_native_module *module);
-void tf_module_finish(tf_ctx *ctx, size_t module_index, tf_ret status);
-const tf_module *tf_module_get(tf_ctx *ctx, size_t module_index);
-size_t tf_module_alias_find(tf_ctx *ctx, size_t owner_module_index,
-                            const char *name, size_t name_len);
-bool tf_module_alias_add(tf_ctx *ctx, size_t owner_module_index,
-                         const char *name, size_t name_len,
-                         size_t target_module_index);
-void tf_module_alias_remove(tf_ctx *ctx, size_t owner_module_index,
-                            const char *name, size_t name_len,
-                            size_t target_module_index);
+/* Package registry, imports, and active lexical package. */
+size_t tf_current_package_index(tf_ctx *ctx);
+bool tf_package_name_valid(const char *name, size_t name_len);
+bool tf_package_word_name_valid(const char *name, size_t name_len);
+size_t tf_package_find_path(tf_ctx *ctx, const char *path);
+size_t tf_package_begin(tf_ctx *ctx, const char *name, size_t name_len,
+                        const char *path);
+size_t tf_package_add_registered(tf_ctx *ctx, const char *name,
+                                 size_t name_len, const char *identity);
+void tf_package_finish(tf_ctx *ctx, size_t package_index, tf_ret status);
+const tf_package *tf_package_get(tf_ctx *ctx, size_t package_index);
+size_t tf_package_import_find(tf_ctx *ctx, size_t owner_package_index,
+                              const char *name, size_t name_len);
+bool tf_package_import_add(tf_ctx *ctx, size_t owner_package_index,
+                           const char *name, size_t name_len,
+                           size_t target_package_index);
+void tf_package_import_remove(tf_ctx *ctx, size_t owner_package_index,
+                              const char *name, size_t name_len,
+                              size_t target_package_index);
+void tf_ctx_set_core_package_path(tf_ctx *ctx, const char *path);
+tf_ret tf_package_load(tf_ctx *ctx, const char *request,
+                       size_t owner_package_index, const char *alias,
+                       size_t alias_len, size_t *package_index);
+tf_ret tf_package_run_main(tf_ctx *ctx, const char *path);
+
+/* Validate and install a native package without requiring an idle VM. */
+toy_status tf_install_native_package(tf_ctx *ctx, size_t package_index,
+                                     const toy_native_package *package);
 
 /* Dynamic capture lookup across active program frames. */
 tf_obj *tf_scope_lookup_var(tf_ctx *ctx, tf_obj *name);
 
 /* VM entry points. */
 tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program);
+tf_ret tf_vm_exec_package(tf_ctx *ctx, tf_obj *program,
+                          size_t package_index);
 bool tf_obj_is_callable(tf_obj *o);
 tf_ret tf_vm_call_callable(tf_ctx *ctx, tf_obj *callable);
 

@@ -76,6 +76,6 @@ configuration using the local repository and installation paths.
 
 ## Runtime Boundary
 
-`toy --debug-protocol program.toy` is an internal transport used by the
+`toy --debug-protocol --eval-file program.toy` is an internal transport used by the
 adapter. Its output is not a stable public protocol and should not be parsed by
 editor plugins directly; DAP is the supported integration boundary.

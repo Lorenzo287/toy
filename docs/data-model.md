@@ -21,7 +21,7 @@ details that make this efficient are collected at the end of the guide.
 | set | `#{ "red" "green" }`, `>set` | insertion-ordered membership |
 | deque | `>deque` | efficient front and back endpoints |
 | priority queue | `>pqueue` | minimum-priority access |
-| resource | native module or embedding API | opaque, typed foreign handle |
+| resource | native package or embedding API | opaque, typed foreign handle |
 
 Strings are byte sequences, not Unicode strings. String literals accept `\n`,
 `\r`, `\t`, `\"`, `\\`, and `\xHH`; unknown escapes are errors.

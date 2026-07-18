@@ -292,91 +292,80 @@ func isToySourcePath(path string) bool {
 	}
 }
 
-func (s *documentStore) resolveModulePath(importer *document, module string) (string, bool) {
-	if !validModuleName(module) {
+func (s *documentStore) resolvePackageDirectory(importer *document, requested string) (string, bool) {
+	if requested == "" {
 		return "", false
 	}
-	relative := filepath.FromSlash(strings.ReplaceAll(module, ".", "/") + ".toy")
-	candidates := make([]string, 0, len(s.roots)+1)
-	if importer != nil && importer.Path != "" {
-		candidates = append(candidates, filepath.Join(filepath.Dir(importer.Path), relative))
-	}
-	for _, root := range s.roots {
-		candidates = append(candidates, filepath.Join(root, relative))
+
+	var candidates []string
+	if strings.HasPrefix(requested, "core:") {
+		relative := strings.TrimPrefix(requested, "core:")
+		if !safeCorePackagePath(relative) {
+			return "", false
+		}
+		for _, root := range s.roots {
+			candidates = append(candidates, filepath.Join(root, "core", filepath.FromSlash(relative)))
+		}
+	} else if strings.Contains(requested, ":") && !filepath.IsAbs(requested) {
+		return "", false
+	} else if filepath.IsAbs(requested) {
+		candidates = append(candidates, requested)
+	} else if importer != nil && importer.Path != "" {
+		candidates = append(candidates, filepath.Join(filepath.Dir(importer.Path), filepath.FromSlash(requested)))
+	} else {
+		return "", false
 	}
 
-	seen := make(map[string]bool)
 	for _, candidate := range candidates {
 		absolute, err := filepath.Abs(candidate)
 		if err != nil {
 			continue
 		}
 		absolute = filepath.Clean(absolute)
-		key := absolute
-		if runtime.GOOS == "windows" {
-			key = strings.ToLower(key)
-		}
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
-		if doc, ok := s.getPath(absolute); ok {
-			return doc.Path, true
+		info, err := os.Stat(absolute)
+		if err == nil && info.IsDir() {
+			return absolute, true
 		}
 	}
 	return "", false
 }
 
-func validModuleName(name string) bool {
-	segmentStart := true
-	for i := 0; i < len(name); i++ {
-		c := name[i]
-		if c == '.' {
-			if segmentStart {
-				return false
-			}
-			segmentStart = true
-			continue
-		}
-		if segmentStart {
-			if !isASCIILetter(c) && c != '_' {
-				return false
-			}
-			segmentStart = false
-			continue
-		}
-		if !isASCIILetter(c) && (c < '0' || c > '9') && c != '_' && c != '-' {
+func safeCorePackagePath(path string) bool {
+	if path == "" || filepath.IsAbs(path) || strings.Contains(path, ":") {
+		return false
+	}
+	for _, segment := range strings.Split(strings.ReplaceAll(path, "\\", "/"), "/") {
+		if segment == "" || segment == "." || segment == ".." {
 			return false
 		}
 	}
-	return !segmentStart
+	return true
 }
 
-func isASCIILetter(c byte) bool {
-	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
-}
-
-func (s *documentStore) resolveLoadPath(importer *document, requested string) (string, bool) {
-	if requested == "" {
-		return "", false
+func (s *documentStore) packageDocuments(directory string) []*document {
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return nil
 	}
-	if filepath.IsAbs(requested) {
-		if doc, ok := s.getPath(requested); ok {
-			return doc.Path, true
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Name() < entries[j].Name()
+	})
+	documents := make([]*document, 0)
+	for _, entry := range entries {
+		if entry.IsDir() || strings.ToLower(filepath.Ext(entry.Name())) != ".toy" {
+			continue
 		}
-		return "", false
+		if doc, ok := s.getPath(filepath.Join(directory, entry.Name())); ok {
+			documents = append(documents, doc)
+		}
 	}
+	return documents
+}
 
-	candidates := make([]string, 0, len(s.roots)+1)
-	if importer != nil && importer.Path != "" {
-		candidates = append(candidates, filepath.Join(filepath.Dir(importer.Path), requested))
-	}
-	for _, root := range s.roots {
-		candidates = append(candidates, filepath.Join(root, requested))
-	}
-	for _, candidate := range candidates {
-		if doc, ok := s.getPath(candidate); ok {
-			return doc.Path, true
+func (s *documentStore) packageName(directory string) (string, bool) {
+	for _, doc := range s.packageDocuments(directory) {
+		if doc.Index.PackageName != "" {
+			return doc.Index.PackageName, true
 		}
 	}
 	return "", false

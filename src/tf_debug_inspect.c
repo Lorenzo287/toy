@@ -132,7 +132,8 @@ bool tf_debug_get_word(tf_ctx *ctx, size_t index, tf_debug_word_info *info) {
 bool tf_debug_find_word(tf_ctx *ctx, const char *name, size_t name_len,
                         tf_debug_word_info *info) {
     if (!name || !info) return false;
-    tf_word *word = tf_dict_lookup_name(ctx, name, name_len);
+    tf_word *word = tf_dict_lookup_scoped(
+        ctx, tf_current_package_index(ctx), name, name_len);
     if (!word) return false;
     debug_fill_word_info(word, info);
     return true;

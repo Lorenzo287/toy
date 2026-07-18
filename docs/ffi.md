@@ -1,51 +1,46 @@
 # Experimental Dynamic FFI
 
-Toy's optional `ffi` native module uses libffi to call functions from shared C
-libraries without compiling a handwritten wrapper for each function. It is an
-experiment on top of the shared-module ABI, not a stable or sandboxed interface.
-Its implementation lives in [`modules/ffi/`](../modules/ffi/); it is not linked
-into the core runtime.
+The official `core:ffi` package uses libffi to call functions from shared C
+libraries without compiling a wrapper for each function. It is maintained and
+built alongside Toy, but remains experimental and is not a sandbox.
 
-Build it after installing libffi. Provide include and library directories when
-they are not already on the compiler's search path:
+The normal `nob build` compiles [`core/ffi/toy_ffi.c`](../core/ffi/toy_ffi.c)
+and places its native package beneath the `core` directory beside the Toy
+executable. Import it directly:
 
-```powershell
-.\nob.exe module ffi modules\ffi\toy_ffi.c `
-    --include C:\libffi\include `
-    --lib-dir C:\libffi\lib `
-    --lib ffi
-$env:TOY_MODULE_PATH = (Resolve-Path .\build\clang\release\modules).Path
+```toy
+"core:ffi" import
 ```
 
-Pass `--lib libffi` or a direct library path when the installation uses another
-name.
+Source builds need libffi headers and libraries. If they are outside the
+compiler's default paths:
 
-The compiler must match the libffi distribution. In particular, use
-`--cc gcc` with an MSYS2/MinGW installation such as `C:\msys64\ucrt64`; the
-default Windows Clang target uses the Visual Studio C runtime and cannot parse
-or link those headers and libraries correctly. The generic `module` command
-records the matching compilation in `build\compile_commands.json` for C
-language servers.
+```powershell
+.\nob.exe --cc gcc build `
+    --include C:\libffi\include `
+    --lib-dir C:\libffi\lib
+```
 
-Use `nob test --filter ffi` with the same dependency options to build a small
-foreign library and exercise the module against every supported signature
-category. This optional test is not part of the dependency-free default suite.
+The default library name is `ffi`. Supplying `--lib libffi` or an exact path
+replaces that default when an installation uses another name.
 
-The libffi binary itself must also be discoverable by the operating system when
-it is dynamically linked.
+The compiler must match the libffi distribution. An MSYS2/MinGW installation
+normally requires `--cc gcc`. If libffi is dynamically linked, its runtime
+library must also be discoverable by the operating-system loader. Run
+`nob test --filter optional_ffi` to build a small foreign library and exercise
+every supported signature category.
 
-The module provides three words:
+The package provides three public words:
 
 | Word | Stack effect | Purpose |
 |---|---|---|
-| `ffi.open` | `path -- library` | Open a shared library using the platform loader. |
+| `ffi.open` | `path -- library` | Open an exact shared-library path or platform loader name. |
 | `ffi.bind` | `library symbol signature -- function` | Resolve a symbol and prepare a fixed C signature. |
 | `ffi.call` | `arg... function -- result?` | Call the function, consuming its arguments and handle. |
 
 The function resource retains its library, so the library remains open after
-`ffi.bind` consumes the original library value. Normal Toy references can keep
-libraries or bound functions for reuse. Dropping the final reference closes the
-foreign library automatically.
+`bind` consumes the original library value. Dropping the final reference closes
+the foreign library automatically.
 
 ## Signatures
 
@@ -71,15 +66,15 @@ Supported types are:
 | `void` | Return type only; no Toy result is pushed |
 
 Toy integers are signed 64-bit values. A `u64` or `usize` result greater than
-`INT64_MAX` therefore produces an error after the foreign call. Input strings
-are copied and embedded NUL bytes are rejected. A returned `cstr` is treated as
-a borrowed, non-null pointer and copied immediately; the module cannot free an
-owned string returned by a library.
+`INT64_MAX` is therefore an error after the foreign call. Input strings are
+copied and embedded NUL bytes are rejected. A returned `cstr` is treated as a
+borrowed, non-null pointer and copied immediately; FFI cannot free an owned
+string returned by a library.
 
 Arguments are pushed in C order, followed by the bound function:
 
 ```toy
-"ffi" 'c require-as
+"core:ffi" 'c import-as
 
 20 22
 "path/to/library" c.open
@@ -87,30 +82,28 @@ Arguments are pushed in C order, followed by the bound function:
 c.call                         \ 42
 ```
 
-For a concrete example, pass the platform C runtime library to
-`examples/interop/ffi/strlen.toy`:
+The runnable `strlen` example accepts the platform C runtime library as its
+first argument:
 
 ```powershell
-.\nob.exe run examples\interop\ffi\strlen.toy msvcrt.dll
+.\nob.exe run examples\interop\ffi\strlen msvcrt.dll
 ```
 
-Common Unix C runtime names include `libc.so.6` on Linux and
+Common Unix names include `libc.so.6` on Linux and
 `/usr/lib/libSystem.B.dylib` on macOS.
 
 ## Boundary and Safety
 
-The prototype supports only the platform's default C calling convention and
-fixed scalar/string signatures. It does not yet support raw pointers, output
+The package supports only the platform's default C calling convention and
+fixed scalar/string signatures. It does not support raw pointers, output
 parameters, arrays, structs, unions, variadic functions, callbacks, alternate
 calling conventions, owned return values, or automatic header parsing.
 
-Signatures are promises made by the Toy program. libffi cannot verify that a
-symbol actually has the declared C type. A wrong signature, invalid returned
-pointer, library bug, or hostile library can corrupt memory or terminate the
-process. Only load trusted libraries and verify signatures against their C
-headers.
+A signature is a promise made by the Toy program. libffi cannot verify that a
+symbol has the declared C type. A wrong signature, invalid returned pointer,
+library bug, or hostile library can corrupt memory or terminate the process.
+Only open trusted libraries and verify signatures against their C headers.
 
-For known APIs that can be compiled ahead of time, the
-[binding generator](./bindgen.md) turns the same basic type vocabulary into a
-normal loadable module. That removes runtime symbol/signature setup and lets the
-C compiler see the library declarations.
+For known APIs, the [binding generator](./bindgen.md) emits a native package
+whose C compiler sees the declarations. A handwritten package remains the
+choice for custom ownership and richer C types.

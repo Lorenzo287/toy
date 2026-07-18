@@ -1,5 +1,5 @@
-#define TOY_MODULE_IMPLEMENTATION
-#include "toy_module.h"
+#define TOY_PACKAGE_IMPLEMENTATION
+#include "toy_package.h"
 
 #include <raylib.h>
 
@@ -382,15 +382,15 @@ static const toy_native_word raylib_words[] = {
     {"frame-time", raylib_frame_time},
 };
 
-static const toy_module_export raylib_module = {
-    sizeof(toy_module_export),
+static const toy_package_export raylib_package = {
+    sizeof(toy_package_export),
     "raylib",
     raylib_words,
     sizeof(raylib_words) / sizeof(raylib_words[0]),
 };
 
-TOY_MODULE_EXPORT const toy_module_export *toy_module_init(
-    uint32_t abi_version, const toy_module_api *api) {
-    if (!toy_module_bind(abi_version, api)) return NULL;
-    return &raylib_module;
+TOY_PACKAGE_EXPORT const toy_package_export *toy_package_init(
+    uint32_t abi_version, const toy_package_api *api) {
+    if (!toy_package_bind(abi_version, api)) return NULL;
+    return &raylib_package;
 }

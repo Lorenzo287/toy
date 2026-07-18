@@ -1,4 +1,3 @@
-"testlib.toy" load
 
 0 [ 1 2 3 4 ] [ + ] fold 10 == check
 99 10 [ 1 2 3 ] [ + ] fold 16 == check 99 == check

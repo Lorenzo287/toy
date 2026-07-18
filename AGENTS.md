@@ -2,8 +2,8 @@
 
 Toy is a small concatenative language/runtime in C. It has a stack-based
 execution model, first-class quotations and symbols, explicit call nodes,
-refcounted collection objects, dynamic captures (`| a b |` / `$a`), source
-modules with `.` qualified exports, a generated builtin registry, a scoped
+refcounted collection objects, dynamic captures (`| a b |` / `$a`), directory
+packages with `.` qualified public words, a generated builtin registry, a scoped
 word dictionary, and an iterative VM frame stack for user words.
 
 Roadmap work lives in `docs/language-roadmap.md`. Keep this file focused on
@@ -18,14 +18,15 @@ navigation and development rules.
 - `src/cli/`: standalone executable, REPL, and debugger-protocol frontend.
 - `src/generated/`: generated builtin declarations/registry, runtime docs, and
   REPL word tables; do not hand-edit.
-- `include/`: public embedding and standalone native-module headers.
-- `examples/programs/`: standalone Toy programs; formatting-sensitive quines
-  live under `examples/programs/quines/`.
+- `include/`: public embedding and standalone native-package headers.
+- `examples/programs/`: executable Toy package directories;
+  formatting-sensitive quines live under `examples/eval/quines/`.
 - `examples/embedding/`: C hosts that embed and call the Toy runtime.
 - `examples/interop/`: dynamic FFI, generated binding, and handwritten
   external-library examples. Library-specific adapters are test cases for the
   general boundary, not built-in integrations.
-- `modules/`: optional general-purpose native modules maintained with Toy.
+- `core/`: official packages maintained and built with Toy.
+- `tests/packages/`: source, core, and native package integration fixtures.
 - `tests/toy/`, `tests/c/`: language cases and C API regressions. Toy test
   prefixes declare behavior: `test_`, `fail_`, `output_`, and `manual_`.
 - `docs/`: build, REPL, tooling, and roadmap docs.
@@ -33,6 +34,8 @@ navigation and development rules.
   collection combinator usage.
 - `docs/data-model.md`: collection syntax, interop, complexity, equality, and
   hashing reference.
+- `docs/packages.md`: directory packages, exact imports, executable entry
+  points, and native-library workflows.
 - `docs/runtime-internals.md`: VM/object/allocation implementation notes.
 - `docs/embedding.md`: experimental C embedding and native-word API.
 - `benchmarks/`: reproducible performance workloads, runner, and recorded
@@ -50,8 +53,9 @@ navigation and development rules.
 - `tools/vscode-toy/`: VS Code extension and generated grammar metadata.
 - `.github/workflows/`: CI and release automation.
 - `nob.c`: self-contained build entry point for the runtime, CLI, examples,
-  modules, and tests; `tools/nob/build.h` contains compiler and build helpers,
-  while `tools/nob/tests.h` contains the isolated test harness.
+  core packages, native packages, and tests; `tools/nob/build.h` contains
+  compiler and build helpers, while `tools/nob/tests.h` contains the isolated
+  test harness.
 - `deps/`: vendored `linenoise`, `stb_leakcheck`, and `nob`.
 
 ## Fast Context
@@ -63,22 +67,22 @@ navigation and development rules.
   included by `src/tf_context.c` and registered by `tf_ctx_new()`.
 - Native declarations: `src/tf_builtins.h`; implementations are grouped in
   `src/tf_builtins_*.c`.
-- Experimental public C and native-module API: `include/toy.h`, implemented by
+- Experimental public C and native-package API: `include/toy.h`, implemented by
   `src/toy.c`.
-- Standalone shared native-module API and implementation:
-  `include/toy_module.h`; platform loading: `src/tf_native_loader.c`.
-- Experimental libffi module: `modules/ffi/toy_ffi.c`; signature and safety
+- Standalone shared native-package API and implementation:
+  `include/toy_package.h`; platform loading: `src/tf_native_loader.c`.
+- Experimental libffi core package: `core/ffi/toy_ffi.c`; signature and safety
   contract: `docs/ffi.md`.
 - Explicit-manifest binding generator: `tools/generate-binding.js`; Nob
   integration: `nob bindgen`; contract: `docs/bindgen.md`.
-- External shared-module examples: `examples/interop/raylib/toy_raylib.c` and
+- External shared-package examples: `examples/interop/raylib/toy_raylib.c` and
   `examples/interop/sqlite/toy_sqlite.c`.
 - Context lifecycle and builtin registration: `src/tf_context.c`; stack,
   frames, diagnostics, captures, and VM dispatch: `src/tf_exec.h`,
   `src/tf_exec.c`.
-- Dictionary lookup: `src/tf_dictionary.c`; module registry:
-  `src/tf_modules.c`; module loading and path resolution:
-  `src/tf_builtins_io.c`.
+- Dictionary lookup: `src/tf_dictionary.c`; package registry:
+  `src/tf_packages.c`; package loading and exact path resolution:
+  `src/tf_package_loader.c`.
 - Shared debugger run control: `src/tf_debug_control.h`,
   `src/tf_debug_control.c`.
 - Read-only debugger frame, capture, and word views: `src/tf_exec.h`,
@@ -89,6 +93,7 @@ navigation and development rules.
   `src/tf_terminal.c`.
 - REPL: `src/cli/tf_repl.h`, `src/cli/tf_repl.c`.
 - Language plan: `docs/language-roadmap.md`.
+- Package model: `docs/packages.md`.
 - Data model reference: `docs/data-model.md`.
 - Test conventions: `docs/testing.md`.
 - Formatter behavior and configuration: `docs/formatter.md`.
@@ -108,7 +113,7 @@ navigation and development rules.
 ## Development Rules
 
 - C style: snake_case, 4-space indentation. Use `tf_` for exported/project-wide
-  symbols; file-local `static` helpers may use unprefixed module-local names.
+  symbols; file-local `static` helpers may use unprefixed file-local names.
 - Memory: `tf_obj_retain` when storing references, `tf_obj_release` when done,
   use `tf_xmalloc` helpers.
 - Native callable runners should schedule frames or native continuations and

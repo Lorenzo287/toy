@@ -52,24 +52,24 @@ tf_ctx *tf_ctx_new(int argc, char **argv) {
     ctx->words.capacity = word_table_capacity_for(builtin_count);
     ctx->words.count = 0;
     ctx->words.buckets = tf_xcalloc(ctx->words.capacity, sizeof(size_t));
-    memset(ctx->words.lookup_cache, 0, sizeof(ctx->words.lookup_cache));
     ctx->call_stack = NULL;
     ctx->call_stack_len = 0;
     ctx->call_stack_cap = 0;
-    ctx->modules.cap = 4;
-    ctx->modules.len = 1;
-    ctx->modules.entries = tf_xcalloc(ctx->modules.cap, sizeof(tf_module));
-    ctx->modules.entries[TF_ROOT_MODULE].name = tf_xstrdup("");
-    ctx->modules.entries[TF_ROOT_MODULE].name_len = 0;
-    ctx->modules.entries[TF_ROOT_MODULE].path = NULL;
-    ctx->modules.entries[TF_ROOT_MODULE].state = TF_MODULE_LOADED;
-    ctx->module_aliases.cap = 4;
-    ctx->module_aliases.len = 0;
-    ctx->module_aliases.entries =
-        tf_xcalloc(ctx->module_aliases.cap, sizeof(tf_module_alias));
+    ctx->packages.cap = 4;
+    ctx->packages.len = 1;
+    ctx->packages.entries = tf_xcalloc(ctx->packages.cap, sizeof(tf_package));
+    ctx->packages.entries[TF_ROOT_PACKAGE].name = tf_xstrdup("");
+    ctx->packages.entries[TF_ROOT_PACKAGE].name_len = 0;
+    ctx->packages.entries[TF_ROOT_PACKAGE].path = NULL;
+    ctx->packages.entries[TF_ROOT_PACKAGE].state = TF_PACKAGE_LOADED;
+    ctx->package_imports.cap = 4;
+    ctx->package_imports.len = 0;
+    ctx->package_imports.entries =
+        tf_xcalloc(ctx->package_imports.cap, sizeof(tf_package_import));
     ctx->native_libraries.handles = NULL;
     ctx->native_libraries.len = 0;
     ctx->native_libraries.cap = 0;
+    ctx->core_package_path = NULL;
     ctx->argc = argc;
     ctx->argv = argv;
     ctx->error_suppression_depth = 0;
@@ -105,16 +105,17 @@ void tf_ctx_free(tf_ctx *ctx) {
     }
     free(ctx->words.entries);
     free(ctx->words.buckets);
-    for (size_t i = 0; i < ctx->modules.len; i++) {
-        free(ctx->modules.entries[i].name);
-        free(ctx->modules.entries[i].path);
+    for (size_t i = 0; i < ctx->packages.len; i++) {
+        free(ctx->packages.entries[i].name);
+        free(ctx->packages.entries[i].path);
     }
-    free(ctx->modules.entries);
-    for (size_t i = 0; i < ctx->module_aliases.len; i++) {
-        free(ctx->module_aliases.entries[i].name);
+    free(ctx->packages.entries);
+    for (size_t i = 0; i < ctx->package_imports.len; i++) {
+        free(ctx->package_imports.entries[i].name);
     }
-    free(ctx->module_aliases.entries);
+    free(ctx->package_imports.entries);
+    free(ctx->core_package_path);
     free(ctx->last_error);
-    tf_native_modules_close(ctx);
+    tf_native_packages_close(ctx);
     free(ctx);
 }

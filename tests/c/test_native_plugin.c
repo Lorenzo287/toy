@@ -1,5 +1,5 @@
-#define TOY_MODULE_IMPLEMENTATION
-#include "toy_module.h"
+#define TOY_PACKAGE_IMPLEMENTATION
+#include "toy_package.h"
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -7,10 +7,10 @@
 static toy_status plugin_double(toy_state *state) {
     int64_t value = 0;
     if (!toy_get_int(state, 0, &value)) {
-        return toy_fail(state, "test.plugin.double expected an integer");
+        return toy_fail(state, "plugin.double expected an integer");
     }
     if (!toy_pop(state, 1)) {
-        return toy_fail(state, "test.plugin.double failed to pop its input");
+        return toy_fail(state, "plugin.double failed to pop its input");
     }
     return toy_push_int(state, value * 2);
 }
@@ -66,15 +66,15 @@ static const toy_native_word plugin_words[] = {
     {"make-pair", plugin_make_pair},
 };
 
-static const toy_module_export plugin = {
-    sizeof(toy_module_export),
-    "test.plugin",
+static const toy_package_export plugin = {
+    sizeof(toy_package_export),
+    "plugin",
     plugin_words,
     sizeof(plugin_words) / sizeof(plugin_words[0]),
 };
 
-TOY_MODULE_EXPORT const toy_module_export *toy_module_init(
-    uint32_t abi_version, const toy_module_api *api) {
-    if (!toy_module_bind(abi_version, api)) return NULL;
+TOY_PACKAGE_EXPORT const toy_package_export *toy_package_init(
+    uint32_t abi_version, const toy_package_api *api) {
+    if (!toy_package_bind(abi_version, api)) return NULL;
     return &plugin;
 }

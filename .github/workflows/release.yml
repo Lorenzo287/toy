@@ -44,11 +44,11 @@ jobs:
 
       - name: Package (Unix)
         if: runner.os != 'Windows'
-        run: tar -czf ${{ matrix.asset_name }} -C build/gcc/release toy
+        run: tar -czf ${{ matrix.asset_name }} -C build/gcc/release toy core
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
-        run: Compress-Archive -Path build/clang/release/toy.exe -DestinationPath ${{ matrix.asset_name }}
+        run: Compress-Archive -Path build/gcc/release/toy.exe,build/gcc/release/core -DestinationPath ${{ matrix.asset_name }}
 
       - name: Release
         uses: softprops/action-gh-release@v2
