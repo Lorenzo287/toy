@@ -1,8 +1,10 @@
 # Generated C Bindings
 
-`tools/generate-binding.js` turns an explicit JSON manifest into an importable
-Toy native package written in C. Generated packages expose ordinary qualified words;
-their users do not interact with `ffi.open`, signatures, or function resources.
+`toy-bindgen` turns an explicit JSON manifest into an importable Toy native
+package written in C. It is shipped with the Toy SDK and uses the
+version-matched generator payload from that installation. Generated packages
+expose ordinary qualified words; their users do not interact with `ffi.open`,
+signatures, or function resources.
 
 The binding generator deliberately reads declared function shapes rather than
 parsing arbitrary C headers. That keeps type and ownership decisions visible
@@ -198,52 +200,50 @@ Foreign calls happen while borrowed resource inputs remain alive. Returned
 `cstr` data is copied before those inputs are released, allowing getters that
 borrow text from their handle.
 
-## Build Integration
+## Generating and Building
 
 Generate a C file directly with:
 
 ```powershell
-node tools\generate-binding.js path\to\clib.json build\generated\clib.c
+toy-bindgen path\to\clib.json vendor\clib\generated.c
 ```
 
 `--check` compares an existing output with the manifest without rewriting it.
-`--package name` additionally verifies the manifest package when another build
-system owns the output directory.
+`--package name` additionally verifies the manifest package against the target
+directory name.
 Generated files start with a do-not-edit marker and are deterministic.
-They instantiate the standalone `toy_package.h` implementation, so the result
-can be compiled with an ordinary C compiler and the target C library alone:
+They instantiate the standalone `toy_package.h` implementation. Compile the
+result and write its `toy.package` manifest with the installed C-package
+builder:
 
 ```powershell
-clang -std=c11 -shared -I include build\generated\clib.c `
-    -o toy_clib.dll -lthe_c_library
-```
-
-No Toy runtime or package-support library participates in that link. On Linux,
-add `-fPIC` and use the `.so` suffix.
-
-The Nob `bindgen` command generates the wrapper, builds it, and writes a
-`toy.package` manifest in one step. It is a convenience around the same
-generator and compiler invocation:
-
-```powershell
-.\nob.exe bindgen vendor\clib path\to\clib.json `
+toy-c-package vendor\clib vendor\clib\generated.c `
     --include path\to\headers `
     --lib the_c_library
 ```
 
-The first argument is the package directory. Its basename determines the
-output filename (`toy_clib` plus the platform shared-library suffix) and must
-match the manifest's `package` value.
+No Toy runtime or package-support library participates in that link. The
+package directory basename determines the output filename (`toy_clib` plus the
+platform shared-library suffix) and must match the manifest's `package` value.
+Use `toy-bindgen --package clib ...` to check that relationship before
+compilation.
+
 Headers remain in the manifest because they affect generated C; repeatable
 `--include`, `--lib-dir`, and `--lib` options provide platform-specific
-dependency locations without putting them in the manifest.
+dependency locations without putting them in the manifest. `toy-c-package` also
+supports `--cc`, `--define`, `--cflag`, `--ldflag`, and `--debug`; run
+`toy-c-package --help` for the complete interface. `toy-bindgen` currently needs
+Node.js, while `toy-c-package` needs a compatible C compiler.
 
 The curated standard-C example needs no additional library configuration:
 
 ```powershell
-.\nob.exe bindgen examples\interop\bindgen\clib `
-    examples\interop\bindgen\clib\clib.json
-.\nob.exe run examples\interop\bindgen\demos\clib
+toy-bindgen --package clib `
+    examples\interop\bindgen\clib\clib.json `
+    examples\interop\bindgen\clib\generated.c
+toy-c-package examples\interop\bindgen\clib `
+    examples\interop\bindgen\clib\generated.c
+toy examples\interop\bindgen\demos\clib
 ```
 
 Toy sees a normal package:

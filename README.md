@@ -35,22 +35,26 @@ discovered it yet. Toy's REPL also uses antirez's
 
 ## Getting Started
 
-Bootstrap the self-contained build, then start the REPL, run a package, or
-evaluate a standalone file:
+Download a release, run its installer, and then start the REPL, run a package,
+or evaluate a standalone file with the installed Toy CLI:
 
 ```powershell
-clang -std=c11 -O3 nob.c -o nob.exe
-.\nob.exe build
+# After extracting the Windows release:
+Set-Location .\toy
+.\install.ps1 -AddToPath
 
-.\nob.exe run # REPL
-.\nob.exe run examples\programs\factorial
-.\nob.exe run --eval-file script.toy
-.\nob.exe run --eval "1 2 + print"
-.\nob.exe run --tdb # Debugger
+toy # REPL
+toy .\examples\programs\factorial
+toy --eval-file script.toy
+toy --eval "1 2 + print"
+toy --tdb # Debugger
 ```
 
-See the [build instructions](./docs/build.md) to have more control over
-the compiler, build mode, examples, and external packages, the
+Release archives contain the runtime, core packages, C headers and library,
+C-package and binding tools, formatter, LSP, DAP, Tree-sitter assets,
+documentation, and examples. See the [installation guide](./docs/installation.md)
+for the SDK layout and installer options, the [build instructions](./docs/build.md)
+for building Toy itself from source, the
 [REPL guide](./docs/repl.md) for interactive use,
 and the [examples](./examples/) for complete programs. Release
 binaries are also available from the
@@ -269,7 +273,7 @@ imported package is accessed through its declared name:
 'main [ 21 math.double print ] def
 ```
 
-Run it with `.\nob.exe run app`. Use `"../math" 'm import-as` when a local
+Run it with `toy app`. Use `"../math" 'm import-as` when a local
 alias is useful. Relative and absolute imports name exact directories;
 `"core:ffi" import` uses Toy's fixed core-package directory. There are no
 fallback search paths or environment-variable lookups.
@@ -280,13 +284,13 @@ an execution order. The CLI invokes the public `main` word of a package named
 [package reference](./docs/packages.md) for the full model, standalone
 evaluation, and native-library workflows.
 
-## Embedding and Native Interop
+## Embedding and C Interop
 
 Toy can be embedded as a static C runtime. The API currently lets
 a host create interpreter states, evaluate Toy source, call Toy words,
 exchange primitive and opaque resource stack values, retain arbitrary values,
 traverse or construct basic collections, and register C functions individually
-or as native packages. Resource values let bindings carry typed, automatically
+or as C-backed packages. Resource values let bindings carry typed, automatically
 released foreign handles without exposing pointers to Toy.
 State-local callbacks can redirect Toy output and detailed parser/runtime
 diagnostics into host logs or user interfaces. The
@@ -302,7 +306,7 @@ values and a retained Toy quotation crossing the boundary.
 This boundary is the foundation for handwritten library bindings. The
 [interop examples](./examples/interop/) use Raylib and SQLite to exercise the
 same general shared-package path; neither library is a Toy dependency or a
-built-in integration. Versioned shared native packages use the API through a
+built-in integration. Versioned shared C-backed packages use the API through a
 host function table and an explicit `toy.package` manifest without linking a
 second Toy runtime. A package needs only the standalone `toy_package.h`, its C
 source, and the foreign library it wraps; there is no Toy support library to

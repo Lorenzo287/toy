@@ -1,4 +1,4 @@
-\ Import the separately built Raylib native package.
+\ Import the separately built Raylib C package.
 'main package
 
 "../.." 'rl import-as

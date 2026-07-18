@@ -4,16 +4,16 @@ The official `core:ffi` package uses libffi to call functions from shared C
 libraries without compiling a wrapper for each function. It is maintained and
 built alongside Toy, but remains experimental and is not a sandbox.
 
-The normal `nob build` compiles [`core/ffi/toy_ffi.c`](../core/ffi/toy_ffi.c)
-and places its native package beneath the `core` directory beside the Toy
-executable. Import it directly:
+Release SDKs include the version-matched compiled package beneath their `core`
+directory. Import it directly:
 
 ```toy
 "core:ffi" import
 ```
 
-Source builds need libffi headers and libraries. If they are outside the
-compiler's default paths:
+The package is ready to use after installation. Building Toy itself from
+source needs libffi headers and libraries; if they are outside the compiler's
+default paths:
 
 ```powershell
 .\nob.exe --cc gcc build `
@@ -86,7 +86,7 @@ The runnable `strlen` example accepts the platform C runtime library as its
 first argument:
 
 ```powershell
-.\nob.exe run examples\interop\ffi\strlen msvcrt.dll
+toy examples\interop\ffi\strlen msvcrt.dll
 ```
 
 Common Unix names include `libc.so.6` on Linux and
@@ -104,6 +104,6 @@ symbol has the declared C type. A wrong signature, invalid returned pointer,
 library bug, or hostile library can corrupt memory or terminate the process.
 Only open trusted libraries and verify signatures against their C headers.
 
-For known APIs, the [binding generator](./bindgen.md) emits a native package
+For known APIs, the [binding generator](./bindgen.md) emits a C-backed package
 whose C compiler sees the declarations. A handwritten package remains the
 choice for custom ownership and richer C types.

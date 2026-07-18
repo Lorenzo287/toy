@@ -48,14 +48,18 @@ navigation and development rules.
 - `tools/toy-lsp/`: Go LSP implementation and generated builtin docs.
 - `tools/toy-lsp/internal/dap/`, `tools/toy-lsp/cmd/toy-dap/`: DAP adapter
   and executable entry point.
+- `tools/toy-lsp/cmd/toy-c-package/`, `tools/toy-lsp/cmd/toy-bindgen/`: installed
+  SDK frontends for native-package compilation and binding generation.
 - `tools/toy-lsp/internal/formatter/`: shared formatter used by the CLI
   and LSP formatting method.
 - `tools/vscode-toy/`: VS Code extension and generated grammar metadata.
 - `.github/workflows/`: CI and release automation.
-- `nob.c`: self-contained build entry point for the runtime, CLI, examples,
-  core packages, native packages, and tests; `tools/nob/build.h` contains
-  compiler and build helpers, while `tools/nob/tests.h` contains the isolated
-  test harness.
+- `install.ps1`, `install.sh`: general installers copied into staged release
+  SDKs; they consume built artifacts and must not rebuild repository tools.
+- `nob.c`: self-contained repository build entry point for the runtime, CLI,
+  examples, tests, and staged SDK distributions; `tools/nob/build.h` contains
+  compiler and distribution helpers, while `tools/nob/tests.h` contains the
+  isolated test harness.
 - `deps/`: vendored `linenoise`, `stb_leakcheck`, and `nob`.
 
 ## Fast Context
@@ -73,8 +77,9 @@ navigation and development rules.
   `include/toy_package.h`; platform loading: `src/tf_native_loader.c`.
 - Experimental libffi core package: `core/ffi/toy_ffi.c`; signature and safety
   contract: `docs/ffi.md`.
-- Explicit-manifest binding generator: `tools/generate-binding.js`; Nob
-  integration: `nob bindgen`; contract: `docs/bindgen.md`.
+- Explicit-manifest binding generator: `tools/generate-binding.js`; installed
+  frontend: `toy-bindgen`; C-package compiler: `toy-c-package`; contract:
+  `docs/bindgen.md`.
 - External shared-package examples: `examples/interop/raylib/toy_raylib.c` and
   `examples/interop/sqlite/toy_sqlite.c`.
 - Context lifecycle and builtin registration: `src/tf_context.c`; stack,
@@ -109,6 +114,9 @@ navigation and development rules.
 - Bootstrap the build with `clang -std=c11 nob.c -o nob.exe`; use
   `.\nob.exe build` and run `.\nob.exe test` for the default suite. Use
   `--mode leak` for ownership, stack-effect, or execution-flow changes.
+- Use `.\nob.exe dist` to stage the consumer SDK. User-facing docs and examples
+  invoke `toy`, `toy-c-package`, `toy-bindgen`, and the installed editor tools;
+  they must not depend on Nob or repository build paths.
 
 ## Development Rules
 

@@ -1,4 +1,4 @@
-\ Import the separately built SQLite native package.
+\ Import the separately built SQLite C package.
 'main package
 
 "../.." 'db import-as

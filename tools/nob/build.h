@@ -1,7 +1,7 @@
 #ifndef TOY_NOB_BUILD_H
 #define TOY_NOB_BUILD_H
 
-/* Compiler configuration, incremental build graph, and native packages. */
+/* Compiler configuration, incremental build graph, and SDK staging. */
 
 typedef enum {
     COMPILER_GCC,
@@ -30,6 +30,7 @@ typedef struct {
     const char *core_package_dir;
     const char *runtime_lib;
     const char *toy_exe;
+    const char *dist_dir;
     File_Paths include_dirs;
     File_Paths library_dirs;
     File_Paths libraries;
@@ -146,33 +147,28 @@ static bool ends_with(const char *value, const char *suffix) {
 
 static void print_usage(const char *program) {
     fprintf(stderr, "Toy build\n\n");
-    fprintf(stderr, "Usage: %s [options] <command> [command args]\n\n",
+    fprintf(stderr, "Usage: %s [options] <command>\n\n",
             program);
     fprintf(stderr, "Commands:\n");
     fprintf(stderr, "  build                 Build the runtime and Toy CLI\n");
     fprintf(stderr, "  test                  Run the default test suite\n");
     fprintf(stderr, "  examples              Build the C embedding examples\n");
-    fprintf(stderr, "  package <dir> <file> Build a native package in its directory\n");
-    fprintf(stderr, "  bindgen <dir> <json>  Generate and build a native package\n");
-    fprintf(stderr, "  run                   Build and run the Toy CLI\n");
+    fprintf(stderr, "  dist                  Stage a complete relocatable Toy SDK\n");
     fprintf(stderr, "  clean                 Remove build outputs\n");
     fprintf(stderr, "  help                  Show this help\n\n");
-    fprintf(stderr, "Nob options (place before run):\n");
+    fprintf(stderr, "Build options:\n");
     fprintf(stderr, "  --cc <compiler>       clang, gcc, msvc, or clang-cl\n");
     fprintf(stderr, "  --mode <mode>         release (default), debug, alloc, leak, profile\n");
     fprintf(stderr, "  -j, --jobs <count>    Maximum parallel compiler processes\n");
     fprintf(stderr, "  --filter <text>       Run matching tests only\n\n");
-    fprintf(stderr, "External dependency options (repeatable):\n");
+    fprintf(stderr, "Core libffi options (repeatable):\n");
     fprintf(stderr, "  --include <directory> Add a C include directory\n");
     fprintf(stderr, "  --lib-dir <directory> Add a library search directory\n");
     fprintf(stderr, "  --lib <name-or-path>  Link a library\n\n");
     fprintf(stderr, "Examples:\n");
     fprintf(stderr, "  nob --mode debug build\n");
-    fprintf(stderr, "  nob --mode debug run --tdb program.toy\n");
     fprintf(stderr, "  nob test --filter package\n");
-    fprintf(stderr, "  nob package vendor/sqlite vendor/sqlite/toy_sqlite.c\n");
-    fprintf(stderr, "  nob bindgen vendor/clib vendor/clib/clib.json\n");
-    fprintf(stderr, "  nob run examples/programs/factorial\n");
+    fprintf(stderr, "  nob dist\n");
 }
 
 static bool parse_compiler(const char *value, Compiler *compiler) {
@@ -244,6 +240,7 @@ static bool configure_paths(Build_Config *config) {
     config->runtime_lib = static_library_path(config, "toy_runtime");
     config->toy_exe = temp_sprintf("%s/toy%s", config->build_dir,
                                    TOY_EXE_SUFFIX);
+    config->dist_dir = temp_sprintf("%s/dist/toy", config->build_dir);
 
     if (!ensure_directory("build")) return false;
     if (!ensure_directory(temp_sprintf("build/%s",
@@ -637,26 +634,13 @@ static bool link_shared_package(const Build_Config *config,
     return cmd_run(&command, .dont_reset = false);
 }
 
-static bool valid_package_name(const char *name) {
-    if (!name || name[0] == '\0') return false;
-    const unsigned char *cursor = (const unsigned char *)name;
-    if (!isalpha(*cursor) && *cursor != '_') return false;
-    for (cursor++; *cursor; ++cursor) {
-        if (!isalnum(*cursor) && *cursor != '_' && *cursor != '-') {
-            return false;
-        }
-    }
-    return true;
-}
-
 static bool write_native_package_manifest(const char *directory,
                                           const char *name,
                                           const char *native_file);
 
 static bool build_native_source(const Build_Config *config,
                                 const char *source, const char *output,
-                                Compile_Commands *compile_commands,
-                                bool force_object_rebuild) {
+                                Compile_Commands *compile_commands) {
     if (!file_exists(source)) {
         nob_log(ERROR, "native package source does not exist: %s", source);
         return false;
@@ -669,9 +653,6 @@ static bool build_native_source(const Build_Config *config,
     da_append(&objects, object);
 
     bool ok = collect_header_dependencies(config, &headers);
-    if (ok && force_object_rebuild && file_exists(object)) {
-        ok = delete_file(object);
-    }
     if (ok) {
         ok = schedule_compile_ex(config, source, object, &headers,
                                  compile_commands, &processes, true);
@@ -682,36 +663,6 @@ static bool build_native_source(const Build_Config *config,
     da_free(processes);
     da_free(headers);
     da_free(objects);
-    return ok;
-}
-
-static bool build_package(const Build_Config *config, const char *directory,
-                          const char *source,
-                          Compile_Commands *compile_commands) {
-    if (!file_exists(directory) || get_file_type(directory) != FILE_DIRECTORY) {
-        nob_log(ERROR, "package directory does not exist: %s", directory);
-        return false;
-    }
-    const char *name = path_name(directory);
-    if (!valid_package_name(name)) {
-        nob_log(ERROR, "package directory name must be a Toy identifier");
-        return false;
-    }
-    if (!file_exists(source)) {
-        nob_log(ERROR, "package source does not exist: %s", source);
-        return false;
-    }
-
-    const char *native_file = temp_sprintf("toy_%s%s", name,
-                                           TOY_SHARED_SUFFIX_VALUE);
-    const char *output = temp_sprintf("%s/%s", directory, native_file);
-    /* External include/link options are not timestamped inputs. Rebuild the
-       small package object on each explicit command so changed options cannot
-       silently reuse an incompatible object or shared library. */
-    bool ok = build_native_source(config, source, output, compile_commands,
-                                  true);
-    if (ok) ok = write_native_package_manifest(directory, name, native_file);
-    if (ok) nob_log(INFO, "built native package %s", output);
     return ok;
 }
 
@@ -759,25 +710,6 @@ static bool run_generator(const Build_Config *config, const char *manifest,
     cmd_append(&command, "node", "tools/generate-binding.js", "--package",
                package_name, manifest, output);
     return cmd_run(&command, .dont_reset = false);
-}
-
-static bool build_generated_package(const Build_Config *config,
-                                    const char *directory,
-                                    const char *manifest,
-                                    Compile_Commands *compile_commands) {
-    if (!file_exists(manifest)) {
-        nob_log(ERROR, "binding manifest does not exist: %s", manifest);
-        return false;
-    }
-    const char *name = path_name(directory);
-    if (!valid_package_name(name)) {
-        nob_log(ERROR, "package directory name must be a Toy identifier");
-        return false;
-    }
-    const char *generated = temp_sprintf("%s/generated/toy_%s.c",
-                                         config->build_dir, name);
-    if (!run_generator(config, manifest, generated, name)) return false;
-    return build_package(config, directory, generated, compile_commands);
 }
 
 static bool build_examples(const Build_Config *config,
@@ -850,7 +782,7 @@ static bool build_core_ffi(const Build_Config *config,
     }
     const char *output = temp_sprintf("%s/%s", directory, native_file);
     bool ok = build_native_source(&ffi_config, "core/ffi/toy_ffi.c", output,
-                                  compile_commands, false);
+                                  compile_commands);
     if (ok) ok = write_native_package_manifest(directory, "ffi", native_file);
     da_free(ffi_config.libraries);
     if (ok) nob_log(INFO, "built core package %s", output);
@@ -910,6 +842,174 @@ static bool remove_tree(const char *path) {
     }
     da_free(children);
     return ok && delete_file(path);
+}
+
+static bool copy_sdk_file(const char *source, const char *destination) {
+    if (!file_exists(source)) {
+        nob_log(ERROR, "distribution input does not exist: %s", source);
+        return false;
+    }
+    return copy_file(source, destination);
+}
+
+static bool sdk_tree_directory_allowed(const char *name) {
+    return name[0] != '.' && strcmp(name, "build") != 0 &&
+           strcmp(name, "bin") != 0 && strcmp(name, "obj") != 0 &&
+           strcmp(name, "generated") != 0 &&
+           strcmp(name, "node_modules") != 0;
+}
+
+static bool sdk_tree_file_allowed(const char *name, bool documentation) {
+    if (documentation) return ends_with(name, ".md");
+    if (strcmp(name, "generated.c") == 0) return false;
+    return strcmp(name, ".toyfmt") == 0 || ends_with(name, ".md") ||
+           ends_with(name, ".toy") || ends_with(name, ".json") ||
+           ends_with(name, ".c") || ends_with(name, ".h") ||
+           ends_with(name, ".csv") || ends_with(name, ".sql") ||
+           ends_with(name, ".png") || ends_with(name, ".jpg") ||
+           ends_with(name, ".jpeg") || ends_with(name, ".gif") ||
+           ends_with(name, ".svg") || ends_with(name, ".webp");
+}
+
+static bool copy_sdk_tree(const char *source, const char *destination,
+                          bool documentation) {
+    if (!ensure_directory(destination)) return false;
+
+    File_Paths children = {0};
+    if (!read_entire_dir(source, &children)) return false;
+    bool ok = true;
+    for (size_t i = 0; ok && i < children.count; ++i) {
+        const char *name = children.items[i];
+        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+        const char *source_path = temp_sprintf("%s/%s", source, name);
+        const char *destination_path = temp_sprintf("%s/%s", destination,
+                                                    name);
+        Nob_File_Type type = get_file_type(source_path);
+        if (type == FILE_DIRECTORY) {
+            if (sdk_tree_directory_allowed(name)) {
+                ok = copy_sdk_tree(source_path, destination_path,
+                                   documentation);
+            }
+        } else if (sdk_tree_file_allowed(name, documentation)) {
+            ok = copy_sdk_file(source_path, destination_path);
+        }
+    }
+    da_free(children);
+    return ok;
+}
+
+static bool build_sdk_tool(const char *root, const Build_Config *config,
+                           const char *name) {
+    const char *output = temp_sprintf("%s/%s/bin/%s%s", root,
+                                      config->dist_dir, name,
+                                      TOY_EXE_SUFFIX);
+    Cmd command = {0};
+    cmd_append(&command, "go", "-C", "tools/toy-lsp", "build", "-o",
+               output, temp_sprintf("./cmd/%s", name));
+    return cmd_run(&command, .dont_reset = false);
+}
+
+static bool check_distribution_prerequisites(void) {
+    if (!program_on_path("go")) {
+        nob_log(ERROR, "Go is required to build the SDK tooling");
+        return false;
+    }
+    if (!file_exists("tools/tree-sitter-toy/src/parser.c") ||
+        !file_exists("tools/toy-lsp/internal/parser/toy/parser.c")) {
+        nob_log(ERROR,
+                "generated Tree-sitter parsers are missing; run npm ci, npm "
+                "rebuild tree-sitter-cli, and npm run generate in "
+                "tools/tree-sitter-toy");
+        return false;
+    }
+    return true;
+}
+
+static bool build_distribution(const Build_Config *config, const char *root) {
+    const char *dist_parent = temp_sprintf("%s/dist", config->build_dir);
+    Nob_Log_Level previous_level = minimal_log_level;
+    minimal_log_level = WARNING;
+    bool removed = remove_tree(dist_parent);
+    minimal_log_level = previous_level;
+    if (!removed || !ensure_directory(dist_parent) ||
+        !ensure_directory(config->dist_dir)) {
+        return false;
+    }
+    const char *bin = temp_sprintf("%s/bin", config->dist_dir);
+    const char *include = temp_sprintf("%s/include", config->dist_dir);
+    const char *lib = temp_sprintf("%s/lib", config->dist_dir);
+    const char *share = temp_sprintf("%s/share", config->dist_dir);
+    const char *toy_share = temp_sprintf("%s/toy", share);
+    const char *bindgen_share = temp_sprintf("%s/bindgen", toy_share);
+    const char *tree_sitter = temp_sprintf("%s/tree-sitter-toy", toy_share);
+    if (!ensure_directory(bin) || !ensure_directory(include) ||
+        !ensure_directory(lib) || !ensure_directory(share) ||
+        !ensure_directory(toy_share) || !ensure_directory(bindgen_share) ||
+        !ensure_directory(tree_sitter)) {
+        return false;
+    }
+
+    bool ok = copy_sdk_file(
+        config->toy_exe,
+        temp_sprintf("%s/toy%s", bin, TOY_EXE_SUFFIX));
+    if (ok) {
+        ok = copy_directory_recursively(
+            config->core_package_dir,
+            temp_sprintf("%s/core", config->dist_dir));
+    }
+    if (ok) {
+        ok = copy_sdk_file("include/toy.h", temp_sprintf("%s/toy.h", include)) &&
+             copy_sdk_file("include/toy_package.h",
+                           temp_sprintf("%s/toy_package.h", include));
+    }
+    if (ok) {
+        ok = copy_sdk_file(config->runtime_lib,
+                           temp_sprintf("%s/%s", lib,
+                                        path_name(config->runtime_lib)));
+    }
+    if (ok) {
+        ok = copy_sdk_file(
+            "tools/generate-binding.js",
+            temp_sprintf("%s/generate-binding.js", bindgen_share));
+    }
+    if (ok) {
+        ok = copy_directory_recursively(
+                 "tools/tree-sitter-toy/src",
+                 temp_sprintf("%s/src", tree_sitter)) &&
+             copy_directory_recursively(
+                 "tools/tree-sitter-toy/queries",
+                 temp_sprintf("%s/queries", tree_sitter)) &&
+             copy_sdk_file("tools/tree-sitter-toy/grammar.js",
+                           temp_sprintf("%s/grammar.js", tree_sitter)) &&
+             copy_sdk_file("tools/tree-sitter-toy/tree-sitter.json",
+                           temp_sprintf("%s/tree-sitter.json", tree_sitter));
+    }
+    if (ok) {
+        ok = copy_sdk_tree(
+                 "examples", temp_sprintf("%s/examples", config->dist_dir),
+                 false) &&
+             copy_sdk_tree("docs",
+                           temp_sprintf("%s/docs", config->dist_dir), true);
+    }
+    if (ok) {
+        ok = copy_sdk_file("README.md",
+                           temp_sprintf("%s/README.md", config->dist_dir)) &&
+             copy_sdk_file("LICENSE",
+                           temp_sprintf("%s/LICENSE", config->dist_dir)) &&
+             copy_sdk_file("install.ps1",
+                           temp_sprintf("%s/install.ps1", config->dist_dir)) &&
+             copy_sdk_file("install.sh",
+                           temp_sprintf("%s/install.sh", config->dist_dir));
+    }
+
+    const char *tools[] = {
+        "toy-lsp", "toy-dap", "toyfmt", "toy-bindgen", "toy-c-package",
+    };
+    for (size_t i = 0; ok && i < ARRAY_LEN(tools); ++i) {
+        ok = build_sdk_tool(root, config, tools[i]);
+    }
+    if (ok) nob_log(INFO, "staged Toy SDK at %s", config->dist_dir);
+    return ok;
 }
 
 #endif  // TOY_NOB_BUILD_H

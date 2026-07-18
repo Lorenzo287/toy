@@ -1,13 +1,19 @@
 const vscode = require('vscode');
 const { LanguageClient, TransportKind } = require('vscode-languageclient');
 const vscode_languageclient = require('vscode-languageclient');
+const fs = require('fs');
 const path = require('path');
 
 let client;
 
 function activate(context) {
     const exe = process.platform === 'win32' ? 'toy-lsp.exe' : 'toy-lsp';
-    const serverPath = path.join(context.extensionPath, 'bin', exe);
+    const configuredPath = vscode.workspace
+        .getConfiguration('toy')
+        .get('lsp.path', '');
+    const bundledPath = path.join(context.extensionPath, 'bin', exe);
+    const serverPath = configuredPath ||
+        (fs.existsSync(bundledPath) ? bundledPath : exe);
 
     const serverOptions = {
         command: serverPath,

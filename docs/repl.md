@@ -7,7 +7,7 @@ catalog, ask for a word's docs, try a small expression, and immediately see the
 stack.
 
 ```powershell
-.\nob.exe run
+toy
 ```
 
 ## Interactive Discovery
@@ -144,13 +144,13 @@ earlier REPL inputs and qualified words from imported packages.
 To debug a file or an evaluated source string directly from PowerShell:
 
 ```powershell
-.\nob.exe run --tdb --eval-file program.toy
-.\nob.exe run --tdb examples\programs\factorial
-.\nob.exe run --tdb --eval "1 2 + print"
+toy --tdb --eval-file program.toy
+toy --tdb examples\programs\factorial
+toy --tdb --eval "1 2 + print"
 ```
 
 The process exits when package, file, or `--eval` execution finishes. Running
-`.\nob.exe run --tdb` without one starts the REPL with tdb already armed. In an
+`toy --tdb` without one starts the REPL with tdb already armed. In an
 existing REPL, import a package and call one of its qualified words to step
 through that package's source.
 

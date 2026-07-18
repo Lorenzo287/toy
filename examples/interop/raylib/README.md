@@ -1,6 +1,6 @@
 # Raylib Interop Example
 
-This directory exposes Raylib as an ordinary native Toy package. Raylib is not
+This directory exposes Raylib as an ordinary C-backed Toy package. Raylib is not
 a Toy runtime dependency or core integration.
 
 The C adapter is handwritten because it translates by-value structs and packed
@@ -11,7 +11,7 @@ After installing a Raylib build compatible with your compiler, build the
 package in place. A typical Windows command is:
 
 ```powershell
-.\nob.exe package examples\interop\raylib `
+toy-c-package examples\interop\raylib `
     examples\interop\raylib\toy_raylib.c `
     --include C:\raylib\include `
     --lib C:\raylib\lib\raylib.lib `
@@ -19,12 +19,12 @@ package in place. A typical Windows command is:
 ```
 
 Static Raylib builds or other platforms may need the system libraries
-documented by their Raylib distribution. The command writes the native library
+documented by their Raylib distribution. The command writes the shared library
 and `toy.package` into this directory. Run either package:
 
 ```powershell
-.\nob.exe run examples\interop\raylib\demos\shapes
-.\nob.exe run examples\interop\raylib\demos\texture path\to\image.png
+toy examples\interop\raylib\demos\shapes
+toy examples\interop\raylib\demos\texture path\to\image.png
 ```
 
 Both demos import `../..`, so no global installation or search path is needed.

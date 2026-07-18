@@ -30,52 +30,28 @@ It uses the Tree-sitter parser for indexing and providing IDE features.
   a `core` directory beneath an initialized workspace root when source exists.
 
 Imports assembled dynamically in root evaluation cannot be inferred
-statically. Native packages have no Toy source definition to jump to. Completion,
+statically. C-backed packages have no Toy source definition to jump to. Completion,
 diagnostics, semantic tokens, and workspace-symbol search are not implemented
 yet.
 
 ## Getting Started
 
-> [!IMPORTANT]
-> The LSP relies on the Tree-sitter parser for code analysis. Generate and
-> synchronize it from `tools/tree-sitter-toy` with `npm run generate`
-> before running or building the LSP.
-
-### Run from Source
-
-From `tools/toy-lsp`:
+`toy-lsp` is prebuilt in every Toy SDK. After installing Toy, verify that the
+server is available with:
 
 ```powershell
-go run ./cmd/toy-lsp
-```
-
-### Build Executable
-
-From `tools/toy-lsp`:
-
-```powershell
-go build -o toy-lsp.exe ./cmd/toy-lsp
-./toy-lsp.exe
+Get-Command toy-lsp
 ```
 
 ## Editor Setup
 
 ### Neovim
 
-You can use the automated installation script to generate the Tree-sitter
-parser, build and install the LSP and `toyfmt`, install the local grammar, and
-remove stale generated Neovim parser/query artifacts:
-
-- **Windows**: `.\tools\install-nvim.ps1`
-- **Linux/macOS**: `bash tools/install-nvim.sh`
-
-Follow the instructions printed by the script to update your Neovim config. After adding the printed Tree-sitter snippet, restart Neovim and run `:TSInstall! toy`. See [Toy Tree-sitter](tree-sitter.md) for the manual parser setup.
-
-Alternatively, register the LSP manually:
+Register the installed server directly:
 
 ```lua
 vim.lsp.config('toyls', {
-  cmd = { 'path/to/toy-lsp.exe' },
+  cmd = { 'toy-lsp' },
   filetypes = { 'toy' },
   root_markers = { '.git', 'README.md' },
 })
@@ -94,6 +70,19 @@ Formatting behavior and `.toyfmt` configuration are documented in the
 [formatter guide](formatter.md).
 
 ## Development
+
+The source server relies on the generated Tree-sitter parser. From a clean
+checkout, and again after grammar changes, install the pinned generator and
+regenerate the parser before running or building the LSP:
+
+```powershell
+Set-Location tools\tree-sitter-toy
+npm ci --ignore-scripts
+npm rebuild tree-sitter-cli
+npm run generate
+Set-Location ..\toy-lsp
+go run ./cmd/toy-lsp
+```
 
 ### Verification
 

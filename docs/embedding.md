@@ -1,7 +1,7 @@
 # Embedding Toy in C
 
-Toy builds a static `toy_runtime` library alongside the `toy` command-line
-executable. The experimental API in `include/toy.h` lets a C host
+The Toy SDK ships a static `toy_runtime` library and `include/toy.h` alongside
+the command-line tools. The experimental API lets a C host
 create an interpreter state, evaluate source, call Toy words, inspect primitive
 or opaque resource stack values, retain arbitrary Toy values, traverse basic
 collections, and register synchronous native words or packages.
@@ -18,20 +18,20 @@ binary-safe Toy output, redirects diagnostics separately, and inspects a
 detailed parser error.
 [`examples/embedding/values.c`](../examples/embedding/values.c) constructs
 structured input, traverses a returned map, and calls a retained Toy quotation.
-Build and run the examples from the repository root:
+From the root of a Windows GCC SDK, build a host exactly as an external project
+would:
 
 ```powershell
-.\nob.exe examples
-.\build\clang\release\toy_embed_example.exe
-.\build\clang\release\toy_embed_callbacks_example.exe
-.\build\clang\release\toy_embed_values_example.exe
+gcc -std=c11 examples\embedding\embed.c -Iinclude `
+    lib\libtoy_runtime.a -luser32 -o embed.exe
+.\embed.exe
 ```
 
-The command builds `toy_runtime` and links each host against it. A separate C
-project can use `include/toy.h` and link the archive from the matching
-`build/<compiler>/<mode>/` directory. Use the same compiler ABI, and add the
-platform libraries used by the runtime (`user32` on Windows; `m` and, outside
-macOS, `dl` on Unix).
+On Unix, use the archive shipped for that platform and link `m` plus `dl`
+outside macOS. Use the same compiler ABI as the distributed archive. A source
+checkout can still run `.\nob.exe examples` to build all three repository
+hosts as regressions; that is a maintainer workflow rather than a prerequisite
+for embedding Toy.
 
 Nob's `compile_commands.json` records the concrete commands used by the bundled
 hosts and is a useful reference for another build system.
@@ -104,7 +104,7 @@ The main statuses are:
 - `TOY_EXIT_REQUESTED`: Toy executed `exit`; the host decides whether its
   process should terminate.
 
-## Host-Registered Native Packages
+## Host-Registered C Packages
 
 A descriptor groups local C word names under one Toy package:
 
@@ -140,7 +140,7 @@ previously registered qualified words. The callback functions themselves must
 remain valid for the lifetime of the state. `toy_register_word()` remains
 available for standalone root words that do not need package identity.
 
-## Shared Native Packages
+## Shared C Packages
 
 `include/toy_package.h` defines shared-package ABI version 1. A package exports
 the fixed `toy_package_init` entry point, accepts the ABI version and size-tagged
@@ -196,11 +196,11 @@ name = sample
 native = toy_sample.dll
 ```
 
-Use the platform suffix in the real manifest. Nob creates both artifacts as a
-repository convenience:
+Use the platform suffix in the real manifest. The installed SDK tool creates
+both artifacts and supplies the correct public-header path:
 
 ```powershell
-.\nob.exe package vendor\sample vendor\sample\sample.c
+toy-c-package vendor\sample vendor\sample\sample.c
 ```
 
 Use repeatable `--include`, `--lib-dir`, and `--lib` options for additional
@@ -257,7 +257,7 @@ strings. A string item is a copied one-byte string, matching Toy's language
 semantics. `toy_map_size()` and `toy_map_entry()` traverse maps in insertion
 order; each successful entry access returns two new retained values.
 
-Construction remains stack-oriented so hosts and native packages can reuse the
+Construction remains stack-oriented so hosts and C packages can reuse the
 primitive push API:
 
 ```c
@@ -320,11 +320,11 @@ than reconstructable source.
 
 ## Raylib Interop Example
 
-`examples/interop/raylib/` demonstrates a real native package built on this API.
-It is an external-library example rather than a runtime feature: the generic
-`nob package` command builds it in its directory, and the normal CLI imports
-that exact path. The window loop, close predicate, frame boundaries, and
-drawing calls are ordinary Toy code.
+`examples/interop/raylib/` demonstrates a real C-backed package built on this API.
+It is an external-library example rather than a runtime feature: `toy-c-package`
+builds it in its directory, and the normal CLI imports that exact path. The
+window loop, close predicate, frame boundaries, and drawing calls are ordinary
+Toy code.
 
 After installing Raylib, build it with the required include and library options;
 see the [example README](../examples/interop/raylib/README.md). The package

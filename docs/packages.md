@@ -40,7 +40,7 @@ project/
 Run the executable package by passing its directory to Toy:
 
 ```powershell
-.\nob.exe run project\app
+toy project\app
 ```
 
 The CLI accepts only a package named `main` as an executable and invokes its
@@ -99,8 +99,9 @@ Without an alias, the package's declared name becomes the qualifier:
 The dot means namespace qualification, never path traversal. Paths look like
 paths; calls look like `package.word`.
 
-The CLI finds `core:` packages in the `core` directory beside the Toy
-executable. `--core-path DIR` overrides that location. Embedders set
+The installed CLI finds `core:` packages in the SDK's `core` directory. A
+source-tree build also accepts `core` beside the executable. `--core-path DIR`
+overrides either location. Embedders set
 `toy_state_config.core_package_path` explicitly.
 
 ## Evaluation Outside Packages
@@ -110,8 +111,8 @@ turning a file into a package. They are useful for short scripts, tests, and
 debugger sessions:
 
 ```powershell
-.\nob.exe run --eval "1 2 + print"
-.\nob.exe run --eval-file tools\inspect.toy
+toy --eval "1 2 + print"
+toy --eval-file tools\inspect.toy
 ```
 
 `--eval-file` may be repeated; each file runs in the same state. Root code can
@@ -119,25 +120,29 @@ also use `import` and qualified package words; its relative imports use the
 process working directory because root evaluation has no package directory.
 There is no language-level `load` word.
 
-## Native and External-Library Packages
+## C-Backed and External-Library Packages
 
-A package directory may contain a `toy.package` manifest:
+A C-backed package is a Toy package whose implementation includes machine code
+compiled into a shared library. Its directory contains a `toy.package`
+manifest:
 
 ```text
 name = sqlite
 native = toy_sqlite.dll
 ```
 
-`native` is an exact path relative to the package directory (or an absolute
-path). Its suffix is platform-specific. The library exports Toy's versioned
-native-package descriptor from `include/toy_package.h`; its descriptor name,
-manifest name, and any source-package declaration must agree. A directory can
-be native-only or combine native words with Toy definitions.
+`native` is the manifest's name for that compiled `.dll`, `.so`, or `.dylib`.
+It is an exact path relative to the package directory (or an absolute path).
+The library exports Toy's versioned package descriptor from
+`include/toy_package.h`; its descriptor name, manifest name, and any
+source-package declaration must agree. A directory can be C-only or combine C
+words with Toy definitions.
 
-The build helper creates both the shared library and manifest in place:
+The installed C-package builder creates both the shared library and
+manifest in place:
 
 ```powershell
-.\nob.exe package vendor\sqlite vendor\sqlite\toy_sqlite.c `
+toy-c-package vendor\sqlite vendor\sqlite\toy_sqlite.c `
     --include C:\sqlite\include `
     --lib-dir C:\sqlite\lib `
     --lib sqlite3
@@ -158,7 +163,7 @@ normal system or project build process.
 
 A header supplies declarations, not implementation. At build time:
 
-- a static `.a` or `.lib` is linked into the native Toy package;
+- a static `.a` or `.lib` is linked into the C-backed Toy package;
 - a shared `.so`, `.dylib`, or `.dll` is linked through its import library or
   loaded explicitly, and the operating-system loader must be able to find its
   runtime dependencies;
@@ -173,12 +178,14 @@ shared-library lookup.
 1. Dynamic FFI: import `core:ffi`, open a shared library by an explicit path or
    platform name, declare a supported signature, and call it. This needs no C
    wrapper but offers the smallest type and ownership boundary.
-2. Generated binding: write an explicit JSON manifest and run
-   `nob bindgen <package-dir> <manifest.json>`. Toy generates a C wrapper,
-   compiles it, and writes `toy.package` in that directory.
-3. Handwritten binding: implement callbacks with `toy_package.h` and run
-   `nob package`. This covers structs, callbacks, custom validation, and
-   library-specific ownership rules that the generator cannot express.
+2. Generated binding: write an explicit JSON manifest, emit its C wrapper with
+   `toy-bindgen`, then compile it with `toy-c-package`. The tools are shipped in
+   the SDK and write the shared library and `toy.package` in the target
+   directory.
+3. Handwritten binding: implement callbacks with `toy_package.h` and compile
+   the adapter with `toy-c-package`. This covers structs, callbacks, custom
+   validation, and library-specific ownership rules that the generator cannot
+   express.
 
 `core:ffi` is an official package maintained and built with Toy. Raylib,
 SQLite, and similar bindings remain ordinary project packages even when the

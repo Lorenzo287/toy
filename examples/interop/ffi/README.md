@@ -5,7 +5,7 @@ argument, and calls `strlen`. The normal Toy build already compiles the FFI
 package:
 
 ```powershell
-.\nob.exe run examples\interop\ffi\strlen msvcrt.dll
+toy examples\interop\ffi\strlen msvcrt.dll
 ```
 
 Use the appropriate C runtime library name on other platforms. See

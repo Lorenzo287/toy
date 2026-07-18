@@ -24,16 +24,15 @@ official `core:ffi` package is built with the CLI.
 .\nob.exe test
 .\nob.exe test --filter package
 .\nob.exe examples
-.\nob.exe run examples\programs\factorial
-.\nob.exe run --eval-file examples\eval\quines\quine.toy
+.\nob.exe dist
 .\nob.exe clean
 ```
 
-For `run`, put Nob options before the command. Every argument after `run` is
-forwarded directly to Toy:
+Run the resulting interpreter directly:
 
 ```powershell
-.\nob.exe --mode debug run --tdb --eval-file script.toy
+.\build\gcc\release\toy.exe examples\programs\factorial
+.\build\gcc\release\toy.exe --eval-file examples\eval\quines\quine.toy
 ```
 
 `build` produces the Toy CLI, the `toy_runtime` static archive used by C hosts,
@@ -44,6 +43,19 @@ the `core` directory beside its executable. The build also writes
 The complete `test` command runs isolated positive, negative, and golden-output
 Toy cases, package integration cases, debugger transport tests, C embedding
 and native-loader tests, and the binding-generator tests.
+
+`dist` stages the complete consumer SDK under
+`build/<compiler>/<mode>/dist/toy`. It builds the runtime first, then the
+precompiled Go tooling, and copies public headers, core packages, generator and
+Tree-sitter assets, examples, docs, and installation scripts. Release archives
+contain that directory unchanged. The generated Tree-sitter C parser must
+exist first; follow the source-generation commands in the
+[installation guide](./installation.md#building-the-sdk-from-source).
+
+Nob is only the repository build orchestrator. It deliberately does not run
+user programs, compile user C packages, or expose binding generation.
+Those workflows belong to `toy`, `toy-c-package`, and `toy-bindgen` from the
+staged or installed SDK.
 
 ## Compilers and Modes
 
@@ -90,23 +102,27 @@ The `examples` command builds the C hosts under `examples/embedding/`:
 Use the directory matching the selected compiler and mode. The examples link
 the same `toy_runtime` archive produced by `build`.
 
-## Native Packages and External Libraries
+## C-Backed Packages and External Libraries
 
-A shared native package includes `include/toy_package.h`. Define
+A C-backed package includes `include/toy_package.h`. Define
 `TOY_PACKAGE_IMPLEMENTATION` before including it in exactly one C file; the
 header supplies the host-table forwarding layer, so no Toy support library is
 linked into the package.
 
-Create a package directory, then build its C source in place:
+Stage or install the SDK, create a package directory, then build its C source
+with the consumer tool:
 
 ```powershell
-.\nob.exe package vendor\sample vendor\sample\sample.c
+.\nob.exe dist
+.\build\gcc\release\dist\toy\bin\toy-c-package.exe `
+    vendor\sample vendor\sample\sample.c
 ```
 
-The directory basename is the package name. Nob creates the platform-specific
-shared library and a `toy.package` manifest in that directory. The C export
-descriptor must report the same name. Unlike `build`, `package` does not build
-the Toy CLI first.
+The directory basename is the package name. `toy-c-package` creates the
+platform-specific shared library and a `toy.package` manifest in that
+directory. The C export
+descriptor must report the same name. Outside repository development, invoke
+`toy-c-package` from `PATH` without the build-directory prefix.
 
 For external dependencies, repeat these options as needed:
 
@@ -119,7 +135,7 @@ For external dependencies, repeat these options as needed:
 For example:
 
 ```powershell
-.\nob.exe package vendor\image vendor\image\image.c `
+toy-c-package vendor\image vendor\image\image.c `
     --include C:\deps\image\include `
     --lib-dir C:\deps\image\lib `
     --lib image
@@ -137,19 +153,22 @@ The package can then be imported by its exact directory:
 "../vendor/image" import
 ```
 
-See [Packages and Imports](./packages.md#native-and-external-library-packages)
+See [Packages and Imports](./packages.md#c-backed-and-external-library-packages)
 for the runtime model and [`examples/interop/`](../examples/interop/) for
 handwritten Raylib and SQLite adapters.
 
 ## Generated Bindings
 
-The `bindgen` command runs the Node.js generator and compiles its result into
-the specified package directory:
+The installed generator emits C, and `toy-c-package` compiles that C into the
+specified package directory:
 
 ```powershell
-.\nob.exe bindgen examples\interop\bindgen\clib `
-    examples\interop\bindgen\clib\clib.json
-.\nob.exe run examples\interop\bindgen\demos\clib
+toy-bindgen --package clib `
+    examples\interop\bindgen\clib\clib.json `
+    examples\interop\bindgen\clib\generated.c
+toy-c-package examples\interop\bindgen\clib `
+    examples\interop\bindgen\clib\generated.c
+toy examples\interop\bindgen\demos\clib
 ```
 
 Pass external include and library options when the manifest refers to a
@@ -160,7 +179,7 @@ manifest contract.
 
 The normal build compiles `core/ffi/toy_ffi.c` and links it with libffi. If the
 headers or library are outside the compiler's default paths, pass their
-locations to `build`, `run`, or `test`:
+locations to `build`, `test`, or `dist`:
 
 ```powershell
 .\nob.exe --cc gcc build `

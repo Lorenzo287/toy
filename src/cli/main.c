@@ -5,6 +5,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #else
+#include <sys/stat.h>
 #include <unistd.h>
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
@@ -202,20 +203,46 @@ static int parse_args(int argc, char **argv, cli_config *config) {
     return TF_OK;
 }
 
-static char *append_core_directory(const char *executable) {
+static char *append_executable_directory(const char *executable,
+                                         const char *suffix) {
     const char *slash = strrchr(executable, '/');
     const char *backslash = strrchr(executable, '\\');
     const char *separator = slash;
     if (backslash && (!separator || backslash > separator)) {
         separator = backslash;
     }
-    if (!separator) return tf_xstrdup("core");
+    if (!separator) return tf_xstrdup(suffix[0] == '/' ? suffix + 1 : suffix);
 
     size_t directory_len = (size_t)(separator - executable);
-    char *path = tf_xmalloc(directory_len + sizeof("/core"));
+    size_t suffix_len = strlen(suffix);
+    char *path = tf_xmalloc(directory_len + suffix_len + 1);
     memcpy(path, executable, directory_len);
-    memcpy(path + directory_len, "/core", sizeof("/core"));
+    memcpy(path + directory_len, suffix, suffix_len + 1);
     return path;
+}
+
+static bool directory_exists(const char *path) {
+#ifdef _WIN32
+    DWORD attributes = GetFileAttributesA(path);
+    return attributes != INVALID_FILE_ATTRIBUTES &&
+           (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+#else
+    struct stat info;
+    return stat(path, &info) == 0 && S_ISDIR(info.st_mode);
+#endif
+}
+
+static char *core_directory_for_executable(const char *executable) {
+    char *beside_executable = append_executable_directory(executable, "/core");
+    if (directory_exists(beside_executable)) return beside_executable;
+
+    char *in_sdk_root = append_executable_directory(executable, "/../core");
+    if (directory_exists(in_sdk_root)) {
+        free(beside_executable);
+        return in_sdk_root;
+    }
+    free(in_sdk_root);
+    return beside_executable;
 }
 
 static char *default_core_path(const char *argv0) {
@@ -226,7 +253,7 @@ static char *default_core_path(const char *argv0) {
         DWORD len = GetModuleFileNameA(NULL, executable, cap);
         if (len > 0 && len < cap) {
             executable[len] = '\0';
-            char *path = append_core_directory(executable);
+            char *path = core_directory_for_executable(executable);
             free(executable);
             return path;
         }
@@ -241,7 +268,8 @@ static char *default_core_path(const char *argv0) {
         char *executable = tf_xmalloc(cap);
         if (_NSGetExecutablePath(executable, &cap) == 0) {
             char *resolved = realpath(executable, NULL);
-            char *path = append_core_directory(resolved ? resolved : executable);
+            char *path = core_directory_for_executable(
+                resolved ? resolved : executable);
             free(resolved);
             free(executable);
             return path;
@@ -254,9 +282,9 @@ static char *default_core_path(const char *argv0) {
                            sizeof(executable) - 1);
     if (len > 0) {
         executable[len] = '\0';
-        return append_core_directory(executable);
+        return core_directory_for_executable(executable);
     }
 #endif
 #endif
-    return append_core_directory(argv0);
+    return core_directory_for_executable(argv0);
 }

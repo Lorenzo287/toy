@@ -22,22 +22,12 @@ capture values are displayed in source form but collections are not expandable
 yet. Conditional breakpoints, log points, watches, evaluation, attach, restart,
 and asynchronous pause are not currently advertised.
 
-## Build
+## Installation
 
-Build the Toy runtime first:
-
-```powershell
-.\nob.exe build
-```
-
-Then build the adapter from `tools/toy-lsp`:
-
-```powershell
-go build -o toy-dap.exe ./cmd/toy-dap
-```
-
-The adapter uses standard DAP framing on stdin/stdout. It normally runs under
-an editor rather than directly in a terminal.
+`toy-dap` is prebuilt in every Toy SDK. It uses standard DAP framing on
+stdin/stdout and normally runs under an editor rather than directly in a
+terminal. The adapter finds the `toy` executable beside itself, then falls back
+to `PATH`; `runtimeExecutable` remains available as an explicit override.
 
 ## Neovim
 
@@ -48,7 +38,7 @@ local dap = require("dap")
 
 dap.adapters.toy = {
     type = "executable",
-    command = "C:/path/to/toy/tools/toy-lsp/toy-dap.exe",
+    command = "toy-dap",
     options = { detached = false }, -- useful on Windows
 }
 
@@ -59,7 +49,6 @@ dap.configurations.toy = {
         name = "Debug current Toy file",
         program = "${file}",
         cwd = "${workspaceFolder}",
-        runtimeExecutable = "C:/path/to/toy/build/clang/release/toy.exe",
         stopOnEntry = true,
         args = {},
     },
@@ -70,9 +59,6 @@ With a Toy buffer open, normal `nvim-dap` actions set breakpoints, launch the
 session, continue, step, and open its REPL or widgets. Setting `stopOnEntry` to
 `false` starts execution immediately and stops at the first configured
 breakpoint.
-
-The repository's Neovim installation scripts build `toy-dap` and print a
-configuration using the local repository and installation paths.
 
 ## Runtime Boundary
 

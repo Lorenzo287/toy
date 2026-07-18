@@ -14,3 +14,12 @@ language:
 
 Correctness regressions belong under `tests/`; these files are intended to be
 read and run by users.
+
+With an installed SDK, run an executable package directly:
+
+```powershell
+toy examples\programs\factorial
+```
+
+Interop examples use the installed `toy-c-package` and `toy-bindgen` tools. Their
+individual READMEs include the required compiler and foreign-library options.

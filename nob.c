@@ -21,16 +21,6 @@
 
 #include "tools/nob/tests.h"
 
-static bool run_toy(const Build_Config *config, char **arguments,
-                    int argument_count) {
-    Cmd command = {0};
-    cmd_append(&command, config->toy_exe);
-    for (int i = 0; i < argument_count; ++i) {
-        cmd_append(&command, arguments[i]);
-    }
-    return cmd_run(&command, .dont_reset = false);
-}
-
 int main(int argc, char **argv) {
     GO_REBUILD_URSELF_PLUS(argc, argv, "deps/nob/nob.h",
                            "tools/nob/build.h",
@@ -44,20 +34,10 @@ int main(int argc, char **argv) {
         .jobs = (size_t)nprocs(),
         .test_filter = NULL,
     };
-    char **program_arguments = NULL;
-    int program_argument_count = 0;
-    const char *target_directory = NULL;
-    const char *target_source = NULL;
-
     while (argc > 0) {
         const char *argument = shift(argv, argc);
         if (!command && argument[0] != '-') {
             command = argument;
-            if (strcmp(command, "run") == 0) {
-                program_arguments = argv;
-                program_argument_count = argc;
-                argc = 0;
-            }
         } else if (strcmp(argument, "--cc") == 0) {
             if (argc == 0 || !parse_compiler(shift(argv, argc),
                                               &config.compiler)) {
@@ -120,16 +100,6 @@ int main(int argc, char **argv) {
                    strcmp(argument, "--help") == 0) {
             print_usage(program);
             return 0;
-        } else if (command && (strcmp(command, "package") == 0 ||
-                              strcmp(command, "bindgen") == 0) &&
-                   argument[0] != '-') {
-            if (!target_directory) target_directory = argument;
-            else if (!target_source) target_source = argument;
-            else {
-                nob_log(ERROR, "%s accepts exactly one directory and input file",
-                        command);
-                return 1;
-            }
         } else {
             nob_log(ERROR, "unknown option: %s", argument);
             print_usage(program);
@@ -152,17 +122,13 @@ int main(int argc, char **argv) {
     }
     if (strcmp(command, "build") != 0 && strcmp(command, "test") != 0 &&
         strcmp(command, "examples") != 0 &&
-        strcmp(command, "package") != 0 &&
-        strcmp(command, "bindgen") != 0 && strcmp(command, "run") != 0) {
+        strcmp(command, "dist") != 0) {
         nob_log(ERROR, "unknown command: %s", command);
         print_usage(program);
         return 1;
     }
-    if ((strcmp(command, "package") == 0 ||
-         strcmp(command, "bindgen") == 0) &&
-        (!target_directory || !target_source)) {
-        nob_log(ERROR, "%s requires a package directory and %s file", command,
-                strcmp(command, "package") == 0 ? "C source" : "JSON manifest");
+    if (strcmp(command, "dist") == 0 &&
+        !check_distribution_prerequisites()) {
         return 1;
     }
     if (!program_on_path(compiler_executable(config.compiler))) {
@@ -190,26 +156,18 @@ int main(int argc, char **argv) {
     bool needs_core = strcmp(command, "build") == 0 ||
                       strcmp(command, "test") == 0 ||
                       strcmp(command, "examples") == 0 ||
-                      strcmp(command, "run") == 0;
+                      strcmp(command, "dist") == 0;
     bool ok = !needs_core || build_core(&config, &compile_commands);
     if (ok && strcmp(command, "test") == 0) {
         ok = run_all_tests(&config, root, &compile_commands);
     }
-    if (ok && strcmp(command, "package") == 0) {
-        ok = build_package(&config, target_directory, target_source,
-                           &compile_commands);
-    }
-    if (ok && strcmp(command, "bindgen") == 0) {
-        ok = build_generated_package(&config, target_directory, target_source,
-                                     &compile_commands);
-    }
     if (ok && strcmp(command, "examples") == 0) {
         ok = build_examples(&config, &compile_commands);
     }
-    if (ok) ok = write_compile_commands(&compile_commands);
-    if (ok && strcmp(command, "run") == 0) {
-        ok = run_toy(&config, program_arguments, program_argument_count);
+    if (ok && strcmp(command, "dist") == 0) {
+        ok = build_distribution(&config, root);
     }
+    if (ok) ok = write_compile_commands(&compile_commands);
 
     for (size_t i = 0; i < compile_commands.count; ++i) {
         da_free(compile_commands.items[i].command);

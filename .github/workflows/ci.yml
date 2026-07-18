@@ -18,22 +18,78 @@ jobs:
           - os: ubuntu-latest
             nob_bootstrap: cc -std=c11 nob.c -o nob
             nob_test: ./nob test
+            nob_dist: ./nob dist
+            sdk_toy: ./build/gcc/release/dist/toy/bin/toy
+            sdk_c_package: ./build/gcc/release/dist/toy/bin/toy-c-package
+            sdk_bindgen: ./build/gcc/release/dist/toy/bin/toy-bindgen
+            sdk_install: sh ./build/gcc/release/dist/toy/install.sh --prefix ./build/installed-toy --no-links
+            installed_toy: ./build/installed-toy/bin/toy
           - os: windows-latest
             nob_bootstrap: clang -std=c11 nob.c -o nob.exe
             nob_test: .\nob.exe test
+            nob_dist: .\nob.exe dist
+            sdk_toy: .\build\gcc\release\dist\toy\bin\toy.exe
+            sdk_c_package: .\build\gcc\release\dist\toy\bin\toy-c-package.exe
+            sdk_bindgen: .\build\gcc\release\dist\toy\bin\toy-bindgen.exe
+            sdk_install: .\build\gcc\release\dist\toy\install.ps1 -InstallDir .\build\installed-toy
+            installed_toy: .\build\installed-toy\bin\toy.exe
           - os: macos-latest
             nob_bootstrap: cc -std=c11 nob.c -o nob
             nob_test: ./nob test
+            nob_dist: ./nob dist
+            sdk_toy: ./build/gcc/release/dist/toy/bin/toy
+            sdk_c_package: ./build/gcc/release/dist/toy/bin/toy-c-package
+            sdk_bindgen: ./build/gcc/release/dist/toy/bin/toy-bindgen
+            sdk_install: sh ./build/gcc/release/dist/toy/install.sh --prefix ./build/installed-toy --no-links
+            installed_toy: ./build/installed-toy/bin/toy
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: tools/tree-sitter-toy/package-lock.json
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: tools/toy-lsp/go.mod
+          cache-dependency-path: tools/toy-lsp/go.sum
 
       - name: Bootstrap Nob
         run: ${{ matrix.nob_bootstrap }}
 
       - name: Test Nob build
         run: ${{ matrix.nob_test }}
+
+      - name: Generate Tree-sitter parser for SDK tools
+        working-directory: tools/tree-sitter-toy
+        run: |
+          npm ci --ignore-scripts
+          npm rebuild tree-sitter-cli
+          npm run generate
+
+      - name: Stage SDK
+        run: ${{ matrix.nob_dist }}
+
+      - name: Smoke test staged SDK
+        run: |
+          ${{ matrix.sdk_toy }} --eval '"core:ffi" import 20 22 + print'
+          ${{ matrix.sdk_c_package }} --help
+          ${{ matrix.sdk_bindgen }} --help
+          ${{ matrix.sdk_bindgen }} --package clib ./build/gcc/release/dist/toy/examples/interop/bindgen/clib/clib.json ./build/gcc/release/dist/toy/examples/interop/bindgen/clib/generated.c
+          ${{ matrix.sdk_c_package }} ./build/gcc/release/dist/toy/examples/interop/bindgen/clib ./build/gcc/release/dist/toy/examples/interop/bindgen/clib/generated.c
+          ${{ matrix.sdk_toy }} ./build/gcc/release/dist/toy/examples/interop/bindgen/demos/clib
+
+      - name: Install the staged SDK
+        run: ${{ matrix.sdk_install }}
+
+      - name: Smoke test relocated installation
+        run: ${{ matrix.installed_toy }} --eval '"core:ffi" import 40 2 + print'
 
   tooling:
     name: Tooling
@@ -74,6 +130,6 @@ jobs:
           npm run generate
           npm test
 
-      - name: Test the LSP and formatter
+      - name: Test the Go tooling
         working-directory: tools/toy-lsp
         run: go test -count=1 ./...

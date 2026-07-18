@@ -16,13 +16,13 @@ variable or package manager.
 
 Raylib and SQLite are deliberately examples rather than Toy-maintained library
 packages. They have no custom host executable or runtime integration.
-Handwritten adapters use the standalone `toy_package.h` interface; Nob's
-`package` command compiles the wrapper and writes its `toy.package` manifest.
+Handwritten adapters use the standalone `toy_package.h` interface;
+`toy-c-package` compiles the wrapper and writes its `toy.package` manifest.
 
 The practical choices are:
 
 1. use `core:ffi` for dynamic scalar and C-string calls;
-2. use `bindgen` for explicitly declared functions and resource ownership;
+2. use `toy-bindgen` for explicitly declared functions and resource ownership;
 3. write a small C package for structs, callbacks, general buffers, or custom
    state and lifetime translation.
 

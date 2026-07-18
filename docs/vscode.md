@@ -10,28 +10,11 @@ Visual Studio Code extension for Toy, providing syntax highlighting and integrat
 
 ## Setup & Installation
 
-> [!IMPORTANT]
-> Although the VS Code extension uses TextMate for highlighting, the
-> underlying **LSP depends on Tree-sitter** for code analysis. Generate and
-> synchronize the parser before building the LSP binary.
+Install the Toy SDK first so `toy-lsp` is on `PATH`. The extension uses that
+installed server by default; the `toy.lsp.path` setting can select another
+executable.
 
-The extension expects the LSP executable to be located in a `bin/` subdirectory within the extension folder (`tools/vscode-toy/bin/`).
-
-### 1. Prepare the LSP Binary
-First, ensure the Tree-sitter parser is generated in `tools/tree-sitter-toy`:
-```powershell
-cd tools/tree-sitter-toy
-npm run generate
-cd ../..
-```
-
-Then, build the LSP and copy it to the extension's `bin` folder:
-```powershell
-cd tools/toy-lsp
-go build -o ../vscode-toy/bin/toy-lsp.exe ./cmd/toy-lsp
-```
-
-### 2. Package & Install
+### Package and Install the Extension
 From `tools/vscode-toy`:
 
 1. Package the extension (requires `npm install -g @vscode/vsce`):

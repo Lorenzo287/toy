@@ -49,21 +49,13 @@ quine's source would change what it reproduces.
 
 ## Command Line
 
-The formatter uses the same generated Tree-sitter parser as the LSP. Generate
-`tools/tree-sitter-toy/src/parser.c` first by following the
-[Tree-sitter build instructions](tree-sitter.md#build--test), then build from
-`tools/toy-lsp`:
+`toyfmt` is prebuilt in the Toy SDK. Format one file to standard output, check
+files, or update them in place:
 
 ```powershell
-go build -o toyfmt.exe ./cmd/toyfmt
-```
-
-Format one file to standard output, check files, or update them in place:
-
-```powershell
-.\toyfmt.exe ..\..\examples\programs\factorial\main.toy
-.\toyfmt.exe --check ..\..\examples\programs\factorial\main.toy
-.\toyfmt.exe --write ..\..\examples\programs\factorial\main.toy
+toyfmt examples\programs\factorial\main.toy
+toyfmt --check examples\programs\factorial\main.toy
+toyfmt --write examples\programs\factorial\main.toy
 ```
 
 Use `--stdin-filepath` when reading standard input so configuration discovery

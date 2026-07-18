@@ -10,8 +10,10 @@ compile_commands.json
 *.o
 *.obj
 *.a
+*.lib
 *.so
 *.dylib
+*.dll
 *.exe
 *.exe.old
 *.out
@@ -44,3 +46,5 @@ tools/tree-sitter-toy/src/parser.c
 tools/tree-sitter-toy/src/grammar.json
 tools/tree-sitter-toy/src/node-types.json
 tools/toy-lsp/internal/parser/toy/parser.c
+examples/interop/bindgen/*/generated.c
+examples/interop/**/toy.package

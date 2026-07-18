@@ -63,10 +63,12 @@ messages, boolean result-code mappings, and failure cleanup. A generated SQLite
 subset tests these policies without making SQLite a Toy integration. Automatic
 header parsing is not implemented yet.
 
-Keep distribution deliberately small: the executable with its core directory,
-the standalone package header, and the dependency-free generator script.
-Current follow-up
-candidates are:
+Keep the SDK boundary coherent: release distributions stage the interpreter,
+core packages, public headers and embedding archive, `toy-c-package`, the
+dependency-free generator behind `toy-bindgen`, prebuilt editor tools,
+Tree-sitter assets, examples, docs, and general installation scripts. Nob
+remains a repository build/test/distribution tool rather than a user workflow.
+Current follow-up candidates are:
 
 1. add a libclang frontend after the resource manifest is explicit enough to
    preserve ownership decisions that headers cannot infer;

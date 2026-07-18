@@ -4,18 +4,24 @@
 them into the `clib` package directory, and calls the resulting Toy words:
 
 ```powershell
-.\nob.exe bindgen examples\interop\bindgen\clib `
-    examples\interop\bindgen\clib\clib.json
-.\nob.exe run examples\interop\bindgen\demos\clib
+toy-bindgen --package clib `
+    examples\interop\bindgen\clib\clib.json `
+    examples\interop\bindgen\clib\generated.c
+toy-c-package examples\interop\bindgen\clib `
+    examples\interop\bindgen\clib\generated.c
+toy examples\interop\bindgen\demos\clib
 ```
 
 `stdio/stdio.json` wraps `FILE *` as an owned `stdio.file` resource. Dropping
 the final Toy reference calls `fclose` automatically:
 
 ```powershell
-.\nob.exe bindgen examples\interop\bindgen\stdio `
-    examples\interop\bindgen\stdio\stdio.json
-.\nob.exe run examples\interop\bindgen\demos\stdio
+toy-bindgen --package stdio `
+    examples\interop\bindgen\stdio\stdio.json `
+    examples\interop\bindgen\stdio\generated.c
+toy-c-package examples\interop\bindgen\stdio `
+    examples\interop\bindgen\stdio\generated.c
+toy examples\interop\bindgen\demos\stdio
 ```
 
 These standard-C functions need no additional library configuration. See
@@ -27,12 +33,15 @@ resource-specific errors, binary-safe pointer-length strings, and a statement
 that retains its database:
 
 ```powershell
-.\nob.exe bindgen examples\interop\bindgen\sqlite `
+toy-bindgen --package sqlite `
     examples\interop\bindgen\sqlite\sqlite.json `
+    examples\interop\bindgen\sqlite\generated.c
+toy-c-package examples\interop\bindgen\sqlite `
+    examples\interop\bindgen\sqlite\generated.c `
     --include C:\sqlite\include `
     --lib-dir C:\sqlite\lib `
     --lib sqlite3
-.\nob.exe run examples\interop\bindgen\demos\sqlite
+toy examples\interop\bindgen\demos\sqlite
 ```
 
 The selected compiler must match the SQLite library's ABI. The separate

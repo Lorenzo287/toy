@@ -1,6 +1,6 @@
 # SQLite Interop Example
 
-This directory uses SQLite as a realistic test of Toy's native-package
+This directory uses SQLite as a realistic test of Toy's C-package
 boundary. SQLite is not a Toy dependency or core integration.
 
 The adapter is handwritten because it adds row-state validation, tailored
@@ -12,7 +12,7 @@ After installing a SQLite build compatible with your compiler, build the
 package in place:
 
 ```powershell
-.\nob.exe package examples\interop\sqlite `
+toy-c-package examples\interop\sqlite `
     examples\interop\sqlite\toy_sqlite.c `
     --include C:\sqlite\include `
     --lib C:\sqlite\lib\sqlite3.lib
@@ -23,7 +23,7 @@ import/shared library means SQLite's runtime library must also be discoverable
 by the operating system. Run the example package with:
 
 ```powershell
-.\nob.exe run examples\interop\sqlite\demos\people
+toy examples\interop\sqlite\demos\people
 ```
 
 The demo imports `../..`; no global installation or search path is involved.

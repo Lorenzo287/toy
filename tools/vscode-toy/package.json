@@ -15,6 +15,16 @@
     ],
     "main": "./extension.js",
     "contributes": {
+        "configuration": {
+            "title": "Toy",
+            "properties": {
+                "toy.lsp.path": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Path to toy-lsp. Empty uses a bundled server or toy-lsp from PATH."
+                }
+            }
+        },
         "languages": [
             {
                 "id": "toy",

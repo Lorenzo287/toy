@@ -15,22 +15,14 @@ Tree-sitter grammar for Toy. It provides a robust, incremental parser that power
 
 ### Neovim
 
-The easiest way to set up Tree-sitter and the LSP in Neovim is to use the automated script:
-
-- **Windows**: `.\tools\install-nvim.ps1`
-- **Linux/macOS**: `bash tools/install-nvim.sh`
-
-The script generates the Tree-sitter parser with ABI 15, builds the LSP and
-formatter, installs the local tools and grammar files, removes stale generated
-Neovim parser/query artifacts, and prints the Neovim configuration snippet to
-add to your config.
-
-Alternatively, you can register the parser manually:
+The Toy SDK contains generated parser source and queries under
+`share/toy/tree-sitter-toy`. Set `toy_path` to that installed directory and
+register it with Neovim:
 
 ```lua
-local toy_path = "C:/toy/tree-sitter-toy"
--- Linux/macOS example:
--- local toy_path = vim.fn.expand("~/.local/share/toy/tree-sitter-toy")
+local toy_path = vim.fn.expand("$LOCALAPPDATA/Toy/share/toy/tree-sitter-toy")
+-- Linux/macOS default:
+-- local toy_path = vim.fn.expand("~/.local/share/toy/share/toy/tree-sitter-toy")
 
 -- Register filetypes
 vim.filetype.add({
@@ -63,17 +55,13 @@ vim.treesitter.language.register("toy", "toy")
 After adding the configuration, restart Neovim and run `:TSInstall! toy`.
 
 > [!NOTE]
-> The configuration above uses a local path and requires generated parser
-> code. Run `npm run generate` inside `tools/tree-sitter-toy` before
-> installing manually.
->
-> `queries = "queries/toy"` lets `nvim-treesitter` install the Toy query files into its site query directory. You do not need to append the grammar folder to `runtimepath`.
+> `queries = "queries/toy"` lets `nvim-treesitter` install the Toy query files
+> into its site query directory. You do not need to append the grammar folder
+> to `runtimepath` or install npm to use the generated SDK assets.
 
 > [!IMPORTANT]
 > On Windows, `TSInstall` and `TSUpdate` can fail with `Access is denied` if
 > Neovim has already loaded `toy.so`.
->
-> The automated installation script (`tools/install-nvim.ps1`) handles this by attempting to delete stale parser/query artifacts. If you are installing manually:
 >
 > - close all Neovim instances
 > - delete stale Toy parsers from `%LOCALAPPDATA%\nvim-data\site\parser\` and `%LOCALAPPDATA%\nvim-data\lazy\nvim-treesitter\parser\`
