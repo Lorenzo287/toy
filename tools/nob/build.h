@@ -152,9 +152,8 @@ static void print_usage(const char *program) {
     fprintf(stderr, "Commands:\n");
     fprintf(stderr, "  build                 Build the runtime and Toy CLI\n");
     fprintf(stderr, "  test                  Run the default test suite\n");
-    fprintf(stderr, "  examples              Build the C embedding examples\n");
-    fprintf(stderr, "  dist                  Stage a complete relocatable Toy SDK\n");
-    fprintf(stderr, "  clean                 Remove build outputs\n");
+    fprintf(stderr, "  dist                  Stage a complete SDK at dist/toy\n");
+    fprintf(stderr, "  clean                 Remove build and dist outputs\n");
     fprintf(stderr, "  help                  Show this help\n\n");
     fprintf(stderr, "Build options:\n");
     fprintf(stderr, "  --cc <compiler>       clang, gcc, msvc, or clang-cl\n");
@@ -240,7 +239,7 @@ static bool configure_paths(Build_Config *config) {
     config->runtime_lib = static_library_path(config, "toy_runtime");
     config->toy_exe = temp_sprintf("%s/toy%s", config->build_dir,
                                    TOY_EXE_SUFFIX);
-    config->dist_dir = temp_sprintf("%s/dist/toy", config->build_dir);
+    config->dist_dir = "dist/toy";
 
     if (!ensure_directory("build")) return false;
     if (!ensure_directory(temp_sprintf("build/%s",
@@ -712,44 +711,6 @@ static bool run_generator(const Build_Config *config, const char *manifest,
     return cmd_run(&command, .dont_reset = false);
 }
 
-static bool build_examples(const Build_Config *config,
-                           Compile_Commands *compile_commands) {
-    const char *sources[] = {
-        "examples/embedding/embed.c",
-        "examples/embedding/callbacks.c",
-        "examples/embedding/values.c",
-    };
-    const char *names[] = {
-        "toy_embed_example",
-        "toy_embed_callbacks_example",
-        "toy_embed_values_example",
-    };
-    File_Paths headers = {0};
-    Procs processes = {0};
-    File_Paths objects = {0};
-    bool ok = collect_header_dependencies(config, &headers);
-    for (size_t i = 0; ok && i < ARRAY_LEN(sources); ++i) {
-        const char *object = object_path(config, sources[i]);
-        da_append(&objects, object);
-        ok = schedule_compile(config, sources[i], object, &headers,
-                              compile_commands, &processes);
-    }
-    if (!procs_flush(&processes)) ok = false;
-    for (size_t i = 0; ok && i < ARRAY_LEN(sources); ++i) {
-        File_Paths one_object = {0};
-        da_append(&one_object, objects.items[i]);
-        const char *output = temp_sprintf("%s/%s%s", config->build_dir,
-                                          names[i], TOY_EXE_SUFFIX);
-        ok = link_executable(config, output, &one_object, true);
-        if (ok) nob_log(INFO, "built %s", output);
-        da_free(one_object);
-    }
-    da_free(objects);
-    da_free(processes);
-    da_free(headers);
-    return ok;
-}
-
 static bool write_native_package_manifest(const char *directory,
                                           const char *name,
                                           const char *native_file) {
@@ -926,7 +887,7 @@ static bool check_distribution_prerequisites(void) {
 }
 
 static bool build_distribution(const Build_Config *config, const char *root) {
-    const char *dist_parent = temp_sprintf("%s/dist", config->build_dir);
+    const char *dist_parent = "dist";
     Nob_Log_Level previous_level = minimal_log_level;
     minimal_log_level = WARNING;
     bool removed = remove_tree(dist_parent);
@@ -996,9 +957,9 @@ static bool build_distribution(const Build_Config *config, const char *root) {
                            temp_sprintf("%s/README.md", config->dist_dir)) &&
              copy_sdk_file("LICENSE",
                            temp_sprintf("%s/LICENSE", config->dist_dir)) &&
-             copy_sdk_file("install.ps1",
+             copy_sdk_file("tools/install.ps1",
                            temp_sprintf("%s/install.ps1", config->dist_dir)) &&
-             copy_sdk_file("install.sh",
+             copy_sdk_file("tools/install.sh",
                            temp_sprintf("%s/install.sh", config->dist_dir));
     }
 

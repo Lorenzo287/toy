@@ -44,7 +44,7 @@ The setting also applies to lists, maps, sets, and capture bars.
 
 Configuration is discovered from the filesystem root down to the formatted
 file. A nearer `.toyfmt` overrides only the settings it specifies. The
-`examples/eval/quines/` directory uses `disable = true` because rewriting a
+`examples/quines/` directory uses `disable = true` because rewriting a
 quine's source would change what it reproduces.
 
 ## Command Line
@@ -53,9 +53,9 @@ quine's source would change what it reproduces.
 files, or update them in place:
 
 ```powershell
-toyfmt examples\programs\factorial\main.toy
-toyfmt --check examples\programs\factorial\main.toy
-toyfmt --write examples\programs\factorial\main.toy
+toyfmt examples\factorial.toy
+toyfmt --check examples\factorial.toy
+toyfmt --write examples\factorial.toy
 ```
 
 Use `--stdin-filepath` when reading standard input so configuration discovery

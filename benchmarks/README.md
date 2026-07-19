@@ -1,6 +1,6 @@
 # Benchmarks
 
-This directory contains performance experiments, not correctness tests. Keep
+This directory contains performance experiments. Keep
 workloads deterministic and focused enough that a result can be tied to one
 implementation choice.
 

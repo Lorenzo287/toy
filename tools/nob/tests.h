@@ -161,8 +161,8 @@ static bool run_toy_case(const Build_Config *config, const char *root,
     const char *toy_absolute = temp_sprintf("%s/%s", root, config->toy_exe);
     if (!set_current_dir(work_absolute)) return false;
     Cmd command = {0};
-    cmd_append(&command, toy_absolute, "--eval-file", "testlib.toy",
-               "--eval-file", filename);
+    cmd_append(&command, toy_absolute, "--file", "testlib.toy",
+               "--file", filename, "toy-test-argument");
     int exit_code = 0;
     bool ran = run_captured(&command, NULL, "stdout.txt", "stderr.txt",
                             &exit_code);
@@ -240,7 +240,7 @@ static bool run_debug_protocol_test(const Build_Config *config,
         "%s/tests/toy/test_debug_protocol.toy", root);
     if (!set_current_dir(work_absolute)) return false;
     Cmd command = {0};
-    cmd_append(&command, toy_absolute, "--debug-protocol", "--eval-file",
+    cmd_append(&command, toy_absolute, "--debug-protocol", "--file",
                source_absolute);
     int exit_code = 0;
     bool ran = run_captured(&command, "commands.txt", "stdout.txt",

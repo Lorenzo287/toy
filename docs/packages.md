@@ -106,16 +106,17 @@ overrides either location. Embedders set
 
 ## Evaluation Outside Packages
 
-`--eval` and `--eval-file` execute code in the host/root scope rather than
+`--eval` and `--file` execute code in the host/root scope rather than
 turning a file into a package. They are useful for short scripts, tests, and
 debugger sessions:
 
 ```powershell
 toy --eval "1 2 + print"
-toy --eval-file tools\inspect.toy
+toy --file examples\factorial.toy
 ```
 
-`--eval-file` may be repeated; each file runs in the same state. Root code can
+`--file` may be repeated; each file runs in the same state. Arguments after the
+last file are available through `argc` and `argv`. Root code can
 also use `import` and qualified package words; its relative imports use the
 process working directory because root evaluation has no package directory.
 There is no language-level `load` word.
@@ -131,6 +132,9 @@ name = sqlite
 native = toy_sqlite.dll
 ```
 
+In the following Windows commands, `$ToySdk` is the root of an installed SDK
+or locally staged `dist\toy` SDK.
+
 `native` is the manifest's name for that compiled `.dll`, `.so`, or `.dylib`.
 It is an exact path relative to the package directory (or an absolute path).
 The library exports Toy's versioned package descriptor from
@@ -138,8 +142,35 @@ The library exports Toy's versioned package descriptor from
 source-package declaration must agree. A directory can be C-only or combine C
 words with Toy definitions.
 
-The installed C-package builder creates both the shared library and
-manifest in place:
+## Manual C-Backed Packages
+
+The complete contract is intentionally small: compile a shared library that
+includes the standalone `toy_package.h`, then write the manifest yourself. No
+Toy runtime or package-support library participates in that link.
+
+```powershell
+clang -std=c11 -Wall -Wextra -Wpedantic -shared `
+    vendor\sqlite\toy_sqlite.c -I "$ToySdk\include" `
+    -I C:\sqlite\include C:\sqlite\lib\sqlite3.lib `
+    -o vendor\sqlite\toy_sqlite.dll
+@'
+name = sqlite
+native = toy_sqlite.dll
+'@ | Set-Content -NoNewline vendor\sqlite\toy.package
+```
+
+On Linux, add `-fPIC` and use `toy_sqlite.so`; on macOS use `-dynamiclib` and
+`toy_sqlite.dylib`. Static foreign libraries are linked into the package.
+When using a shared foreign library, its runtime dependencies must still be
+discoverable by the operating-system loader. See the dependency notes below.
+
+The shipped [basic native package](../examples/packages/basic/) contains a
+dependency-free package and demo that exercise this exact route.
+
+## `toy-c-package` Convenience Tool
+
+The installed C-package builder performs the same compile, link, and manifest
+steps in place:
 
 ```powershell
 toy-c-package vendor\sqlite vendor\sqlite\toy_sqlite.c `
@@ -179,13 +210,13 @@ shared-library lookup.
    platform name, declare a supported signature, and call it. This needs no C
    wrapper but offers the smallest type and ownership boundary.
 2. Generated binding: write an explicit JSON manifest, emit its C wrapper with
-   `toy-bindgen`, then compile it with `toy-c-package`. The tools are shipped in
-   the SDK and write the shared library and `toy.package` in the target
-   directory.
-3. Handwritten binding: implement callbacks with `toy_package.h` and compile
-   the adapter with `toy-c-package`. This covers structs, callbacks, custom
-   validation, and library-specific ownership rules that the generator cannot
-   express.
+   `toy-bindgen`, then either compile and manifest it manually or use
+   `toy-c-package`. The tools are shipped in the SDK but are not required by
+   the native-package ABI.
+3. Handwritten binding: implement callbacks with `toy_package.h`, then compile
+   and manifest the adapter manually or with `toy-c-package`. This covers
+   structs, callbacks, custom validation, and library-specific ownership rules
+   that the generator cannot express.
 
 `core:ffi` is an official package maintained and built with Toy. Raylib,
 SQLite, and similar bindings remain ordinary project packages even when the

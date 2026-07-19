@@ -19,12 +19,12 @@ navigation and development rules.
 - `src/generated/`: generated builtin declarations/registry, runtime docs, and
   REPL word tables; do not hand-edit.
 - `include/`: public embedding and standalone native-package headers.
-- `examples/programs/`: executable Toy package directories;
-  formatting-sensitive quines live under `examples/eval/quines/`.
+- `examples/`: standalone Toy programs run with `toy --file`; formatting-
+  sensitive quines live under `examples/quines/`.
 - `examples/embedding/`: C hosts that embed and call the Toy runtime.
-- `examples/interop/`: dynamic FFI, generated binding, and handwritten
-  external-library examples. Library-specific adapters are test cases for the
-  general boundary, not built-in integrations.
+- `examples/ffi/`, `examples/packages/`: dynamic FFI, generated binding, and
+  handwritten native-package examples. Library-specific adapters are test
+  cases for the general boundary, not built-in integrations.
 - `core/`: official packages maintained and built with Toy.
 - `tests/packages/`: source, core, and native package integration fixtures.
 - `tests/toy/`, `tests/c/`: language cases and C API regressions. Toy test
@@ -54,8 +54,9 @@ navigation and development rules.
   and LSP formatting method.
 - `tools/vscode-toy/`: VS Code extension and generated grammar metadata.
 - `.github/workflows/`: CI and release automation.
-- `install.ps1`, `install.sh`: general installers copied into staged release
-  SDKs; they consume built artifacts and must not rebuild repository tools.
+- `tools/install.ps1`, `tools/install.sh`: general installers copied
+  into staged release SDKs; they consume built artifacts and must not rebuild
+  repository tools.
 - `nob.c`: self-contained repository build entry point for the runtime, CLI,
   examples, tests, and staged SDK distributions; `tools/nob/build.h` contains
   compiler and distribution helpers, while `tools/nob/tests.h` contains the
@@ -80,8 +81,8 @@ navigation and development rules.
 - Explicit-manifest binding generator: `tools/generate-binding.js`; installed
   frontend: `toy-bindgen`; C-package compiler: `toy-c-package`; contract:
   `docs/bindgen.md`.
-- External shared-package examples: `examples/interop/raylib/toy_raylib.c` and
-  `examples/interop/sqlite/toy_sqlite.c`.
+- External shared-package examples: `examples/packages/raylib/toy_raylib.c`
+  and `examples/packages/sqlite/toy_sqlite.c`.
 - Context lifecycle and builtin registration: `src/tf_context.c`; stack,
   frames, diagnostics, captures, and VM dispatch: `src/tf_exec.h`,
   `src/tf_exec.c`.
@@ -114,7 +115,7 @@ navigation and development rules.
 - Bootstrap the build with `clang -std=c11 nob.c -o nob.exe`; use
   `.\nob.exe build` and run `.\nob.exe test` for the default suite. Use
   `--mode leak` for ownership, stack-effect, or execution-flow changes.
-- Use `.\nob.exe dist` to stage the consumer SDK. User-facing docs and examples
+- Use `.\nob.exe dist` to stage the consumer SDK at `dist/toy`. User-facing docs and examples
   invoke `toy`, `toy-c-package`, `toy-bindgen`, and the installed editor tools;
   they must not depend on Nob or repository build paths.
 
@@ -155,4 +156,6 @@ navigation and development rules.
   behavior; AGENTS contains repository navigation and durable development
   rules; the roadmap contains only current status, sequencing, and future work.
   Use Git history rather than the roadmap as a changelog.
-- Shell: assume Windows PowerShell; do not output bash syntax.
+- Shell: assume Windows PowerShell; do not output bash exclusive syntax (but consider
+  that MinGW is installed so most Unix cli dev tools are available and many pwsh
+  commands have a more conventional alias).

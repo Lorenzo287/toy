@@ -1,61 +1,58 @@
-# Build Instructions for Toy
+# Developing Toy from Source
 
-Toy uses a self-contained [Nob](https://github.com/tsoding/nob.h) build. The
-repository vendors `deps/nob/nob.h`; bootstrap Nob with a C compiler:
+This page is for contributors building Toy itself. A release SDK is the normal
+way to use the language in another project; see [Installation](./installation.md)
+and the [examples](../examples/). Nob is deliberately a repository tool,
+not part of the user-facing SDK workflow.
+
+## Bootstrap Nob
+
+Toy vendors [Nob](https://github.com/tsoding/nob.h). Build its single source
+file with a C compiler:
 
 ```powershell
 clang -std=c11 nob.c -o nob.exe
 ```
 
-On Linux or macOS, the equivalent command is:
+On Linux or macOS, use `cc -std=c11 nob.c -o nob`. Nob rebuilds itself when its
+source or included build headers change. The normal source build also needs
+libffi headers and a linkable `ffi` library because it builds the official
+experimental `core:ffi` package.
 
-```powershell
-cc -std=c11 nob.c -o nob
-```
-
-Nob rebuilds itself whenever its source or included build headers change. A
-source build also needs libffi headers and a linkable `ffi` library because the
-official `core:ffi` package is built with the CLI.
-
-## Everyday Commands
+## Development Commands
 
 ```powershell
 .\nob.exe build
 .\nob.exe test
 .\nob.exe test --filter package
-.\nob.exe examples
 .\nob.exe dist
 .\nob.exe clean
 ```
 
-Run the resulting interpreter directly:
+`build` produces the Toy CLI, the `toy_runtime` static archive, and `core:ffi`
+under `build/<compiler>/<mode>/`. Run the checkout's interpreter directly:
 
 ```powershell
-.\build\gcc\release\toy.exe examples\programs\factorial
-.\build\gcc\release\toy.exe --eval-file examples\eval\quines\quine.toy
+.\build\gcc\release\toy.exe --file examples\factorial.toy
+.\build\gcc\release\toy.exe --file examples\quines\quine.toy
 ```
 
-`build` produces the Toy CLI, the `toy_runtime` static archive used by C hosts,
-and `core/ffi` beneath `build/<compiler>/<mode>/`. The CLI automatically uses
-the `core` directory beside its executable. The build also writes
-`compile_commands.json` for editor tooling.
+`test` runs isolated Toy, package, debugger, embedding, native-loader, and
+binding-generator regressions. It does not provide a separate way to build
+user examples: examples document ordinary SDK use and are compiled directly
+with a C compiler where appropriate.
 
-The complete `test` command runs isolated positive, negative, and golden-output
-Toy cases, package integration cases, debugger transport tests, C embedding
-and native-loader tests, and the binding-generator tests.
+`dist` stages the consumer SDK at `dist/toy`. It
+builds the runtime and precompiled Go tools, then copies public headers, core
+packages, generator and Tree-sitter assets, examples, docs, and installers.
+Release archives contain that directory unchanged. The generated Tree-sitter C
+parser must exist first; follow [Building the SDK from Source](./installation.md#building-the-sdk-from-source).
 
-`dist` stages the complete consumer SDK under
-`build/<compiler>/<mode>/dist/toy`. It builds the runtime first, then the
-precompiled Go tooling, and copies public headers, core packages, generator and
-Tree-sitter assets, examples, docs, and installation scripts. Release archives
-contain that directory unchanged. The generated Tree-sitter C parser must
-exist first; follow the source-generation commands in the
-[installation guide](./installation.md#building-the-sdk-from-source).
-
-Nob is only the repository build orchestrator. It deliberately does not run
-user programs, compile user C packages, or expose binding generation.
-Those workflows belong to `toy`, `toy-c-package`, and `toy-bindgen` from the
-staged or installed SDK.
+The source checkout intentionally has no root installer. Run
+`dist\toy\install.ps1` on Windows or `sh dist/toy/install.sh` on Unix after
+staging. For C-backed packages and generated bindings, use the installed SDK guides in
+[Packages](./packages.md#c-backed-and-external-library-packages) and
+[Generated C Bindings](./bindgen.md).
 
 ## Compilers and Modes
 
@@ -78,102 +75,13 @@ Supported compilers are `clang`, `gcc`, `msvc`, and `clang-cl`. On Windows,
 Independent C compilations run in parallel. Use `-j` or `--jobs` to change the
 default worker count. Profiling with MinGW GCC on Windows is not supported.
 
-Examples:
-
 ```powershell
 .\nob.exe --mode alloc build
-.\build\gcc\alloc\toy.exe --eval-file benchmarks\dispatch.toy
+.\build\gcc\alloc\toy.exe --file benchmarks\dispatch.toy
 
 .\nob.exe --cc clang --mode profile build
-samply record .\build\clang\profile\toy.exe --eval-file benchmarks\runtime-internals.toy
+samply record .\build\clang\profile\toy.exe --file benchmarks\runtime-internals.toy
 ```
-
-## C Embedding Examples
-
-The `examples` command builds the C hosts under `examples/embedding/`:
-
-```powershell
-.\nob.exe examples
-.\build\gcc\release\toy_embed_example.exe
-.\build\gcc\release\toy_embed_callbacks_example.exe
-.\build\gcc\release\toy_embed_values_example.exe
-```
-
-Use the directory matching the selected compiler and mode. The examples link
-the same `toy_runtime` archive produced by `build`.
-
-## C-Backed Packages and External Libraries
-
-A C-backed package includes `include/toy_package.h`. Define
-`TOY_PACKAGE_IMPLEMENTATION` before including it in exactly one C file; the
-header supplies the host-table forwarding layer, so no Toy support library is
-linked into the package.
-
-Stage or install the SDK, create a package directory, then build its C source
-with the consumer tool:
-
-```powershell
-.\nob.exe dist
-.\build\gcc\release\dist\toy\bin\toy-c-package.exe `
-    vendor\sample vendor\sample\sample.c
-```
-
-The directory basename is the package name. `toy-c-package` creates the
-platform-specific shared library and a `toy.package` manifest in that
-directory. The C export
-descriptor must report the same name. Outside repository development, invoke
-`toy-c-package` from `PATH` without the build-directory prefix.
-
-For external dependencies, repeat these options as needed:
-
-```text
---include <directory>
---lib-dir <directory>
---lib <name-or-path>
-```
-
-For example:
-
-```powershell
-toy-c-package vendor\image vendor\image\image.c `
-    --include C:\deps\image\include `
-    --lib-dir C:\deps\image\lib `
-    --lib image
-```
-
-Names are translated to the compiler's normal library syntax; a library file
-may also be passed directly. Toy never downloads external dependencies, and
-the selected compiler must be ABI-compatible with them. Static libraries are
-linked into the Toy package. Shared-library dependencies must still be
-discoverable by the operating-system loader at runtime.
-
-The package can then be imported by its exact directory:
-
-```toy
-"../vendor/image" import
-```
-
-See [Packages and Imports](./packages.md#c-backed-and-external-library-packages)
-for the runtime model and [`examples/interop/`](../examples/interop/) for
-handwritten Raylib and SQLite adapters.
-
-## Generated Bindings
-
-The installed generator emits C, and `toy-c-package` compiles that C into the
-specified package directory:
-
-```powershell
-toy-bindgen --package clib `
-    examples\interop\bindgen\clib\clib.json `
-    examples\interop\bindgen\clib\generated.c
-toy-c-package examples\interop\bindgen\clib `
-    examples\interop\bindgen\clib\generated.c
-toy examples\interop\bindgen\demos\clib
-```
-
-Pass external include and library options when the manifest refers to a
-third-party C library. See [Generated C Bindings](./bindgen.md) for the
-manifest contract.
 
 ## libffi
 
@@ -192,4 +100,5 @@ With no `--lib` option, the build links `ffi`. Supplying one or more `--lib`
 options replaces that default list, which permits `--lib libffi` or an exact
 library path on unusual installations. The selected compiler must match the
 libffi distribution; MSYS2/MinGW libffi normally uses `--cc gcc`. See
-[Experimental Dynamic FFI](./ffi.md) for signatures and safety constraints.
+[Experimental Dynamic FFI](./ffi.md) for its runtime dependency and safety
+constraints.

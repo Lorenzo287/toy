@@ -47,15 +47,20 @@ int main(int argc, char **argv) {
     tf_ret ret = parse_args(argc, argv, &config);
     if (ret == TF_ERR || config.help) {
         fprintf(stderr, "=== Toy Interpreter ===\n");
+        fprintf(stderr, "Usage: %s [options] [package-directory] [args...]\n",
+                argv[0]);
         fprintf(stderr,
-                "Usage: %s [options] [package-directory] [args...]\n",
+                "       %s [options] --file PATH [--file PATH ...] "
+                "[args...]\n",
+                argv[0]);
+        fprintf(stderr, "       %s [options] --eval SOURCE [args...]\n",
                 argv[0]);
         fprintf(stderr, "\nRunning without a package starts the REPL\n");
         fprintf(stderr,
                 "A package directory must declare 'main package and a public "
                 "main word\n");
         fprintf(stderr,
-                "--eval-file PATH evaluates a source file outside the package "
+                "--file PATH evaluates a source file outside the package "
                 "system; it may be repeated\n");
         fprintf(stderr, "--eval executes program passed as argument\n");
         fprintf(stderr,
@@ -63,7 +68,7 @@ int main(int argc, char **argv) {
         fprintf(stderr,
                 "--parsed shows parsed eval or REPL input and the final stack\n");
         fprintf(stderr,
-                "--tdb steps through package, eval-file, eval, or REPL input\n");
+                "--tdb steps through package, file, eval, or REPL input\n");
         free(config.eval);
         free(config.eval_files);
         return ret;
@@ -150,9 +155,9 @@ static int parse_args(int argc, char **argv, cli_config *config) {
                 return TF_ERR;
             }
             config->core_path = argv[++i];
-        } else if (strcmp(argv[i], "--eval-file") == 0) {
+        } else if (strcmp(argv[i], "--file") == 0) {
             if (i + 1 >= argc) {
-                fprintf(stderr, "--eval-file requires an argument\n");
+                fprintf(stderr, "--file requires an argument\n");
                 return TF_ERR;
             }
             if (config->eval_file_count >= config->eval_file_cap) {
@@ -176,10 +181,16 @@ static int parse_args(int argc, char **argv, cli_config *config) {
             config->eval = tf_xmalloc(strlen(argv[i + 1]) + 1);
             strcpy(config->eval, argv[i + 1]);
             i++;  // consume eval argument
-        } else if (config->package_path == NULL) {
-            config->package_path = argv[i];
-            config->script_argc = argc - i - 1;
-            config->script_argv = &argv[i + 1];
+        } else {
+            bool source_mode = config->eval || config->eval_file_count > 0;
+            if (!source_mode) {
+                config->package_path = argv[i];
+                config->script_argc = argc - i - 1;
+                config->script_argv = &argv[i + 1];
+            } else {
+                config->script_argc = argc - i;
+                config->script_argv = &argv[i];
+            }
             break;
         }
     }
@@ -187,7 +198,7 @@ static int parse_args(int argc, char **argv, cli_config *config) {
                 (config->eval_file_count > 0);
     if (modes > 1) {
         fprintf(stderr,
-                "package execution, --eval, and --eval-file are mutually "
+                "package execution, --eval, and --file are mutually "
                 "exclusive\n");
         return TF_ERR;
     }
@@ -196,7 +207,7 @@ static int parse_args(int argc, char **argv, cli_config *config) {
         (config->eval_file_count != 1 || config->eval || config->tdb ||
          config->show_parsed || config->package_path)) {
         fprintf(stderr,
-                "--debug-protocol requires exactly one --eval-file and cannot "
+                "--debug-protocol requires exactly one --file and cannot "
                 "be combined with --parsed, --tdb, --eval, or a package\n");
         return TF_ERR;
     }

@@ -202,7 +202,7 @@ borrow text from their handle.
 
 ## Generating and Building
 
-Generate a C file directly with:
+Generate a C file with the installed frontend:
 
 ```powershell
 toy-bindgen path\to\clib.json vendor\clib\generated.c
@@ -212,9 +212,35 @@ toy-bindgen path\to\clib.json vendor\clib\generated.c
 `--package name` additionally verifies the manifest package against the target
 directory name.
 Generated files start with a do-not-edit marker and are deterministic.
-They instantiate the standalone `toy_package.h` implementation. Compile the
-result and write its `toy.package` manifest with the installed C-package
-builder:
+They instantiate the standalone `toy_package.h` implementation. `toy-bindgen`
+is a small frontend for the JavaScript generator shipped inside the SDK, so the
+same generation step can be run directly when that suits a custom build:
+
+```powershell
+$ToySdk = 'C:\\Tools\\Toy' # or (Resolve-Path .\\dist\\toy) in a checkout
+node "$ToySdk\share\toy\bindgen\generate-binding.js" `
+    --package clib path\to\clib.json vendor\clib\generated.c
+```
+
+Compile the generated C and write its `toy.package` manifest manually:
+
+```powershell
+clang -std=c11 -Wall -Wextra -Wpedantic -shared `
+    vendor\clib\generated.c -I "$ToySdk\include" `
+    -o vendor\clib\toy_clib.dll
+@'
+name = clib
+native = toy_clib.dll
+'@ | Set-Content -NoNewline vendor\clib\toy.package
+```
+
+On Linux, add `-fPIC` and use `.so`; on macOS use `-dynamiclib` and `.dylib`.
+For external libraries, add their include paths and normal compiler/linker
+options. The [manual C-backed-package guide](./packages.md#manual-c-backed-packages)
+explains the artifact contract.
+
+Or ask the installed C-package builder to compile the same result and write its
+manifest:
 
 ```powershell
 toy-c-package vendor\clib vendor\clib\generated.c `
@@ -235,16 +261,9 @@ supports `--cc`, `--define`, `--cflag`, `--ldflag`, and `--debug`; run
 `toy-c-package --help` for the complete interface. `toy-bindgen` currently needs
 Node.js, while `toy-c-package` needs a compatible C compiler.
 
-The curated standard-C example needs no additional library configuration:
-
-```powershell
-toy-bindgen --package clib `
-    examples\interop\bindgen\clib\clib.json `
-    examples\interop\bindgen\clib\generated.c
-toy-c-package examples\interop\bindgen\clib `
-    examples\interop\bindgen\clib\generated.c
-toy examples\interop\bindgen\demos\clib
-```
+The curated standard-C example needs no additional library configuration. Its
+[example guide](../examples/packages/bindgen/README.md) first copies the
+template into a project directory, then generates, compiles, and runs it there.
 
 Toy sees a normal package:
 

@@ -1,5 +1,6 @@
 # Build directories
 build/
+dist/
 bin/
 obj/
 
@@ -46,5 +47,5 @@ tools/tree-sitter-toy/src/parser.c
 tools/tree-sitter-toy/src/grammar.json
 tools/tree-sitter-toy/src/node-types.json
 tools/toy-lsp/internal/parser/toy/parser.c
-examples/interop/bindgen/*/generated.c
-examples/interop/**/toy.package
+examples/packages/bindgen/*/generated.c
+examples/packages/**/toy.package

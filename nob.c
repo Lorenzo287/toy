@@ -115,13 +115,12 @@ int main(int argc, char **argv) {
     if (strcmp(command, "clean") == 0) {
         Nob_Log_Level previous_level = minimal_log_level;
         minimal_log_level = WARNING;
-        bool cleaned = remove_tree("build");
+        bool cleaned = remove_tree("build") && remove_tree("dist");
         minimal_log_level = previous_level;
-        if (cleaned) nob_log(INFO, "removed build");
+        if (cleaned) nob_log(INFO, "removed build and dist");
         return cleaned ? 0 : 1;
     }
     if (strcmp(command, "build") != 0 && strcmp(command, "test") != 0 &&
-        strcmp(command, "examples") != 0 &&
         strcmp(command, "dist") != 0) {
         nob_log(ERROR, "unknown command: %s", command);
         print_usage(program);
@@ -155,14 +154,10 @@ int main(int argc, char **argv) {
     Compile_Commands compile_commands = {0};
     bool needs_core = strcmp(command, "build") == 0 ||
                       strcmp(command, "test") == 0 ||
-                      strcmp(command, "examples") == 0 ||
                       strcmp(command, "dist") == 0;
     bool ok = !needs_core || build_core(&config, &compile_commands);
     if (ok && strcmp(command, "test") == 0) {
         ok = run_all_tests(&config, root, &compile_commands);
-    }
-    if (ok && strcmp(command, "examples") == 0) {
-        ok = build_examples(&config, &compile_commands);
     }
     if (ok && strcmp(command, "dist") == 0) {
         ok = build_distribution(&config, root);

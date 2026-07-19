@@ -2,24 +2,23 @@
 
 Toy is a minimalist, stack-based language and runtime written in C. It began
 with a traditional Forth shape, but has grown into a quotation-first
-concatenative language inspired by 
-[Joy](https://en.wikipedia.org/wiki/Joy_(programming_language)).
+concatenative language inspired by
+[Joy](<https://en.wikipedia.org/wiki/Joy_(programming_language)>).
 
-The core idea is that code is data: values go onto the stack, then words transform
-them, and most importantly programs can be values too. `[ 1 2 + ]` holds a
-small program without running it; `exec` can run it later. From this, Toy gets
+The core idea is that **code is data**: values go onto the stack, then words transform
+them, and most importantly programs are values too. From this Toy gets
 higher-order words, control flow, and recursion without a separate layer of
 special syntax, but simply by **concatenation**.
 
 Toy began as an extension of Salvatore Sanfilippo's
 [toyforth](https://github.com/antirez/toyforth), written for his C programming
 course. Only recently I found Toy's close relative: [Aocla](https://github.com/antirez/aocla).
-The capture and quoting ideas antirez briefly mentioned in the course seem to come from there, 
-but I ended up with an implementation that is quite different, since at the time I had not 
+The variable capture and quoting ideas antirez briefly mentioned in the course seem to come from there,
+but I ended up with an implementation that is quite different, since at the time I had not
 discovered it yet. Toy's REPL also uses antirez's
 [linenoise](https://github.com/antirez/linenoise) library.
 
-## A Quick Look
+## A Taste
 
 ```toy
 \ Words can receive other programs as values. This one keeps the even
@@ -35,43 +34,56 @@ discovered it yet. Toy's REPL also uses antirez's
 
 ## Getting Started
 
-Download a release, run its installer, and then start the REPL, run a package,
-or evaluate a standalone file with the installed Toy CLI:
+### Release
+
+Download a release and run the installer. Then start the REPL, run a package,
+or evaluate a standalone file with the CLI. The [REPL](./docs/repl.md) is
+a good way to start learning Toy since the language is self-documenting.
+There are also [examples](./examples/) that showcase some of the coolest features.
 
 ```powershell
-# After extracting the Windows release:
-Set-Location .\toy
+cd toy
 .\install.ps1 -AddToPath
 
 toy # REPL
-toy .\examples\programs\factorial
-toy --eval-file script.toy
+toy folder # run package
+toy --file script.toy # run file
 toy --eval "1 2 + print"
 toy --tdb # Debugger
 ```
 
-Release archives contain the runtime, core packages, C headers and library,
-C-package and binding tools, formatter, LSP, DAP, Tree-sitter assets,
-documentation, and examples. See the [installation guide](./docs/installation.md)
-for the SDK layout and installer options, the [build instructions](./docs/build.md)
-for building Toy itself from source, the
-[REPL guide](./docs/repl.md) for interactive use,
-and the [examples](./examples/) for complete programs. Release
-binaries are also available from the
-[releases page](https://github.com/Lorenzo287/toy/releases).
+See the [installation guide](./docs/installation.md) for more details
+about the content of the installation.
 
-## Why Postfix?
+### Build Manually
+
+Nob is the repository's build system. Bootstrap it once, then use
+it to build Toy, run regressions, or stage a locally installable SDK:
+
+```powershell
+git clone https://github.com/Lorenzo287/toy.git
+cd toy
+
+clang -O2 nob.c -o nob.exe
+.\nob.exe build
+.\nob.exe test
+.\nob.exe dist
+
+.\dist\toy\install.ps1 -AddToPath
+```
+
+## Postfix Notation
 
 An expression can be viewed as a
 [tree](https://en.wikipedia.org/wiki/Abstract_syntax_tree). Infix, prefix, and
 postfix notations mainly differ in when they visit the operator relative to its
 children. For `1 + (2 * 3)`, the three common orders are:
 
-| Style | Traversal | Example |
-| ----- | --------- | ------- |
-| Infix | left child, operator, right child | `1 + (2 * 3)` |
-| Prefix (Lisp) | operator before children | `(+ 1 (* 2 3))` |
-| Postfix (Forth/Toy) | children before operator | `1 2 3 * +` |
+| Style               | Traversal                         | Example         |
+| ------------------- | --------------------------------- | --------------- |
+| Infix               | left child, operator, right child | `1 + (2 * 3)`   |
+| Prefix (Lisp)       | operator before children          | `(+ 1 (* 2 3))` |
+| Postfix (Forth/Toy) | children before operator          | `1 2 3 * +`     |
 
 In Toy, values are pushed as they are read. When `*` appears, it consumes
 `2 3` and leaves `6`; when `+` appears, it consumes `1 6` and leaves `7`.
@@ -82,7 +94,7 @@ That is the whole syntax: data first, then the word that transforms it.
 ### Words Consume and Produce Values
 
 ```toy
-2 3 + print          \ 5
+2 3 + print   \ 5
 ```
 
 Words consume their inputs unless their documentation says otherwise. Use
@@ -95,7 +107,7 @@ must remain available:
 [ 1 2 3 ] [ len ] keep   \ leaves [1 2 3] 3
 ```
 
-### Quotations Carry Code
+### Vectors Are Programs
 
 A vector is also a quotation: a program that can be stored, passed, and run
 later. `dup` runs immediately, `[ dup ]` delays that call, and `'dup` pushes the
@@ -104,7 +116,7 @@ name `dup` as data. Words that expect code can use either a quotation such as
 
 ```toy
 [ 1 2 + ] exec       \ leaves 3
-[ 1 2 + ] i          \ same
+[ 1 2 + ] i          \ alias
 
 \ Give a quotation a name to define a new word.
 'square [ dup * ] def
@@ -119,10 +131,11 @@ name `dup` as data. Words that expect code can use either a quotation such as
 5 [ 1 + ] keep       \ leaves 5 6
 ```
 
-Names remain data unless a word explicitly treats them as code. Consequently,
-`[ dup ]` is a quotation that calls `dup`, while `[ 'dup ]` is a quotation that
-contains its name. Toy preserves that difference when programs inspect other
-programs:
+Names remain data unless a word explicitly treats them as code (this is
+a big difference compared to Aocla where the quoting symbol is removed on push).
+Consequently, `[ dup ]` is a quotation that calls `dup`, while `[ 'dup ]` is
+a quotation that contains its name. Toy preserves that difference when programs
+inspect other programs:
 
 ```toy
 [ dup ] first type-of print    \ call
@@ -130,13 +143,12 @@ programs:
 ```
 
 The first value is a call instruction; the second is a symbol. Most programs do
-not need to construct calls directly, but `>call` makes runtime program
-generation possible when they do (see
-[homoiconicity](https://en.wikipedia.org/wiki/Homoiconicity)). The
-[data-model reference](./docs/data-model.md#names-and-code) describes the exact
+not need to construct calls directly, but when they do `>call` makes runtime program
+generation possible (see [homoiconicity](https://en.wikipedia.org/wiki/Homoiconicity)).
+The [data-model reference](./docs/data-model.md) has a section describing the exact
 representations and conversions.
 
-### Captures Name Stack Values
+### Captures Improve Usability
 
 Captures offer names when a sequence of stack operations would be harder to
 read:
@@ -144,13 +156,27 @@ read:
 ```toy
 'hypot2 [ | x y | $x $x * $y $y * + ] def
 3 4 hypot2 print     \ 25
+
+'my-swap [ | a b | $b $a ] def
+```
+
+They are also very useful when working with functions to express clearly
+all the arguments and rearrange them.
+
+```toy
+'foo [ | string num bool |
+    [ $bool ] [ $num $string "<{} {}>\n" printf ] if
+] def
+
+"hello" 10 true foo   \ <hello 10>
 ```
 
 A capture lives only while its word or quotation is running, although code
-called from inside may read it with `$name`. An inner capture may hide an outer
-one, but it cannot update it, and a returned quotation does not keep captures
-alive like a closure would. Captures clarify the stack; they are not imperative
-variables.
+called from inside may read it with `$name` (again different from Aocla where
+a capture is only visible from the same frame depth).
+An inner capture may hide an outer one, but it cannot update it, and a returned
+quotation does not keep captures alive like a closure would.
+Captures clarify the stack; they are not imperative variables.
 
 ### Control Is Built from Words
 
@@ -186,7 +212,7 @@ effects performed by a predicate are not undone.
 The [combinator reference](./docs/combinators.md) covers the less obvious
 control, recursion, and collection combinators in more depth.
 
-### Collections Have Different Strengths
+### Versatile Collections
 
 ```toy
 \ Vectors are ordered arrays and also the quotation representation.
@@ -201,11 +227,14 @@ control, recursion, and collection combinators in more depth.
 "abc" first                 \ leaves "a"
 "ab" "c" push-back          \ leaves "abc"
 
+\ Enjoy some concatenative power
 "  alpha,beta,gamma  " trim "," split [ upper ] map "-" join print
 
-\ Toy also supports maps, sets, deques and pqueues
+\ Toy also supports maps, sets
 { 'name "Ada" 'age 36 } 'name get print
 #{ "red" "green" } #{ "green" "blue" } union items sort print
+
+\ Deques and pqueues have constructors instead of a dedicated syntax
 [ 1 2 3 ] >deque 0 push-front print
 [ [ 10 "low" ] [ 1 "urgent" ] ] >pqueue pairs print
 ```
@@ -246,9 +275,9 @@ pwd print
 
 The display words `.`, `.s`, and `.S` are observers: they print without
 changing the stack. `repr` returns an escaped, source-like string
-(makes me think of [quines](examples/eval/quines/quine.toy)).
-`print` writes one value literally with a newline; `printf` interprets `{}` 
-placeholders and adds no newline. Comments use `\` to the end of a line 
+(makes me think of [quines](examples/quines/quine.toy)).
+`print` writes one value literally with a newline; `printf` interprets `{}`
+placeholders and adds no newline. Comments use `\` to the end of a line
 or `/* ... */` for a block.
 
 ## Packages
@@ -275,8 +304,8 @@ imported package is accessed through its declared name:
 
 Run it with `toy app`. Use `"../math" 'm import-as` when a local
 alias is useful. Relative and absolute imports name exact directories;
-`"core:ffi" import` uses Toy's fixed core-package directory. There are no
-fallback search paths or environment-variable lookups.
+Toy's fixed core-package directory is accessible with the core directive,
+for example `"core:ffi" import`.
 
 Package top level is declaration-only, so files can be split without creating
 an execution order. The CLI invokes the public `main` word of a package named
@@ -286,39 +315,16 @@ evaluation, and native-library workflows.
 
 ## Embedding and C Interop
 
-Toy can be embedded as a static C runtime. The API currently lets
+Toy can be embedded as a static C runtime. The API lets
 a host create interpreter states, evaluate Toy source, call Toy words,
 exchange primitive and opaque resource stack values, retain arbitrary values,
 traverse or construct basic collections, and register C functions individually
-or as C-backed packages. Resource values let bindings carry typed, automatically
-released foreign handles without exposing pointers to Toy.
-State-local callbacks can redirect Toy output and detailed parser/runtime
-diagnostics into host logs or user interfaces. The
-[embedding guide](./docs/embedding.md) defines the execution and ownership
-rules, while
-[`examples/embedding/embed.c`](./examples/embedding/embed.c) shows both call
-directions in a complete host and
-[`examples/embedding/callbacks.c`](./examples/embedding/callbacks.c) demonstrates
-captured output and diagnostics.
-[`examples/embedding/values.c`](./examples/embedding/values.c) shows structured
-values and a retained Toy quotation crossing the boundary.
+or as C-backed packages. For a more detailed explanation refer to the
+[embedding guide](./docs/embedding.md), for a quick example see
+[`examples/embedding/embed.c`](./examples/embedding/embed.c).
 
-This boundary is the foundation for handwritten library bindings. The
-[interop examples](./examples/interop/) use Raylib and SQLite to exercise the
-same general shared-package path; neither library is a Toy dependency or a
-built-in integration. Versioned shared C-backed packages use the API through a
-host function table and an explicit `toy.package` manifest without linking a
-second Toy runtime. A package needs only the standalone `toy_package.h`, its C
-source, and the foreign library it wraps; there is no Toy support library to
-link. The official experimental [`ffi` package](docs/ffi.md) can also resolve
-fixed scalar and string C signatures dynamically through libffi;
-the [binding generator](docs/bindgen.md) can instead compile explicit manifests
-into importable packages with ordinary Toy words. Generated bindings now support
-owned opaque resources, dependent lifetimes, resource arguments and outputs,
-hidden C constants and nulls, resource-based errors, and binary-safe
-pointer-length strings. Status codes can also map directly to Toy booleans.
-General pointers and output buffers, aggregate types, callbacks, and automatic
-header parsing remain future work.
+TODO: add small section about using external libraries either manually, with ffi
+or with automated bindgen.
 
 ## Built-in Words
 

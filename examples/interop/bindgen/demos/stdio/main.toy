@@ -1,9 +1,0 @@
-'main package
-
-"../../stdio" 'io import-as
-
-'main [
-	"examples/interop/bindgen/demos/stdio/main.toy" "rb" io.open
-	dup io.read-byte "first source byte: {}\n" printf
-	drop \ fclose runs when the final stdio.file reference is released
-] def

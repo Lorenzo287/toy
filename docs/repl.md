@@ -144,8 +144,8 @@ earlier REPL inputs and qualified words from imported packages.
 To debug a file or an evaluated source string directly from PowerShell:
 
 ```powershell
-toy --tdb --eval-file program.toy
-toy --tdb examples\programs\factorial
+toy --tdb --file program.toy
+toy --tdb --file examples\factorial.toy
 toy --tdb --eval "1 2 + print"
 ```
 

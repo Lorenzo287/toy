@@ -290,5 +290,5 @@ Current performance techniques include:
 - temporary hash sets for large `unique` workloads over hashable scalars.
 
 Lower-level VM and allocation details live in
-[`runtime-internals.md`](./runtime-internals.md). Benchmark workloads and
-recorded experiments live in [`benchmarks/`](../benchmarks/README.md).
+[`runtime-internals.md`](./runtime-internals.md). Repository checkouts also
+contain benchmark workloads and recorded experiments under `benchmarks/`.

@@ -25,7 +25,7 @@ foreach ($script in $scripts) {
 
     for ($run = 1; $run -le $Runs; $run++) {
         $timer = [System.Diagnostics.Stopwatch]::StartNew()
-        & $toyPath --eval-file $script.FullName
+        & $toyPath --file $script.FullName
         $exitCode = $LASTEXITCODE
         $timer.Stop()
 

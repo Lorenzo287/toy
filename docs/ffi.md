@@ -86,7 +86,8 @@ The runnable `strlen` example accepts the platform C runtime library as its
 first argument:
 
 ```powershell
-toy examples\interop\ffi\strlen msvcrt.dll
+$ToySdk = 'C:\Tools\Toy'
+toy --file "$ToySdk\examples\ffi\main.toy" msvcrt.dll
 ```
 
 Common Unix names include `libc.so.6` on Linux and

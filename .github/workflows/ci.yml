@@ -19,29 +19,78 @@ jobs:
             nob_bootstrap: cc -std=c11 nob.c -o nob
             nob_test: ./nob test
             nob_dist: ./nob dist
-            sdk_toy: ./build/gcc/release/dist/toy/bin/toy
-            sdk_c_package: ./build/gcc/release/dist/toy/bin/toy-c-package
-            sdk_bindgen: ./build/gcc/release/dist/toy/bin/toy-bindgen
-            sdk_install: sh ./build/gcc/release/dist/toy/install.sh --prefix ./build/installed-toy --no-links
+            sdk_toy: ./dist/toy/bin/toy
+            sdk_c_package: ./dist/toy/bin/toy-c-package
+            sdk_bindgen: ./dist/toy/bin/toy-bindgen
+            sdk_install: sh ./dist/toy/install.sh --prefix ./build/installed-toy --no-links
+            installed_sdk: ./build/installed-toy
             installed_toy: ./build/installed-toy/bin/toy
+            installed_c_package: ./build/installed-toy/bin/toy-c-package
+            installed_bindgen: ./build/installed-toy/bin/toy-bindgen
+            ffi_library: libc.so.6
+            sdk_manual_embedding: |
+              cc -std=c11 ./build/installed-toy/examples/embedding/embed.c -I./build/installed-toy/include ./build/installed-toy/lib/libtoy_runtime.a -lm -ldl -o ./build/embed-example
+              cc -std=c11 ./build/installed-toy/examples/embedding/callbacks.c -I./build/installed-toy/include ./build/installed-toy/lib/libtoy_runtime.a -lm -ldl -o ./build/callbacks-example
+              cc -std=c11 ./build/installed-toy/examples/embedding/values.c -I./build/installed-toy/include ./build/installed-toy/lib/libtoy_runtime.a -lm -ldl -o ./build/values-example
+              ./build/embed-example
+              ./build/callbacks-example
+              ./build/values-example
+            sdk_manual_package: |
+              cc -std=c11 -Wall -Wextra -Wpedantic -fPIC -shared ./build/installed-toy/examples/packages/basic/toy_basic.c -I./build/installed-toy/include -o ./build/installed-toy/examples/packages/basic/toy_basic.so
+              printf 'name = basic\nnative = toy_basic.so\n' > ./build/installed-toy/examples/packages/basic/toy.package
+              ./build/installed-toy/bin/toy --file ./build/installed-toy/examples/packages/basic/demos/basic.toy ./build/installed-toy/examples/packages/basic
           - os: windows-latest
             nob_bootstrap: clang -std=c11 nob.c -o nob.exe
             nob_test: .\nob.exe test
             nob_dist: .\nob.exe dist
-            sdk_toy: .\build\gcc\release\dist\toy\bin\toy.exe
-            sdk_c_package: .\build\gcc\release\dist\toy\bin\toy-c-package.exe
-            sdk_bindgen: .\build\gcc\release\dist\toy\bin\toy-bindgen.exe
-            sdk_install: .\build\gcc\release\dist\toy\install.ps1 -InstallDir .\build\installed-toy
+            sdk_toy: .\dist\toy\bin\toy.exe
+            sdk_c_package: .\dist\toy\bin\toy-c-package.exe
+            sdk_bindgen: .\dist\toy\bin\toy-bindgen.exe
+            sdk_install: .\dist\toy\install.ps1 -InstallDir .\build\installed-toy
+            installed_sdk: .\build\installed-toy
             installed_toy: .\build\installed-toy\bin\toy.exe
+            installed_c_package: .\build\installed-toy\bin\toy-c-package.exe
+            installed_bindgen: .\build\installed-toy\bin\toy-bindgen.exe
+            ffi_library: msvcrt.dll
+            sdk_manual_embedding: |
+              gcc -std=c11 .\build\installed-toy\examples\embedding\embed.c -I.\build\installed-toy\include .\build\installed-toy\lib\libtoy_runtime.a -luser32 -o .\build\embed-example.exe
+              gcc -std=c11 .\build\installed-toy\examples\embedding\callbacks.c -I.\build\installed-toy\include .\build\installed-toy\lib\libtoy_runtime.a -luser32 -o .\build\callbacks-example.exe
+              gcc -std=c11 .\build\installed-toy\examples\embedding\values.c -I.\build\installed-toy\include .\build\installed-toy\lib\libtoy_runtime.a -luser32 -o .\build\values-example.exe
+              & .\build\embed-example.exe
+              & .\build\callbacks-example.exe
+              & .\build\values-example.exe
+            sdk_manual_package: |
+              gcc -std=c11 -Wall -Wextra -Wpedantic -shared .\build\installed-toy\examples\packages\basic\toy_basic.c -I.\build\installed-toy\include -o .\build\installed-toy\examples\packages\basic\toy_basic.dll
+              $manifest = @'
+              name = basic
+              native = toy_basic.dll
+              '@
+              Set-Content -NoNewline -Value $manifest .\build\installed-toy\examples\packages\basic\toy.package
+              & .\build\installed-toy\bin\toy.exe --file .\build\installed-toy\examples\packages\basic\demos\basic.toy .\build\installed-toy\examples\packages\basic
           - os: macos-latest
             nob_bootstrap: cc -std=c11 nob.c -o nob
             nob_test: ./nob test
             nob_dist: ./nob dist
-            sdk_toy: ./build/gcc/release/dist/toy/bin/toy
-            sdk_c_package: ./build/gcc/release/dist/toy/bin/toy-c-package
-            sdk_bindgen: ./build/gcc/release/dist/toy/bin/toy-bindgen
-            sdk_install: sh ./build/gcc/release/dist/toy/install.sh --prefix ./build/installed-toy --no-links
+            sdk_toy: ./dist/toy/bin/toy
+            sdk_c_package: ./dist/toy/bin/toy-c-package
+            sdk_bindgen: ./dist/toy/bin/toy-bindgen
+            sdk_install: sh ./dist/toy/install.sh --prefix ./build/installed-toy --no-links
+            installed_sdk: ./build/installed-toy
             installed_toy: ./build/installed-toy/bin/toy
+            installed_c_package: ./build/installed-toy/bin/toy-c-package
+            installed_bindgen: ./build/installed-toy/bin/toy-bindgen
+            ffi_library: /usr/lib/libSystem.B.dylib
+            sdk_manual_embedding: |
+              cc -std=c11 ./build/installed-toy/examples/embedding/embed.c -I./build/installed-toy/include ./build/installed-toy/lib/libtoy_runtime.a -lm -o ./build/embed-example
+              cc -std=c11 ./build/installed-toy/examples/embedding/callbacks.c -I./build/installed-toy/include ./build/installed-toy/lib/libtoy_runtime.a -lm -o ./build/callbacks-example
+              cc -std=c11 ./build/installed-toy/examples/embedding/values.c -I./build/installed-toy/include ./build/installed-toy/lib/libtoy_runtime.a -lm -o ./build/values-example
+              ./build/embed-example
+              ./build/callbacks-example
+              ./build/values-example
+            sdk_manual_package: |
+              cc -std=c11 -Wall -Wextra -Wpedantic -fPIC -dynamiclib ./build/installed-toy/examples/packages/basic/toy_basic.c -I./build/installed-toy/include -o ./build/installed-toy/examples/packages/basic/toy_basic.dylib
+              printf 'name = basic\nnative = toy_basic.dylib\n' > ./build/installed-toy/examples/packages/basic/toy.package
+              ./build/installed-toy/bin/toy --file ./build/installed-toy/examples/packages/basic/demos/basic.toy ./build/installed-toy/examples/packages/basic
 
     steps:
       - name: Checkout
@@ -79,17 +128,31 @@ jobs:
       - name: Smoke test staged SDK
         run: |
           ${{ matrix.sdk_toy }} --eval '"core:ffi" import 20 22 + print'
+          ${{ matrix.sdk_toy }} --file ./dist/toy/examples/fibonacci.toy
+          ${{ matrix.sdk_toy }} --file ./dist/toy/examples/ffi/main.toy ${{ matrix.ffi_library }}
           ${{ matrix.sdk_c_package }} --help
           ${{ matrix.sdk_bindgen }} --help
-          ${{ matrix.sdk_bindgen }} --package clib ./build/gcc/release/dist/toy/examples/interop/bindgen/clib/clib.json ./build/gcc/release/dist/toy/examples/interop/bindgen/clib/generated.c
-          ${{ matrix.sdk_c_package }} ./build/gcc/release/dist/toy/examples/interop/bindgen/clib ./build/gcc/release/dist/toy/examples/interop/bindgen/clib/generated.c
-          ${{ matrix.sdk_toy }} ./build/gcc/release/dist/toy/examples/interop/bindgen/demos/clib
+          ${{ matrix.sdk_bindgen }} --package clib ./dist/toy/examples/packages/bindgen/clib/clib.json ./dist/toy/examples/packages/bindgen/clib/generated.c
+          ${{ matrix.sdk_c_package }} ./dist/toy/examples/packages/bindgen/clib ./dist/toy/examples/packages/bindgen/clib/generated.c
+          ${{ matrix.sdk_toy }} --file ./dist/toy/examples/packages/bindgen/demos/clib.toy ./dist/toy/examples/packages/bindgen/clib
 
       - name: Install the staged SDK
         run: ${{ matrix.sdk_install }}
 
       - name: Smoke test relocated installation
         run: ${{ matrix.installed_toy }} --eval '"core:ffi" import 40 2 + print'
+
+      - name: Build relocated SDK embedding examples manually
+        run: ${{ matrix.sdk_manual_embedding }}
+
+      - name: Build a relocated SDK C package manually
+        run: ${{ matrix.sdk_manual_package }}
+
+      - name: Smoke test relocated SDK tools
+        run: |
+          ${{ matrix.installed_bindgen }} --package clib ${{ matrix.installed_sdk }}/examples/packages/bindgen/clib/clib.json ${{ matrix.installed_sdk }}/examples/packages/bindgen/clib/generated.c
+          ${{ matrix.installed_c_package }} ${{ matrix.installed_sdk }}/examples/packages/bindgen/clib ${{ matrix.installed_sdk }}/examples/packages/bindgen/clib/generated.c
+          ${{ matrix.installed_toy }} --file ${{ matrix.installed_sdk }}/examples/packages/bindgen/demos/clib.toy ${{ matrix.installed_sdk }}/examples/packages/bindgen/clib
 
   tooling:
     name: Tooling

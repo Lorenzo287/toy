@@ -51,7 +51,7 @@ toy/
 |-- include/   public embedding and C-package headers
 |-- lib/       the static embedding runtime for the release compiler
 |-- share/     generator payload and Tree-sitter grammar assets
-|-- examples/  runnable language, embedding, and interop examples
+|-- examples/  language, embedding, FFI, and native-package examples
 `-- docs/      the complete reference documentation
 ```
 
@@ -90,7 +90,9 @@ clang -std=c11 nob.c -o nob.exe
 .\nob.exe dist
 ```
 
-The result is `build/<compiler>/<mode>/dist/toy`. `nob dist` requires Go plus
+The result is `dist/toy`, the same layout that release archives contain. Run
+its `install.ps1` or `install.sh` exactly as you would from an extracted
+release. `nob dist` requires Go plus
 the generated parser; release users receive the resulting binaries and parser
 assets and need neither dependency. The normal runtime build also needs libffi
 for `core:ffi`. See [Build Instructions](./build.md) for compiler and mode
@@ -102,4 +104,6 @@ The SDK's `core` directory is versioned with Toy and should be treated as
 read-only. Project dependencies do not belong in the SDK root: keep them at
 exact project-relative paths such as `vendor/`, then import those directories.
 Toy currently has no registry, dependency resolver, or mutable global package
-installation area.
+installation area. The SDK's `examples` directory is also a read-only source of
+templates: run pure Toy examples there if useful, but copy embedding and
+interop examples into a project before compiling or generating files.

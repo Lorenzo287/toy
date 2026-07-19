@@ -18,23 +18,11 @@ binary-safe Toy output, redirects diagnostics separately, and inspects a
 detailed parser error.
 [`examples/embedding/values.c`](../examples/embedding/values.c) constructs
 structured input, traverses a returned map, and calls a retained Toy quotation.
-From the root of a Windows GCC SDK, build a host exactly as an external project
-would:
-
-```powershell
-gcc -std=c11 examples\embedding\embed.c -Iinclude `
-    lib\libtoy_runtime.a -luser32 -o embed.exe
-.\embed.exe
-```
-
-On Unix, use the archive shipped for that platform and link `m` plus `dl`
-outside macOS. Use the same compiler ABI as the distributed archive. A source
-checkout can still run `.\nob.exe examples` to build all three repository
-hosts as regressions; that is a maintainer workflow rather than a prerequisite
-for embedding Toy.
-
-Nob's `compile_commands.json` records the concrete commands used by the bundled
-hosts and is a useful reference for another build system.
+Copy those sources into an application directory and compile them directly
+against the SDK's `include/` and `lib/` directories. The
+[embedding example guide](../examples/embedding/README.md) gives exact Windows
+and Unix commands for all three hosts. Use the same compiler ABI as the shipped
+archive.
 
 ## Output and Diagnostics
 
@@ -320,14 +308,14 @@ than reconstructable source.
 
 ## Raylib Interop Example
 
-`examples/interop/raylib/` demonstrates a real C-backed package built on this API.
+`examples/packages/raylib/` demonstrates a real C-backed package built on this API.
 It is an external-library example rather than a runtime feature: `toy-c-package`
 builds it in its directory, and the normal CLI imports that exact path. The
 window loop, close predicate, frame boundaries, and drawing calls are ordinary
 Toy code.
 
 After installing Raylib, build it with the required include and library options;
-see the [example README](../examples/interop/raylib/README.md). The package
+see the [example README](../examples/packages/raylib/README.md). The package
 currently provides:
 
 - window lifecycle: `init-window`, `close-window`,
@@ -352,18 +340,18 @@ rl.close-window
 
 ## SQLite Interop Example
 
-`examples/interop/sqlite/` applies the same generic package contract to a very
+`examples/packages/sqlite/` applies the same generic package contract to a very
 different library. Its database and statement pointers become typed resources;
 database destruction calls `sqlite3_close_v2`, statement destruction calls
 `sqlite3_finalize`, and borrowed column text is copied before a native word
 consumes the statement input.
 
 The adapter is intentionally an example rather than a maintained standard
-library. A focused [generated SQLite binding](../examples/interop/bindgen/)
+library. A focused [generated SQLite binding](../examples/packages/bindgen/)
 shows how manifests cover handle constructors, output parameters, dependent
 resources, hidden arguments, status messages, and borrowed buffers. The
 handwritten adapter remains useful for custom row-state validation and a more
-idiomatic interface. See its [README](../examples/interop/sqlite/) for the
+idiomatic interface. See its [README](../examples/packages/sqlite/) for the
 generic build command and a prepared-statement program.
 
 ## Stack and Ownership

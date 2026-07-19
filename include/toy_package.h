@@ -2,7 +2,7 @@
 #define TOY_PACKAGE_H
 
 /* Define TOY_PACKAGE_IMPLEMENTATION before including this header in exactly one
- * source file of a loadable native package. No Toy library is required. */
+ * source file of a loadable package. No Toy library is required. */
 
 #include <stdbool.h>
 #include <stddef.h>
