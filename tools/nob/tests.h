@@ -1,7 +1,21 @@
 #ifndef TOY_NOB_TESTS_H
 #define TOY_NOB_TESTS_H
 
+#ifndef _WIN32
+#include <signal.h>
+#endif
+
 /* Isolated Toy cases plus C API and loadable-package regressions. */
+
+#ifndef NOBDEF
+#define NOBDEF
+#endif
+
+NOBDEF bool run_all_tests(const Build_Config *config, const char *root, Compile_Commands *compile_commands);
+
+#endif  // TOY_NOB_TESTS_H
+
+#ifdef NOB_IMPLEMENTATION
 
 static bool wait_for_process(Proc process, uint64_t timeout_ms,
                              int *exit_code) {
@@ -709,7 +723,7 @@ static bool run_c_tests(const Build_Config *config, const char *root,
     return ok;
 }
 
-static bool run_all_tests(const Build_Config *config, const char *root,
+NOBDEF bool run_all_tests(const Build_Config *config, const char *root,
                           Compile_Commands *compile_commands) {
     File_Paths c_test_artifacts = {0};
     bool build_ok = build_c_tests(config, compile_commands, &c_test_artifacts);
@@ -771,4 +785,4 @@ static bool run_all_tests(const Build_Config *config, const char *root,
     return ok;
 }
 
-#endif  // TOY_NOB_TESTS_H
+#endif  // NOB_IMPLEMENTATION

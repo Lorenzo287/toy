@@ -89,7 +89,62 @@ static const char *core_c_tests[] = {
     "tests/c/test_linenoise.c",
 };
 
-static const char *static_library_path(const Build_Config *config,
+
+#ifndef NOBDEF
+#define NOBDEF
+#endif
+
+NOBDEF const char *static_library_path(const Build_Config *config, const char *name);
+NOBDEF const char *compiler_name(Compiler compiler);
+NOBDEF const char *compiler_executable(Compiler compiler);
+NOBDEF const char *mode_name(Build_Mode mode);
+NOBDEF bool is_msvc_style(Compiler compiler);
+NOBDEF bool starts_with(const char *value, const char *prefix);
+NOBDEF bool ends_with(const char *value, const char *suffix);
+NOBDEF void print_usage(const char *program);
+NOBDEF bool parse_compiler(const char *value, Compiler *compiler);
+NOBDEF bool parse_mode(const char *value, Build_Mode *mode);
+NOBDEF bool parse_count(const char *value, size_t *count);
+NOBDEF bool program_on_path(const char *program);
+NOBDEF bool ensure_directory(const char *path);
+NOBDEF bool configure_paths(Build_Config *config);
+NOBDEF char *object_path(const Build_Config *config, const char *source);
+NOBDEF bool collect_matching_files(const char *directory, const char *suffix, File_Paths *paths);
+NOBDEF bool collect_header_dependencies(const Build_Config *config, File_Paths *dependencies);
+NOBDEF void append_mode_compile_flags(Cmd *command, const Build_Config *config);
+NOBDEF void append_compile_flags(Cmd *command, const Build_Config *config);
+NOBDEF bool library_is_path(const char *library);
+NOBDEF void append_link_flags(Cmd *command, const Build_Config *config, bool with_external_libraries);
+NOBDEF void record_compile_command(Compile_Commands *commands, const char *source, const char *output, const Cmd *command);
+NOBDEF bool write_json_string(FILE *file, const char *value);
+NOBDEF bool write_compile_commands(const Compile_Commands *commands);
+NOBDEF bool source_needs_rebuild(const char *output, const char *source, const File_Paths *headers, bool *needs_rebuild_out);
+NOBDEF bool schedule_compile_options( const Build_Config *config, const char *source, const char *output, const File_Paths *headers, Compile_Commands *compile_commands, Procs *processes, bool shared_object, const File_Paths *additional_include_dirs, const File_Paths *definitions);
+NOBDEF bool schedule_compile_ex(const Build_Config *config, const char *source, const char *output, const File_Paths *headers, Compile_Commands *compile_commands, Procs *processes, bool shared_object);
+NOBDEF bool schedule_compile(const Build_Config *config, const char *source, const char *output, const File_Paths *headers, Compile_Commands *compile_commands, Procs *processes);
+NOBDEF bool archive_library(const Build_Config *config, const char *output, const File_Paths *objects);
+NOBDEF bool link_shared_package(const Build_Config *config, const char *output, const File_Paths *objects, bool with_external_libraries);
+NOBDEF bool build_extension_source(const Build_Config *config, const char *source, const char *output, Compile_Commands *compile_commands);
+NOBDEF bool link_executable_options(const Build_Config *config, const char *output, const File_Paths *objects, bool with_runtime, bool with_external_libraries);
+NOBDEF bool link_executable(const Build_Config *config, const char *output, const File_Paths *objects, bool with_runtime);
+NOBDEF bool run_generator(const Build_Config *config, const char *manifest, const char *output, const char *package_name);
+NOBDEF bool write_package_manifest(const char *directory, const char *name, const char *extension_file);
+NOBDEF bool build_core_ffi(const Build_Config *config, Compile_Commands *compile_commands);
+NOBDEF bool build_core(const Build_Config *config, Compile_Commands *compile_commands);
+NOBDEF bool remove_tree(const char *path);
+NOBDEF bool copy_sdk_file(const char *source, const char *destination);
+NOBDEF bool sdk_tree_directory_allowed(const char *name);
+NOBDEF bool sdk_tree_file_allowed(const char *name);
+NOBDEF bool copy_sdk_tree(const char *source, const char *destination);
+NOBDEF bool build_sdk_tool(const char *root, const Build_Config *config, const char *name);
+NOBDEF bool check_distribution_prerequisites(void);
+NOBDEF bool build_distribution(const Build_Config *config, const char *root);
+
+#endif // TOY_NOB_BUILD_H
+
+#ifdef NOB_IMPLEMENTATION
+
+NOBDEF const char *static_library_path(const Build_Config *config,
                                        const char *name) {
 #if defined(_WIN32)
     if (config->compiler != COMPILER_GCC) {
@@ -99,7 +154,7 @@ static const char *static_library_path(const Build_Config *config,
     return temp_sprintf("%s/lib%s.a", config->build_dir, name);
 }
 
-static const char *compiler_name(Compiler compiler) {
+NOBDEF const char *compiler_name(Compiler compiler) {
     switch (compiler) {
     case COMPILER_GCC: return "gcc";
     case COMPILER_CLANG: return "clang";
@@ -109,7 +164,7 @@ static const char *compiler_name(Compiler compiler) {
     return "unknown";
 }
 
-static const char *compiler_executable(Compiler compiler) {
+NOBDEF const char *compiler_executable(Compiler compiler) {
     switch (compiler) {
     case COMPILER_GCC: return "gcc";
     case COMPILER_CLANG: return "clang";
@@ -119,7 +174,7 @@ static const char *compiler_executable(Compiler compiler) {
     return "cc";
 }
 
-static const char *mode_name(Build_Mode mode) {
+NOBDEF const char *mode_name(Build_Mode mode) {
     switch (mode) {
     case MODE_RELEASE: return "release";
     case MODE_DEBUG: return "debug";
@@ -130,22 +185,22 @@ static const char *mode_name(Build_Mode mode) {
     return "unknown";
 }
 
-static bool is_msvc_style(Compiler compiler) {
+NOBDEF bool is_msvc_style(Compiler compiler) {
     return compiler == COMPILER_MSVC || compiler == COMPILER_CLANG_CL;
 }
 
-static bool starts_with(const char *value, const char *prefix) {
+NOBDEF bool starts_with(const char *value, const char *prefix) {
     return strncmp(value, prefix, strlen(prefix)) == 0;
 }
 
-static bool ends_with(const char *value, const char *suffix) {
+NOBDEF bool ends_with(const char *value, const char *suffix) {
     size_t value_len = strlen(value);
     size_t suffix_len = strlen(suffix);
     return value_len >= suffix_len &&
            strcmp(value + value_len - suffix_len, suffix) == 0;
 }
 
-static void print_usage(const char *program) {
+NOBDEF void print_usage(const char *program) {
     fprintf(stderr, "Toy build\n\n");
     fprintf(stderr, "Usage: %s [options] <command>\n\n",
             program);
@@ -175,7 +230,7 @@ static void print_usage(const char *program) {
     fprintf(stderr, "  nob dist\n");
 }
 
-static bool parse_compiler(const char *value, Compiler *compiler) {
+NOBDEF bool parse_compiler(const char *value, Compiler *compiler) {
     if (strcmp(value, "gcc") == 0) *compiler = COMPILER_GCC;
     else if (strcmp(value, "clang") == 0) *compiler = COMPILER_CLANG;
     else if (strcmp(value, "msvc") == 0 || strcmp(value, "cl") == 0) {
@@ -188,7 +243,7 @@ static bool parse_compiler(const char *value, Compiler *compiler) {
     return true;
 }
 
-static bool parse_mode(const char *value, Build_Mode *mode) {
+NOBDEF bool parse_mode(const char *value, Build_Mode *mode) {
     if (strcmp(value, "release") == 0) *mode = MODE_RELEASE;
     else if (strcmp(value, "debug") == 0) *mode = MODE_DEBUG;
     else if (strcmp(value, "alloc") == 0) *mode = MODE_ALLOC;
@@ -198,7 +253,7 @@ static bool parse_mode(const char *value, Build_Mode *mode) {
     return true;
 }
 
-static bool parse_count(const char *value, size_t *count) {
+NOBDEF bool parse_count(const char *value, size_t *count) {
     char *end = NULL;
     unsigned long parsed = strtoul(value, &end, 10);
     if (value[0] == '\0' || *end != '\0' || parsed == 0) return false;
@@ -206,7 +261,7 @@ static bool parse_count(const char *value, size_t *count) {
     return true;
 }
 
-static bool program_on_path(const char *program) {
+NOBDEF bool program_on_path(const char *program) {
 #ifdef _WIN32
     char buffer[MAX_PATH];
     return SearchPathA(NULL, program, ".exe", MAX_PATH, buffer, NULL) != 0;
@@ -227,12 +282,12 @@ static bool program_on_path(const char *program) {
 #endif
 }
 
-static bool ensure_directory(const char *path) {
+NOBDEF bool ensure_directory(const char *path) {
     if (file_exists(path)) return true;
     return mkdir_if_not_exists(path);
 }
 
-static bool configure_paths(Build_Config *config) {
+NOBDEF bool configure_paths(Build_Config *config) {
     config->build_dir = temp_sprintf("build/%s/%s",
                                      compiler_name(config->compiler),
                                      mode_name(config->mode));
@@ -266,7 +321,7 @@ static bool configure_paths(Build_Config *config) {
     return ensure_directory(temp_sprintf("%s/test-work", config->build_dir));
 }
 
-static char *object_path(const Build_Config *config, const char *source) {
+NOBDEF char *object_path(const Build_Config *config, const char *source) {
     char *name = temp_sprintf("%s", source);
     for (char *cursor = name; *cursor; ++cursor) {
         unsigned char character = (unsigned char)*cursor;
@@ -281,7 +336,7 @@ static char *object_path(const Build_Config *config, const char *source) {
 #endif
 }
 
-static bool collect_matching_files(const char *directory, const char *suffix,
+NOBDEF bool collect_matching_files(const char *directory, const char *suffix,
                                    File_Paths *paths) {
     File_Paths entries = {0};
     if (!read_entire_dir(directory, &entries)) return false;
@@ -295,7 +350,7 @@ static bool collect_matching_files(const char *directory, const char *suffix,
     return true;
 }
 
-static bool collect_header_dependencies(const Build_Config *config,
+NOBDEF bool collect_header_dependencies(const Build_Config *config,
                                         File_Paths *dependencies) {
     da_append(dependencies, "nob.c");
     da_append(dependencies, "tools/nob/build.h");
@@ -311,7 +366,7 @@ static bool collect_header_dependencies(const Build_Config *config,
     return true;
 }
 
-static void append_mode_compile_flags(Cmd *command,
+NOBDEF void append_mode_compile_flags(Cmd *command,
                                       const Build_Config *config) {
     if (is_msvc_style(config->compiler)) {
         switch (config->mode) {
@@ -349,7 +404,7 @@ static void append_mode_compile_flags(Cmd *command,
     }
 }
 
-static void append_compile_flags(Cmd *command, const Build_Config *config) {
+NOBDEF void append_compile_flags(Cmd *command, const Build_Config *config) {
     cmd_append(command, compiler_executable(config->compiler));
     if (is_msvc_style(config->compiler)) {
         cmd_append(command, "/nologo", "/std:c11", "/W3",
@@ -377,14 +432,14 @@ static void append_compile_flags(Cmd *command, const Build_Config *config) {
     append_mode_compile_flags(command, config);
 }
 
-static bool library_is_path(const char *library) {
+NOBDEF bool library_is_path(const char *library) {
     return strchr(library, '/') || strchr(library, '\\') ||
            ends_with(library, ".a") || ends_with(library, ".lib") ||
            ends_with(library, ".so") || ends_with(library, ".dylib") ||
            ends_with(library, ".dll");
 }
 
-static void append_link_flags(Cmd *command, const Build_Config *config,
+NOBDEF void append_link_flags(Cmd *command, const Build_Config *config,
                               bool with_external_libraries) {
     if (is_msvc_style(config->compiler)) {
         if (with_external_libraries) {
@@ -435,7 +490,7 @@ static void append_link_flags(Cmd *command, const Build_Config *config,
     }
 }
 
-static void record_compile_command(Compile_Commands *commands,
+NOBDEF void record_compile_command(Compile_Commands *commands,
                                    const char *source, const char *output,
                                    const Cmd *command) {
     Compile_Command record = {
@@ -447,7 +502,7 @@ static void record_compile_command(Compile_Commands *commands,
     da_append(commands, record);
 }
 
-static bool write_json_string(FILE *file, const char *value) {
+NOBDEF bool write_json_string(FILE *file, const char *value) {
     if (fputc('"', file) == EOF) return false;
     for (const unsigned char *cursor = (const unsigned char *)value;
          *cursor; ++cursor) {
@@ -470,7 +525,7 @@ static bool write_json_string(FILE *file, const char *value) {
     return fputc('"', file) != EOF;
 }
 
-static bool write_compile_commands(const Compile_Commands *commands) {
+NOBDEF bool write_compile_commands(const Compile_Commands *commands) {
     const char *directory = get_current_dir_temp();
     FILE *file = fopen("build/compile_commands.json", "wb");
     if (!file) {
@@ -502,7 +557,7 @@ static bool write_compile_commands(const Compile_Commands *commands) {
     return ok;
 }
 
-static bool source_needs_rebuild(const char *output, const char *source,
+NOBDEF bool source_needs_rebuild(const char *output, const char *source,
                                  const File_Paths *headers,
                                  bool *needs_rebuild_out) {
     File_Paths inputs = {0};
@@ -515,7 +570,7 @@ static bool source_needs_rebuild(const char *output, const char *source,
     return true;
 }
 
-static bool schedule_compile_options(
+NOBDEF bool schedule_compile_options(
     const Build_Config *config, const char *source, const char *output,
     const File_Paths *headers, Compile_Commands *compile_commands,
     Procs *processes, bool shared_object,
@@ -567,7 +622,7 @@ static bool schedule_compile_options(
     return true;
 }
 
-static bool schedule_compile_ex(const Build_Config *config,
+NOBDEF bool schedule_compile_ex(const Build_Config *config,
                                 const char *source, const char *output,
                                 const File_Paths *headers,
                                 Compile_Commands *compile_commands,
@@ -577,7 +632,7 @@ static bool schedule_compile_ex(const Build_Config *config,
                                     shared_object, NULL, NULL);
 }
 
-static bool schedule_compile(const Build_Config *config, const char *source,
+NOBDEF bool schedule_compile(const Build_Config *config, const char *source,
                              const char *output, const File_Paths *headers,
                              Compile_Commands *compile_commands,
                              Procs *processes) {
@@ -585,7 +640,7 @@ static bool schedule_compile(const Build_Config *config, const char *source,
                                compile_commands, processes, false);
 }
 
-static bool archive_library(const Build_Config *config, const char *output,
+NOBDEF bool archive_library(const Build_Config *config, const char *output,
                             const File_Paths *objects) {
     int rebuild = needs_rebuild(output, objects->items, objects->count);
     if (rebuild < 0) return false;
@@ -612,7 +667,7 @@ static bool archive_library(const Build_Config *config, const char *output,
     return cmd_run(&command, .dont_reset = false);
 }
 
-static bool link_shared_package(const Build_Config *config,
+NOBDEF bool link_shared_package(const Build_Config *config,
                                const char *output,
                                const File_Paths *objects,
                                bool with_external_libraries) {
@@ -639,10 +694,8 @@ static bool link_shared_package(const Build_Config *config,
     return cmd_run(&command, .dont_reset = false);
 }
 
-static bool write_package_manifest(const char *directory, const char *name,
-                                   const char *extension_file);
 
-static bool build_extension_source(const Build_Config *config,
+NOBDEF bool build_extension_source(const Build_Config *config,
                                    const char *source, const char *output,
                                    Compile_Commands *compile_commands) {
     if (!file_exists(source)) {
@@ -670,7 +723,7 @@ static bool build_extension_source(const Build_Config *config,
     return ok;
 }
 
-static bool link_executable_options(const Build_Config *config,
+NOBDEF bool link_executable_options(const Build_Config *config,
                                     const char *output,
                                     const File_Paths *objects,
                                     bool with_runtime,
@@ -697,13 +750,13 @@ static bool link_executable_options(const Build_Config *config,
     return cmd_run(&command, .dont_reset = false);
 }
 
-static bool link_executable(const Build_Config *config, const char *output,
+NOBDEF bool link_executable(const Build_Config *config, const char *output,
                             const File_Paths *objects, bool with_runtime) {
     return link_executable_options(config, output, objects, with_runtime,
                                    false);
 }
 
-static bool run_generator(const Build_Config *config, const char *manifest,
+NOBDEF bool run_generator(const Build_Config *config, const char *manifest,
                           const char *output, const char *package_name) {
     (void)config;
     if (!program_on_path("node")) {
@@ -716,7 +769,7 @@ static bool run_generator(const Build_Config *config, const char *manifest,
     return cmd_run(&command, .dont_reset = false);
 }
 
-static bool write_package_manifest(const char *directory, const char *name,
+NOBDEF bool write_package_manifest(const char *directory, const char *name,
                                    const char *extension_file) {
     const char *path = temp_sprintf("%s/toy.package", directory);
     FILE *file = fopen(path, "wb");
@@ -731,7 +784,7 @@ static bool write_package_manifest(const char *directory, const char *name,
     return ok;
 }
 
-static bool build_core_ffi(const Build_Config *config,
+NOBDEF bool build_core_ffi(const Build_Config *config,
                            Compile_Commands *compile_commands) {
     const char *directory = temp_sprintf("%s/ffi", config->core_package_dir);
     if (!ensure_directory(directory)) return false;
@@ -754,7 +807,7 @@ static bool build_core_ffi(const Build_Config *config,
     return ok;
 }
 
-static bool build_core(const Build_Config *config,
+NOBDEF bool build_core(const Build_Config *config,
                        Compile_Commands *compile_commands) {
     File_Paths headers = {0};
     File_Paths runtime_objects = {0};
@@ -792,7 +845,7 @@ static bool build_core(const Build_Config *config,
     return ok;
 }
 
-static bool remove_tree(const char *path) {
+NOBDEF bool remove_tree(const char *path) {
     if (!file_exists(path)) return true;
     Nob_File_Type type = get_file_type(path);
     if (type != FILE_DIRECTORY) return delete_file(path);
@@ -809,7 +862,7 @@ static bool remove_tree(const char *path) {
     return ok && delete_file(path);
 }
 
-static bool copy_sdk_file(const char *source, const char *destination) {
+NOBDEF bool copy_sdk_file(const char *source, const char *destination) {
     if (!file_exists(source)) {
         nob_log(ERROR, "distribution input does not exist: %s", source);
         return false;
@@ -817,14 +870,14 @@ static bool copy_sdk_file(const char *source, const char *destination) {
     return copy_file(source, destination);
 }
 
-static bool sdk_tree_directory_allowed(const char *name) {
+NOBDEF bool sdk_tree_directory_allowed(const char *name) {
     return name[0] != '.' && strcmp(name, "build") != 0 &&
            strcmp(name, "bin") != 0 && strcmp(name, "obj") != 0 &&
            strcmp(name, "generated") != 0 &&
            strcmp(name, "node_modules") != 0;
 }
 
-static bool sdk_tree_file_allowed(const char *name) {
+NOBDEF bool sdk_tree_file_allowed(const char *name) {
     if (strcmp(name, "generated.c") == 0) return false;
     return strcmp(name, ".toyfmt") == 0 || ends_with(name, ".md") ||
            ends_with(name, ".toy") || ends_with(name, ".json") ||
@@ -835,7 +888,7 @@ static bool sdk_tree_file_allowed(const char *name) {
            ends_with(name, ".svg") || ends_with(name, ".webp");
 }
 
-static bool copy_sdk_tree(const char *source, const char *destination) {
+NOBDEF bool copy_sdk_tree(const char *source, const char *destination) {
     if (!ensure_directory(destination)) return false;
 
     File_Paths children = {0};
@@ -860,7 +913,7 @@ static bool copy_sdk_tree(const char *source, const char *destination) {
     return ok;
 }
 
-static bool build_sdk_tool(const char *root, const Build_Config *config,
+NOBDEF bool build_sdk_tool(const char *root, const Build_Config *config,
                            const char *name) {
     const char *output = temp_sprintf("%s/%s/bin/%s%s", root,
                                       config->dist_dir, name,
@@ -871,7 +924,7 @@ static bool build_sdk_tool(const char *root, const Build_Config *config,
     return cmd_run(&command, .dont_reset = false);
 }
 
-static bool check_distribution_prerequisites(void) {
+NOBDEF bool check_distribution_prerequisites(void) {
     if (!program_on_path("go")) {
         nob_log(ERROR, "Go is required to build the SDK tooling");
         return false;
@@ -886,7 +939,7 @@ static bool check_distribution_prerequisites(void) {
     return true;
 }
 
-static bool build_distribution(const Build_Config *config, const char *root) {
+NOBDEF bool build_distribution(const Build_Config *config, const char *root) {
     static const char *documentation[] = {
         "bindgen.md",
         "c-libraries.md",
@@ -984,4 +1037,4 @@ static bool build_distribution(const Build_Config *config, const char *root) {
     return ok;
 }
 
-#endif  // TOY_NOB_BUILD_H
+#endif // NOB_IMPLEMENTATION

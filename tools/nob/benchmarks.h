@@ -3,6 +3,17 @@
 
 /* Cross-platform benchmark discovery, sampling, and wall-clock reporting. */
 
+#ifndef NOBDEF
+#define NOBDEF
+#endif
+
+NOBDEF bool collect_benchmarks(const File_Paths *requested, File_Paths *paths);
+NOBDEF bool run_benchmarks(const char *toy, const File_Paths *requested, size_t runs);
+
+#endif  // TOY_NOB_BENCHMARKS_H
+
+#ifdef NOB_IMPLEMENTATION
+
 static int compare_benchmark_names(const void *left, const void *right) {
     const char *const *a = left;
     const char *const *b = right;
@@ -31,7 +42,7 @@ static bool append_benchmark_path(File_Paths *paths, const char *name) {
     return true;
 }
 
-static bool collect_benchmarks(const File_Paths *requested,
+NOBDEF bool collect_benchmarks(const File_Paths *requested,
                                File_Paths *paths) {
     if (requested->count > 0) {
         for (size_t i = 0; i < requested->count; ++i) {
@@ -57,7 +68,7 @@ static bool collect_benchmarks(const File_Paths *requested,
     return true;
 }
 
-static bool run_benchmarks(const char *toy, const File_Paths *requested,
+NOBDEF bool run_benchmarks(const char *toy, const File_Paths *requested,
                            size_t runs) {
     if (!file_exists(toy)) {
         nob_log(ERROR, "Toy executable does not exist: %s", toy);
@@ -112,4 +123,4 @@ static bool run_benchmarks(const char *toy, const File_Paths *requested,
     return ok;
 }
 
-#endif  // TOY_NOB_BENCHMARKS_H
+#endif  // NOB_IMPLEMENTATION
