@@ -12,7 +12,7 @@ Compile the C file as a shared library. It includes only the SDK's standalone
 `toy.h`; do not link `toy_runtime`:
 
 ```console
-cc -std=c11 -Wall -Wextra -Wpedantic -shared toy_basic.c -I path/to/toy/include -o toy_basic.dll
+cc -Wall -Wextra -Wpedantic -shared toy_basic.c -I path/to/toy/include -o toy_basic.dll
 ```
 
 On Linux, add `-fPIC` and use `toy_basic.so`; on macOS replace `-shared` with

@@ -11,7 +11,7 @@ than act as the correctness suite.
 Bootstrap Nob once and run its isolated test harness directly:
 
 ```console
-cc -std=c11 nob.c -o nob
+cc nob.c -o nob
 nob test
 nob test --filter native_loader
 ```

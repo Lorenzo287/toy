@@ -6,7 +6,7 @@ refcounted collection objects, dynamic captures (`| a b |` / `$a`), directory
 packages with `.` qualified public words, a generated builtin registry, a scoped
 word dictionary, and an iterative VM frame stack for user words.
 
-Roadmap work lives in `docs/language-roadmap.md`. Keep this file focused on
+Roadmap work lives in `docs/ROADMAP.md`. Keep this file focused on
 navigation and development rules.
 
 ## Project Map
@@ -93,7 +93,7 @@ navigation and development rules.
 - Terminal capability and ANSI color handling: `src/tf_terminal.h`,
   `src/tf_terminal.c`.
 - REPL: `src/cli/tf_repl.h`, `src/cli/tf_repl.c`.
-- Language plan: `docs/language-roadmap.md`.
+- Language plan: `docs/ROADMAP.md`.
 - Package model: `docs/packages.md`.
 - Data model reference: `docs/data-model.md`.
 - Test conventions: `docs/testing.md`.
@@ -103,11 +103,11 @@ navigation and development rules.
 
 - Start with `git status --short`; do not overwrite user changes.
 - For language behavior, check `README.md`, then the relevant C files and tests.
-- For roadmap work, read `docs/language-roadmap.md` first. For collection or
+- For roadmap work, read `docs/ROADMAP.md` first. For collection or
   data-structure work, read `docs/data-model.md` too.
 - For native word changes, update `builtins.json`, declarations, and focused
   `tests/toy/` cases, then regenerate and commit all generated metadata.
-- Bootstrap the build with `clang -std=c11 nob.c -o nob.exe`; use
+- Bootstrap the build with `clang nob.c -o nob.exe`; use
   `.\nob.exe build` and run `.\nob.exe test` for the default suite. Use
   `--mode leak` for ownership, stack-effect, or execution-flow changes.
 - Use `.\nob.exe dist` to stage the consumer SDK at `dist/toy`. User-facing docs and examples

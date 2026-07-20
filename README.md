@@ -36,20 +36,19 @@ discovered it yet. Toy's REPL also uses antirez's
 
 ### Release
 
-Download a release and run the installer. Then start the REPL, run a package,
-or evaluate a standalone file with the CLI. The [REPL](./docs/repl.md) is
-a good way to start learning Toy since the language is self-documenting.
-There are also [examples](./examples/) that showcase some of the coolest features.
+Download and extract a release, then add its `bin` directory to `PATH` or use
+the platform installer described in the [installation guide](./docs/installation.md).
+Start the REPL, run a package, or evaluate a standalone file with the CLI. The
+[REPL](./docs/repl.md) is a good way to start learning Toy since the language
+is self-documenting. There are also [examples](./examples/) that showcase some
+of the coolest features.
 
-```powershell
-cd toy
-.\install.ps1 -AddToPath
-
-toy # REPL
-toy folder # run package
-toy --file script.toy # run file
+```console
+toy
+toy folder
+toy --file script.toy
 toy --eval "1 2 + print"
-toy --tdb # Debugger
+toy --tdb
 ```
 
 The SDK includes a formatter, language server, debugger adapter, and
@@ -59,20 +58,23 @@ about the content of the SDK.
 
 ### Build Manually
 
-Nob is the repository's build system. Bootstrap it once, then use
-it to build Toy, run regressions, or stage a locally installable SDK:
+Nob is the repository's build system. Bootstrap it once with a C compiler,
+then use it to build Toy, run regressions, or stage a locally installable SDK.
+The commands below use `nob` as the executable name; use its actual path or
+platform suffix when needed.
 
-```powershell
+```console
 git clone https://github.com/Lorenzo287/toy.git
 cd toy
 
-clang -O2 nob.c -o nob.exe
-.\nob.exe build
-.\nob.exe test
-.\nob.exe dist
-
-.\dist\toy\install.ps1 -AddToPath
+cc nob.c -o nob
+nob build
+nob test
+nob dist
 ```
+
+The staged SDK is under `dist/toy`; install it as described in the
+[installation guide](./docs/installation.md).
 
 ## Postfix Notation
 

@@ -16,9 +16,9 @@ Use the compiler ABI that matches the SDK archive. A GCC-style SDK can build
 each host directly:
 
 ```console
-gcc -std=c11 embed.c -I path/to/toy/include path/to/toy/lib/libtoy_runtime.a -luser32 -o embed.exe
-gcc -std=c11 callbacks.c -I path/to/toy/include path/to/toy/lib/libtoy_runtime.a -luser32 -o callbacks.exe
-gcc -std=c11 values.c -I path/to/toy/include path/to/toy/lib/libtoy_runtime.a -luser32 -o values.exe
+gcc embed.c -I path/to/toy/include path/to/toy/lib/libtoy_runtime.a -luser32 -o embed.exe
+gcc callbacks.c -I path/to/toy/include path/to/toy/lib/libtoy_runtime.a -luser32 -o callbacks.exe
+gcc values.c -I path/to/toy/include path/to/toy/lib/libtoy_runtime.a -luser32 -o values.exe
 ```
 
 For an MSVC SDK, use its matching `.lib` archive and normal MSVC compiler and
@@ -30,9 +30,9 @@ Use the archive from the same SDK with its compatible compiler. Linux also
 links `dl`; macOS does not:
 
 ```console
-cc -std=c11 embed.c -I path/to/toy/include path/to/toy/lib/libtoy_runtime.a -lm -ldl -o embed
-cc -std=c11 callbacks.c -I path/to/toy/include path/to/toy/lib/libtoy_runtime.a -lm -ldl -o callbacks
-cc -std=c11 values.c -I path/to/toy/include path/to/toy/lib/libtoy_runtime.a -lm -ldl -o values
+cc embed.c -I path/to/toy/include path/to/toy/lib/libtoy_runtime.a -lm -ldl -o embed
+cc callbacks.c -I path/to/toy/include path/to/toy/lib/libtoy_runtime.a -lm -ldl -o callbacks
+cc values.c -I path/to/toy/include path/to/toy/lib/libtoy_runtime.a -lm -ldl -o values
 ```
 
 On macOS, omit `-ldl`. The commands deliberately use only the public

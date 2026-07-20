@@ -175,7 +175,7 @@ is otherwise self-contained: copy `toy.h` beside the source and compile
 the shared library without linking Toy or a Toy support library:
 
 ```console
-clang -std=c11 -shared sample.c -o toy_sample.dll
+clang -shared sample.c -o toy_sample.dll
 ```
 
 On Linux, add `-fPIC` and name the result `toy_sample.so`. The package directory

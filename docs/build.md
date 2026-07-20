@@ -11,10 +11,10 @@ Toy vendors [Nob](https://github.com/tsoding/nob.h). Build its single source
 file with a C compiler:
 
 ```console
-cc -std=c11 nob.c -o nob
+cc nob.c -o nob
 ```
 
-On Windows, use `clang -std=c11 nob.c -o nob.exe`. The examples below call the
+On Windows, use `clang nob.c -o nob.exe`. The examples below call the
 result `nob`; use `nob.exe` or its actual path when needed. Nob rebuilds itself
 when its source or included build headers change. The normal source build also
 needs libffi headers and a linkable `ffi` library because it builds the

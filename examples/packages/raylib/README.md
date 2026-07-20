@@ -14,7 +14,7 @@ After installing a Raylib build compatible with your compiler, compile the
 extension directly. A typical Windows command is:
 
 ```console
-cc -std=c11 -Wall -Wextra -Wpedantic -shared toy_raylib.c -I path/to/toy/include -I path/to/raylib/include path/to/raylib/lib/raylib.lib -lopengl32 -lgdi32 -lwinmm -lshell32 -o toy_raylib.dll
+cc -Wall -Wextra -Wpedantic -shared toy_raylib.c -I path/to/toy/include -I path/to/raylib/include path/to/raylib/lib/raylib.lib -lopengl32 -lgdi32 -lwinmm -lshell32 -o toy_raylib.dll
 ```
 
 Create `toy.package` beside the compiled library:

@@ -18,17 +18,17 @@ jobs:
         include:
           - os: ubuntu-latest
             asset_name: toy-linux.tar.gz
-            nob_bootstrap: cc -std=c11 nob.c -o nob
+            nob_bootstrap: cc nob.c -o nob
             nob_test: ./nob test
             nob_dist: ./nob dist
           - os: windows-latest
             asset_name: toy-windows.zip
-            nob_bootstrap: clang -std=c11 nob.c -o nob.exe
+            nob_bootstrap: clang nob.c -o nob.exe
             nob_test: .\nob.exe test
             nob_dist: .\nob.exe dist
           - os: macos-latest
             asset_name: toy-macos.tar.gz
-            nob_bootstrap: cc -std=c11 nob.c -o nob
+            nob_bootstrap: cc nob.c -o nob
             nob_test: ./nob test
             nob_dist: ./nob dist
 

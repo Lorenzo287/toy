@@ -145,7 +145,7 @@ then write the manifest yourself. No Toy runtime or package-support library
 participates in that link.
 
 ```console
-cc -std=c11 -Wall -Wextra -Wpedantic -shared vendor/sqlite/toy_sqlite.c -I path/to/toy/include -I path/to/sqlite/include path/to/sqlite/lib/sqlite3.lib -o vendor/sqlite/toy_sqlite.dll
+cc -Wall -Wextra -Wpedantic -shared vendor/sqlite/toy_sqlite.c -I path/to/toy/include -I path/to/sqlite/include path/to/sqlite/lib/sqlite3.lib -o vendor/sqlite/toy_sqlite.dll
 ```
 
 Create `vendor/sqlite/toy.package` beside the compiled library:

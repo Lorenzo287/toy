@@ -224,7 +224,7 @@ node path/to/toy/share/toy/bindgen/generate-binding.js --package clib path/to/cl
 Compile the generated C and write its `toy.package` manifest manually:
 
 ```console
-cc -std=c11 -Wall -Wextra -Wpedantic -shared vendor/clib/generated.c -I path/to/toy/include -o vendor/clib/toy_clib.dll
+cc -Wall -Wextra -Wpedantic -shared vendor/clib/generated.c -I path/to/toy/include -o vendor/clib/toy_clib.dll
 ```
 
 Create `vendor/clib/toy.package` beside the shared library:

@@ -16,13 +16,13 @@ Compile the extension directly. On Windows, using a SQLite library compatible
 with the selected compiler:
 
 ```console
-cc -std=c11 -Wall -Wextra -Wpedantic -shared toy_sqlite.c -I path/to/toy/include -I path/to/sqlite/include path/to/sqlite/lib/sqlite3.lib -o toy_sqlite.dll
+cc -Wall -Wextra -Wpedantic -shared toy_sqlite.c -I path/to/toy/include -I path/to/sqlite/include path/to/sqlite/lib/sqlite3.lib -o toy_sqlite.dll
 ```
 
 On Linux, a typical system-library build is:
 
 ```console
-cc -std=c11 -Wall -Wextra -Wpedantic -fPIC -shared toy_sqlite.c -I path/to/toy/include -lsqlite3 -o toy_sqlite.so
+cc -Wall -Wextra -Wpedantic -fPIC -shared toy_sqlite.c -I path/to/toy/include -lsqlite3 -o toy_sqlite.so
 ```
 
 On macOS, use `-dynamiclib` and write `toy_sqlite.dylib`. Create

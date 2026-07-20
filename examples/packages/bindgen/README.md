@@ -23,7 +23,7 @@ node path/to/toy/share/toy/bindgen/generate-binding.js --package clib clib/clib.
 Compile the generated C without linking the Toy runtime:
 
 ```console
-cc -std=c11 -Wall -Wextra -Wpedantic -shared clib/generated.c -I path/to/toy/include -o clib/toy_clib.dll
+cc -Wall -Wextra -Wpedantic -shared clib/generated.c -I path/to/toy/include -o clib/toy_clib.dll
 ```
 
 Create `clib/toy.package`:
@@ -50,7 +50,7 @@ the final Toy reference calls `fclose` automatically:
 
 ```console
 toy-bindgen --package stdio stdio/stdio.json stdio/generated.c
-cc -std=c11 -Wall -Wextra -Wpedantic -shared stdio/generated.c -I path/to/toy/include -o stdio/toy_stdio.dll
+cc -Wall -Wextra -Wpedantic -shared stdio/generated.c -I path/to/toy/include -o stdio/toy_stdio.dll
 ```
 
 Create `stdio/toy.package`:
@@ -79,7 +79,7 @@ database:
 
 ```console
 toy-bindgen --package sqlite sqlite/sqlite.json sqlite/generated.c
-cc -std=c11 -Wall -Wextra -Wpedantic -shared sqlite/generated.c -I path/to/toy/include -I path/to/sqlite/include path/to/sqlite/lib/sqlite3.lib -o sqlite/toy_sqlite.dll
+cc -Wall -Wextra -Wpedantic -shared sqlite/generated.c -I path/to/toy/include -I path/to/sqlite/include path/to/sqlite/lib/sqlite3.lib -o sqlite/toy_sqlite.dll
 ```
 
 Create `sqlite/toy.package`:
