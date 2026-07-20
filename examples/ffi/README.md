@@ -2,11 +2,10 @@
 
 This package imports `core:ffi`, opens the C runtime passed as its first
 argument, and calls `strlen`. Run it directly from the SDK without changing the
-SDK:
+SDK. Replace `path/to/toy` with its directory:
 
-```powershell
-$ToySdk = 'C:\Tools\Toy'
-toy --file "$ToySdk\examples\ffi\main.toy" msvcrt.dll
+```console
+toy --file path/to/toy/examples/ffi/main.toy msvcrt.dll
 ```
 
 Use the appropriate C runtime library name on other platforms. See

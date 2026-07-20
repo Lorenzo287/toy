@@ -50,36 +50,36 @@ int main(int argc, char **argv) {
     toy_state *state = toy_state_new(&config);
     CHECK(state, "state creation");
     CHECK(toy_import_package(state, plugin_path, "p") == TOY_OK,
-          "import shared native package");
+          "import package with C extension");
 
     CHECK(toy_eval(state, "<native-loader>",
                    "21 p.double p.make-resource "
                    "[ 1 2 3 ] p.sequence-size "
                    "p.make-pair [ 7 9 ] ==") == TOY_OK,
-          "load and call shared native package");
+          "load and call C extension");
 
     const char *resource_type = NULL;
     int64_t integer = 0;
     bool boolean = false;
     CHECK(toy_stack_size(state) == 4, "native result stack size");
     CHECK(toy_get_bool(state, 0, &boolean) && boolean,
-          "shared package collection construction");
+          "C extension collection construction");
     CHECK(toy_get_int(state, 1, &integer) && integer == 3,
-          "shared package retained sequence access");
+          "C extension retained sequence access");
     CHECK(toy_get_resource_type(state, 2, &resource_type) &&
               strcmp(resource_type, "test.plugin.resource") == 0,
-          "shared package resource result");
+          "C extension resource result");
     CHECK(toy_get_int(state, 3, &integer) && integer == 42,
-          "shared package integer result");
+          "C extension integer result");
     CHECK(toy_pop(state, 4), "release native results");
 
     CHECK(toy_import_package(state, plugin_path, NULL) == TOY_OK,
           "import the same package under its declared name");
     CHECK(toy_eval(state, "<native-loader-repeat>",
                    "20 plugin.double") == TOY_OK,
-          "call shared package through its declared name");
+          "call C extension through its declared package name");
     CHECK(toy_get_int(state, 0, &integer) && integer == 40,
-          "repeat shared package call");
+          "repeat C extension call");
     CHECK(toy_pop(state, 1), "release repeat result");
 
     CHECK(toy_eval(state, "<native-loader-error>",
@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
     CHECK(toy_pop(state, 1), "release rejected native input");
 
     CHECK(toy_import_package(state, bad_path, NULL) == TOY_ERROR,
-          "reject incompatible shared package ABI");
+          "reject incompatible C-extension ABI");
     CHECK(toy_get_error(state) &&
               strstr(toy_get_error(state), "incompatible descriptor"),
           "incompatible ABI diagnostic");

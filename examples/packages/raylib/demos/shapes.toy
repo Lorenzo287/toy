@@ -1,4 +1,5 @@
-\ Import the separately built Raylib C package passed as the first argument.
+\ Import the package containing the Raylib C extension passed as the first
+\ argument.
 argv 0 at 'rl import-as
 
 'background [ 245 245 245 255 rl.rgba ] def

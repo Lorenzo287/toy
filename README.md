@@ -52,8 +52,10 @@ toy --eval "1 2 + print"
 toy --tdb # Debugger
 ```
 
+The SDK includes a formatter, language server, debugger adapter, and
+Tree-sitter grammar; the [editor guide](./docs/editor.md) shows how to use them.
 See the [installation guide](./docs/installation.md) for more details
-about the content of the installation.
+about the content of the SDK.
 
 ### Build Manually
 
@@ -131,8 +133,7 @@ name `dup` as data. Words that expect code can use either a quotation such as
 5 [ 1 + ] keep       \ leaves 5 6
 ```
 
-Names remain data unless a word explicitly treats them as code (this is
-a big difference compared to Aocla where the quoting symbol is removed on push).
+Names remain data unless a word explicitly treats them as code.
 Consequently, `[ dup ]` is a quotation that calls `dup`, while `[ 'dup ]` is
 a quotation that contains its name. Toy preserves that difference when programs
 inspect other programs:
@@ -172,8 +173,7 @@ all the arguments and rearrange them.
 ```
 
 A capture lives only while its word or quotation is running, although code
-called from inside may read it with `$name` (again different from Aocla where
-a capture is only visible from the same frame depth).
+called from inside may read it with `$name`.
 An inner capture may hide an outer one, but it cannot update it, and a returned
 quotation does not keep captures alive like a closure would.
 Captures clarify the stack; they are not imperative variables.
@@ -313,18 +313,40 @@ an execution order. The CLI invokes the public `main` word of a package named
 [package reference](./docs/packages.md) for the full model, standalone
 evaluation, and native-library workflows.
 
-## Embedding and C Interop
+## C Interop
 
-Toy can be embedded as a static C runtime. The API lets
-a host create interpreter states, evaluate Toy source, call Toy words,
-exchange primitive and opaque resource stack values, retain arbitrary values,
-traverse or construct basic collections, and register C functions individually
-or as C-backed packages. For a more detailed explanation refer to the
-[embedding guide](./docs/embedding.md), for a quick example see
-[`examples/embedding/embed.c`](./examples/embedding/embed.c).
+Toy can sit on either side of the C boundary. A C program can embed the runtime,
+evaluate source, call Toy words, exchange values, and add its own words. The
+smallest complete host is
+[`examples/embedding/embed.c`](./examples/embedding/embed.c); the
+[embedding guide](./docs/embedding.md) explains values, ownership, callbacks,
+and errors.
 
-TODO: add small section about using external libraries either manually, with ffi
-or with automated bindgen.
+A package can contain Toy source, a C extension, or both. An extension uses the
+same single `toy.h` header as an embedding host and compiles to a shared library
+beside the package's `toy.package` manifest. The SDK's `toy-c-package` command
+performs that build, while `toy-bindgen` generates extension code from an
+explicit description of a C API. The
+[basic package](./examples/packages/basic/) is small enough to read in one
+sitting; the [SQLite](./examples/packages/sqlite/) and
+[Raylib](./examples/packages/raylib/) examples show how resources give foreign
+handles Toy lifetimes.
+
+For direct calls, `core:ffi` can open a shared library and bind fixed C
+signatures at run time:
+
+```toy
+"core:ffi" 'c import-as
+
+"hello"
+"msvcrt.dll" c.open
+"strlen" "usize(cstr)" c.bind
+c.call print
+```
+
+The library name is platform-specific. The [package guide](./docs/packages.md)
+compares the three interop routes; the [FFI](./docs/ffi.md) and
+[binding generator](./docs/bindgen.md) guides give their exact contracts.
 
 ## Built-in Words
 

@@ -10,11 +10,13 @@ than act as the correctness suite.
 
 Bootstrap Nob once and run its isolated test harness directly:
 
-```powershell
-clang -std=c11 nob.c -o nob.exe
-.\nob.exe test
-.\nob.exe test --filter native_loader
+```console
+cc -std=c11 nob.c -o nob
+nob test
+nob test --filter native_loader
 ```
+
+On Windows, compile `nob.exe` instead and invoke that executable.
 
 The default suite covers Toy cases, directory packages, debug-protocol
 transport, embedding/debugger C tests, real loadable packages, `core:ffi`, and
@@ -27,10 +29,10 @@ leaking between tests.
 
 `--filter` selects tests whose names contain the given text:
 
-```powershell
-.\nob.exe test --filter native_loader
-.\nob.exe test --filter bindgen
-.\nob.exe test --filter package
+```console
+nob test --filter native_loader
+nob test --filter bindgen
+nob test --filter package
 ```
 
 ## File Conventions

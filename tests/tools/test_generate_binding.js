@@ -20,14 +20,14 @@ function manifest() {
 }
 
 const rendered = renderBinding(validateManifest(manifest()));
-assert(rendered.includes('#define TOY_PACKAGE_IMPLEMENTATION'));
+assert(rendered.includes('#define TOY_EXTENSION_IMPLEMENTATION'));
 assert(rendered.includes('"sample"'));
 assert(rendered.includes('{"length", binding_word_0}'));
 assert(rendered.includes('sample_length(argument_0)'));
 assert(rendered.includes("memchr(string_data_0, '\\0', string_length_0)"));
-assert(rendered.includes('*toy_package_init('));
-assert(rendered.includes('toy_package_bind(abi_version, api)'));
-assert(!rendered.includes('TOY_PACKAGE_ABI_VERSION'));
+assert(rendered.includes('*toy_extension_init('));
+assert(rendered.includes('toy_extension_bind(abi_version, api)'));
+assert(!rendered.includes('TOY_EXTENSION_ABI_VERSION'));
 assert(!rendered.includes('\0'));
 
 const badHeader = manifest();

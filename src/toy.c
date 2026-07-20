@@ -35,7 +35,7 @@ static toy_status api_errorf(toy_state *state, const char *format, ...) {
     va_end(count_args);
     if (length < 0) {
         va_end(args);
-        tf_ctx_set_error(state, "native package registration failed");
+        tf_ctx_set_error(state, "package registration failed");
         return TOY_ERROR;
     }
 
@@ -168,23 +168,23 @@ static toy_status validate_native_package(toy_state *state,
                                           const toy_native_package *package) {
     if (!state) return TOY_ERROR;
     if (!package || !package->name || package->name[0] == '\0') {
-        return api_errorf(state, "native package descriptor is invalid");
+        return api_errorf(state, "package descriptor is invalid");
     }
 
     size_t package_name_len = strlen(package->name);
     if (!tf_package_name_valid(package->name, package_name_len)) {
-        return api_errorf(state, "invalid native package name '%s'",
+        return api_errorf(state, "invalid package name '%s'",
                           package->name);
     }
     if (!package->words || package->word_count == 0) {
-        return api_errorf(state, "native package '%s' has no words",
+        return api_errorf(state, "package '%s' has no words",
                           package->name);
     }
     for (size_t i = 0; i < package->word_count; i++) {
         const toy_native_word *word = &package->words[i];
         if (!word->name || !word->callback) {
             return api_errorf(state,
-                              "native package '%s' has an invalid word descriptor",
+                              "package '%s' has an invalid word descriptor",
                               package->name);
         }
 
@@ -197,7 +197,7 @@ static toy_status validate_native_package(toy_state *state,
         for (size_t j = 0; j < i; j++) {
             if (strcmp(package->words[j].name, word->name) == 0) {
                 return api_errorf(state,
-                                  "native package word '%s.%s' is duplicated",
+                                  "package word '%s.%s' is duplicated",
                                   package->name, word->name);
             }
         }
@@ -215,7 +215,7 @@ toy_status tf_install_native_package(toy_state *state, size_t package_index,
     if (!registered || registered->name_len != package_name_len ||
         memcmp(registered->name, package->name, package_name_len) != 0) {
         return api_errorf(state,
-                          "native package exports '%s', expected '%s'",
+                          "C extension exports package '%s', expected '%s'",
                           package->name,
                           registered ? registered->name : "<missing>");
     }
@@ -245,7 +245,7 @@ toy_status toy_register_package(toy_state *state,
     if (validation != TOY_OK) return validation;
     if (tf_package_import_find(state, TF_ROOT_PACKAGE, package->name,
                                strlen(package->name)) != (size_t)-1) {
-        return api_errorf(state, "native package '%s' is already registered",
+        return api_errorf(state, "package '%s' is already registered",
                           package->name);
     }
     char *identity = tf_xmalloc(strlen(package->name) + 6);

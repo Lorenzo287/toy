@@ -320,7 +320,7 @@ tf_ret tf_package_load(tf_ctx *ctx, const char *request,
                        size_t alias_len, size_t *package_index);
 tf_ret tf_package_run_main(tf_ctx *ctx, const char *path);
 
-/* Validate and install a native package without requiring an idle VM. */
+/* Validate and install a C-defined package without requiring an idle VM. */
 toy_status tf_install_native_package(tf_ctx *ctx, size_t package_index,
                                      const toy_native_package *package);
 

@@ -436,10 +436,9 @@ static bool build_native_loader_test(const Build_Config *config,
         "%s/%s", plugin_directory, plugin_file);
     const char *bad_plugin_library = temp_sprintf(
         "%s/%s", bad_plugin_directory, bad_plugin_file);
-    if (!write_native_package_manifest(plugin_directory, "plugin",
-                                       plugin_file) ||
-        !write_native_package_manifest(bad_plugin_directory, "bad",
-                                       bad_plugin_file)) {
+    if (!write_package_manifest(plugin_directory, "plugin", plugin_file) ||
+        !write_package_manifest(bad_plugin_directory, "bad",
+                                bad_plugin_file)) {
         return false;
     }
     *loader_executable = temp_sprintf("%s/tests/test_native_loader%s",
@@ -545,12 +544,12 @@ static bool build_bindgen_test(const Build_Config *config,
     const char *package_directory = temp_sprintf(
         "%s/bindgen", config->test_package_dir);
     if (!ensure_directory(package_directory)) return false;
-    const char *native_file = temp_sprintf(
+    const char *extension_file = temp_sprintf(
         "toy_bindgen%s", TOY_SHARED_SUFFIX_VALUE);
     const char *package_library = temp_sprintf("%s/%s", package_directory,
-                                               native_file);
-    if (!write_native_package_manifest(package_directory, "bindgen",
-                                       native_file)) {
+                                               extension_file);
+    if (!write_package_manifest(package_directory, "bindgen",
+                                extension_file)) {
         return false;
     }
     if (ok) {
@@ -656,7 +655,7 @@ static bool run_ffi_integration_test(const Build_Config *config,
     if (!procs_flush(&processes)) ok = false;
 
     const char *fixture = temp_sprintf("%s/toy_ffi_fixture%s",
-                                       config->native_artifact_dir,
+                                       config->extension_artifact_dir,
                                        TOY_SHARED_SUFFIX_VALUE);
     if (ok) {
         ok = link_shared_package(config, fixture, &fixture_objects, false);
@@ -733,15 +732,19 @@ static bool run_all_tests(const Build_Config *config, const char *root,
     bool c_ok = run_c_tests(config, root, &c_test_artifacts);
     size_t c_test_count = c_test_artifacts.count / 2;
     if (native_loader) {
-        const char *native_artifact_dir = temp_sprintf("%s/%s", root,
-                                              config->test_package_dir);
-        if (!run_c_test(config, root, native_loader, native_artifact_dir)) c_ok = false;
+        const char *package_directory = temp_sprintf(
+            "%s/%s", root, config->test_package_dir);
+        if (!run_c_test(config, root, native_loader, package_directory)) {
+            c_ok = false;
+        }
         ++c_test_count;
     }
     if (bindgen_test) {
-        const char *native_artifact_dir = temp_sprintf("%s/%s", root,
-                                              config->test_package_dir);
-        if (!run_c_test(config, root, bindgen_test, native_artifact_dir)) c_ok = false;
+        const char *package_directory = temp_sprintf(
+            "%s/%s", root, config->test_package_dir);
+        if (!run_c_test(config, root, bindgen_test, package_directory)) {
+            c_ok = false;
+        }
         ++c_test_count;
     }
     bool generator_ok = run_binding_generator_test(config);

@@ -5,7 +5,7 @@
 - OS / CPU: Windows 10.0.26200.0 / Intel Core i7-1065G7
 - Compiler / version: Clang 22.1.3
 - CMake configuration: Release
-- Command: `.\benchmarks\run.ps1 -Benchmark sequence-algorithms -Runs 3`
+- Command: `nob benchmark sequence-algorithms --runs 3`
 - Change under test: replace fixed-pass bubble sort with insertion/merge and
   byte-counting hybrids; add delayed hashing to `unique`
 

@@ -1,3 +1,7 @@
+#ifndef _WIN32
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #define NOBDEF static inline
 #define NOB_IMPLEMENTATION
 #define NOB_STRIP_PREFIX
@@ -21,12 +25,19 @@
 
 #include "tools/nob/tests.h"
 
+#include "tools/nob/benchmarks.h"
+
 int main(int argc, char **argv) {
     GO_REBUILD_URSELF_PLUS(argc, argv, "deps/nob/nob.h",
                            "tools/nob/build.h",
-                           "tools/nob/tests.h");
+                           "tools/nob/tests.h",
+                           "tools/nob/benchmarks.h");
     const char *program = shift(argv, argc);
     const char *command = NULL;
+    const char *benchmark_toy = NULL;
+    size_t benchmark_runs = 5;
+    bool benchmark_options = false;
+    File_Paths benchmark_names = {0};
 
     Build_Config config = {
         .compiler = COMPILER_GCC,
@@ -38,6 +49,9 @@ int main(int argc, char **argv) {
         const char *argument = shift(argv, argc);
         if (!command && argument[0] != '-') {
             command = argument;
+        } else if (command && strcmp(command, "benchmark") == 0 &&
+                   argument[0] != '-') {
+            da_append(&benchmark_names, argument);
         } else if (strcmp(argument, "--cc") == 0) {
             if (argc == 0 || !parse_compiler(shift(argv, argc),
                                               &config.compiler)) {
@@ -72,6 +86,34 @@ int main(int argc, char **argv) {
                 return 1;
             }
             config.test_filter = shift(argv, argc);
+        } else if (strcmp(argument, "--runs") == 0) {
+            benchmark_options = true;
+            if (argc == 0 ||
+                !parse_count(shift(argv, argc), &benchmark_runs)) {
+                nob_log(ERROR, "--runs requires a positive integer");
+                return 1;
+            }
+        } else if (starts_with(argument, "--runs=")) {
+            benchmark_options = true;
+            if (!parse_count(argument + strlen("--runs="),
+                             &benchmark_runs)) {
+                nob_log(ERROR, "--runs requires a positive integer");
+                return 1;
+            }
+        } else if (strcmp(argument, "--toy") == 0) {
+            benchmark_options = true;
+            if (argc == 0) {
+                nob_log(ERROR, "--toy requires an executable path");
+                return 1;
+            }
+            benchmark_toy = shift(argv, argc);
+        } else if (starts_with(argument, "--toy=")) {
+            benchmark_options = true;
+            benchmark_toy = argument + strlen("--toy=");
+            if (benchmark_toy[0] == '\0') {
+                nob_log(ERROR, "--toy requires an executable path");
+                return 1;
+            }
         } else if (strcmp(argument, "--include") == 0) {
             if (argc == 0) {
                 nob_log(ERROR, "--include requires a directory");
@@ -112,6 +154,10 @@ int main(int argc, char **argv) {
         print_usage(program);
         return 0;
     }
+    if (benchmark_options && strcmp(command, "benchmark") != 0) {
+        nob_log(ERROR, "--runs and --toy are benchmark options");
+        return 1;
+    }
     if (strcmp(command, "clean") == 0) {
         Nob_Log_Level previous_level = minimal_log_level;
         minimal_log_level = WARNING;
@@ -121,7 +167,7 @@ int main(int argc, char **argv) {
         return cleaned ? 0 : 1;
     }
     if (strcmp(command, "build") != 0 && strcmp(command, "test") != 0 &&
-        strcmp(command, "dist") != 0) {
+        strcmp(command, "dist") != 0 && strcmp(command, "benchmark") != 0) {
         nob_log(ERROR, "unknown command: %s", command);
         print_usage(program);
         return 1;
@@ -130,7 +176,10 @@ int main(int argc, char **argv) {
         !check_distribution_prerequisites()) {
         return 1;
     }
-    if (!program_on_path(compiler_executable(config.compiler))) {
+    bool custom_benchmark = strcmp(command, "benchmark") == 0 &&
+                            benchmark_toy != NULL;
+    if (!custom_benchmark &&
+        !program_on_path(compiler_executable(config.compiler))) {
         nob_log(ERROR, "compiler '%s' was not found on PATH",
                 compiler_executable(config.compiler));
         if (config.compiler == COMPILER_MSVC) {
@@ -144,17 +193,21 @@ int main(int argc, char **argv) {
         return 1;
     }
 #endif
-    if (!configure_paths(&config)) return 1;
+    if (!custom_benchmark && !configure_paths(&config)) return 1;
 
-    nob_log(INFO, "compiler: %s", compiler_name(config.compiler));
-    nob_log(INFO, "mode: %s", mode_name(config.mode));
-    nob_log(INFO, "jobs: %zu", config.jobs);
+    if (!custom_benchmark) {
+        nob_log(INFO, "compiler: %s", compiler_name(config.compiler));
+        nob_log(INFO, "mode: %s", mode_name(config.mode));
+        nob_log(INFO, "jobs: %zu", config.jobs);
+    }
 
     const char *root = get_current_dir_temp();
     Compile_Commands compile_commands = {0};
     bool needs_core = strcmp(command, "build") == 0 ||
                       strcmp(command, "test") == 0 ||
-                      strcmp(command, "dist") == 0;
+                      strcmp(command, "dist") == 0 ||
+                      (strcmp(command, "benchmark") == 0 &&
+                       !custom_benchmark);
     bool ok = !needs_core || build_core(&config, &compile_commands);
     if (ok && strcmp(command, "test") == 0) {
         ok = run_all_tests(&config, root, &compile_commands);
@@ -162,7 +215,11 @@ int main(int argc, char **argv) {
     if (ok && strcmp(command, "dist") == 0) {
         ok = build_distribution(&config, root);
     }
-    if (ok) ok = write_compile_commands(&compile_commands);
+    if (ok && strcmp(command, "benchmark") == 0) {
+        ok = run_benchmarks(custom_benchmark ? benchmark_toy : config.toy_exe,
+                            &benchmark_names, benchmark_runs);
+    }
+    if (ok && needs_core) ok = write_compile_commands(&compile_commands);
 
     for (size_t i = 0; i < compile_commands.count; ++i) {
         da_free(compile_commands.items[i].command);
@@ -171,5 +228,6 @@ int main(int argc, char **argv) {
     da_free(config.include_dirs);
     da_free(config.library_dirs);
     da_free(config.libraries);
+    da_free(benchmark_names);
     return ok ? 0 : 1;
 }

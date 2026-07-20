@@ -1,43 +1,42 @@
-# Basic C Package Example
+# Basic C Extension Example
 
-This is the smallest complete C-backed Toy package. It has no foreign-library
-dependency: `toy_basic.c` exports one `twice` word.
+This is the smallest complete Toy package with a C extension. It has no
+foreign-library dependency: `toy_basic.c` exports one `twice` word.
 
-Copy the example from the SDK into an editable project directory before
-building it:
-
-```powershell
-$ToySdk = 'C:\Tools\Toy'
-Copy-Item "$ToySdk\examples\packages\basic" .\basic -Recurse
-cd .\basic
-```
+Work from a writable copy of this directory. The commands below assume it is
+the current directory; replace `path/to/toy` with the SDK directory.
 
 ## Manual Build
 
 Compile the C file as a shared library. It includes only the SDK's standalone
-`toy_package.h`; do not link `toy_runtime`:
+`toy.h`; do not link `toy_runtime`:
 
-```powershell
-clang -std=c11 -Wall -Wextra -Wpedantic -shared `
-    .\toy_basic.c -I "$ToySdk\include" `
-    -o .\toy_basic.dll
-@'
-name = basic
-native = toy_basic.dll
-'@ | Set-Content -NoNewline .\toy.package
-
-toy --file .\demos\basic.toy .
+```console
+cc -std=c11 -Wall -Wextra -Wpedantic -shared toy_basic.c -I path/to/toy/include -o toy_basic.dll
 ```
 
-On Linux, add `-fPIC` and write `toy_basic.so` in both places. On macOS use
-`-dynamiclib` and `toy_basic.dylib`.
+On Linux, add `-fPIC` and use `toy_basic.so`; on macOS replace `-shared` with
+`-dynamiclib` and use `toy_basic.dylib`.
+
+Create `toy.package` beside the library, using the filename for your platform:
+
+```ini
+name = basic
+extension = toy_basic.dll
+```
+
+Then run the demo:
+
+```console
+toy --file demos/basic.toy .
+```
 
 ## Optional Helper
 
-`toy-c-package` performs the same compile, link, and manifest steps, printing
-the compiler commands it runs:
+`toy-c-package` builds the same extension and manifest, printing the compiler
+commands it runs:
 
-```powershell
-toy-c-package . .\toy_basic.c
-toy --file .\demos\basic.toy .
+```console
+toy-c-package . toy_basic.c
+toy --file demos/basic.toy .
 ```

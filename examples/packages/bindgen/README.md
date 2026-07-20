@@ -1,54 +1,105 @@
 # Generated Binding Examples
 
-Copy the `bindgen/` tree into an editable project directory before following
-these commands, then work from that copied directory. `clib/clib.json`
-generates direct C wrappers for `strlen` and `strcmp`, builds them into the
-`clib` package directory, and calls the resulting Toy words:
+Work from a writable copy of the `bindgen/` tree. The commands below assume it
+is the current directory; replace `path/to/toy` and other placeholder paths
+with real directories.
 
-```powershell
-$ToySdk = 'C:\Tools\Toy'
-Copy-Item "$ToySdk\examples\packages\bindgen" .\bindgen -Recurse
-cd .\bindgen
+## Minimal C Binding
+
+`clib/clib.json` describes `strlen` and `strcmp`. Generate the C wrapper with
+the installed frontend:
+
+```console
+toy-bindgen --package clib clib/clib.json clib/generated.c
 ```
 
-```powershell
-toy-bindgen --package clib `
-    .\clib\clib.json `
-    .\clib\generated.c
-toy-c-package .\clib .\clib\generated.c
-toy --file .\demos\clib.toy .\clib
+The frontend runs the generator shipped in the SDK. It can also be invoked
+directly:
+
+```console
+node path/to/toy/share/toy/bindgen/generate-binding.js --package clib clib/clib.json clib/generated.c
 ```
+
+Compile the generated C without linking the Toy runtime:
+
+```console
+cc -std=c11 -Wall -Wextra -Wpedantic -shared clib/generated.c -I path/to/toy/include -o clib/toy_clib.dll
+```
+
+Create `clib/toy.package`:
+
+```ini
+name = clib
+extension = toy_clib.dll
+```
+
+On Linux, add `-fPIC` and use `toy_clib.so`; on macOS use `-dynamiclib` and
+`toy_clib.dylib`. Run the result with:
+
+```console
+toy --file demos/clib.toy clib
+```
+
+As an optional shortcut, `toy-c-package clib clib/generated.c` performs the
+compiler and manifest steps.
+
+## Owned Resource
 
 `stdio/stdio.json` wraps `FILE *` as an owned `stdio.file` resource. Dropping
 the final Toy reference calls `fclose` automatically:
 
-```powershell
-toy-bindgen --package stdio `
-    .\stdio\stdio.json `
-    .\stdio\generated.c
-toy-c-package .\stdio .\stdio\generated.c
-toy --file .\demos\stdio.toy .\stdio .\demos\stdio.toy
+```console
+toy-bindgen --package stdio stdio/stdio.json stdio/generated.c
+cc -std=c11 -Wall -Wextra -Wpedantic -shared stdio/generated.c -I path/to/toy/include -o stdio/toy_stdio.dll
+```
+
+Create `stdio/toy.package`:
+
+```ini
+name = stdio
+extension = toy_stdio.dll
+```
+
+Then run it. `toy-c-package stdio stdio/generated.c` is the optional helper for
+the compiler and manifest steps.
+
+```console
+toy --file demos/stdio.toy stdio demos/stdio.toy
 ```
 
 These standard-C functions need no additional library configuration. See
-[`docs/bindgen.md`](../../../docs/bindgen.md) for the manifest contract.
+[`docs/bindgen.md`](../../../docs/bindgen.md) for the complete manifest
+contract.
 
-`sqlite/sqlite.json` is a generated third-party binding rather than a
-Toy-provided SQLite integration. It demonstrates hidden C arguments,
-resource-specific errors, binary-safe pointer-length strings, and a statement
-that retains its database:
+## SQLite Binding
 
-```powershell
-toy-bindgen --package sqlite `
-    .\sqlite\sqlite.json `
-    .\sqlite\generated.c
-toy-c-package .\sqlite .\sqlite\generated.c `
-    --include C:\sqlite\include `
-    --lib-dir C:\sqlite\lib `
-    --lib sqlite3
-toy --file .\demos\sqlite.toy .\sqlite
+`sqlite/sqlite.json` demonstrates hidden C arguments, resource-specific
+errors, binary-safe pointer-length strings, and a statement that retains its
+database:
+
+```console
+toy-bindgen --package sqlite sqlite/sqlite.json sqlite/generated.c
+cc -std=c11 -Wall -Wextra -Wpedantic -shared sqlite/generated.c -I path/to/toy/include -I path/to/sqlite/include path/to/sqlite/lib/sqlite3.lib -o sqlite/toy_sqlite.dll
 ```
 
-The selected compiler must match the SQLite library's ABI. The separate
-[`examples/packages/sqlite/`](../sqlite/) package remains handwritten to show
-custom row-state validation and a more idiomatic Toy interface.
+Create `sqlite/toy.package`:
+
+```ini
+name = sqlite
+extension = toy_sqlite.dll
+```
+
+On Linux use `-fPIC -shared`, `-lsqlite3`, and `toy_sqlite.so`. On macOS use
+`-dynamiclib` and `toy_sqlite.dylib`. In both cases, put the resulting filename
+in `toy.package`.
+
+The helper equivalent is:
+
+```console
+toy-c-package sqlite sqlite/generated.c --include path/to/sqlite/include --lib path/to/sqlite/lib/sqlite3.lib
+toy --file demos/sqlite.toy sqlite
+```
+
+The compiler must match the SQLite library's ABI. The separate
+[`examples/packages/sqlite/`](../sqlite/) package is handwritten to show custom
+row-state validation and a more idiomatic Toy interface.

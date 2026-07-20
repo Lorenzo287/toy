@@ -4,7 +4,7 @@
 - Commit: `d2b77d0`
 - OS / CPU: Windows 11 / Intel Core i7-1065G7
 - CMake configuration: Release
-- Command: alternating direct executions of `benchmarks\dispatch.toy` across
+- Command: alternating direct executions of `benchmarks/dispatch.toy` across
   two baseline/candidate pairs per experiment
 
 Two small candidates were tested and discarded:

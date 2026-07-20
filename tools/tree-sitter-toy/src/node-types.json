@@ -1,0 +1,1446 @@
+[
+  {
+    "type": "block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "block",
+          "named": true
+        },
+        {
+          "type": "block_comment",
+          "named": true
+        },
+        {
+          "type": "boolean",
+          "named": true
+        },
+        {
+          "type": "builtin_word",
+          "named": true
+        },
+        {
+          "type": "control_word",
+          "named": true
+        },
+        {
+          "type": "line_comment",
+          "named": true
+        },
+        {
+          "type": "list_literal",
+          "named": true
+        },
+        {
+          "type": "map_literal",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "operator",
+          "named": true
+        },
+        {
+          "type": "quoted_symbol",
+          "named": true
+        },
+        {
+          "type": "set_literal",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "var_fetch",
+          "named": true
+        },
+        {
+          "type": "var_list",
+          "named": true
+        },
+        {
+          "type": "word",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "boolean",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "builtin_word",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "control_word",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "list_literal",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "block",
+          "named": true
+        },
+        {
+          "type": "block_comment",
+          "named": true
+        },
+        {
+          "type": "boolean",
+          "named": true
+        },
+        {
+          "type": "builtin_word",
+          "named": true
+        },
+        {
+          "type": "control_word",
+          "named": true
+        },
+        {
+          "type": "line_comment",
+          "named": true
+        },
+        {
+          "type": "list_literal",
+          "named": true
+        },
+        {
+          "type": "map_literal",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "operator",
+          "named": true
+        },
+        {
+          "type": "quoted_symbol",
+          "named": true
+        },
+        {
+          "type": "set_literal",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "var_fetch",
+          "named": true
+        },
+        {
+          "type": "var_list",
+          "named": true
+        },
+        {
+          "type": "word",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "map_literal",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "block",
+          "named": true
+        },
+        {
+          "type": "block_comment",
+          "named": true
+        },
+        {
+          "type": "boolean",
+          "named": true
+        },
+        {
+          "type": "builtin_word",
+          "named": true
+        },
+        {
+          "type": "control_word",
+          "named": true
+        },
+        {
+          "type": "line_comment",
+          "named": true
+        },
+        {
+          "type": "list_literal",
+          "named": true
+        },
+        {
+          "type": "map_literal",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "operator",
+          "named": true
+        },
+        {
+          "type": "quoted_symbol",
+          "named": true
+        },
+        {
+          "type": "set_literal",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "var_fetch",
+          "named": true
+        },
+        {
+          "type": "var_list",
+          "named": true
+        },
+        {
+          "type": "word",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "operator",
+    "named": true,
+    "fields": {}
+  },
+  {
+    "type": "quoted_symbol",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "symbol_name",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "set_literal",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "block",
+          "named": true
+        },
+        {
+          "type": "block_comment",
+          "named": true
+        },
+        {
+          "type": "boolean",
+          "named": true
+        },
+        {
+          "type": "builtin_word",
+          "named": true
+        },
+        {
+          "type": "control_word",
+          "named": true
+        },
+        {
+          "type": "line_comment",
+          "named": true
+        },
+        {
+          "type": "list_literal",
+          "named": true
+        },
+        {
+          "type": "map_literal",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "operator",
+          "named": true
+        },
+        {
+          "type": "quoted_symbol",
+          "named": true
+        },
+        {
+          "type": "set_literal",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "var_fetch",
+          "named": true
+        },
+        {
+          "type": "var_list",
+          "named": true
+        },
+        {
+          "type": "word",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "source_file",
+    "named": true,
+    "root": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "block",
+          "named": true
+        },
+        {
+          "type": "block_comment",
+          "named": true
+        },
+        {
+          "type": "boolean",
+          "named": true
+        },
+        {
+          "type": "builtin_word",
+          "named": true
+        },
+        {
+          "type": "control_word",
+          "named": true
+        },
+        {
+          "type": "line_comment",
+          "named": true
+        },
+        {
+          "type": "list_literal",
+          "named": true
+        },
+        {
+          "type": "map_literal",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "operator",
+          "named": true
+        },
+        {
+          "type": "quoted_symbol",
+          "named": true
+        },
+        {
+          "type": "set_literal",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "var_fetch",
+          "named": true
+        },
+        {
+          "type": "var_list",
+          "named": true
+        },
+        {
+          "type": "word",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "string",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "escape_sequence",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "var_fetch",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "variable_name",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "var_list",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "block",
+          "named": true
+        },
+        {
+          "type": "block_comment",
+          "named": true
+        },
+        {
+          "type": "boolean",
+          "named": true
+        },
+        {
+          "type": "builtin_word",
+          "named": true
+        },
+        {
+          "type": "control_word",
+          "named": true
+        },
+        {
+          "type": "line_comment",
+          "named": true
+        },
+        {
+          "type": "list_literal",
+          "named": true
+        },
+        {
+          "type": "map_literal",
+          "named": true
+        },
+        {
+          "type": "number",
+          "named": true
+        },
+        {
+          "type": "operator",
+          "named": true
+        },
+        {
+          "type": "quoted_symbol",
+          "named": true
+        },
+        {
+          "type": "set_literal",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        },
+        {
+          "type": "var_fetch",
+          "named": true
+        },
+        {
+          "type": "word",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "!=",
+    "named": false
+  },
+  {
+    "type": "\"",
+    "named": false
+  },
+  {
+    "type": "#{",
+    "named": false
+  },
+  {
+    "type": "$",
+    "named": false
+  },
+  {
+    "type": "%",
+    "named": false
+  },
+  {
+    "type": "'",
+    "named": false
+  },
+  {
+    "type": "(",
+    "named": false
+  },
+  {
+    "type": ")",
+    "named": false
+  },
+  {
+    "type": "*",
+    "named": false
+  },
+  {
+    "type": "+",
+    "named": false
+  },
+  {
+    "type": "-",
+    "named": false
+  },
+  {
+    "type": ".",
+    "named": false
+  },
+  {
+    "type": ".S",
+    "named": false
+  },
+  {
+    "type": ".s",
+    "named": false
+  },
+  {
+    "type": "/",
+    "named": false
+  },
+  {
+    "type": "<",
+    "named": false
+  },
+  {
+    "type": "<=",
+    "named": false
+  },
+  {
+    "type": "==",
+    "named": false
+  },
+  {
+    "type": ">",
+    "named": false
+  },
+  {
+    "type": ">=",
+    "named": false
+  },
+  {
+    "type": ">call",
+    "named": false
+  },
+  {
+    "type": ">char",
+    "named": false
+  },
+  {
+    "type": ">deque",
+    "named": false
+  },
+  {
+    "type": ">list",
+    "named": false
+  },
+  {
+    "type": ">map",
+    "named": false
+  },
+  {
+    "type": ">pqueue",
+    "named": false
+  },
+  {
+    "type": ">set",
+    "named": false
+  },
+  {
+    "type": ">string",
+    "named": false
+  },
+  {
+    "type": ">symbol",
+    "named": false
+  },
+  {
+    "type": ">vector",
+    "named": false
+  },
+  {
+    "type": "[",
+    "named": false
+  },
+  {
+    "type": "]",
+    "named": false
+  },
+  {
+    "type": "abs",
+    "named": false
+  },
+  {
+    "type": "all",
+    "named": false
+  },
+  {
+    "type": "alnum?",
+    "named": false
+  },
+  {
+    "type": "and",
+    "named": false
+  },
+  {
+    "type": "app2",
+    "named": false
+  },
+  {
+    "type": "argc",
+    "named": false
+  },
+  {
+    "type": "argv",
+    "named": false
+  },
+  {
+    "type": "assoc",
+    "named": false
+  },
+  {
+    "type": "at",
+    "named": false
+  },
+  {
+    "type": "bi",
+    "named": false
+  },
+  {
+    "type": "binrec",
+    "named": false
+  },
+  {
+    "type": "block_comment",
+    "named": true
+  },
+  {
+    "type": "body",
+    "named": false
+  },
+  {
+    "type": "bool?",
+    "named": false
+  },
+  {
+    "type": "call?",
+    "named": false
+  },
+  {
+    "type": "callable?",
+    "named": false
+  },
+  {
+    "type": "ceil",
+    "named": false
+  },
+  {
+    "type": "char-code",
+    "named": false
+  },
+  {
+    "type": "char?",
+    "named": false
+  },
+  {
+    "type": "clear",
+    "named": false
+  },
+  {
+    "type": "cleave",
+    "named": false
+  },
+  {
+    "type": "concat",
+    "named": false
+  },
+  {
+    "type": "cond",
+    "named": false
+  },
+  {
+    "type": "cons",
+    "named": false
+  },
+  {
+    "type": "construct",
+    "named": false
+  },
+  {
+    "type": "contains?",
+    "named": false
+  },
+  {
+    "type": "cos",
+    "named": false
+  },
+  {
+    "type": "cpu-time",
+    "named": false
+  },
+  {
+    "type": "cube",
+    "named": false
+  },
+  {
+    "type": "def",
+    "named": false
+  },
+  {
+    "type": "delete-file",
+    "named": false
+  },
+  {
+    "type": "deque?",
+    "named": false
+  },
+  {
+    "type": "difference",
+    "named": false
+  },
+  {
+    "type": "digit?",
+    "named": false
+  },
+  {
+    "type": "dip",
+    "named": false
+  },
+  {
+    "type": "disjoint?",
+    "named": false
+  },
+  {
+    "type": "dissoc",
+    "named": false
+  },
+  {
+    "type": "doc",
+    "named": false
+  },
+  {
+    "type": "drop",
+    "named": false
+  },
+  {
+    "type": "dup",
+    "named": false
+  },
+  {
+    "type": "e",
+    "named": false
+  },
+  {
+    "type": "each",
+    "named": false
+  },
+  {
+    "type": "empty",
+    "named": false
+  },
+  {
+    "type": "empty?",
+    "named": false
+  },
+  {
+    "type": "env?",
+    "named": false
+  },
+  {
+    "type": "error",
+    "named": false
+  },
+  {
+    "type": "escape_sequence",
+    "named": true
+  },
+  {
+    "type": "exec",
+    "named": false
+  },
+  {
+    "type": "exit",
+    "named": false
+  },
+  {
+    "type": "exp",
+    "named": false
+  },
+  {
+    "type": "false",
+    "named": false
+  },
+  {
+    "type": "file-exists?",
+    "named": false
+  },
+  {
+    "type": "filter",
+    "named": false
+  },
+  {
+    "type": "first",
+    "named": false
+  },
+  {
+    "type": "float?",
+    "named": false
+  },
+  {
+    "type": "floor",
+    "named": false
+  },
+  {
+    "type": "fold",
+    "named": false
+  },
+  {
+    "type": "genrec",
+    "named": false
+  },
+  {
+    "type": "get",
+    "named": false
+  },
+  {
+    "type": "get-env",
+    "named": false
+  },
+  {
+    "type": "get-or",
+    "named": false
+  },
+  {
+    "type": "has?",
+    "named": false
+  },
+  {
+    "type": "i",
+    "named": false
+  },
+  {
+    "type": "if",
+    "named": false
+  },
+  {
+    "type": "ifelse",
+    "named": false
+  },
+  {
+    "type": "import",
+    "named": false
+  },
+  {
+    "type": "import-as",
+    "named": false
+  },
+  {
+    "type": "index-of",
+    "named": false
+  },
+  {
+    "type": "inf",
+    "named": false
+  },
+  {
+    "type": "inf?",
+    "named": false
+  },
+  {
+    "type": "infra",
+    "named": false
+  },
+  {
+    "type": "insert",
+    "named": false
+  },
+  {
+    "type": "int?",
+    "named": false
+  },
+  {
+    "type": "intersection",
+    "named": false
+  },
+  {
+    "type": "items",
+    "named": false
+  },
+  {
+    "type": "join",
+    "named": false
+  },
+  {
+    "type": "keep",
+    "named": false
+  },
+  {
+    "type": "keys",
+    "named": false
+  },
+  {
+    "type": "last",
+    "named": false
+  },
+  {
+    "type": "len",
+    "named": false
+  },
+  {
+    "type": "letter?",
+    "named": false
+  },
+  {
+    "type": "line_comment",
+    "named": true
+  },
+  {
+    "type": "linrec",
+    "named": false
+  },
+  {
+    "type": "list?",
+    "named": false
+  },
+  {
+    "type": "local-time",
+    "named": false
+  },
+  {
+    "type": "log",
+    "named": false
+  },
+  {
+    "type": "log10",
+    "named": false
+  },
+  {
+    "type": "lower",
+    "named": false
+  },
+  {
+    "type": "lower?",
+    "named": false
+  },
+  {
+    "type": "map",
+    "named": false
+  },
+  {
+    "type": "map?",
+    "named": false
+  },
+  {
+    "type": "max",
+    "named": false
+  },
+  {
+    "type": "merge",
+    "named": false
+  },
+  {
+    "type": "min",
+    "named": false
+  },
+  {
+    "type": "mod",
+    "named": false
+  },
+  {
+    "type": "monotonic-ns",
+    "named": false
+  },
+  {
+    "type": "name",
+    "named": false
+  },
+  {
+    "type": "nan",
+    "named": false
+  },
+  {
+    "type": "nan?",
+    "named": false
+  },
+  {
+    "type": "neg",
+    "named": false
+  },
+  {
+    "type": "nip",
+    "named": false
+  },
+  {
+    "type": "not",
+    "named": false
+  },
+  {
+    "type": "number",
+    "named": true
+  },
+  {
+    "type": "number?",
+    "named": false
+  },
+  {
+    "type": "or",
+    "named": false
+  },
+  {
+    "type": "over",
+    "named": false
+  },
+  {
+    "type": "package",
+    "named": false
+  },
+  {
+    "type": "pairs",
+    "named": false
+  },
+  {
+    "type": "pi",
+    "named": false
+  },
+  {
+    "type": "pick",
+    "named": false
+  },
+  {
+    "type": "pop-back",
+    "named": false
+  },
+  {
+    "type": "pop-front",
+    "named": false
+  },
+  {
+    "type": "pow",
+    "named": false
+  },
+  {
+    "type": "pq-peek",
+    "named": false
+  },
+  {
+    "type": "pq-pop",
+    "named": false
+  },
+  {
+    "type": "pq-push",
+    "named": false
+  },
+  {
+    "type": "pqueue?",
+    "named": false
+  },
+  {
+    "type": "pred",
+    "named": false
+  },
+  {
+    "type": "print",
+    "named": false
+  },
+  {
+    "type": "printf",
+    "named": false
+  },
+  {
+    "type": "private",
+    "named": false
+  },
+  {
+    "type": "proper-subset?",
+    "named": false
+  },
+  {
+    "type": "proper-superset?",
+    "named": false
+  },
+  {
+    "type": "punct?",
+    "named": false
+  },
+  {
+    "type": "push-back",
+    "named": false
+  },
+  {
+    "type": "push-front",
+    "named": false
+  },
+  {
+    "type": "pwd",
+    "named": false
+  },
+  {
+    "type": "rand",
+    "named": false
+  },
+  {
+    "type": "range",
+    "named": false
+  },
+  {
+    "type": "read-file",
+    "named": false
+  },
+  {
+    "type": "read-key",
+    "named": false
+  },
+  {
+    "type": "read-line",
+    "named": false
+  },
+  {
+    "type": "read-lines",
+    "named": false
+  },
+  {
+    "type": "remove",
+    "named": false
+  },
+  {
+    "type": "replicate",
+    "named": false
+  },
+  {
+    "type": "repr",
+    "named": false
+  },
+  {
+    "type": "resource?",
+    "named": false
+  },
+  {
+    "type": "rest",
+    "named": false
+  },
+  {
+    "type": "reverse",
+    "named": false
+  },
+  {
+    "type": "roll",
+    "named": false
+  },
+  {
+    "type": "rot",
+    "named": false
+  },
+  {
+    "type": "round",
+    "named": false
+  },
+  {
+    "type": "search-words",
+    "named": false
+  },
+  {
+    "type": "see",
+    "named": false
+  },
+  {
+    "type": "sequence?",
+    "named": false
+  },
+  {
+    "type": "set-at",
+    "named": false
+  },
+  {
+    "type": "set-env",
+    "named": false
+  },
+  {
+    "type": "set?",
+    "named": false
+  },
+  {
+    "type": "shell",
+    "named": false
+  },
+  {
+    "type": "shl",
+    "named": false
+  },
+  {
+    "type": "shr",
+    "named": false
+  },
+  {
+    "type": "sin",
+    "named": false
+  },
+  {
+    "type": "skip",
+    "named": false
+  },
+  {
+    "type": "sleep",
+    "named": false
+  },
+  {
+    "type": "slice",
+    "named": false
+  },
+  {
+    "type": "some",
+    "named": false
+  },
+  {
+    "type": "sort",
+    "named": false
+  },
+  {
+    "type": "space?",
+    "named": false
+  },
+  {
+    "type": "split",
+    "named": false
+  },
+  {
+    "type": "split-mid",
+    "named": false
+  },
+  {
+    "type": "sqrt",
+    "named": false
+  },
+  {
+    "type": "square",
+    "named": false
+  },
+  {
+    "type": "string?",
+    "named": false
+  },
+  {
+    "type": "subset?",
+    "named": false
+  },
+  {
+    "type": "succ",
+    "named": false
+  },
+  {
+    "type": "superset?",
+    "named": false
+  },
+  {
+    "type": "swap",
+    "named": false
+  },
+  {
+    "type": "swapd",
+    "named": false
+  },
+  {
+    "type": "symbol?",
+    "named": false
+  },
+  {
+    "type": "symbol_name",
+    "named": true
+  },
+  {
+    "type": "symmetric-difference",
+    "named": false
+  },
+  {
+    "type": "take",
+    "named": false
+  },
+  {
+    "type": "tan",
+    "named": false
+  },
+  {
+    "type": "tau",
+    "named": false
+  },
+  {
+    "type": "times",
+    "named": false
+  },
+  {
+    "type": "treerec",
+    "named": false
+  },
+  {
+    "type": "trim",
+    "named": false
+  },
+  {
+    "type": "true",
+    "named": false
+  },
+  {
+    "type": "try",
+    "named": false
+  },
+  {
+    "type": "tuck",
+    "named": false
+  },
+  {
+    "type": "type-of",
+    "named": false
+  },
+  {
+    "type": "uncons",
+    "named": false
+  },
+  {
+    "type": "union",
+    "named": false
+  },
+  {
+    "type": "unique",
+    "named": false
+  },
+  {
+    "type": "unix-time",
+    "named": false
+  },
+  {
+    "type": "upper",
+    "named": false
+  },
+  {
+    "type": "upper?",
+    "named": false
+  },
+  {
+    "type": "utc-time",
+    "named": false
+  },
+  {
+    "type": "values",
+    "named": false
+  },
+  {
+    "type": "var?",
+    "named": false
+  },
+  {
+    "type": "variable_name",
+    "named": true
+  },
+  {
+    "type": "vector?",
+    "named": false
+  },
+  {
+    "type": "while",
+    "named": false
+  },
+  {
+    "type": "word",
+    "named": true
+  },
+  {
+    "type": "word?",
+    "named": false
+  },
+  {
+    "type": "words",
+    "named": false
+  },
+  {
+    "type": "write-file",
+    "named": false
+  },
+  {
+    "type": "xor",
+    "named": false
+  },
+  {
+    "type": "{",
+    "named": false
+  },
+  {
+    "type": "|",
+    "named": false
+  },
+  {
+    "type": "}",
+    "named": false
+  }
+]

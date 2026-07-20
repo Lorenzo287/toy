@@ -33,37 +33,28 @@ jobs:
             nob_dist: ./nob dist
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v6
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: tools/tree-sitter-toy/package-lock.json
 
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: tools/toy-lsp/go.mod
-          cache-dependency-path: tools/toy-lsp/go.sum
+          go-version-file: tools/go.mod
+          cache-dependency-path: tools/go.sum
 
       - name: Bootstrap Nob
         run: ${{ matrix.nob_bootstrap }}
 
-      - name: Test
+      - name: Test runtime
         run: ${{ matrix.nob_test }}
 
-      - name: Check generated builtin metadata
-        run: node tools/generate-builtins.js --check
-
-      - name: Generate Tree-sitter parser for SDK tools
-        working-directory: tools/tree-sitter-toy
-        run: |
-          npm ci --ignore-scripts
-          npm rebuild tree-sitter-cli
-          npm run generate
+      - name: Test tools
+        run: go -C tools test ./...
 
       - name: Stage SDK
         run: ${{ matrix.nob_dist }}
@@ -76,7 +67,7 @@ jobs:
         if: runner.os == 'Windows'
         run: Compress-Archive -Path dist/toy -DestinationPath ${{ matrix.asset_name }}
 
-      - name: Release
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ matrix.asset_name }}

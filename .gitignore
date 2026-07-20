@@ -42,10 +42,5 @@ copy_toy.ps1
 # Tools
 node_modules/
 *.vsix
-tools/tree-sitter-toy/src
-tools/tree-sitter-toy/src/parser.c
-tools/tree-sitter-toy/src/grammar.json
-tools/tree-sitter-toy/src/node-types.json
-tools/toy-lsp/internal/parser/toy/parser.c
 examples/packages/bindgen/*/generated.c
 examples/packages/**/toy.package

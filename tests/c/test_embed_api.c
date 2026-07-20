@@ -178,19 +178,19 @@ int main(void) {
     CHECK(toy_pop(first, 1), "pop arithmetic result");
 
     CHECK(toy_register_package(first, &host_package) == TOY_OK,
-          "register native package");
+          "register package");
     CHECK(toy_eval(first, "<native>", "21 host.double") == TOY_OK,
-          "call registered native package");
+          "call registered package");
     CHECK(toy_get_int(first, 0, &integer) && integer == 42,
           "native word result");
     CHECK(toy_pop(first, 1), "pop native result");
     CHECK(toy_register_package(first, &host_tools_package) == TOY_OK,
-          "register second native package");
+          "register second package");
     CHECK(toy_eval(first, "<second-native>", "21 tools.double") == TOY_OK,
-          "call second native package");
+          "call second package");
     CHECK(toy_get_int(first, 0, &integer) && integer == 42,
-          "second native package result");
-    CHECK(toy_pop(first, 1), "pop second native package result");
+          "second package result");
+    CHECK(toy_pop(first, 1), "pop second package result");
     CHECK(toy_eval(first, "<native-error>", "\"bad\" host.double") ==
               TOY_ERROR,
           "native word error status");
@@ -201,10 +201,10 @@ int main(void) {
     CHECK(toy_pop(first, 1), "pop rejected native input");
 
     CHECK(toy_register_package(first, &host_package) == TOY_ERROR,
-          "reject duplicate native package");
+          "reject duplicate package");
     CHECK(toy_get_error(first) &&
               strstr(toy_get_error(first), "already registered"),
-          "duplicate native package diagnostic");
+          "duplicate package diagnostic");
     CHECK(toy_register_word(first, "host.extra", host_double) == TOY_ERROR,
           "standalone registration requires a local name");
     CHECK(toy_get_error(first) &&
@@ -212,7 +212,7 @@ int main(void) {
           "standalone native word diagnostic");
 
     CHECK(toy_register_package(first, &invalid_atomic_package) == TOY_ERROR,
-          "reject invalid native package atomically");
+          "reject invalid package atomically");
     CHECK(toy_get_error(first) &&
               strstr(toy_get_error(first), "invalid native word name"),
           "invalid native word diagnostic");
@@ -241,10 +241,10 @@ int main(void) {
     copied_package_name[0] = 'X';
     copied_word_name[0] = 'X';
     CHECK(toy_eval(first, "<copied-native>", "21 copied.double") == TOY_OK,
-          "native package copied descriptor names");
+          "package copied descriptor names");
     CHECK(toy_get_int(first, 0, &integer) && integer == 42,
-          "copied native package result");
-    CHECK(toy_pop(first, 1), "pop copied native package result");
+          "copied package result");
+    CHECK(toy_pop(first, 1), "pop copied package result");
 
     CHECK(toy_register_word(first, "legacy-double", host_double) == TOY_OK,
           "register standalone native word");
@@ -269,7 +269,7 @@ int main(void) {
               strstr(toy_get_error(second), "undefined word 'update'"),
           "undefined-word diagnostic");
     CHECK(toy_call(second, "host.double") == TOY_ERROR,
-          "native packages remain state-local");
+          "registered packages remain state-local");
     CHECK(second_diagnostic.length > 0,
           "second state receives its own diagnostics");
 

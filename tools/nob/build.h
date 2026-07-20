@@ -25,7 +25,7 @@ typedef struct {
     const char *test_filter;
     const char *build_dir;
     const char *object_dir;
-    const char *native_artifact_dir;
+    const char *extension_artifact_dir;
     const char *test_package_dir;
     const char *core_package_dir;
     const char *runtime_lib;
@@ -152,6 +152,7 @@ static void print_usage(const char *program) {
     fprintf(stderr, "Commands:\n");
     fprintf(stderr, "  build                 Build the runtime and Toy CLI\n");
     fprintf(stderr, "  test                  Run the default test suite\n");
+    fprintf(stderr, "  benchmark [name ...]  Build and run performance workloads\n");
     fprintf(stderr, "  dist                  Stage a complete SDK at dist/toy\n");
     fprintf(stderr, "  clean                 Remove build and dist outputs\n");
     fprintf(stderr, "  help                  Show this help\n\n");
@@ -160,6 +161,9 @@ static void print_usage(const char *program) {
     fprintf(stderr, "  --mode <mode>         release (default), debug, alloc, leak, profile\n");
     fprintf(stderr, "  -j, --jobs <count>    Maximum parallel compiler processes\n");
     fprintf(stderr, "  --filter <text>       Run matching tests only\n\n");
+    fprintf(stderr, "Benchmark options:\n");
+    fprintf(stderr, "  --runs <count>        Samples per workload (default: 5)\n");
+    fprintf(stderr, "  --toy <path>          Use an existing Toy executable\n\n");
     fprintf(stderr, "Core libffi options (repeatable):\n");
     fprintf(stderr, "  --include <directory> Add a C include directory\n");
     fprintf(stderr, "  --lib-dir <directory> Add a library search directory\n");
@@ -167,6 +171,7 @@ static void print_usage(const char *program) {
     fprintf(stderr, "Examples:\n");
     fprintf(stderr, "  nob --mode debug build\n");
     fprintf(stderr, "  nob test --filter package\n");
+    fprintf(stderr, "  nob benchmark vector --runs 10\n");
     fprintf(stderr, "  nob dist\n");
 }
 
@@ -232,7 +237,8 @@ static bool configure_paths(Build_Config *config) {
                                      compiler_name(config->compiler),
                                      mode_name(config->mode));
     config->object_dir = temp_sprintf("%s/obj", config->build_dir);
-    config->native_artifact_dir = temp_sprintf("%s/native-packages", config->build_dir);
+    config->extension_artifact_dir =
+        temp_sprintf("%s/extensions", config->build_dir);
     config->test_package_dir = temp_sprintf("%s/test-packages",
                                            config->build_dir);
     config->core_package_dir = temp_sprintf("%s/core", config->build_dir);
@@ -248,7 +254,7 @@ static bool configure_paths(Build_Config *config) {
     }
     if (!ensure_directory(config->build_dir)) return false;
     if (!ensure_directory(config->object_dir)) return false;
-    if (!ensure_directory(config->native_artifact_dir)) return false;
+    if (!ensure_directory(config->extension_artifact_dir)) return false;
     if (!ensure_directory(config->test_package_dir)) return false;
     if (!ensure_directory(config->core_package_dir)) return false;
     if (!ensure_directory(temp_sprintf("%s/tests", config->build_dir))) {
@@ -633,15 +639,14 @@ static bool link_shared_package(const Build_Config *config,
     return cmd_run(&command, .dont_reset = false);
 }
 
-static bool write_native_package_manifest(const char *directory,
-                                          const char *name,
-                                          const char *native_file);
+static bool write_package_manifest(const char *directory, const char *name,
+                                   const char *extension_file);
 
-static bool build_native_source(const Build_Config *config,
-                                const char *source, const char *output,
-                                Compile_Commands *compile_commands) {
+static bool build_extension_source(const Build_Config *config,
+                                   const char *source, const char *output,
+                                   Compile_Commands *compile_commands) {
     if (!file_exists(source)) {
-        nob_log(ERROR, "native package source does not exist: %s", source);
+        nob_log(ERROR, "C extension source does not exist: %s", source);
         return false;
     }
 
@@ -711,17 +716,16 @@ static bool run_generator(const Build_Config *config, const char *manifest,
     return cmd_run(&command, .dont_reset = false);
 }
 
-static bool write_native_package_manifest(const char *directory,
-                                          const char *name,
-                                          const char *native_file) {
+static bool write_package_manifest(const char *directory, const char *name,
+                                   const char *extension_file) {
     const char *path = temp_sprintf("%s/toy.package", directory);
     FILE *file = fopen(path, "wb");
     if (!file) {
         nob_log(ERROR, "could not write %s: %s", path, strerror(errno));
         return false;
     }
-    bool ok = fprintf(file, "name = %s\nnative = %s\n", name,
-                      native_file) >= 0;
+    bool ok = fprintf(file, "name = %s\nextension = %s\n", name,
+                      extension_file) >= 0;
     if (fclose(file) != 0) ok = false;
     if (!ok) nob_log(ERROR, "could not write %s", path);
     return ok;
@@ -731,8 +735,8 @@ static bool build_core_ffi(const Build_Config *config,
                            Compile_Commands *compile_commands) {
     const char *directory = temp_sprintf("%s/ffi", config->core_package_dir);
     if (!ensure_directory(directory)) return false;
-    const char *native_file = temp_sprintf("toy_ffi%s",
-                                           TOY_SHARED_SUFFIX_VALUE);
+    const char *extension_file = temp_sprintf("toy_ffi%s",
+                                              TOY_SHARED_SUFFIX_VALUE);
 
     Build_Config ffi_config = *config;
     ffi_config.libraries = (File_Paths){0};
@@ -741,10 +745,10 @@ static bool build_core_ffi(const Build_Config *config,
     if (ffi_config.libraries.count == 0) {
         da_append(&ffi_config.libraries, "ffi");
     }
-    const char *output = temp_sprintf("%s/%s", directory, native_file);
-    bool ok = build_native_source(&ffi_config, "core/ffi/toy_ffi.c", output,
-                                  compile_commands);
-    if (ok) ok = write_native_package_manifest(directory, "ffi", native_file);
+    const char *output = temp_sprintf("%s/%s", directory, extension_file);
+    bool ok = build_extension_source(&ffi_config, "core/ffi/toy_ffi.c",
+                                     output, compile_commands);
+    if (ok) ok = write_package_manifest(directory, "ffi", extension_file);
     da_free(ffi_config.libraries);
     if (ok) nob_log(INFO, "built core package %s", output);
     return ok;
@@ -820,8 +824,7 @@ static bool sdk_tree_directory_allowed(const char *name) {
            strcmp(name, "node_modules") != 0;
 }
 
-static bool sdk_tree_file_allowed(const char *name, bool documentation) {
-    if (documentation) return ends_with(name, ".md");
+static bool sdk_tree_file_allowed(const char *name) {
     if (strcmp(name, "generated.c") == 0) return false;
     return strcmp(name, ".toyfmt") == 0 || ends_with(name, ".md") ||
            ends_with(name, ".toy") || ends_with(name, ".json") ||
@@ -832,8 +835,7 @@ static bool sdk_tree_file_allowed(const char *name, bool documentation) {
            ends_with(name, ".svg") || ends_with(name, ".webp");
 }
 
-static bool copy_sdk_tree(const char *source, const char *destination,
-                          bool documentation) {
+static bool copy_sdk_tree(const char *source, const char *destination) {
     if (!ensure_directory(destination)) return false;
 
     File_Paths children = {0};
@@ -848,10 +850,9 @@ static bool copy_sdk_tree(const char *source, const char *destination,
         Nob_File_Type type = get_file_type(source_path);
         if (type == FILE_DIRECTORY) {
             if (sdk_tree_directory_allowed(name)) {
-                ok = copy_sdk_tree(source_path, destination_path,
-                                   documentation);
+                ok = copy_sdk_tree(source_path, destination_path);
             }
-        } else if (sdk_tree_file_allowed(name, documentation)) {
+        } else if (sdk_tree_file_allowed(name)) {
             ok = copy_sdk_file(source_path, destination_path);
         }
     }
@@ -865,7 +866,7 @@ static bool build_sdk_tool(const char *root, const Build_Config *config,
                                       config->dist_dir, name,
                                       TOY_EXE_SUFFIX);
     Cmd command = {0};
-    cmd_append(&command, "go", "-C", "tools/toy-lsp", "build", "-o",
+    cmd_append(&command, "go", "-C", "tools", "build", "-o",
                output, temp_sprintf("./cmd/%s", name));
     return cmd_run(&command, .dont_reset = false);
 }
@@ -875,8 +876,7 @@ static bool check_distribution_prerequisites(void) {
         nob_log(ERROR, "Go is required to build the SDK tooling");
         return false;
     }
-    if (!file_exists("tools/tree-sitter-toy/src/parser.c") ||
-        !file_exists("tools/toy-lsp/internal/parser/toy/parser.c")) {
+    if (!file_exists("tools/tree-sitter-toy/src/parser.c")) {
         nob_log(ERROR,
                 "generated Tree-sitter parsers are missing; run npm ci, npm "
                 "rebuild tree-sitter-cli, and npm run generate in "
@@ -887,6 +887,17 @@ static bool check_distribution_prerequisites(void) {
 }
 
 static bool build_distribution(const Build_Config *config, const char *root) {
+    static const char *documentation[] = {
+        "bindgen.md",
+        "combinators.md",
+        "data-model.md",
+        "editor.md",
+        "embedding.md",
+        "ffi.md",
+        "installation.md",
+        "packages.md",
+        "repl.md",
+    };
     const char *dist_parent = "dist";
     Nob_Log_Level previous_level = minimal_log_level;
     minimal_log_level = WARNING;
@@ -899,12 +910,14 @@ static bool build_distribution(const Build_Config *config, const char *root) {
     const char *bin = temp_sprintf("%s/bin", config->dist_dir);
     const char *include = temp_sprintf("%s/include", config->dist_dir);
     const char *lib = temp_sprintf("%s/lib", config->dist_dir);
+    const char *docs = temp_sprintf("%s/docs", config->dist_dir);
     const char *share = temp_sprintf("%s/share", config->dist_dir);
     const char *toy_share = temp_sprintf("%s/toy", share);
     const char *bindgen_share = temp_sprintf("%s/bindgen", toy_share);
     const char *tree_sitter = temp_sprintf("%s/tree-sitter-toy", toy_share);
     if (!ensure_directory(bin) || !ensure_directory(include) ||
-        !ensure_directory(lib) || !ensure_directory(share) ||
+        !ensure_directory(lib) || !ensure_directory(docs) ||
+        !ensure_directory(share) ||
         !ensure_directory(toy_share) || !ensure_directory(bindgen_share) ||
         !ensure_directory(tree_sitter)) {
         return false;
@@ -919,9 +932,7 @@ static bool build_distribution(const Build_Config *config, const char *root) {
             temp_sprintf("%s/core", config->dist_dir));
     }
     if (ok) {
-        ok = copy_sdk_file("include/toy.h", temp_sprintf("%s/toy.h", include)) &&
-             copy_sdk_file("include/toy_package.h",
-                           temp_sprintf("%s/toy_package.h", include));
+        ok = copy_sdk_file("include/toy.h", temp_sprintf("%s/toy.h", include));
     }
     if (ok) {
         ok = copy_sdk_file(config->runtime_lib,
@@ -934,9 +945,8 @@ static bool build_distribution(const Build_Config *config, const char *root) {
             temp_sprintf("%s/generate-binding.js", bindgen_share));
     }
     if (ok) {
-        ok = copy_directory_recursively(
-                 "tools/tree-sitter-toy/src",
-                 temp_sprintf("%s/src", tree_sitter)) &&
+        ok = copy_sdk_tree("tools/tree-sitter-toy/src",
+                           temp_sprintf("%s/src", tree_sitter)) &&
              copy_directory_recursively(
                  "tools/tree-sitter-toy/queries",
                  temp_sprintf("%s/queries", tree_sitter)) &&
@@ -947,10 +957,11 @@ static bool build_distribution(const Build_Config *config, const char *root) {
     }
     if (ok) {
         ok = copy_sdk_tree(
-                 "examples", temp_sprintf("%s/examples", config->dist_dir),
-                 false) &&
-             copy_sdk_tree("docs",
-                           temp_sprintf("%s/docs", config->dist_dir), true);
+            "examples", temp_sprintf("%s/examples", config->dist_dir));
+    }
+    for (size_t i = 0; ok && i < ARRAY_LEN(documentation); ++i) {
+        ok = copy_sdk_file(temp_sprintf("docs/%s", documentation[i]),
+                           temp_sprintf("%s/%s", docs, documentation[i]));
     }
     if (ok) {
         ok = copy_sdk_file("README.md",

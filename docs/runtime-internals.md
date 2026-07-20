@@ -50,7 +50,7 @@ fallback or environment search.
 
 The loader parses every direct `.toy` child, verifies one common package name,
 and accepts only package, import, definition, and privacy declarations at top
-level. It installs all imports, then native-manifest words, source definitions,
+level. It installs all imports, then extension words, source definitions,
 and privacy flags. Consequently source filename order cannot affect package
 semantics.
 
@@ -61,7 +61,7 @@ words. Qualified lookup resolves an alias owned by the lexical package, looks
 up the target's local word, and checks its public flag. Aliases therefore do not
 copy or rename dictionary entries, and imports are not transitively visible.
 
-If a directory has `toy.package`, the loader opens its exact `native` path and
+If a directory has `toy.package`, the loader opens its exact `extension` path and
 adds the exported callbacks to the same package scope before source
 definitions. Host-registered packages use the same registry already marked as
 loaded. Library handles stay in the context until final teardown, after stacks,
@@ -74,7 +74,7 @@ executable links that library and keeps command-line parsing, the REPL,
 linenoise, the terminal debugger frontend, and the debug protocol outside the
 runtime target.
 
-`include/toy.h` is the experimental public boundary. It treats the interpreter
+`include/toy.h` is the public C boundary. It treats the interpreter
 state as opaque and exposes evaluation, host-to-Toy word calls, synchronous
 native word/package registration, package import and execution, primitive
 stack access, persistent value references, basic collection access,
@@ -83,11 +83,11 @@ values retain their internal object but remain state-bound, so C cannot expose
 or transfer `tf_obj` layouts between runtimes. Typed resource access wraps
 external pointers in ordinary refcounted objects with copied tags and
 exactly-once destructors, while keeping the pointer and object layout opaque to
-Toy code. `include/toy_package.h` defines shared-package ABI version 1: an
-exported descriptor entry point, a size-tagged host function table, and an
+Toy code. The same header defines C-extension ABI version 1: an exported
+descriptor entry point, a size-tagged host function table, and an
 implementation-macro forwarding layer for the familiar public stack/resource
-calls. A native package includes that single header and does not link a second runtime
-or a separate Toy support library.
+calls. A C extension defines `TOY_EXTENSION_IMPLEMENTATION` before including
+`toy.h` and does not link a second runtime or a separate Toy support library.
 Internal headers continue to expose implementation structures only to the
 runtime and bundled frontends. See the [embedding guide](./embedding.md) for
 the current ownership and execution contracts.
@@ -101,8 +101,8 @@ before the native `ffi` package itself is unloaded.
 Generated bindings take the other route through the same package boundary.
 `tools/generate-binding.js` emits ordinary native callbacks that perform
 range-checked stack conversion and direct C calls. The generated translation
-unit instantiates `toy_package.h` itself, so it can be compiled directly against
-the foreign library while still sharing the host VM.
+unit instantiates the C-extension portion of `toy.h`, so it can be compiled
+directly against the foreign library while still sharing the host VM.
 
 ## Debugger Hooks
 
@@ -263,9 +263,8 @@ reuse an invariant surrounding-stack snapshot across iterations.
 
 Use the benchmark suite rather than isolated impressions:
 
-```powershell
-.\nob.exe --mode alloc build
-.\benchmarks\run.ps1 -Toy .\build\clang\alloc\toy.exe
+```console
+nob --mode alloc benchmark
 ```
 
 The `alloc` mode reports checked allocation calls and cumulative

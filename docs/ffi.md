@@ -1,8 +1,8 @@
-# Experimental Dynamic FFI
+# Dynamic FFI
 
 The official `core:ffi` package uses libffi to call functions from shared C
-libraries without compiling a wrapper for each function. It is maintained and
-built alongside Toy, but remains experimental and is not a sandbox.
+libraries without compiling a wrapper for each function. It runs native code
+inside the Toy process, with the same access and risks as any C call.
 
 Release SDKs include the version-matched compiled package beneath their `core`
 directory. Import it directly:
@@ -15,10 +15,8 @@ The package is ready to use after installation. Building Toy itself from
 source needs libffi headers and libraries; if they are outside the compiler's
 default paths:
 
-```powershell
-.\nob.exe --cc gcc build `
-    --include C:\libffi\include `
-    --lib-dir C:\libffi\lib
+```console
+nob --cc gcc build --include path/to/libffi/include --lib-dir path/to/libffi/lib
 ```
 
 The default library name is `ffi`. Supplying `--lib libffi` or an exact path
@@ -85,9 +83,8 @@ c.call                         \ 42
 The runnable `strlen` example accepts the platform C runtime library as its
 first argument:
 
-```powershell
-$ToySdk = 'C:\Tools\Toy'
-toy --file "$ToySdk\examples\ffi\main.toy" msvcrt.dll
+```console
+toy --file path/to/toy/examples/ffi/main.toy msvcrt.dll
 ```
 
 Common Unix names include `libc.so.6` on Linux and
@@ -105,6 +102,6 @@ symbol has the declared C type. A wrong signature, invalid returned pointer,
 library bug, or hostile library can corrupt memory or terminate the process.
 Only open trusted libraries and verify signatures against their C headers.
 
-For known APIs, the [binding generator](./bindgen.md) emits a C-backed package
-whose C compiler sees the declarations. A handwritten package remains the
-choice for custom ownership and richer C types.
+For known APIs, the [binding generator](./bindgen.md) emits a C extension whose
+compiler sees the declarations. A handwritten extension remains the choice for
+custom ownership and richer C types.

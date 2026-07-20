@@ -322,7 +322,7 @@ function main() {
     ['src/generated/tf_builtins.inc', renderCRegistry(manifest)],
     ['src/generated/tf_repl_builtins.inc', renderReplRegistry(manifest)],
     ['src/generated/tf_docs.c', renderRuntimeDocs(manifest)],
-    ['tools/toy-lsp/internal/analysis/builtin_docs_generated.go', renderLspDocs(manifest)],
+    ['tools/internal/analysis/builtin_docs_generated.go', renderLspDocs(manifest)],
     ['tools/tree-sitter-toy/builtin-words.js', renderTreeSitterWords(manifest)],
     ['tools/vscode-toy/syntaxes/toy.tmLanguage.json', renderVsCodeGrammar(manifest)],
     ['README.md', renderReadme(manifest, fs.readFileSync(readmePath, 'utf8'))],

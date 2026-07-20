@@ -6,7 +6,7 @@ place to learn Toy because the language can document itself: inspect the word
 catalog, ask for a word's docs, try a small expression, and immediately see the
 stack.
 
-```powershell
+```console
 toy
 ```
 
@@ -141,11 +141,11 @@ searches outward through active frames just like Toy's `$name` instruction.
 `words` and `see` inspect the current context, including definitions created by
 earlier REPL inputs and qualified words from imported packages.
 
-To debug a file or an evaluated source string directly from PowerShell:
+To debug a file or an evaluated source string directly:
 
-```powershell
+```console
 toy --tdb --file program.toy
-toy --tdb --file examples\factorial.toy
+toy --tdb --file examples/factorial.toy
 toy --tdb --eval "1 2 + print"
 ```
 

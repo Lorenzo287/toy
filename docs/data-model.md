@@ -21,7 +21,7 @@ details that make this efficient are collected at the end of the guide.
 | set | `#{ "red" "green" }`, `>set` | insertion-ordered membership |
 | deque | `>deque` | efficient front and back endpoints |
 | priority queue | `>pqueue` | minimum-priority access |
-| resource | C package or embedding API | opaque, typed foreign handle |
+| resource | C extension or embedding API | opaque, typed foreign handle |
 
 Strings are byte sequences, not Unicode strings. String literals accept `\n`,
 `\r`, `\t`, `\"`, `\\`, and `\xHH`; unknown escapes are errors.
@@ -145,7 +145,7 @@ and `read-key` returns the same one-byte string representation.
 Structural equality exists for vectors, lists, maps, sets, deques, and priority
 queues. Representation matters: `[ 1 2 ]` and `( 1 2 )` are not equal.
 
-Hashable values, and therefore valid map keys and set items, are currently:
+Hashable values, and therefore valid map keys and set items, are:
 
 - bool
 - int
@@ -289,6 +289,5 @@ Current performance techniques include:
 - bottom-up heap construction for `>pqueue`;
 - temporary hash sets for large `unique` workloads over hashable scalars.
 
-Lower-level VM and allocation details live in
-[`runtime-internals.md`](./runtime-internals.md). Repository checkouts also
-contain benchmark workloads and recorded experiments under `benchmarks/`.
+Lower-level VM and allocation notes, benchmark workloads, and recorded
+experiments remain with the source repository rather than the installed SDK.

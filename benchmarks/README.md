@@ -4,18 +4,21 @@ This directory contains performance experiments. Keep
 workloads deterministic and focused enough that a result can be tied to one
 implementation choice.
 
-Build an optimized interpreter and run the full suite:
+Nob builds an optimized interpreter and runs every workload by default. The
+commands below assume the bootstrapped Nob executable is available as `nob`;
+use its actual path when it is not on `PATH`.
 
-```powershell
-.\nob.exe build
-.\benchmarks\run.ps1
+```console
+nob benchmark
 ```
 
-Run one workload or use another executable:
+Select workloads, change the sample count, choose another build mode, or use an
+existing executable:
 
-```powershell
-.\benchmarks\run.ps1 -Benchmark vector -Runs 10
-.\benchmarks\run.ps1 -Toy .\build\clang\profile\toy.exe -Benchmark dispatch
+```console
+nob benchmark vector --runs 10
+nob --cc clang --mode profile benchmark dispatch
+nob benchmark dispatch --toy path/to/toy
 ```
 
 The Toy scripts use `monotonic-ns` and print integer nanosecond durations for

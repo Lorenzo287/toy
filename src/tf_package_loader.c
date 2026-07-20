@@ -40,7 +40,7 @@ typedef struct {
 
 typedef struct {
     char *name;
-    char *native;
+    char *extension;
     bool present;
 } package_manifest;
 
@@ -344,7 +344,9 @@ static bool read_manifest(tf_ctx *ctx, const char *directory,
             }
             char **slot = NULL;
             if (strcmp(key, "name") == 0) slot = &manifest->name;
-            else if (strcmp(key, "native") == 0) slot = &manifest->native;
+            else if (strcmp(key, "extension") == 0) {
+                slot = &manifest->extension;
+            }
             else {
                 tf_ctx_runtime_errorf(ctx,
                                       "unknown package manifest key '%s' at %s:%zu\n",
@@ -374,9 +376,9 @@ static bool read_manifest(tf_ctx *ctx, const char *directory,
                               "package manifest requires a valid 'name'\n");
         return false;
     }
-    if (!manifest->native) {
+    if (!manifest->extension) {
         tf_ctx_runtime_errorf(ctx,
-                              "package manifest requires an exact 'native' library path\n");
+                              "package manifest requires an exact 'extension' library path\n");
         return false;
     }
     return true;
@@ -391,7 +393,7 @@ static void scan_dispose(package_scan *scan) {
     free(scan->decls);
     free(scan->name);
     free(scan->manifest.name);
-    free(scan->manifest.native);
+    free(scan->manifest.extension);
     memset(scan, 0, sizeof(*scan));
 }
 
@@ -599,11 +601,13 @@ static tf_ret install_scan(tf_ctx *ctx, package_scan *scan,
     }
 
     if (scan->manifest.present) {
-        char *native = path_is_absolute(scan->manifest.native)
-                           ? tf_xstrdup(scan->manifest.native)
-                           : join_path(directory, scan->manifest.native);
-        tf_ret status = tf_native_package_load(ctx, package_index, native);
-        free(native);
+        char *extension = path_is_absolute(scan->manifest.extension)
+                              ? tf_xstrdup(scan->manifest.extension)
+                              : join_path(directory,
+                                          scan->manifest.extension);
+        tf_ret status =
+            tf_native_package_load(ctx, package_index, extension);
+        free(extension);
         if (status != TF_OK) return status;
     }
 

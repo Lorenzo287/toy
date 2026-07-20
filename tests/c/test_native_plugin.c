@@ -1,5 +1,5 @@
-#define TOY_PACKAGE_IMPLEMENTATION
-#include "toy_package.h"
+#define TOY_EXTENSION_IMPLEMENTATION
+#include "toy.h"
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -66,15 +66,15 @@ static const toy_native_word plugin_words[] = {
     {"make-pair", plugin_make_pair},
 };
 
-static const toy_package_export plugin = {
-    sizeof(toy_package_export),
+static const toy_extension extension = {
+    sizeof(toy_extension),
     "plugin",
     plugin_words,
     sizeof(plugin_words) / sizeof(plugin_words[0]),
 };
 
-TOY_PACKAGE_EXPORT const toy_package_export *toy_package_init(
-    uint32_t abi_version, const toy_package_api *api) {
-    if (!toy_package_bind(abi_version, api)) return NULL;
-    return &plugin;
+TOY_EXTENSION_EXPORT const toy_extension *toy_extension_init(
+    uint32_t abi_version, const toy_extension_api *api) {
+    if (!toy_extension_bind(abi_version, api)) return NULL;
+    return &extension;
 }

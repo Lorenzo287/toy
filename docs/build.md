@@ -10,32 +10,35 @@ not part of the user-facing SDK workflow.
 Toy vendors [Nob](https://github.com/tsoding/nob.h). Build its single source
 file with a C compiler:
 
-```powershell
-clang -std=c11 nob.c -o nob.exe
+```console
+cc -std=c11 nob.c -o nob
 ```
 
-On Linux or macOS, use `cc -std=c11 nob.c -o nob`. Nob rebuilds itself when its
-source or included build headers change. The normal source build also needs
-libffi headers and a linkable `ffi` library because it builds the official
-experimental `core:ffi` package.
+On Windows, use `clang -std=c11 nob.c -o nob.exe`. The examples below call the
+result `nob`; use `nob.exe` or its actual path when needed. Nob rebuilds itself
+when its source or included build headers change. The normal source build also
+needs libffi headers and a linkable `ffi` library because it builds the
+official `core:ffi` package.
 
 ## Development Commands
 
-```powershell
-.\nob.exe build
-.\nob.exe test
-.\nob.exe test --filter package
-.\nob.exe dist
-.\nob.exe clean
+```console
+nob build
+nob test
+nob test --filter package
+nob dist
+nob clean
 ```
 
 `build` produces the Toy CLI, the `toy_runtime` static archive, and `core:ffi`
 under `build/<compiler>/<mode>/`. Run the checkout's interpreter directly:
 
-```powershell
-.\build\gcc\release\toy.exe --file examples\factorial.toy
-.\build\gcc\release\toy.exe --file examples\quines\quine.toy
+```console
+build/gcc/release/toy --file examples/factorial.toy
+build/gcc/release/toy --file examples/quines/quine.toy
 ```
+
+Windows builds add `.exe` to executable names.
 
 `test` runs isolated Toy, package, debugger, embedding, native-loader, and
 binding-generator regressions. It does not provide a separate way to build
@@ -45,21 +48,22 @@ with a C compiler where appropriate.
 `dist` stages the consumer SDK at `dist/toy`. It
 builds the runtime and precompiled Go tools, then copies public headers, core
 packages, generator and Tree-sitter assets, examples, docs, and installers.
-Release archives contain that directory unchanged. The generated Tree-sitter C
-parser must exist first; follow [Building the SDK from Source](./installation.md#building-the-sdk-from-source).
+Release archives contain that directory unchanged. Generated Tree-sitter
+sources are tracked, so a clean checkout can build the SDK directly.
 
 The source checkout intentionally has no root installer. Run
-`dist\toy\install.ps1` on Windows or `sh dist/toy/install.sh` on Unix after
-staging. For C-backed packages and generated bindings, use the installed SDK guides in
-[Packages](./packages.md#c-backed-and-external-library-packages) and
+`powershell -File dist/toy/install.ps1` on Windows or
+`sh dist/toy/install.sh` on Unix after staging. For C extensions and generated
+bindings, use the installed SDK guides in
+[Packages](./packages.md#c-extensions-and-external-libraries) and
 [Generated C Bindings](./bindgen.md).
 
 ## Compilers and Modes
 
 Select a compiler and mode with:
 
-```powershell
-.\nob.exe --cc gcc --mode debug build
+```console
+nob --cc gcc --mode debug build
 ```
 
 Supported compilers are `clang`, `gcc`, `msvc`, and `clang-cl`. On Windows,
@@ -75,12 +79,10 @@ Supported compilers are `clang`, `gcc`, `msvc`, and `clang-cl`. On Windows,
 Independent C compilations run in parallel. Use `-j` or `--jobs` to change the
 default worker count. Profiling with MinGW GCC on Windows is not supported.
 
-```powershell
-.\nob.exe --mode alloc build
-.\build\gcc\alloc\toy.exe --file benchmarks\dispatch.toy
-
-.\nob.exe --cc clang --mode profile build
-samply record .\build\clang\profile\toy.exe --file benchmarks\runtime-internals.toy
+```console
+nob --mode alloc benchmark dispatch
+nob --cc clang --mode profile build
+samply record build/clang/profile/toy --file benchmarks/runtime-internals.toy
 ```
 
 ## libffi
@@ -89,16 +91,35 @@ The normal build compiles `core/ffi/toy_ffi.c` and links it with libffi. If the
 headers or library are outside the compiler's default paths, pass their
 locations to `build`, `test`, or `dist`:
 
-```powershell
-.\nob.exe --cc gcc build `
-    --include C:\libffi\include `
-    --lib-dir C:\libffi\lib `
-    --lib ffi
+```console
+nob --cc gcc build --include path/to/libffi/include --lib-dir path/to/libffi/lib --lib ffi
 ```
 
 With no `--lib` option, the build links `ffi`. Supplying one or more `--lib`
 options replaces that default list, which permits `--lib libffi` or an exact
 library path on unusual installations. The selected compiler must match the
 libffi distribution; MSYS2/MinGW libffi normally uses `--cc gcc`. See
-[Experimental Dynamic FFI](./ffi.md) for its runtime dependency and safety
+[Dynamic FFI](./ffi.md) for its runtime dependency and safety
 constraints.
+
+## Tooling
+
+The Go module for the installed commands lives directly under `tools/`. Run its
+tests or an individual command from the repository root:
+
+```console
+go -C tools test ./...
+go -C tools run ./cmd/toy-lsp
+```
+
+Grammar changes begin in `tools/tree-sitter-toy/`. Its generated `src/`
+directory is tracked and is also the Go parser package, so one generated parser
+serves the SDK and language server:
+
+```console
+cd tools/tree-sitter-toy
+npm ci --ignore-scripts
+npm rebuild tree-sitter-cli
+npm run generate
+npm test
+```

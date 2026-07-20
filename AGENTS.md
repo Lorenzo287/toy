@@ -18,15 +18,15 @@ navigation and development rules.
 - `src/cli/`: standalone executable, REPL, and debugger-protocol frontend.
 - `src/generated/`: generated builtin declarations/registry, runtime docs, and
   REPL word tables; do not hand-edit.
-- `include/`: public embedding and standalone native-package headers.
+- `include/toy.h`: single public embedding and standalone C-extension header.
 - `examples/`: standalone Toy programs run with `toy --file`; formatting-
   sensitive quines live under `examples/quines/`.
 - `examples/embedding/`: C hosts that embed and call the Toy runtime.
 - `examples/ffi/`, `examples/packages/`: dynamic FFI, generated binding, and
-  handwritten native-package examples. Library-specific adapters are test
+  handwritten C-extension examples. Library-specific adapters are test
   cases for the general boundary, not built-in integrations.
 - `core/`: official packages maintained and built with Toy.
-- `tests/packages/`: source, core, and native package integration fixtures.
+- `tests/packages/`: source, core, and C-extension integration fixtures.
 - `tests/toy/`, `tests/c/`: language cases and C API regressions. Toy test
   prefixes declare behavior: `test_`, `fail_`, `output_`, and `manual_`.
 - `docs/`: build, REPL, tooling, and roadmap docs.
@@ -35,25 +35,21 @@ navigation and development rules.
 - `docs/data-model.md`: collection syntax, interop, complexity, equality, and
   hashing reference.
 - `docs/packages.md`: directory packages, exact imports, executable entry
-  points, and native-library workflows.
+  points, and C-extension workflows.
 - `docs/runtime-internals.md`: VM/object/allocation implementation notes.
-- `docs/embedding.md`: experimental C embedding and native-word API.
-- `benchmarks/`: reproducible performance workloads, runner, and recorded
-  experiment results.
+- `docs/embedding.md`: C embedding and native-word API.
+- `docs/editor.md`: formatter, LSP, DAP, Tree-sitter, VS Code, and editor setup.
+- `benchmarks/`: reproducible performance workloads run by `nob benchmark`.
 - `benchmarks/results/`: benchmark result notes and comparison templates.
 - `tools/generate-builtins.js`: builtin metadata generator and consistency
   checker.
-- `tools/tree-sitter-toy/`: Tree-sitter grammar, generated parser inputs,
-  queries, and tests.
-- `tools/toy-lsp/`: Go LSP implementation and generated builtin docs.
-- `tools/toy-lsp/internal/dap/`, `tools/toy-lsp/cmd/toy-dap/`: DAP adapter
-  and executable entry point.
-- `tools/toy-lsp/cmd/toy-c-package/`, `tools/toy-lsp/cmd/toy-bindgen/`: installed
-  SDK frontends for native-package compilation and binding generation.
-- `tools/toy-lsp/internal/formatter/`: shared formatter used by the CLI
-  and LSP formatting method.
+- `tools/tree-sitter-toy/`: Tree-sitter grammar, tracked generated parser,
+  queries, Go binding, and grammar tests.
+- `tools/go.mod`, `tools/cmd/`, `tools/internal/`: Go module containing the
+  installed LSP, DAP, formatter, C-extension, and binding frontends plus their
+  shared implementations.
 - `tools/vscode-toy/`: VS Code extension and generated grammar metadata.
-- `.github/workflows/`: CI and release automation.
+- `.github/workflows/release.yml`: tag-driven release automation.
 - `tools/install.ps1`, `tools/install.sh`: general installers copied
   into staged release SDKs; they consume built artifacts and must not rebuild
   repository tools.
@@ -72,16 +68,15 @@ navigation and development rules.
   included by `src/tf_context.c` and registered by `tf_ctx_new()`.
 - Native declarations: `src/tf_builtins.h`; implementations are grouped in
   `src/tf_builtins_*.c`.
-- Experimental public C and native-package API: `include/toy.h`, implemented by
-  `src/toy.c`.
-- Standalone shared native-package API and implementation:
-  `include/toy_package.h`; platform loading: `src/tf_native_loader.c`.
-- Experimental libffi core package: `core/ffi/toy_ffi.c`; signature and safety
+- Public embedding, package-registration, and standalone C-extension API:
+  `include/toy.h`, implemented by `src/toy.c`; platform extension loading:
+  `src/tf_native_loader.c`.
+- Libffi core package: `core/ffi/toy_ffi.c`; signature and safety
   contract: `docs/ffi.md`.
 - Explicit-manifest binding generator: `tools/generate-binding.js`; installed
-  frontend: `toy-bindgen`; C-package compiler: `toy-c-package`; contract:
+  frontend: `toy-bindgen`; C-extension compiler: `toy-c-package`; contract:
   `docs/bindgen.md`.
-- External shared-package examples: `examples/packages/raylib/toy_raylib.c`
+- External C-extension examples: `examples/packages/raylib/toy_raylib.c`
   and `examples/packages/sqlite/toy_sqlite.c`.
 - Context lifecycle and builtin registration: `src/tf_context.c`; stack,
   frames, diagnostics, captures, and VM dispatch: `src/tf_exec.h`,
@@ -102,7 +97,7 @@ navigation and development rules.
 - Package model: `docs/packages.md`.
 - Data model reference: `docs/data-model.md`.
 - Test conventions: `docs/testing.md`.
-- Formatter behavior and configuration: `docs/formatter.md`.
+- Editor tooling and formatter behavior: `docs/editor.md`.
 
 ## Workflow
 
@@ -118,6 +113,8 @@ navigation and development rules.
 - Use `.\nob.exe dist` to stage the consumer SDK at `dist/toy`. User-facing docs and examples
   invoke `toy`, `toy-c-package`, `toy-bindgen`, and the installed editor tools;
   they must not depend on Nob or repository build paths.
+- Use `.\nob.exe benchmark` for performance workloads; names and `--runs`
+  select focused samples.
 
 ## Development Rules
 
@@ -149,13 +146,11 @@ navigation and development rules.
   generated C declarations/registry, runtime docs, LSP data, Tree-sitter word
   lists, VS Code grammar, or README table outputs. Regenerate the Tree-sitter
   parser after generated word-list changes when the CLI is available. Use
-  `npm run generate` from
-  `tools/tree-sitter-toy`; it also synchronizes `parser.c` into the Go
-  parser package so normal Go cache invalidation remains correct.
+  `npm run generate` from `tools/tree-sitter-toy`; its tracked `src/` directory
+  is also the Go parser package.
 - Docs: README and its focused references describe current user-visible
   behavior; AGENTS contains repository navigation and durable development
   rules; the roadmap contains only current status, sequencing, and future work.
   Use Git history rather than the roadmap as a changelog.
-- Shell: assume Windows PowerShell; do not output bash exclusive syntax (but consider
-  that MinGW is installed so most Unix cli dev tools are available and many pwsh
-  commands have a more conventional alias).
+- Shell: assume Windows PowerShell; use familiar aliases such as `cd` where
+  available and do not output Bash-only syntax.

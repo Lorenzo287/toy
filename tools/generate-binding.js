@@ -1127,8 +1127,8 @@ function renderBinding(manifest) {
   );
   const lines = [
     `/* ${generatedComment} */`,
-    '#define TOY_PACKAGE_IMPLEMENTATION',
-    '#include "toy_package.h"',
+    '#define TOY_EXTENSION_IMPLEMENTATION',
+    '#include "toy.h"',
     '',
     ...manifest.headers.map((header) => `#include "${header}"`),
     '',
@@ -1204,17 +1204,17 @@ function renderBinding(manifest) {
   lines.push(
     '};',
     '',
-    'static const toy_package_export binding_package = {',
-    '    sizeof(toy_package_export),',
+    'static const toy_extension binding_extension = {',
+    '    sizeof(toy_extension),',
     `    ${cString(manifest.package)},`,
     '    binding_words,',
     '    sizeof(binding_words) / sizeof(binding_words[0]),',
     '};',
     '',
-    'TOY_PACKAGE_EXPORT const toy_package_export *toy_package_init(',
-    '    uint32_t abi_version, const toy_package_api *api) {',
-    '    if (!toy_package_bind(abi_version, api)) return NULL;',
-    '    return &binding_package;',
+    'TOY_EXTENSION_EXPORT const toy_extension *toy_extension_init(',
+    '    uint32_t abi_version, const toy_extension_api *api) {',
+    '    if (!toy_extension_bind(abi_version, api)) return NULL;',
+    '    return &binding_extension;',
     '}',
     ''
   );

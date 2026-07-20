@@ -5,9 +5,9 @@
 - OS / CPU: Windows 11 Pro 10.0.26200 / Intel Core i7-1065G7
 - Compiler / version: Clang 22.1.3
 - CMake configuration: Release; Profile for sampling
-- Command: alternating direct executions of `benchmarks\dispatch.toy` across
+- Command: alternating direct executions of `benchmarks/dispatch.toy` across
   five baseline/candidate pairs; then
-  `.\benchmarks\run.ps1 -Benchmark runtime-internals -Runs 10` for each binary
+  `nob benchmark runtime-internals --runs 10 --toy path/to/toy` for each binary
 - Change under test: add a 64-entry direct-mapped cache from call/symbol object
   addresses to stable dense dictionary entry indexes, with name verification
   on hits

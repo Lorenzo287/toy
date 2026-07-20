@@ -45,7 +45,7 @@
     }
   },
   "scripts": {
-    "generate": "tree-sitter generate --abi 15 && node ../../tools/sync-tree-sitter-parser.js",
+    "generate": "tree-sitter generate --abi 15",
     "prestart": "tree-sitter build --wasm",
     "start": "tree-sitter playground",
     "test": "tree-sitter test"

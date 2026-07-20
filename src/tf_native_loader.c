@@ -1,7 +1,7 @@
 #include "tf_native_loader.h"
 
 #include "tf_alloc.h"
-#include "toy_package.h"
+#include "toy.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -13,9 +13,9 @@ static void *library_open(const char *path) {
     return (void *)LoadLibraryA(path);
 }
 
-static toy_package_entry library_entry(void *handle) {
-    FARPROC symbol = GetProcAddress((HMODULE)handle, TOY_PACKAGE_ENTRY_SYMBOL);
-    toy_package_entry entry = NULL;
+static toy_extension_entry library_entry(void *handle) {
+    FARPROC symbol = GetProcAddress((HMODULE)handle, TOY_EXTENSION_ENTRY_SYMBOL);
+    toy_extension_entry entry = NULL;
     _Static_assert(sizeof(entry) == sizeof(symbol),
                    "function pointer size mismatch");
     memcpy(&entry, &symbol, sizeof(entry));
@@ -44,10 +44,10 @@ static void *library_open(const char *path) {
     return dlopen(path, RTLD_NOW | RTLD_LOCAL);
 }
 
-static toy_package_entry library_entry(void *handle) {
+static toy_extension_entry library_entry(void *handle) {
     dlerror();
-    void *symbol = dlsym(handle, TOY_PACKAGE_ENTRY_SYMBOL);
-    toy_package_entry entry = NULL;
+    void *symbol = dlsym(handle, TOY_EXTENSION_ENTRY_SYMBOL);
+    toy_extension_entry entry = NULL;
     _Static_assert(sizeof(entry) == sizeof(symbol),
                    "function pointer size mismatch");
     memcpy(&entry, &symbol, sizeof(entry));
@@ -64,8 +64,8 @@ static void library_close(void *handle) {
 }
 #endif
 
-static const toy_package_api package_api = {
-    .struct_size = sizeof(toy_package_api),
+static const toy_extension_api extension_api = {
+    .struct_size = sizeof(toy_extension_api),
     .stack_size = toy_stack_size,
     .stack_type = toy_stack_type,
     .get_bool = toy_get_bool,
@@ -117,32 +117,32 @@ tf_ret tf_native_package_load(tf_ctx *ctx, size_t package_index,
                               const char *path) {
     void *handle = library_open(path);
     if (!handle) {
-        tf_ctx_runtime_errorf(ctx, "failed to open native package '%s': %s\n",
+        tf_ctx_runtime_errorf(ctx, "failed to open C extension '%s': %s\n",
                               path, library_error());
         return TF_ERR;
     }
 
-    toy_package_entry entry = library_entry(handle);
+    toy_extension_entry entry = library_entry(handle);
     if (!entry) {
         tf_ctx_runtime_errorf(
-            ctx, "native package '%s' does not export %s: %s\n", path,
-            TOY_PACKAGE_ENTRY_SYMBOL, library_error());
+            ctx, "C extension '%s' does not export %s: %s\n", path,
+            TOY_EXTENSION_ENTRY_SYMBOL, library_error());
         library_close(handle);
         return TF_ERR;
     }
 
-    const toy_package_export *exported =
-        entry(TOY_PACKAGE_ABI_VERSION, &package_api);
-    if (!exported) {
+    const toy_extension *extension =
+        entry(TOY_EXTENSION_ABI_VERSION, &extension_api);
+    if (!extension) {
         tf_ctx_runtime_errorf(ctx,
-                              "native package '%s' rejected the host ABI\n",
+                              "C extension '%s' rejected the host ABI\n",
                               path);
         library_close(handle);
         return TF_ERR;
     }
-    if (exported->struct_size != sizeof(toy_package_export)) {
+    if (extension->struct_size != sizeof(toy_extension)) {
         tf_ctx_runtime_errorf(ctx,
-                              "native package '%s' has an incompatible "
+                              "C extension '%s' has an incompatible "
                               "descriptor\n",
                               path);
         library_close(handle);
@@ -150,9 +150,9 @@ tf_ret tf_native_package_load(tf_ctx *ctx, size_t package_index,
     }
 
     toy_native_package package = {
-        exported->name,
-        exported->words,
-        exported->word_count,
+        extension->name,
+        extension->words,
+        extension->word_count,
     };
     if (tf_install_native_package(ctx, package_index, &package) != TOY_OK) {
         library_close(handle);

@@ -7,7 +7,7 @@
 - CMake configuration: Release and AllocationStats
 - Command: isolated 2000-iteration vector-filter workload under
   AllocationStats; 15 alternating Release baseline/candidate pairs using the
-  `filter with ambient stack` row from `benchmarks\runtime-internals.toy`
+  `filter with ambient stack` row from `benchmarks/runtime-internals.toy`
 - Change under test: after a vector filter result fills its two inline slots,
   reserve up to 64 slots based on input length before continuing geometric
   growth

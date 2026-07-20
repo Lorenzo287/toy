@@ -31,53 +31,28 @@ Keep optimization work benchmark-driven and record durable experiments under
 - cache behavior for list, vector, and string workloads;
 - structural hashes if map/set key policy expands.
 
-### Runtime API and Foreign Function Interface
+### C Interop
 
 **Status: In progress**
 
-Treat the [foreign function interface](https://en.wikipedia.org/wiki/Foreign_function_interface)
-as an exploratory interoperability track, not a single general-purpose
-`call-c` word. The CLI now links a reusable static runtime, and the experimental
-public API exposes opaque states, primitive and typed resource stack access,
-state-bound persistent values, basic collection construction and traversal,
-host-to-Toy value calls, package import and execution, and synchronous native
-word or package registration.
-Native package descriptors reuse directory-package names, load state,
-visibility, and aliases. Shared native-package ABI version one adds a
-size-tagged host function table, a stable entry symbol, exact manifest library
-paths, and context-owned library handles. Its standalone implementation-macro
-header lets packages compile without linking the runtime or a separate support
-library. The API is not stable yet. A Raylib interop
-example exercises the generic shared-package path with a Toy-owned window,
-drawing loop, and automatically unloaded texture resources. A SQLite example
-exercises opaque database and statement handles, prepared parameters, copied
-row data, and automatic finalization. Both remain external-library examples,
-not Toy-provided integrations. An optional
-`core:ffi` package experiments with dynamically resolved, explicit signatures
-for booleans, integers, floats, and copied C strings. An explicit-manifest
-generator can compile that safe subset into ordinary package words,
-including typed opaque resources, destructors, exact resource inputs, direct
-owned returns, output handles, dependent resource lifetimes, hidden constants
-and nulls, pointer-length strings, numeric success codes, resource-based error
-messages, boolean result-code mappings, and failure cleanup. A generated SQLite
-subset tests these policies without making SQLite a Toy integration. Automatic
-header parsing is not implemented yet.
+Embedding, C extensions, `core:ffi`, and generated bindings share one
+value and ownership model. They are usable parts of Toy; this track concerns
+how far the boundary grows and which parts need an explicit compatibility
+policy.
 
-Keep the SDK boundary coherent: release distributions stage the interpreter,
-core packages, public headers and embedding archive, `toy-c-package`, the
-dependency-free generator behind `toy-bindgen`, prebuilt editor tools,
-Tree-sitter assets, examples, docs, and general installation scripts. Nob
-remains a repository build/test/distribution tool rather than a user workflow.
-Current follow-up candidates are:
+Priorities are:
 
-1. add a libclang frontend after the resource manifest is explicit enough to
-   preserve ownership decisions that headers cannot infer;
-2. expose general output buffers, structs, variadic functions, and callbacks only
-   after their ownership and VM-boundary rules are settled.
+1. define the compatibility policy for the public C API and C-extension ABI;
+2. extend generated bindings to general output buffers and selected aggregate
+   types once their ownership rules are clear;
+3. add a libclang frontend that produces the same explicit manifest rather
+   than trying to infer ownership from C declarations;
+4. design callbacks and native calls into Toy without re-entering the VM or
+   losing its iterative execution model.
 
-The resulting boundary should be reusable by embedders, native packages, and
-compiled Toy code. Native calls that schedule Toy code must preserve the
-iterative VM execution model.
+Release SDKs should continue to carry everything needed for this boundary:
+public headers, the embedding archive, core packages, package tools, examples,
+and focused reference docs.
 
 ## Future Work
 

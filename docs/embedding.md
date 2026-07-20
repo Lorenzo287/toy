@@ -1,12 +1,13 @@
 # Embedding Toy in C
 
 The Toy SDK ships a static `toy_runtime` library and `include/toy.h` alongside
-the command-line tools. The experimental API lets a C host
+the command-line tools. The API lets a C host
 create an interpreter state, evaluate source, call Toy words, inspect primitive
 or opaque resource stack values, retain arbitrary Toy values, traverse basic
 collections, and register synchronous native words or packages.
 
-The API is intentionally small and may change freely while experimental.
+The boundary is intentionally small. Toy owns the interpreter and its values;
+the host works through opaque handles and explicit stack operations.
 
 ## Buildable Example
 
@@ -92,7 +93,7 @@ The main statuses are:
 - `TOY_EXIT_REQUESTED`: Toy executed `exit`; the host decides whether its
   process should terminate.
 
-## Host-Registered C Packages
+## Packages Registered by a Host
 
 A descriptor groups local C word names under one Toy package:
 
@@ -128,15 +129,16 @@ previously registered qualified words. The callback functions themselves must
 remain valid for the lifetime of the state. `toy_register_word()` remains
 available for standalone root words that do not need package identity.
 
-## Shared C Packages
+## C Extensions
 
-`include/toy_package.h` defines shared-package ABI version 1. A package exports
-the fixed `toy_package_init` entry point, accepts the ABI version and size-tagged
-host function table, and returns a static descriptor:
+`include/toy.h` defines C-extension ABI version 1 as well as the embedding API.
+An extension exports the fixed `toy_extension_init` entry point, accepts the ABI
+version and size-tagged host function table, and returns a static extension
+descriptor:
 
 ```c
-#define TOY_PACKAGE_IMPLEMENTATION
-#include "toy_package.h"
+#define TOY_EXTENSION_IMPLEMENTATION
+#include "toy.h"
 
 static toy_status twice(toy_state *state) {
     int64_t value = 0;
@@ -153,46 +155,46 @@ static const toy_native_word words[] = {
     {"twice", twice},
 };
 
-static const toy_package_export package = {
-    sizeof(toy_package_export),
+static const toy_extension extension = {
+    sizeof(toy_extension),
     "sample",
     words,
     sizeof(words) / sizeof(words[0]),
 };
 
-TOY_PACKAGE_EXPORT const toy_package_export *toy_package_init(
-    uint32_t abi_version, const toy_package_api *api) {
-    if (!toy_package_bind(abi_version, api)) return NULL;
-    return &package;
+TOY_EXTENSION_EXPORT const toy_extension *toy_extension_init(
+    uint32_t abi_version, const toy_extension_api *api) {
+    if (!toy_extension_bind(abi_version, api)) return NULL;
+    return &extension;
 }
 ```
 
-`TOY_PACKAGE_IMPLEMENTATION` emits the small forwarding layer in that C file.
+`TOY_EXTENSION_IMPLEMENTATION` emits the small forwarding layer in that C file.
 For a multi-file package, define it in exactly one translation unit. The header
-is otherwise self-contained: copy `toy_package.h` beside the source and compile
+is otherwise self-contained: copy `toy.h` beside the source and compile
 the shared library without linking Toy or a Toy support library:
 
-```powershell
+```console
 clang -std=c11 -shared sample.c -o toy_sample.dll
 ```
 
 On Linux, add `-fPIC` and name the result `toy_sample.so`. The package directory
 also needs an exact `toy.package` manifest:
 
-```text
+```ini
 name = sample
-native = toy_sample.dll
+extension = toy_sample.dll
 ```
 
 Use the platform suffix in the real manifest. The installed SDK tool creates
 both artifacts and supplies the correct public-header path:
 
-```powershell
-toy-c-package vendor\sample vendor\sample\sample.c
+```console
+toy-c-package vendor/sample vendor/sample/sample.c
 ```
 
 Use repeatable `--include`, `--lib-dir`, and `--lib` options for additional
-native dependencies. The package must still use a compiler and foreign library
+C dependencies. The extension must still use a compiler and foreign library
 whose architecture and C ABI match the Toy executable.
 
 Import the directory exactly as any source package:
@@ -203,13 +205,14 @@ Import the directory exactly as any source package:
 ```
 
 The loader passes ABI version 1 to the entry point, and both structure sizes
-must match exactly. These checks reject stale or mismatched native binaries
+must match exactly. These checks reject stale or mismatched extension binaries
 before their function tables are used. Packages must still match the runtime's
 target architecture and C ABI. The host table has process lifetime; the library
 itself remains loaded until state destruction. Stacks, frames, definitions, and
 resource destructors are released before unloading, so destructors implemented
-inside the package remain callable. Shared packages are unrestricted native code
-and must be trusted like any other library loaded into the process.
+inside the extension remain callable. C extensions execute unrestricted
+machine code and must be trusted like any other library loaded into the
+process.
 
 ## Persistent Values and Collections
 
@@ -245,7 +248,7 @@ strings. A string item is a copied one-byte string, matching Toy's language
 semantics. `toy_map_size()` and `toy_map_entry()` traverse maps in insertion
 order; each successful entry access returns two new retained values.
 
-Construction remains stack-oriented so hosts and C packages can reuse the
+Construction remains stack-oriented so hosts and C extensions can reuse the
 primitive push API:
 
 ```c
@@ -306,53 +309,12 @@ keys or set items, and report `resource` through `type-of` and `resource?`.
 Their display form is `<resource:type.name>` and is intentionally opaque rather
 than reconstructable source.
 
-## Raylib Interop Example
-
-`examples/packages/raylib/` demonstrates a real C-backed package built on this API.
-It is an external-library example rather than a runtime feature: `toy-c-package`
-builds it in its directory, and the normal CLI imports that exact path. The
-window loop, close predicate, frame boundaries, and drawing calls are ordinary
-Toy code.
-
-After installing Raylib, build it with the required include and library options;
-see the [example README](../examples/packages/raylib/README.md). The package
-currently provides:
-
-- window lifecycle: `init-window`, `close-window`,
-  `window-should-close?`, and `set-target-fps`;
-- frames and drawing: `begin-drawing`, `end-drawing`, `clear-background`,
-  `draw-circle`, `draw-rectangle`, `draw-text`, and `draw-texture`;
-- textures: `load-texture`, returning an owned `raylib.texture` resource;
-- values and queries: `rgba`, `mouse-x`, `mouse-y`, and `frame-time`.
-
-`rgba` converts four byte integers to a packed Toy integer accepted by the
-drawing words. `draw-texture` consumes its texture input like an ordinary word;
-use `dup` to retain it across frames, and release every remaining reference with
-`drop` before `close-window` so the destructor can unload the GPU texture while
-the window context is still active:
-
-```toy
-"sprite.png" rl.load-texture
-dup 40 60 255 255 255 255 rl.rgba rl.draw-texture
-drop
-rl.close-window
-```
-
-## SQLite Interop Example
-
-`examples/packages/sqlite/` applies the same generic package contract to a very
-different library. Its database and statement pointers become typed resources;
-database destruction calls `sqlite3_close_v2`, statement destruction calls
-`sqlite3_finalize`, and borrowed column text is copied before a native word
-consumes the statement input.
-
-The adapter is intentionally an example rather than a maintained standard
-library. A focused [generated SQLite binding](../examples/packages/bindgen/)
-shows how manifests cover handle constructors, output parameters, dependent
-resources, hidden arguments, status messages, and borrowed buffers. The
-handwritten adapter remains useful for custom row-state validation and a more
-idiomatic interface. See its [README](../examples/packages/sqlite/) for the
-generic build command and a prepared-statement program.
+The [Raylib](../examples/packages/raylib/) and
+[SQLite](../examples/packages/sqlite/) examples apply this resource boundary to
+real libraries. Their READMEs contain the dependency-specific build commands
+and explain the small policies added by each handwritten adapter. The
+[generated binding examples](../examples/packages/bindgen/) show the same
+boundary driven by explicit manifests.
 
 ## Stack and Ownership
 
@@ -381,19 +343,19 @@ Errors unwind the current VM invocation but do not roll back definitions or
 data-stack effects that already occurred. The state may be used again after the
 host inspects or repairs its stack.
 
-## Current Limitations
+## Runtime Boundaries
 
 - states are not safe for concurrent access;
-- native callbacks are synchronous and cannot re-enter the same state;
+- C callbacks are synchronous and cannot re-enter the same state;
 - `read-key` and `read-line` still use process standard input;
 - allocation failure terminates the process;
 - the normal filesystem, environment, process, and shell builtins are enabled;
 - the runtime uses bounded process-global allocation caches;
 - retained values must be released manually before their state is destroyed;
-- public construction and traversal currently cover vectors, maps, and
+- public construction and traversal cover vectors, maps, and
   vector/list/string sequence access rather than every collection family;
-- the shared-package ABI remains experimental and versioned as one unit;
-- the optional [dynamic FFI](./ffi.md) currently handles only explicit scalar
+- the C-extension ABI is versioned together with the Toy SDK;
+- the optional [dynamic FFI](./ffi.md) handles explicit scalar
   and copied-string signatures.
 
 The focused C regression is `tests/c/test_embed_api.c`; the structured host is

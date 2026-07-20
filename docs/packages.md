@@ -39,8 +39,8 @@ project/
 
 Run the executable package by passing its directory to Toy:
 
-```powershell
-toy project\app
+```console
+toy project/app
 ```
 
 The CLI accepts only a package named `main` as an executable and invokes its
@@ -110,9 +110,9 @@ overrides either location. Embedders set
 turning a file into a package. They are useful for short scripts, tests, and
 debugger sessions:
 
-```powershell
+```console
 toy --eval "1 2 + print"
-toy --file examples\factorial.toy
+toy --file examples/factorial.toy
 ```
 
 `--file` may be repeated; each file runs in the same state. Arguments after the
@@ -121,62 +121,55 @@ also use `import` and qualified package words; its relative imports use the
 process working directory because root evaluation has no package directory.
 There is no language-level `load` word.
 
-## C-Backed and External-Library Packages
+## C Extensions and External Libraries
 
-A C-backed package is a Toy package whose implementation includes machine code
-compiled into a shared library. Its directory contains a `toy.package`
-manifest:
+A Toy package can contain Toy source, a C extension, or both. The extension is
+a shared library named by the directory's `toy.package` manifest:
 
-```text
+```ini
 name = sqlite
-native = toy_sqlite.dll
+extension = toy_sqlite.dll
 ```
 
-In the following Windows commands, `$ToySdk` is the root of an installed SDK
-or locally staged `dist\toy` SDK.
+`extension` is an exact path to the compiled `.dll`, `.so`, or `.dylib`, either
+relative to the package directory or absolute. The library exports Toy's
+versioned extension descriptor from
+`include/toy.h`; its descriptor name, manifest name, and any
+source-package declaration must agree.
 
-`native` is the manifest's name for that compiled `.dll`, `.so`, or `.dylib`.
-It is an exact path relative to the package directory (or an absolute path).
-The library exports Toy's versioned package descriptor from
-`include/toy_package.h`; its descriptor name, manifest name, and any
-source-package declaration must agree. A directory can be C-only or combine C
-words with Toy definitions.
-
-## Manual C-Backed Packages
+## Building a C Extension by Hand
 
 The complete contract is intentionally small: compile a shared library that
-includes the standalone `toy_package.h`, then write the manifest yourself. No
-Toy runtime or package-support library participates in that link.
+defines `TOY_EXTENSION_IMPLEMENTATION` and includes the standalone `toy.h`,
+then write the manifest yourself. No Toy runtime or package-support library
+participates in that link.
 
-```powershell
-clang -std=c11 -Wall -Wextra -Wpedantic -shared `
-    vendor\sqlite\toy_sqlite.c -I "$ToySdk\include" `
-    -I C:\sqlite\include C:\sqlite\lib\sqlite3.lib `
-    -o vendor\sqlite\toy_sqlite.dll
-@'
+```console
+cc -std=c11 -Wall -Wextra -Wpedantic -shared vendor/sqlite/toy_sqlite.c -I path/to/toy/include -I path/to/sqlite/include path/to/sqlite/lib/sqlite3.lib -o vendor/sqlite/toy_sqlite.dll
+```
+
+Create `vendor/sqlite/toy.package` beside the compiled library:
+
+```ini
 name = sqlite
-native = toy_sqlite.dll
-'@ | Set-Content -NoNewline vendor\sqlite\toy.package
+extension = toy_sqlite.dll
 ```
 
 On Linux, add `-fPIC` and use `toy_sqlite.so`; on macOS use `-dynamiclib` and
-`toy_sqlite.dylib`. Static foreign libraries are linked into the package.
+`toy_sqlite.dylib`. Static foreign libraries are linked into the extension.
 When using a shared foreign library, its runtime dependencies must still be
 discoverable by the operating-system loader. See the dependency notes below.
 
-The shipped [basic native package](../examples/packages/basic/) contains a
-dependency-free package and demo that exercise this exact route.
+The shipped [basic package](../examples/packages/basic/) contains a
+dependency-free C extension and demo that exercise this exact route.
 
 ## `toy-c-package` Convenience Tool
 
-The installed C-package builder performs the same compile, link, and manifest
+The installed C-extension builder performs the same compile, link, and manifest
 steps in place:
 
-```powershell
-toy-c-package vendor\sqlite vendor\sqlite\toy_sqlite.c `
-    --include C:\sqlite\include `
-    --lib-dir C:\sqlite\lib `
-    --lib sqlite3
+```console
+toy-c-package vendor/sqlite vendor/sqlite/toy_sqlite.c --include path/to/sqlite/include --lib-dir path/to/sqlite/lib --lib sqlite3
 ```
 
 The application then uses the same import syntax as for Toy source:
@@ -185,16 +178,16 @@ The application then uses the same import syntax as for Toy source:
 "../vendor/sqlite" 'db import-as
 ```
 
-Toy does not use a package manager, registry, lockfile, or dependency resolver.
-Projects choose where dependency directories live, commonly committing small
-bindings under `vendor/` while obtaining the actual C library through their
-normal system or project build process.
+Dependencies are exact directories chosen by the project. A common layout
+commits small bindings under `vendor/` while obtaining the C library through
+the project's normal build process; no registry, lockfile, or global package
+state participates in resolution.
 
 ### What the C Artifacts Do
 
 A header supplies declarations, not implementation. At build time:
 
-- a static `.a` or `.lib` is linked into the C-backed Toy package;
+- a static `.a` or `.lib` is linked into the C extension;
 - a shared `.so`, `.dylib`, or `.dll` is linked through its import library or
   loaded explicitly, and the operating-system loader must be able to find its
   runtime dependencies;
@@ -210,17 +203,16 @@ shared-library lookup.
    platform name, declare a supported signature, and call it. This needs no C
    wrapper but offers the smallest type and ownership boundary.
 2. Generated binding: write an explicit JSON manifest, emit its C wrapper with
-   `toy-bindgen`, then either compile and manifest it manually or use
-   `toy-c-package`. The tools are shipped in the SDK but are not required by
-   the native-package ABI.
-3. Handwritten binding: implement callbacks with `toy_package.h`, then compile
-   and manifest the adapter manually or with `toy-c-package`. This covers
+   `toy-bindgen`, then either compile and manifest the extension manually or
+   use `toy-c-package`. The tools are shipped in the SDK but are not required
+   by the C-extension ABI.
+3. Handwritten binding: implement callbacks with `toy.h`, then compile
+   and build the extension manually or with `toy-c-package`. This covers
    structs, callbacks, custom validation, and library-specific ownership rules
    that the generator cannot express.
 
-`core:ffi` is an official package maintained and built with Toy. Raylib,
-SQLite, and similar bindings remain ordinary project packages even when the
-repository contains examples for them.
+`core:ffi` ships in Toy's `core` directory. The Raylib and SQLite examples are
+templates for ordinary project packages built through the same boundary.
 
 ## Relation to Odin
 
@@ -228,6 +220,6 @@ Like Odin, Toy makes the directory the compilation and namespace unit, imports
 packages rather than files, and qualifies imported declarations with a package
 name. Toy's model is smaller and runtime-oriented: package files are
 declaration-only, declarations are public by default, import locations are
-literal directories (plus the fixed `core:` prefix), and native libraries join
+literal directories (plus the fixed `core:` prefix), and C extensions join
 the same namespace through a tiny manifest. It intentionally has no package
 collection layer or package manager over path imports.

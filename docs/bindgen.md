@@ -1,7 +1,7 @@
 # Generated C Bindings
 
-`toy-bindgen` turns an explicit JSON manifest into an importable Toy native
-package written in C. It is shipped with the Toy SDK and uses the
+`toy-bindgen` turns an explicit JSON manifest into C extension source for an
+importable Toy package. It is shipped with the Toy SDK and uses the
 version-matched generator payload from that installation. Generated packages
 expose ordinary qualified words; their users do not interact with `ffi.open`,
 signatures, or function resources.
@@ -36,8 +36,8 @@ and the exported functions:
 ```
 
 `name` is the C identifier. Optional `word` changes the public Toy word name;
-otherwise the C name is used. Package and word names follow the normal native
-package rules. Duplicate words, unsafe header paths, unknown fields, unsupported
+otherwise the C name is used. Package and word names follow the normal
+C-extension rules. Duplicate words, unsafe header paths, unknown fields, unsupported
 types, and `void` arguments are rejected before C is emitted.
 
 The supported types match the scalar/string FFI experiment:
@@ -204,48 +204,46 @@ borrow text from their handle.
 
 Generate a C file with the installed frontend:
 
-```powershell
-toy-bindgen path\to\clib.json vendor\clib\generated.c
+```console
+toy-bindgen path/to/clib.json vendor/clib/generated.c
 ```
 
 `--check` compares an existing output with the manifest without rewriting it.
 `--package name` additionally verifies the manifest package against the target
 directory name.
 Generated files start with a do-not-edit marker and are deterministic.
-They instantiate the standalone `toy_package.h` implementation. `toy-bindgen`
-is a small frontend for the JavaScript generator shipped inside the SDK, so the
-same generation step can be run directly when that suits a custom build:
+They instantiate the standalone C-extension implementation in `toy.h`.
+`toy-bindgen` is a small frontend for the JavaScript generator shipped inside
+the SDK, so the same generation step can be run directly when that suits a
+custom build:
 
-```powershell
-$ToySdk = 'C:\\Tools\\Toy' # or (Resolve-Path .\\dist\\toy) in a checkout
-node "$ToySdk\share\toy\bindgen\generate-binding.js" `
-    --package clib path\to\clib.json vendor\clib\generated.c
+```console
+node path/to/toy/share/toy/bindgen/generate-binding.js --package clib path/to/clib.json vendor/clib/generated.c
 ```
 
 Compile the generated C and write its `toy.package` manifest manually:
 
-```powershell
-clang -std=c11 -Wall -Wextra -Wpedantic -shared `
-    vendor\clib\generated.c -I "$ToySdk\include" `
-    -o vendor\clib\toy_clib.dll
-@'
+```console
+cc -std=c11 -Wall -Wextra -Wpedantic -shared vendor/clib/generated.c -I path/to/toy/include -o vendor/clib/toy_clib.dll
+```
+
+Create `vendor/clib/toy.package` beside the shared library:
+
+```ini
 name = clib
-native = toy_clib.dll
-'@ | Set-Content -NoNewline vendor\clib\toy.package
+extension = toy_clib.dll
 ```
 
 On Linux, add `-fPIC` and use `.so`; on macOS use `-dynamiclib` and `.dylib`.
 For external libraries, add their include paths and normal compiler/linker
-options. The [manual C-backed-package guide](./packages.md#manual-c-backed-packages)
+options. The [manual C-extension guide](./packages.md#building-a-c-extension-by-hand)
 explains the artifact contract.
 
-Or ask the installed C-package builder to compile the same result and write its
+Or ask the installed C-extension builder to compile the same result and write its
 manifest:
 
-```powershell
-toy-c-package vendor\clib vendor\clib\generated.c `
-    --include path\to\headers `
-    --lib the_c_library
+```console
+toy-c-package vendor/clib vendor/clib/generated.c --include path/to/headers --lib the_c_library
 ```
 
 No Toy runtime or package-support library participates in that link. The
@@ -258,7 +256,7 @@ Headers remain in the manifest because they affect generated C; repeatable
 `--include`, `--lib-dir`, and `--lib` options provide platform-specific
 dependency locations without putting them in the manifest. `toy-c-package` also
 supports `--cc`, `--define`, `--cflag`, `--ldflag`, and `--debug`; run
-`toy-c-package --help` for the complete interface. `toy-bindgen` currently needs
+`toy-c-package --help` for the complete interface. `toy-bindgen` needs
 Node.js, while `toy-c-package` needs a compatible C compiler.
 
 The curated standard-C example needs no additional library configuration. Its

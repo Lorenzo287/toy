@@ -5,8 +5,8 @@
 - OS / CPU: Windows 11 10.0.26200 / Intel Core i7-1065G7
 - Compiler / version: Clang 22.1.3
 - CMake configuration: Release
-- Command: `.\benchmarks\run.ps1 -Benchmark string -Runs 5` (baseline), then
-  `-Runs 10` (final candidate)
+- Command: `nob benchmark string --runs 5` (baseline), then `--runs 10`
+  (final candidate)
 - Change under test: store short string/symbol payloads inside `tf_obj`, transfer
   owned buffers into results, and let exact-size producers fill final storage
   directly; geometrically reserve uniquely owned heap strings
