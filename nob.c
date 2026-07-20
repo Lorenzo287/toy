@@ -1,5 +1,9 @@
 #ifndef _WIN32
 #define _POSIX_C_SOURCE 200809L
+#ifdef __APPLE__
+/* Nob uses Darwin's non-POSIX _SC_NPROCESSORS_ONLN extension. */
+#define _DARWIN_C_SOURCE
+#endif
 #endif
 
 #define NOBDEF static inline
