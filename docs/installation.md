@@ -2,7 +2,7 @@
 
 Toy releases are complete, relocatable SDK directories. A release can run Toy
 programs, build C extensions, generate bindings, provide editor tooling, and
-support C embedding without a repository checkout or the Nob build executable.
+support C embedding without a repository checkout or the Nob build system.
 
 ## Release Installation
 
@@ -14,11 +14,7 @@ powershell -File toy/install.ps1 -AddToPath
 ```
 
 Without `-AddToPath`, the script copies the SDK but only prints the directory
-that should be added to `PATH`. Choose another destination with:
-
-```console
-powershell -File toy/install.ps1 -InstallDir C:\Tools\Toy -AddToPath
-```
+that should be added to `PATH`. Choose a custom destination with `-InstallDir`.
 
 On Linux or macOS:
 
@@ -28,11 +24,7 @@ sh toy/install.sh
 
 This installs the SDK under `$XDG_DATA_HOME/toy`, or
 `$HOME/.local/share/toy`, and creates command links in `$HOME/.local/bin`.
-Use `--prefix`, `--bin-dir`, or `--no-links` to change those choices:
-
-```console
-sh toy/install.sh --prefix /opt/toy --bin-dir "$HOME/bin"
-```
+Use `--prefix`, `--bin-dir`, or `--no-links` to change those defaults.
 
 The archive is also portable: adding its `bin` directory to `PATH` is enough.
 Verify either installation with:
@@ -67,8 +59,8 @@ compiler and accepts `--cc` plus explicit include and library options. Normal
 Toy source packages require neither tool. A package with a C extension contains
 compiled code in a `.dll`, `.so`, or `.dylib`; its manifest names that library
 with `extension`. The optional `core:ffi` package may also require the platform's
-libffi shared library at runtime; [the FFI guide](./ffi.md) describes that
-dependency.
+libffi shared library at runtime; [Using C Libraries](./c-libraries.md#dynamic-ffi)
+describes that dependency.
 
 ## Installed and Project Packages
 

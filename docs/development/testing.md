@@ -2,9 +2,7 @@
 
 Toy keeps automated regressions under `tests/toy/` and user-facing programs
 under `examples/`. C API regressions live under `tests/c/`, while
-buildable hosts live under `examples/embedding/`. Examples may be smoke-tested
-separately, but their source should teach or demonstrate the language rather
-than act as the correctness suite.
+buildable hosts live under `examples/embedding/`.
 
 ## Run the Suite
 
@@ -15,8 +13,6 @@ cc nob.c -o nob
 nob test
 nob test --filter native_loader
 ```
-
-On Windows, compile `nob.exe` instead and invoke that executable.
 
 The default suite covers Toy cases, directory packages, debug-protocol
 transport, embedding/debugger C tests, real loadable packages, `core:ffi`, and

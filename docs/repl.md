@@ -6,10 +6,6 @@ place to learn Toy because the language can document itself: inspect the word
 catalog, ask for a word's docs, try a small expression, and immediately see the
 stack.
 
-```console
-toy
-```
-
 ## Interactive Discovery
 
 Useful first commands:
@@ -66,10 +62,6 @@ runtime error: '+' expected number at stack depth 0, found string
   in outer at example.toy:6:5
   in <program> at example.toy:9:1
 ```
-
-Stack values use the same bottom-to-top display order as the REPL. Reports show
-at most the top eight stack values and eight Toy frames, with omitted entries
-summarized. Errors handled by `try` do not produce a report.
 
 ## tdb Instruction Debugger
 

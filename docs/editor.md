@@ -8,16 +8,8 @@ a VS Code extension for syntax highlighting and LSP integration.
 
 `toyfmt` preserves a program's line breaks while normalizing indentation and
 horizontal whitespace. It understands Toy's token boundaries, leaves strings
-and comments untouched, and rejects malformed input instead of guessing.
-
-```console
-toyfmt examples/factorial.toy
-toyfmt --check examples/factorial.toy
-toyfmt --write examples/factorial.toy
-```
-
-Configuration lives in `.toyfmt` files. A file closer to the source overrides
-settings inherited from its parent directories:
+and comments untouched, and rejects malformed input. Configuration lives in
+`.toyfmt` files.
 
 ```toml
 indent_width = 4

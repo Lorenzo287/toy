@@ -25,7 +25,7 @@ The Toy scripts use `monotonic-ns` and print integer nanosecond durations for
 individual operations. The runner also reports wall time for each fresh process
 and its median. Compare results
 only across the same machine, compiler, build configuration, and workload.
-Use the `alloc` build mode from `docs/build.md` when a change is
+Use the `alloc` build mode from `docs/development/build.md` when a change is
 expected to reduce allocation calls or requested bytes.
 Before drawing a conclusion:
 

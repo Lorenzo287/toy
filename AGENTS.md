@@ -29,14 +29,18 @@ navigation and development rules.
 - `tests/packages/`: source, core, and C-extension integration fixtures.
 - `tests/toy/`, `tests/c/`: language cases and C API regressions. Toy test
   prefixes declare behavior: `test_`, `fail_`, `output_`, and `manual_`.
-- `docs/`: build, REPL, tooling, and roadmap docs.
+- `docs/`: user-facing language, package, interop, and editor docs.
+- `docs/development/`: source build, testing, and runtime implementation notes.
 - `docs/combinators.md`: examples for nontrivial control, recursion, and
   collection combinator usage.
 - `docs/data-model.md`: collection syntax, interop, complexity, equality, and
   hashing reference.
 - `docs/packages.md`: directory packages, exact imports, executable entry
-  points, and C-extension workflows.
-- `docs/runtime-internals.md`: VM/object/allocation implementation notes.
+  points, and C-backed package shape.
+- `docs/c-libraries.md`: user guide for dynamic FFI, generated bindings, and
+  handwritten C extensions.
+- `docs/development/runtime-internals.md`: VM/object/allocation implementation
+  notes.
 - `docs/embedding.md`: C embedding and native-word API.
 - `docs/editor.md`: formatter, LSP, DAP, Tree-sitter, VS Code, and editor setup.
 - `benchmarks/`: reproducible performance workloads run by `nob benchmark`.
@@ -71,11 +75,11 @@ navigation and development rules.
 - Public embedding, package-registration, and standalone C-extension API:
   `include/toy.h`, implemented by `src/toy.c`; platform extension loading:
   `src/tf_native_loader.c`.
-- Libffi core package: `core/ffi/toy_ffi.c`; signature and safety
-  contract: `docs/ffi.md`.
+- Libffi core package: `core/ffi/toy_ffi.c`; user workflow, signatures, and
+  safety contract: `docs/c-libraries.md`.
 - Explicit-manifest binding generator: `tools/generate-binding.js`; installed
-  frontend: `toy-bindgen`; C-extension compiler: `toy-c-package`; contract:
-  `docs/bindgen.md`.
+  frontend: `toy-bindgen`; C-extension compiler: `toy-c-package`; manifest
+  reference: `docs/bindgen.md`.
 - External C-extension examples: `examples/packages/raylib/toy_raylib.c`
   and `examples/packages/sqlite/toy_sqlite.c`.
 - Context lifecycle and builtin registration: `src/tf_context.c`; stack,
@@ -95,8 +99,9 @@ navigation and development rules.
 - REPL: `src/cli/tf_repl.h`, `src/cli/tf_repl.c`.
 - Language plan: `docs/ROADMAP.md`.
 - Package model: `docs/packages.md`.
+- C library boundaries: `docs/c-libraries.md`.
 - Data model reference: `docs/data-model.md`.
-- Test conventions: `docs/testing.md`.
+- Test conventions: `docs/development/testing.md`.
 - Editor tooling and formatter behavior: `docs/editor.md`.
 
 ## Workflow

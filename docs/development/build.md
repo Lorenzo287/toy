@@ -1,24 +1,17 @@
 # Developing Toy from Source
 
-This page is for contributors building Toy itself. A release SDK is the normal
-way to use the language in another project; see [Installation](./installation.md)
-and the [examples](../examples/). Nob is deliberately a repository tool,
-not part of the user-facing SDK workflow.
-
 ## Bootstrap Nob
 
-Toy vendors [Nob](https://github.com/tsoding/nob.h). Build its single source
+Toy vendors [Nob](https://github.com/tsoding/nob.h). Bootstrap its single source
 file with a C compiler:
 
 ```console
 cc nob.c -o nob
 ```
 
-On Windows, use `clang nob.c -o nob.exe`. The examples below call the
-result `nob`; use `nob.exe` or its actual path when needed. Nob rebuilds itself
-when its source or included build headers change. The normal source build also
-needs libffi headers and a linkable `ffi` library because it builds the
-official `core:ffi` package.
+Nob rebuilds itself when its source or included build headers change.
+The normal source build also needs libffi headers and a linkable
+`ffi` library because it builds the official `core:ffi` package.
 
 ## Development Commands
 
@@ -38,12 +31,9 @@ build/gcc/release/toy --file examples/factorial.toy
 build/gcc/release/toy --file examples/quines/quine.toy
 ```
 
-Windows builds add `.exe` to executable names.
-
 `test` runs isolated Toy, package, debugger, embedding, native-loader, and
 binding-generator regressions. It does not provide a separate way to build
-user examples: examples document ordinary SDK use and are compiled directly
-with a C compiler where appropriate.
+user examples.
 
 `dist` stages the consumer SDK at `dist/toy`. It
 builds the runtime and precompiled Go tools, then copies public headers, core
@@ -55,8 +45,8 @@ The source checkout intentionally has no root installer. Run
 `powershell -File dist/toy/install.ps1` on Windows or
 `sh dist/toy/install.sh` on Unix after staging. For C extensions and generated
 bindings, use the installed SDK guides in
-[Packages](./packages.md#c-extensions-and-external-libraries) and
-[Generated C Bindings](./bindgen.md).
+[Using C Libraries](../c-libraries.md) and the
+[Binding Manifest Reference](../bindgen.md).
 
 ## Compilers and Modes
 
@@ -99,8 +89,8 @@ With no `--lib` option, the build links `ffi`. Supplying one or more `--lib`
 options replaces that default list, which permits `--lib libffi` or an exact
 library path on unusual installations. The selected compiler must match the
 libffi distribution; MSYS2/MinGW libffi normally uses `--cc gcc`. See
-[Dynamic FFI](./ffi.md) for its runtime dependency and safety
-constraints.
+[Using C Libraries](../c-libraries.md#dynamic-ffi) for its runtime dependency
+and safety constraints.
 
 ## Tooling
 

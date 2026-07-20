@@ -889,11 +889,11 @@ static bool check_distribution_prerequisites(void) {
 static bool build_distribution(const Build_Config *config, const char *root) {
     static const char *documentation[] = {
         "bindgen.md",
+        "c-libraries.md",
         "combinators.md",
         "data-model.md",
         "editor.md",
         "embedding.md",
-        "ffi.md",
         "installation.md",
         "packages.md",
         "repl.md",

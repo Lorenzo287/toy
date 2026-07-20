@@ -54,8 +54,11 @@ Secondary structures have no literal syntax because their constructors validate
 runtime data and establish invariants:
 
 ```toy
+\ No literal syntax
 [ 1 2 3 ] >deque
 [ [ 10 "low" ] [ 1 "urgent" ] ] >pqueue
+
+\ Can also express map and set with constructors instead of literal syntax
 [ [ 'name "Ada" ] [ 'age 36 ] ] >map
 [ 1 2 2 3 ] >set
 ```
@@ -129,7 +132,6 @@ Conversions that change observable behavior are explicit:
 [ "a" "b" "c" ] >string  \ validate one-byte strings and join
 [ 1 2 2 3 ] >set         \ intentionally collapse duplicates
 ( 1 2 3 ) >deque         \ choose front/back endpoint behavior
-[ [ 10 "low" ] [ 1 "urgent" ] ] >pqueue pairs
 [ [ 10 "low" ] [ 1 "urgent" ] ] >pqueue pairs >pqueue
 ```
 
@@ -202,7 +204,9 @@ independently refcounted so tails can be shared.
 | `concat` | O(length(left)), shares the right |
 | `sort` | O(n log n) |
 
-Build lists in forward order by prepending and reversing once:
+Build lists in forward order by prepending and reversing once,
+this keeps the complexity linear, while appending repeatedly at
+the end has quadratic complexity.
 
 ```toy
 ( ) [ 1 2 3 4 ] [ swap cons ] fold reverse
@@ -263,31 +267,3 @@ reinsertion is intentionally stable.
 Ordinary output shows priority queues as display-only
 `pqueue[[priority value] ...]`; `repr` and `.S` use the reconstructable
 `[[priority value] ...] >pqueue` form.
-
-## Implementation Notes
-
-Every runtime value is a reference-counted `tf_obj`. Collections retain
-references to their items, which lets the runtime share existing values instead
-of copying whole structures unnecessarily. These details must remain invisible
-to Toy programs: every optimization still preserves the value behavior
-described above.
-
-Opaque resources participate in the same reference counting. Their native
-destructor runs exactly once when the last wrapper reference disappears;
-placing a resource in a collection therefore extends its lifetime without
-copying the foreign handle.
-
-Current performance techniques include:
-
-- copy-on-write updates for uniquely owned vectors, strings, maps, sets,
-  deques, and priority queues;
-- inline storage for short vectors and short strings;
-- geometric reserve for repeated growth;
-- exact-size reserve for known-size producers;
-- persistent sharing for list tails;
-- deterministic insertion order for maps and sets;
-- bottom-up heap construction for `>pqueue`;
-- temporary hash sets for large `unique` workloads over hashable scalars.
-
-Lower-level VM and allocation notes, benchmark workloads, and recorded
-experiments remain with the source repository rather than the installed SDK.

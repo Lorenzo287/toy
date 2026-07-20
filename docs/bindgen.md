@@ -1,19 +1,17 @@
-# Generated C Bindings
+# Binding Manifest Reference
 
-`toy-bindgen` turns an explicit JSON manifest into C extension source for an
-importable Toy package. It is shipped with the Toy SDK and uses the
-version-matched generator payload from that installation. Generated packages
-expose ordinary qualified words; their users do not interact with `ffi.open`,
-signatures, or function resources.
+This page describes the complete `toy-bindgen` manifest. Start with
+[Using C Libraries](./c-libraries.md#generated-bindings) for the normal
+workflow and return here only when a binding needs more than scalar functions.
 
-The binding generator deliberately reads declared function shapes rather than
-parsing arbitrary C headers. That keeps type and ownership decisions visible
-while the supported boundary is still small.
+`toy-bindgen` writes a C extension whose compiler sees the real C declarations.
+The manifest stays explicit because a header cannot describe ownership or the
+Toy API that should be presented.
 
-## Manifest
+## Functions and Types
 
-The manifest names the Toy package, the C headers used to compile its wrappers,
-and the exported functions:
+A manifest names one package, the headers included by its generated C file, and
+the exported functions:
 
 ```json
 {
@@ -35,12 +33,11 @@ and the exported functions:
 }
 ```
 
-`name` is the C identifier. Optional `word` changes the public Toy word name;
-otherwise the C name is used. Package and word names follow the normal
-C-extension rules. Duplicate words, unsafe header paths, unknown fields, unsupported
-types, and `void` arguments are rejected before C is emitted.
+`name` is the C identifier. Optional `word` selects another public Toy word
+name. Duplicate words, unsafe header paths, unknown fields, unsupported types,
+and `void` arguments are rejected before C is emitted.
 
-The supported types match the scalar/string FFI experiment:
+Supported scalar types are:
 
 - `bool`;
 - `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`, and `u64`;
@@ -49,14 +46,14 @@ The supported types match the scalar/string FFI experiment:
 - `cstr`;
 - `void` as a return type only.
 
-Integer inputs are range-checked. Toy strings are copied to temporary
-NUL-terminated buffers that remain valid only for the duration of the C call.
-A non-null returned `cstr` is treated as borrowed and copied into Toy before the
-wrapper returns. Unsigned results outside Toy's signed 64-bit range are errors.
+Integer inputs are range-checked. A Toy string passed as `cstr` is copied to a
+temporary NUL-terminated buffer. A non-null returned `cstr` is treated as
+borrowed and copied into Toy. Unsigned results outside Toy's signed 64-bit
+range are errors.
 
-## Hidden and Length-Aware Arguments
+## Hidden Arguments
 
-Argument objects can provide C-only values that do not consume the Toy stack:
+Argument objects can provide values that do not consume the Toy stack:
 
 ```json
 "args": [
@@ -68,24 +65,23 @@ Argument objects can provide C-only values that do not consume the Toy stack:
 ]
 ```
 
-`const` accepts a supported boolean, integer, or floating type and a matching
-JSON value. `null` emits `NULL`. `cConstant` emits one validated C identifier,
-such as `{"cConstant":"SQLITE_TRANSIENT"}`, whose declaration must come from
-one of the manifest headers. These forms are deliberately expressions rather
-than Toy inputs.
+`const` accepts a supported boolean, integer, or floating type and matching JSON
+value. `null` emits `NULL`. `cConstant` emits one validated C identifier, such
+as `{"cConstant": "SQLITE_TRANSIENT"}`, declared by a manifest header.
 
-A byte argument expands one binary-safe Toy string into adjacent pointer and
+## Byte Strings
+
+A byte argument turns one binary-safe Toy string into adjacent pointer and
 length C arguments:
 
 ```json
 {"bytes": {"length": "i32"}}
 ```
 
-The generator passes the string's borrowed bytes directly and range-checks its
-length for the declared integer type. The C function must copy the bytes if it
-keeps them after returning.
+The generator passes the string's borrowed bytes directly and range-checks the
+length. The C function must copy the bytes if it retains them.
 
-A borrowed pointer result can use a companion C function to obtain its length:
+A borrowed pointer result can use a companion function to obtain its length:
 
 ```json
 "returns": {
@@ -96,14 +92,13 @@ A borrowed pointer result can use a companion C function to obtain its length:
 }
 ```
 
-The length function receives the same C arguments as the primary function. The
-generator validates the returned length and copies the bytes into a Toy string
-before consuming resource or string inputs. A null pointer or invalid length is
-an error.
+The companion receives the same C arguments as the primary function. The
+result is validated and copied into a Toy string before borrowed inputs are
+released.
 
 ## Opaque Resources
 
-The optional `resources` array declares owned opaque resources:
+The optional `resources` array declares owned pointer types:
 
 ```json
 {
@@ -151,34 +146,36 @@ The optional `resources` array declares owned opaque resources:
 }
 ```
 
-A resource name is local to the package; `handle` above becomes the exact Toy
-type `widget.handle`. `cType` must be a C pointer type and `destructor` must be a
-C function name. The generator adapts the destructor to Toy's resource
-callback, ignoring any C return value.
+A resource name is local to its package: `handle` above becomes
+`widget.handle`. `cType` must be a C pointer type. `destructor` names the C
+function that releases an owned value.
 
-`{"resource":"handle"}` in `returns` declares a non-null owned pointer
-return. The same form in `args` unwraps an exact typed resource and passes the
-borrowed C pointer. `{"outResource":"handle"}` contributes no Toy input; it
-passes a pointer-to-pointer in its listed C argument position and pushes the
-owned handle on success. A function supports at most one output resource and
-must return either `void` or a status declaration.
+`{"resource":"handle"}` as a return declares a new, non-null owned pointer.
+As an argument it unwraps an exact typed resource and passes the borrowed C
+pointer. `{"outResource":"handle"}` passes a pointer-to-pointer without
+consuming a Toy input. A function may have at most one output resource and must
+return either `void` or a status declaration.
 
-Direct and output resource declarations promise that the returned handle is a
-new owned value, not an alias of an input. A resource with `dependsOn` keeps one
-parent resource alive until the child destructor finishes. Every function that
-produces that child must have exactly one resource input of the named parent
-type, avoiding ambiguous lifetime choices.
+`dependsOn` keeps one parent resource alive until the child destructor has
+finished. Every function producing that child must receive exactly one resource
+of the named parent type.
 
-A status declaration consumes the C result rather than pushing it. `success`
-lists the numeric codes accepted as success; other codes become Toy errors.
-For predicate-like APIs, `map` replaces `success` and maps accepted numeric
-codes to Toy booleans:
+## Status Results
+
+A status declaration consumes the C result instead of pushing it. `success`
+lists accepted codes; another code becomes a Toy error:
+
+```json
+"returns": {"status": "i32", "success": [0]}
+```
+
+For predicate-like APIs, `map` converts accepted numeric codes into booleans:
 
 ```json
 "returns": {"status": "i32", "map": {"100": true, "101": false}}
 ```
 
-An optional error accessor adds a borrowed library message:
+An optional error accessor adds a library message:
 
 ```json
 "returns": {
@@ -188,105 +185,42 @@ An optional error accessor adds a borrowed library message:
 }
 ```
 
-The selected resource must occur exactly once among the function's resource
-inputs or outputs. The accessor is called before inputs and failed output
-handles are released; its returned C string is copied into Toy's diagnostic.
-Null handles are errors even after a successful status. Handles returned on a
-failed status, or rejected by `toy_push_resource()`, are destroyed
-automatically. Ordinary resource inputs are consumed like other Toy inputs, so
-use `dup` when the same handle is needed again.
+The named resource must occur exactly once among the function's resource inputs
+or output. The message is copied before failed output handles or consumed
+inputs are released. Failed and rejected output handles are destroyed
+automatically.
 
-Foreign calls happen while borrowed resource inputs remain alive. Returned
-`cstr` data is copied before those inputs are released, allowing getters that
-borrow text from their handle.
+Resource inputs are consumed like ordinary Toy inputs; use `dup` when the same
+handle is needed again. Returned strings are copied before those inputs are
+released, which permits getters that borrow text from their handle.
 
-## Generating and Building
+## Commands
 
-Generate a C file with the installed frontend:
+Generate a wrapper with the SDK frontend:
 
 ```console
-toy-bindgen path/to/clib.json vendor/clib/generated.c
+toy-bindgen --package clib path/to/clib.json vendor/clib/generated.c
 ```
 
-`--check` compares an existing output with the manifest without rewriting it.
-`--package name` additionally verifies the manifest package against the target
-directory name.
-Generated files start with a do-not-edit marker and are deterministic.
-They instantiate the standalone C-extension implementation in `toy.h`.
-`toy-bindgen` is a small frontend for the JavaScript generator shipped inside
-the SDK, so the same generation step can be run directly when that suits a
-custom build:
+`--check` verifies an existing generated file without rewriting it. Generated
+output is deterministic and begins with a do-not-edit marker.
 
-```console
-node path/to/toy/share/toy/bindgen/generate-binding.js --package clib path/to/clib.json vendor/clib/generated.c
-```
-
-Compile the generated C and write its `toy.package` manifest manually:
-
-```console
-cc -Wall -Wextra -Wpedantic -shared vendor/clib/generated.c -I path/to/toy/include -o vendor/clib/toy_clib.dll
-```
-
-Create `vendor/clib/toy.package` beside the shared library:
-
-```ini
-name = clib
-extension = toy_clib.dll
-```
-
-On Linux, add `-fPIC` and use `.so`; on macOS use `-dynamiclib` and `.dylib`.
-For external libraries, add their include paths and normal compiler/linker
-options. The [manual C-extension guide](./packages.md#building-a-c-extension-by-hand)
-explains the artifact contract.
-
-Or ask the installed C-extension builder to compile the same result and write its
-manifest:
+Compile it and create the package manifest with:
 
 ```console
 toy-c-package vendor/clib vendor/clib/generated.c --include path/to/headers --lib the_c_library
 ```
 
-No Toy runtime or package-support library participates in that link. The
-package directory basename determines the output filename (`toy_clib` plus the
-platform shared-library suffix) and must match the manifest's `package` value.
-Use `toy-bindgen --package clib ...` to check that relationship before
-compilation.
+The target directory basename must match the manifest's package name.
+Headers remain in the JSON because they affect generated C. Platform-specific
+include and library paths remain compiler options rather than manifest data.
+Run either tool with `--help` for its complete command-line interface.
 
-Headers remain in the manifest because they affect generated C; repeatable
-`--include`, `--lib-dir`, and `--lib` options provide platform-specific
-dependency locations without putting them in the manifest. `toy-c-package` also
-supports `--cc`, `--define`, `--cflag`, `--ldflag`, and `--debug`; run
-`toy-c-package --help` for the complete interface. `toy-bindgen` needs
-Node.js, while `toy-c-package` needs a compatible C compiler.
+## Limits
 
-The curated standard-C example needs no additional library configuration. Its
-[example guide](../examples/packages/bindgen/README.md) first copies the
-template into a project directory, then generates, compiles, and runs it there.
-
-Toy sees a normal package:
-
-```toy
-"../../clib" 'c import-as
-"Toy speaks generated C" c.strlen print
-"alpha" "beta" c.strcmp 0 < print
-```
-
-## Current Boundary
-
-Generated wrappers call the declared C functions directly. This lets the C
-compiler apply declarations and the target calling convention, but the
-manifest must still match the header semantically. Compatible C conversions can
-hide a mistaken scalar declaration.
-
-Declared opaque pointer resources, dependent lifetimes, direct owned returns,
-one owned output-resource parameter, hidden constants and nulls, resource-based
-error accessors, boolean result-code mappings, and adjacent pointer-length
-strings are supported. Arbitrary raw pointers, general output buffers, structs,
-unions, variadic functions, callbacks, and stateful library-specific
-translation are not.
-
-The generated SQLite example exercises the general policies above. The larger
-handwritten Raylib and SQLite adapters remain useful where calls need custom
-state or validation. Header parsing is not implemented. A later libclang
-frontend can produce the same validated manifest model, but ownership and
-lifetime policy must remain explicit because C declarations cannot infer it.
+The manifest must match its C headers semantically; compatible C conversions
+can conceal a mistaken scalar declaration. Generated bindings do not support
+arbitrary pointers, general output buffers, structs, unions, variadic
+functions, callbacks, or library-specific state transitions. Use a
+[handwritten extension](./c-libraries.md#handwritten-c-extensions) when the
+desired boundary needs those features.

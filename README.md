@@ -317,20 +317,18 @@ evaluation, and native-library workflows.
 
 ## C Interop
 
-Toy can sit on either side of the C boundary. A C program can embed the runtime,
-evaluate source, call Toy words, exchange values, and add its own words. The
-smallest complete host is
+A C program can embed the runtime, evaluate source, call Toy words,
+exchange values, and add its own words. The smallest complete host is
 [`examples/embedding/embed.c`](./examples/embedding/embed.c); the
 [embedding guide](./docs/embedding.md) explains values, ownership, callbacks,
 and errors.
 
-A package can contain Toy source, a C extension, or both. An extension uses the
+A Toy package can contain Toy source, a C extension, or both. An extension uses the
 same single `toy.h` header as an embedding host and compiles to a shared library
 beside the package's `toy.package` manifest. The SDK's `toy-c-package` command
 performs that build, while `toy-bindgen` generates extension code from an
-explicit description of a C API. The
-[basic package](./examples/packages/basic/) is small enough to read in one
-sitting; the [SQLite](./examples/packages/sqlite/) and
+explicit description of a C API. The [basic package](./examples/packages/basic/)
+is minimal example; the [SQLite](./examples/packages/sqlite/) and
 [Raylib](./examples/packages/raylib/) examples show how resources give foreign
 handles Toy lifetimes.
 
@@ -346,9 +344,10 @@ signatures at run time:
 c.call print
 ```
 
-The library name is platform-specific. The [package guide](./docs/packages.md)
-compares the three interop routes; the [FFI](./docs/ffi.md) and
-[binding generator](./docs/bindgen.md) guides give their exact contracts.
+The library name is platform-specific. [Using C libraries](./docs/c-libraries.md)
+compares dynamic FFI, generated bindings, and handwritten extensions. The
+[binding manifest reference](./docs/bindgen.md) documents advanced generated
+wrappers.
 
 ## Built-in Words
 
