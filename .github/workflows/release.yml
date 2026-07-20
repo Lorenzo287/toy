@@ -24,18 +24,45 @@ jobs:
             nob_dist: ./nob dist
           - os: windows-latest
             asset_name: toy-windows.zip
-            nob_bootstrap: clang nob.c -o nob.exe
+            nob_bootstrap: gcc nob.c -o nob.exe
             nob_test: .\nob.exe test
             nob_dist: .\nob.exe dist
           - os: macos-latest
             asset_name: toy-macos.tar.gz
             nob_bootstrap: cc nob.c -o nob
-            nob_test: ./nob test
-            nob_dist: ./nob dist
+            nob_test: ./nob test --include "$(brew --prefix libffi)/include" --lib-dir "$(brew --prefix libffi)/lib"
+            nob_dist: ./nob dist --include "$(brew --prefix libffi)/include" --lib-dir "$(brew --prefix libffi)/lib"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Install libffi (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libffi-dev
+
+      - name: Install libffi (macOS)
+        if: runner.os == 'macOS'
+        run: brew install libffi
+
+      - name: Set up GCC and libffi (Windows)
+        if: runner.os == 'Windows'
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-libffi
+
+      - name: Add UCRT64 toolchain to PATH
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          "${{ steps.msys2.outputs.msys2-location }}\ucrt64\bin" |
+            Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
