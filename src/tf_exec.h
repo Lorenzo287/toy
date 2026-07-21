@@ -44,6 +44,7 @@ typedef struct {
 
 typedef enum { TF_WORD_NATIVE, TF_WORD_USER } tf_word_kind;
 #define TF_WORD_LOOKUP_CACHE_CAP 64
+#define TF_QUICK_PROGRAM_CACHE_CAP 64
 #define TF_ROOT_PACKAGE 0
 
 typedef enum {
@@ -141,6 +142,29 @@ typedef struct {
     tf_obj *val;
 } tf_var;
 
+typedef enum {
+    TF_QUICK_CALL_WORD,
+    TF_QUICK_CALL_DUP,
+    TF_QUICK_CALL_PRED,
+    TF_QUICK_CALL_ADD,
+    TF_QUICK_CALL_MUL,
+    TF_QUICK_CALL_LT
+} tf_quick_call_kind;
+
+typedef struct {
+    size_t generation;
+    size_t entry_index;
+    tf_quick_call_kind kind;
+} tf_quick_call;
+
+typedef struct {
+    size_t refcount;
+    tf_obj *program;
+    size_t package_index;
+    size_t len;
+    tf_quick_call calls[];
+} tf_quick_program;
+
 typedef struct tf_scratch_block tf_scratch_block;
 
 typedef struct {
@@ -168,6 +192,7 @@ typedef struct {
     tf_obj *program;
     size_t pc;
     size_t package_index;
+    tf_quick_program *quick;
     tf_var_table vars;
 } tf_program_frame;
 
@@ -220,6 +245,7 @@ typedef struct {
 struct tf_ctx {
     tf_obj *data_stack;
     tf_word_table words;
+    tf_quick_program *quick_programs[TF_QUICK_PROGRAM_CACHE_CAP];
     tf_frame *call_stack;  // explicit execution stack
     size_t call_stack_len;
     size_t call_stack_cap;
@@ -282,6 +308,7 @@ void tf_frame_push_native_handler(tf_ctx *ctx, tf_frame_step_fn step,
                                   tf_frame_cleanup_fn cleanup,
                                   tf_frame_error_fn on_error, void *state);
 void tf_frame_pop(tf_ctx *ctx, tf_ret status);
+void tf_quick_program_cache_clear(tf_ctx *ctx);
 
 /* Strict-LIFO scratch storage owned by native continuation frames. */
 void *tf_scratch_alloc(tf_ctx *ctx, size_t size);
@@ -319,6 +346,8 @@ bool tf_dict_make_private(tf_ctx *ctx, tf_obj *name);
 bool tf_dict_make_private_in_package(tf_ctx *ctx, size_t package_index,
                                      tf_obj *name);
 tf_word *tf_dict_lookup(tf_ctx *ctx, tf_obj *name);
+tf_word *tf_dict_lookup_from(tf_ctx *ctx, size_t package_index,
+                             tf_obj *name);
 tf_word *tf_dict_lookup_scoped(tf_ctx *ctx, size_t package_index,
                                const char *name, size_t len);
 void tf_dict_resolution_changed(tf_ctx *ctx);

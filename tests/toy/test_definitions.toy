@@ -23,3 +23,13 @@
     'cache-one >call exec 1 == check
     'cache-two >call exec 2 == check
 ] times
+
+\ More active programs than the quickening cache can hold force eviction while
+\ parent frames still retain their sidecars.
+[ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ [ 1 ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec ] exec 1 == check
+
+\ Replacing a native word invalidates a specialized quickened instruction.
+'quick-add [ 1 2 + ] def
+quick-add 3 == check
+'+ [ drop drop 99 ] def
+quick-add 99 == check

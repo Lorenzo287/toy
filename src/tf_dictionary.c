@@ -38,6 +38,7 @@ void tf_dict_resolution_changed(tf_ctx *ctx) {
     if (!ctx) return;
     ctx->words.resolution_generation++;
     if (ctx->words.resolution_generation == 0) {
+        tf_quick_program_cache_clear(ctx);
         tf_dict_lookup_cache_clear(ctx);
         ctx->words.resolution_generation = 1;
     }
@@ -121,6 +122,7 @@ static void dict_set_native(tf_ctx *ctx, const char *name, tf_native_fn cb,
     size_t name_len = strlen(name);
     tf_word *word = tf_dict_lookup_scoped(ctx, TF_ROOT_PACKAGE, name,
                                           name_len);
+    bool replacing = word != NULL;
     if (word) {
         if (word->type == TF_WORD_USER) tf_obj_release(word->user_impl);
     } else {
@@ -131,6 +133,7 @@ static void dict_set_native(tf_ctx *ctx, const char *name, tf_native_fn cb,
     word->is_public = true;
     word->type = TF_WORD_NATIVE;
     word->native_impl = cb;
+    if (replacing) tf_dict_resolution_changed(ctx);
 }
 
 void tf_dict_set_native(tf_ctx *ctx, const char *name, tf_native_fn cb) {
@@ -164,6 +167,7 @@ bool tf_dict_set_user_in_package(tf_ctx *ctx, size_t package_index,
 
     tf_word *word = tf_dict_lookup_scoped(ctx, package_index, name->str.ptr,
                                           name->str.len);
+    bool replacing = word != NULL;
     if (word) {
         if (word->type == TF_WORD_USER) tf_obj_release(word->user_impl);
     } else {
@@ -173,6 +177,7 @@ bool tf_dict_set_user_in_package(tf_ctx *ctx, size_t package_index,
     word->type = TF_WORD_USER;
     word->user_impl = body;
     tf_obj_retain(body);
+    if (replacing) tf_dict_resolution_changed(ctx);
     return true;
 }
 
@@ -256,13 +261,13 @@ static tf_word *dict_lookup_uncached(tf_ctx *ctx, size_t current_package,
     return NULL;
 }
 
-tf_word *tf_dict_lookup(tf_ctx *ctx, tf_obj *name) {
+tf_word *tf_dict_lookup_from(tf_ctx *ctx, size_t current_package,
+                             tf_obj *name) {
     if (!name || (tf_obj_typeof(name) != TF_OBJ_TYPE_SYMBOL &&
                   tf_obj_typeof(name) != TF_OBJ_TYPE_CALL)) {
         return NULL;
     }
 
-    size_t current_package = tf_current_package_index(ctx);
     uintptr_t mixed_key = (uintptr_t)name >> 4;
     mixed_key ^= (uintptr_t)current_package;
     mixed_key ^= mixed_key >> 7;
@@ -288,6 +293,10 @@ tf_word *tf_dict_lookup(tf_ctx *ctx, tf_obj *name) {
     cached->generation = ctx->words.resolution_generation;
     cached->entry_index = (size_t)(word - ctx->words.entries);
     return word;
+}
+
+tf_word *tf_dict_lookup(tf_ctx *ctx, tf_obj *name) {
+    return tf_dict_lookup_from(ctx, tf_current_package_index(ctx), name);
 }
 
 void tf_dict_each_visible(tf_ctx *ctx, tf_visible_word_fn visit,

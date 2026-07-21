@@ -26,6 +26,14 @@ the C call stack. The main loop keeps processing frames until no work remains.
   and a resolution generation changed by definitions, visibility, package
   state, and imports, so dynamic calls and later definitions observe current
   resolution without repeating hashing or string comparison.
+- Program frames also use a bounded, context-local quickening sidecar keyed by
+  quotation and lexical package. Each call-site slot records the resolved dense
+  dictionary index and resolution generation without modifying the quotation
+  or its debugger spans. Active frames retain their sidecar across cache
+  eviction. Resolved `dup`, `pred`, `+`, `*`, and `<` calls quicken further to
+  direct VM operations for their common stack or integer path; incompatible
+  types, underflow, and overflow fall back to the canonical native word so
+  diagnostics and mixed-number behavior stay unchanged.
 - Native continuation frames resume C native words after a callable has run.
 - `linrec` and `genrec` keep one continuation plus a pending-unwind count
   instead of pushing one native frame per logical recursion level. `binrec`
@@ -273,6 +281,8 @@ The runtime keeps bounded reusable storage for common transient work:
 - up to 64 KiB of completely empty 128-node list slabs;
 - up to 128 continuation-state blocks of 512 bytes;
 - up to 64 retained call/symbol keys in the word-resolution cache;
+- up to 64 cached quickened quotation/package sidecars, plus any retained by
+  active program frames;
 - one 4 KiB scratch block per active context and up to 64 KiB of spare scratch
   blocks.
 

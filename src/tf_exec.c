@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "tf_alloc.h"
+#include "tf_builtins.h"
 #include "tf_terminal.h"
 #include <signal.h>  // IWYU pragma: keep
 
@@ -14,6 +15,9 @@
 #define TF_ERROR_FRAME_LIMIT 8
 #define TF_SCRATCH_BLOCK_CAPACITY 4096
 #define TF_SCRATCH_SPARE_BYTE_LIMIT (64 * 1024)
+_Static_assert((TF_QUICK_PROGRAM_CACHE_CAP &
+                (TF_QUICK_PROGRAM_CACHE_CAP - 1)) == 0,
+               "quick-program cache capacity must be a power of two");
 
 struct tf_scratch_block {
     tf_scratch_block *prev;
@@ -190,6 +194,115 @@ static bool frame_is_program(tf_frame_kind kind) {
     return kind != TF_FRAME_NATIVE;
 }
 
+static void quick_program_release(tf_quick_program *quick) {
+    if (!quick) return;
+    assert(quick->refcount > 0);
+    quick->refcount--;
+    if (quick->refcount != 0) return;
+    tf_obj_release(quick->program);
+    free(quick);
+}
+
+void tf_quick_program_cache_clear(tf_ctx *ctx) {
+    if (!ctx) return;
+    for (size_t i = 0; i < ctx->call_stack_len; i++) {
+        tf_frame *frame = &ctx->call_stack[i];
+        if (!frame_is_program(frame->kind) || !frame->as.program.quick) {
+            continue;
+        }
+        tf_quick_program *quick = frame->as.program.quick;
+        memset(quick->calls, 0, quick->len * sizeof(tf_quick_call));
+    }
+    for (size_t i = 0; i < TF_QUICK_PROGRAM_CACHE_CAP; i++) {
+        tf_quick_program *quick = ctx->quick_programs[i];
+        if (quick) {
+            memset(quick->calls, 0, quick->len * sizeof(tf_quick_call));
+        }
+        quick_program_release(quick);
+        ctx->quick_programs[i] = NULL;
+    }
+}
+
+static size_t quick_program_slot(tf_obj *program, size_t package_index) {
+    uintptr_t mixed = (uintptr_t)program >> 4;
+    mixed ^= (uintptr_t)package_index;
+    mixed ^= mixed >> 7;
+    mixed ^= mixed >> 13;
+    return (size_t)mixed & (TF_QUICK_PROGRAM_CACHE_CAP - 1);
+}
+
+static bool program_contains_call(tf_obj *program) {
+    for (size_t i = 0; i < program->vector.len; i++) {
+        if (tf_obj_typeof(program->vector.elem[i]) == TF_OBJ_TYPE_CALL) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static tf_quick_program *quick_program_acquire(tf_ctx *ctx, tf_obj *program,
+                                               size_t package_index) {
+    if (program->vector.len == 0) return NULL;
+
+    size_t slot = quick_program_slot(program, package_index);
+    tf_quick_program *quick = ctx->quick_programs[slot];
+    if (quick && quick->program == program &&
+        quick->package_index == package_index) {
+        quick->refcount++;
+        return quick;
+    }
+    if (!program_contains_call(program)) return NULL;
+    if (program->vector.len >
+        (SIZE_MAX - sizeof(*quick)) / sizeof(tf_quick_call)) {
+        return NULL;
+    }
+
+    quick = tf_xmalloc(sizeof(*quick) +
+                       program->vector.len * sizeof(tf_quick_call));
+    quick->refcount = 1;
+    quick->program = program;
+    tf_obj_retain(program);
+    quick->package_index = package_index;
+    quick->len = program->vector.len;
+    memset(quick->calls, 0, quick->len * sizeof(tf_quick_call));
+
+    quick_program_release(ctx->quick_programs[slot]);
+    ctx->quick_programs[slot] = quick;
+    quick->refcount++;
+    return quick;
+}
+
+static tf_word *quickened_call_lookup(tf_ctx *ctx, tf_frame *frame,
+                                      tf_obj *call, size_t pc) {
+    tf_quick_program *quick = frame->as.program.quick;
+    tf_quick_call *cached = quick && pc < quick->len ? &quick->calls[pc] : NULL;
+    if (cached && cached->generation == ctx->words.resolution_generation &&
+        cached->entry_index < ctx->words.count) {
+        return &ctx->words.entries[cached->entry_index];
+    }
+
+    tf_word *word = tf_dict_lookup_from(
+        ctx, frame->as.program.package_index, call);
+    if (word && cached) {
+        cached->generation = ctx->words.resolution_generation;
+        cached->entry_index = (size_t)(word - ctx->words.entries);
+        cached->kind = TF_QUICK_CALL_WORD;
+        if (word->type == TF_WORD_NATIVE) {
+            if (word->native_impl == tf_dup)
+                cached->kind = TF_QUICK_CALL_DUP;
+            else if (word->native_impl == tf_pred)
+                cached->kind = TF_QUICK_CALL_PRED;
+            else if (word->native_impl == tf_add)
+                cached->kind = TF_QUICK_CALL_ADD;
+            else if (word->native_impl == tf_mul)
+                cached->kind = TF_QUICK_CALL_MUL;
+            else if (word->native_impl == tf_lt)
+                cached->kind = TF_QUICK_CALL_LT;
+        }
+    }
+    return word;
+}
+
 size_t tf_current_package_index(tf_ctx *ctx) {
     for (size_t i = ctx->call_stack_len; i > 0; i--) {
         tf_frame *frame = &ctx->call_stack[i - 1];
@@ -215,6 +328,8 @@ static void frame_push_program_kind(tf_ctx *ctx, tf_obj *program,
     ctx->call_stack[ctx->call_stack_len].as.program.program = program;
     ctx->call_stack[ctx->call_stack_len].as.program.pc = 0;
     ctx->call_stack[ctx->call_stack_len].as.program.package_index = package_index;
+    ctx->call_stack[ctx->call_stack_len].as.program.quick =
+        quick_program_acquire(ctx, program, package_index);
     ctx->call_stack[ctx->call_stack_len].as.program.vars.vars = NULL;
     ctx->call_stack[ctx->call_stack_len].as.program.vars.len = 0;
     ctx->call_stack[ctx->call_stack_len].as.program.vars.cap = 0;
@@ -264,6 +379,7 @@ void tf_frame_pop(tf_ctx *ctx, tf_ret status) {
             tf_obj_release(vars[i].val);
         }
         free(f->as.program.vars.vars);
+        quick_program_release(f->as.program.quick);
         tf_obj_release(f->as.program.program);
     } else if (f->as.native.cleanup) {
         f->as.native.cleanup(ctx, f->as.native.state, status);
@@ -753,6 +869,123 @@ static tf_ret dict_call_resolved(tf_ctx *ctx, tf_word *word) {
     return word->native_impl(ctx);
 }
 
+static bool quick_int_add(int64_t a, int64_t b, int64_t *result) {
+    if ((b > 0 && a > INT64_MAX - b) ||
+        (b < 0 && a < INT64_MIN - b)) {
+        return false;
+    }
+    *result = a + b;
+    return true;
+}
+
+static bool quick_int_mul(int64_t a, int64_t b, int64_t *result) {
+    if (a > 0) {
+        if ((b > 0 && a > INT64_MAX / b) ||
+            (b < 0 && b < INT64_MIN / a)) {
+            return false;
+        }
+    } else if (a < 0) {
+        if ((b > 0 && a < INT64_MIN / b) ||
+            (b < 0 && a < INT64_MAX / b)) {
+            return false;
+        }
+    }
+    *result = a * b;
+    return true;
+}
+
+static tf_ret quick_dup(tf_ctx *ctx) {
+    size_t len = ctx->data_stack->vector.len;
+    if (len == 0) return tf_dup(ctx);
+    tf_obj *value = ctx->data_stack->vector.elem[len - 1];
+    tf_vector_push(ctx->data_stack, value);
+    tf_obj_retain(value);
+    return TF_OK;
+}
+
+static tf_ret quick_pred(tf_ctx *ctx) {
+    size_t len = ctx->data_stack->vector.len;
+    if (len == 0) return tf_pred(ctx);
+    tf_obj **top = &ctx->data_stack->vector.elem[len - 1];
+    tf_obj *value = *top;
+    if (tf_obj_typeof(value) != TF_OBJ_TYPE_INT) return tf_pred(ctx);
+    int64_t integer = tf_obj_int_value(value);
+    if (integer == INT64_MIN) return tf_pred(ctx);
+    *top = tf_obj_new_int(integer - 1);
+    tf_obj_release(value);
+    return TF_OK;
+}
+
+static tf_ret quick_binary_int(tf_ctx *ctx, bool multiply) {
+    size_t len = ctx->data_stack->vector.len;
+    if (len < 2) return multiply ? tf_mul(ctx) : tf_add(ctx);
+    tf_obj **values = ctx->data_stack->vector.elem;
+    tf_obj *left = values[len - 2];
+    tf_obj *right = values[len - 1];
+    if (tf_obj_typeof(left) != TF_OBJ_TYPE_INT ||
+        tf_obj_typeof(right) != TF_OBJ_TYPE_INT) {
+        return multiply ? tf_mul(ctx) : tf_add(ctx);
+    }
+
+    int64_t result = 0;
+    int64_t a = tf_obj_int_value(left);
+    int64_t b = tf_obj_int_value(right);
+    bool ok = multiply ? quick_int_mul(a, b, &result)
+                       : quick_int_add(a, b, &result);
+    if (!ok) return multiply ? tf_mul(ctx) : tf_add(ctx);
+
+    values[len - 2] = tf_obj_new_int(result);
+    ctx->data_stack->vector.len--;
+    tf_obj_release(left);
+    tf_obj_release(right);
+    return TF_OK;
+}
+
+static tf_ret quick_lt(tf_ctx *ctx) {
+    size_t len = ctx->data_stack->vector.len;
+    if (len < 2) return tf_lt(ctx);
+    tf_obj **values = ctx->data_stack->vector.elem;
+    tf_obj *left = values[len - 2];
+    tf_obj *right = values[len - 1];
+    if (tf_obj_typeof(left) != TF_OBJ_TYPE_INT ||
+        tf_obj_typeof(right) != TF_OBJ_TYPE_INT) {
+        return tf_lt(ctx);
+    }
+
+    bool result = tf_obj_int_value(left) < tf_obj_int_value(right);
+    values[len - 2] = tf_obj_new_bool(result);
+    ctx->data_stack->vector.len--;
+    tf_obj_release(left);
+    tf_obj_release(right);
+    return TF_OK;
+}
+
+static tf_ret quickened_call_dispatch(tf_ctx *ctx, tf_frame *frame,
+                                      tf_word *word, size_t pc) {
+    tf_quick_program *quick = frame->as.program.quick;
+    if (!quick || pc >= quick->len) return dict_call_resolved(ctx, word);
+    tf_quick_call *call = &quick->calls[pc];
+    if (call->generation != ctx->words.resolution_generation) {
+        return dict_call_resolved(ctx, word);
+    }
+
+    switch (call->kind) {
+    case TF_QUICK_CALL_DUP:
+        return quick_dup(ctx);
+    case TF_QUICK_CALL_PRED:
+        return quick_pred(ctx);
+    case TF_QUICK_CALL_ADD:
+        return quick_binary_int(ctx, false);
+    case TF_QUICK_CALL_MUL:
+        return quick_binary_int(ctx, true);
+    case TF_QUICK_CALL_LT:
+        return quick_lt(ctx);
+    case TF_QUICK_CALL_WORD:
+        return dict_call_resolved(ctx, word);
+    }
+    return dict_call_resolved(ctx, word);
+}
+
 /*
  * The main iterative execution engine.
  * Instead of recursive C calls, it uses an explicit `call_stack` of frames.
@@ -830,7 +1063,7 @@ tf_ret tf_vm_exec_package(tf_ctx *ctx, tf_obj *program,
         switch (tf_obj_typeof(o)) {
         case TF_OBJ_TYPE_CALL: {
             ctx->current_word = o->str.ptr;
-            tf_word *word = tf_dict_lookup(ctx, o);
+            tf_word *word = quickened_call_lookup(ctx, f, o, pc);
             if (!word) {
                 if (ctx->error_suppression_depth == 0) {
                     tf_ctx_runtime_errorf(ctx, "undefined word '%s'\n",
@@ -841,7 +1074,7 @@ tf_ret tf_vm_exec_package(tf_ctx *ctx, tf_obj *program,
                 }
                 return TF_ERR;
             }
-            tf_ret call_res = dict_call_resolved(ctx, word);
+            tf_ret call_res = quickened_call_dispatch(ctx, f, word, pc);
             if (call_res == TF_INTERRUPTED) {
                 frame_unwind_to(ctx, entry_depth, TF_INTERRUPTED);
                 return TF_INTERRUPTED;

@@ -4,12 +4,15 @@
 "../math" 'numbers import-as
 
 'cache-target [ "app" ] def
+'quick-succ [ 1 succ ] def
 
 'main [
 	\ Adding a local word invalidates a cached root-native fallback.
+	quick-succ 2 != [ "quick root resolution failed" error ] if
 	'succ | shadowed |
 	1 $shadowed exec 2 != [ "root cache resolution failed" error ] if
 	'succ [ 100 + ] def
+	quick-succ 101 != [ "quick local invalidation failed" error ] if
 	1 $shadowed exec 101 != [ "local cache invalidation failed" error ] if
 
 	\ The same symbol object must resolve in the active lexical package.
