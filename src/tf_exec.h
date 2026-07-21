@@ -141,6 +141,15 @@ typedef struct {
     tf_obj *val;
 } tf_var;
 
+typedef struct tf_scratch_block tf_scratch_block;
+
+typedef struct {
+    tf_scratch_block *current;
+    tf_scratch_block *spare;
+    size_t spare_bytes;
+    size_t depth;
+} tf_scratch_arena;
+
 typedef struct {
     tf_var *vars;
     size_t len;
@@ -214,6 +223,7 @@ struct tf_ctx {
     tf_frame *call_stack;  // explicit execution stack
     size_t call_stack_len;
     size_t call_stack_cap;
+    tf_scratch_arena scratch;
     tf_package_table packages;
     tf_package_import_table package_imports;
     tf_native_library_table native_libraries;
@@ -272,6 +282,11 @@ void tf_frame_push_native_handler(tf_ctx *ctx, tf_frame_step_fn step,
                                   tf_frame_cleanup_fn cleanup,
                                   tf_frame_error_fn on_error, void *state);
 void tf_frame_pop(tf_ctx *ctx, tf_ret status);
+
+/* Strict-LIFO scratch storage owned by native continuation frames. */
+void *tf_scratch_alloc(tf_ctx *ctx, size_t size);
+void tf_scratch_release(tf_ctx *ctx, void *ptr);
+void tf_scratch_clear(tf_ctx *ctx);
 
 /* Context lifecycle. */
 tf_ctx *tf_ctx_new(int argc, char **argv);

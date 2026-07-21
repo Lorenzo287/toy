@@ -253,25 +253,33 @@ from drifting apart.
 
 ## Bounded Reuse
 
-The runtime keeps two bounded freelists and one bounded resolution cache:
+The runtime keeps bounded reusable storage for common transient work:
 
 - up to 256 released `tf_obj` records;
 - up to 128 continuation-state blocks of 512 bytes;
-- up to 64 retained call/symbol keys in the word-resolution cache.
+- up to 64 retained call/symbol keys in the word-resolution cache;
+- one 4 KiB scratch block per active context and up to 64 KiB of spare scratch
+  blocks.
 
-All three caches are drained before allocation/leak reports. The bounds
+All reusable storage is drained before allocation/leak reports. The bounds
 prevent a short-lived high-water workload from retaining unbounded process
 memory while removing allocator traffic from normal scalar execution and
 combinator loops.
 
 Predicate continuations keep up to 16 surrounding stack references inline and
-fall back to an exact heap snapshot for deeper stacks. Collection predicates
-reuse an invariant surrounding-stack snapshot across iterations.
+fall back to exact per-context scratch storage for deeper stacks. Collection
+predicates reuse an invariant surrounding-stack snapshot across iterations.
 
 Control combinators that preserve a surrounding stack for rollback keep up to
-32 references in their cached continuation state and use an exact heap fallback
-for deeper stacks. Compile-time size checks keep those enlarged states within
-the 512-byte control-state cache block.
+32 references in their cached continuation state and use the same scratch
+storage for deeper stacks. Scratch allocations carry their rewind mark and must
+be released in native-frame order; nested and error-unwound continuations are
+strictly LIFO. Compile-time size checks keep inline states within the 512-byte
+control-state cache block.
+
+Scratch blocks larger than the spare-byte limit are freed as soon as their
+owning frame releases them, so an unusually deep stack does not become a
+permanent context high-water mark.
 
 The `binrec` controller keeps its common one-value rollback directly in each
 compact logical level. Larger active rollback snapshots share a controller-

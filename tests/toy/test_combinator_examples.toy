@@ -137,3 +137,18 @@
 0 33 range [ 1 [ 2 3 ] 4 ] push-back
 [ [ ] [ ] treerec ] infra
 0 33 range [ 1 [ 2 3 ] 4 ] push-back == check
+
+\ Nested oversized snapshots use separate scratch blocks and unwind in LIFO
+\ order through an error handler.
+0 600 range [
+    1 [
+        [ "scratch unwind" error ] [ ] try
+    ] dip drop
+] infra
+0 600 range == check
+
+\ Oversized predicate snapshots share the same scoped scratch storage.
+0 600 range [
+    [ 1 2 3 ] [ 0 > ] some not [ "scratch predicate" error ] if
+] infra
+0 600 range == check

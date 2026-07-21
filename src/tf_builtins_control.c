@@ -72,7 +72,8 @@ static inline void stack_snapshot_save(tf_ctx *ctx,
                                        tf_obj **inline_items);
 static inline void stack_snapshot_restore(
     tf_ctx *ctx, const stack_snapshot *snapshot);
-static inline void stack_snapshot_release(stack_snapshot *snapshot,
+static inline void stack_snapshot_release(tf_ctx *ctx,
+                                          stack_snapshot *snapshot,
                                           tf_obj **inline_items);
 
 typedef enum { TF_APP2_LEFT, TF_APP2_RIGHT, TF_APP2_DONE } app2_stage;
@@ -134,7 +135,7 @@ static tf_ret app2_step(tf_ctx *ctx, void *state, bool *done) {
 static void app2_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     app2_state *s = state;
     if (status != TF_OK) stack_snapshot_restore(ctx, &s->stack);
-    stack_snapshot_release(&s->stack, s->inline_stack);
+    stack_snapshot_release(ctx, &s->stack, s->inline_stack);
     tf_obj_release(s->callable);
     tf_obj_release(s->left);
     tf_obj_release(s->right);
@@ -273,7 +274,8 @@ static inline void stack_snapshot_save(tf_ctx *ctx, stack_snapshot *snapshot,
     } else if (snapshot->len <= TF_STACK_SNAPSHOT_INLINE) {
         snapshot->items = inline_items;
     } else {
-        snapshot->items = tf_xmalloc(sizeof(tf_obj *) * snapshot->len);
+        snapshot->items =
+            tf_scratch_alloc(ctx, sizeof(tf_obj *) * snapshot->len);
     }
     for (size_t i = 0; i < snapshot->len; i++) {
         snapshot->items[i] = tf_stack_peek(ctx, snapshot->len - 1 - i);
@@ -286,12 +288,15 @@ static inline void stack_snapshot_restore(
     restore_stack_copy(ctx, snapshot->items, snapshot->len);
 }
 
-static inline void stack_snapshot_release(stack_snapshot *snapshot,
+static inline void stack_snapshot_release(tf_ctx *ctx,
+                                          stack_snapshot *snapshot,
                                           tf_obj **inline_items) {
     for (size_t i = 0; i < snapshot->len; i++) {
         tf_obj_release(snapshot->items[i]);
     }
-    if (snapshot->items != inline_items) free(snapshot->items);
+    if (snapshot->items != inline_items) {
+        tf_scratch_release(ctx, snapshot->items);
+    }
     snapshot->items = NULL;
     snapshot->len = 0;
 }
@@ -399,7 +404,7 @@ static void dip_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
             s->saved = NULL;
         }
     }
-    stack_snapshot_release(&s->stack, s->inline_stack);
+    stack_snapshot_release(ctx, &s->stack, s->inline_stack);
     tf_obj_release(s->body);
     if (s->saved) tf_obj_release(s->saved);
     control_state_release(s, sizeof(*s));
@@ -449,7 +454,7 @@ static void keep_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
             s->saved = NULL;
         }
     }
-    stack_snapshot_release(&s->stack, s->inline_stack);
+    stack_snapshot_release(ctx, &s->stack, s->inline_stack);
     tf_obj_release(s->body);
     if (s->saved) tf_obj_release(s->saved);
     control_state_release(s, sizeof(*s));
@@ -496,7 +501,7 @@ static tf_ret fold_step(tf_ctx *ctx, void *state, bool *done) {
 static void fold_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     fold_state *s = state;
     if (status != TF_OK) stack_snapshot_restore(ctx, &s->stack);
-    stack_snapshot_release(&s->stack, s->inline_stack);
+    stack_snapshot_release(ctx, &s->stack, s->inline_stack);
     tf_obj_release(s->body);
     tf_obj_release(s->data);
     control_state_release(s, sizeof(*s));
@@ -577,7 +582,7 @@ static tf_ret map_step(tf_ctx *ctx, void *state, bool *done) {
 static void map_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     map_state *s = state;
     if (status != TF_OK) stack_snapshot_restore(ctx, &s->stack);
-    stack_snapshot_release(&s->stack, s->inline_stack);
+    stack_snapshot_release(ctx, &s->stack, s->inline_stack);
     tf_obj_release(s->body);
     tf_obj_release(s->data);
     if (s->string_result) {
@@ -634,7 +639,7 @@ static tf_ret replicate_step(tf_ctx *ctx, void *state, bool *done) {
 static void replicate_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     replicate_state *s = state;
     if (status != TF_OK) stack_snapshot_restore(ctx, &s->stack);
-    stack_snapshot_release(&s->stack, s->inline_stack);
+    stack_snapshot_release(ctx, &s->stack, s->inline_stack);
     tf_obj_release(s->body);
     if (s->result) tf_obj_release(s->result);
     control_state_release(s, sizeof(*s));
@@ -673,7 +678,7 @@ static tf_ret infra_step(tf_ctx *ctx, void *state, bool *done) {
 static void infra_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     infra_state *s = state;
     if (status != TF_OK) stack_snapshot_restore(ctx, &s->stack);
-    stack_snapshot_release(&s->stack, s->inline_stack);
+    stack_snapshot_release(ctx, &s->stack, s->inline_stack);
     tf_obj_release(s->body);
     tf_obj_release(s->data);
     if (s->result) tf_obj_release(s->result);
@@ -732,7 +737,7 @@ static tf_ret cleave_step(tf_ctx *ctx, void *state, bool *done) {
 static void cleave_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     cleave_state *s = state;
     if (status != TF_OK) stack_snapshot_restore(ctx, &s->stack);
-    stack_snapshot_release(&s->stack, s->inline_stack);
+    stack_snapshot_release(ctx, &s->stack, s->inline_stack);
     tf_obj_release(s->branches);
     tf_obj_release(s->value);
     if (s->outputs) tf_obj_release(s->outputs);
@@ -822,7 +827,7 @@ static void bi_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
         tf_obj_release(s->left_outputs[i]);
     }
     free(s->left_outputs);
-    stack_snapshot_release(&s->stack, s->inline_stack);
+    stack_snapshot_release(ctx, &s->stack, s->inline_stack);
     tf_obj_release(s->left);
     tf_obj_release(s->right);
     if (s->saved) tf_obj_release(s->saved);
@@ -891,7 +896,7 @@ static void try_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     if (status != TF_OK && s->stage == TF_TRY_BODY) {
         stack_snapshot_restore(ctx, &s->stack);
     }
-    stack_snapshot_release(&s->stack, s->inline_stack);
+    stack_snapshot_release(ctx, &s->stack, s->inline_stack);
     tf_obj_release(s->body);
     tf_obj_release(s->handler);
     control_state_release(s, sizeof(*s));
@@ -917,7 +922,7 @@ static void predicate_save_stack(tf_ctx *ctx, predicate_eval *eval) {
         eval->saved_stack = eval->inline_stack;
     } else {
         eval->saved_stack =
-            tf_xmalloc(sizeof(tf_obj *) * eval->saved_len);
+            tf_scratch_alloc(ctx, sizeof(tf_obj *) * eval->saved_len);
     }
     for (size_t i = 0; i < eval->saved_len; i++) {
         eval->saved_stack[i] =
@@ -926,19 +931,19 @@ static void predicate_save_stack(tf_ctx *ctx, predicate_eval *eval) {
     }
 }
 
-static void predicate_free_stack_storage(predicate_eval *eval) {
+static void predicate_free_stack_storage(tf_ctx *ctx, predicate_eval *eval) {
     if (eval->saved_stack && eval->saved_stack != eval->inline_stack) {
-        free(eval->saved_stack);
+        tf_scratch_release(ctx, eval->saved_stack);
     }
     eval->saved_stack = NULL;
     eval->saved_len = 0;
 }
 
-static void predicate_release_stack(predicate_eval *eval) {
+static void predicate_release_stack(tf_ctx *ctx, predicate_eval *eval) {
     for (size_t i = 0; i < eval->saved_len; i++) {
         tf_obj_release(eval->saved_stack[i]);
     }
-    predicate_free_stack_storage(eval);
+    predicate_free_stack_storage(ctx, eval);
 }
 
 static void predicate_eval_init(predicate_eval *eval) {
@@ -987,7 +992,7 @@ static tf_ret predicate_eval_step(tf_ctx *ctx, predicate_eval *eval, tf_obj *pre
             restore_stack_copy(ctx, eval->saved_stack, eval->saved_len);
         } else {
             restore_stack_owned(ctx, eval->saved_stack, eval->saved_len);
-            predicate_free_stack_storage(eval);
+            predicate_free_stack_storage(ctx, eval);
         }
         eval->phase = TF_PRED_IDLE;
         return TF_ERR;
@@ -1000,7 +1005,7 @@ static tf_ret predicate_eval_step(tf_ctx *ctx, predicate_eval *eval, tf_obj *pre
         restore_stack_copy(ctx, eval->saved_stack, eval->saved_len);
     } else {
         restore_stack_owned(ctx, eval->saved_stack, eval->saved_len);
-        predicate_free_stack_storage(eval);
+        predicate_free_stack_storage(ctx, eval);
     }
     eval->phase = TF_PRED_IDLE;
     *ready = true;
@@ -1016,9 +1021,9 @@ static void predicate_eval_cleanup(tf_ctx *ctx, predicate_eval *eval) {
         }
     }
     if (eval->reusable_snapshot) {
-        predicate_release_stack(eval);
+        predicate_release_stack(ctx, eval);
     } else {
-        predicate_free_stack_storage(eval);
+        predicate_free_stack_storage(ctx, eval);
     }
     predicate_eval_init(eval);
 }
@@ -1891,7 +1896,7 @@ static tf_ret treerec_step(tf_ctx *ctx, void *state, bool *done) {
 static void treerec_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     treerec_state *s = state;
     if (status != TF_OK) stack_snapshot_restore(ctx, &s->stack);
-    stack_snapshot_release(&s->stack, s->inline_stack);
+    stack_snapshot_release(ctx, &s->stack, s->inline_stack);
     tf_obj_release(s->tree);
     tf_obj_release(s->leaf);
     tf_obj_release(s->node);

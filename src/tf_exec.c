@@ -1,4 +1,5 @@
 #include "tf_exec.h"
+#include <assert.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -11,6 +12,137 @@
 #define TF_CAPTURE_INITIAL_CAP 4
 #define TF_ERROR_STACK_LIMIT 8
 #define TF_ERROR_FRAME_LIMIT 8
+#define TF_SCRATCH_BLOCK_CAPACITY 4096
+#define TF_SCRATCH_SPARE_BYTE_LIMIT (64 * 1024)
+
+struct tf_scratch_block {
+    tf_scratch_block *prev;
+    tf_scratch_block *spare_next;
+    size_t capacity;
+    size_t used;
+    max_align_t alignment;
+};
+
+typedef union {
+    struct {
+        tf_scratch_block *block;
+        size_t used;
+        size_t depth;
+    } mark;
+    max_align_t alignment;
+} tf_scratch_allocation;
+
+static unsigned char *scratch_block_data(tf_scratch_block *block) {
+    return (unsigned char *)(block + 1);
+}
+
+static tf_scratch_block *scratch_block_acquire(tf_scratch_arena *arena,
+                                                size_t needed) {
+    tf_scratch_block **slot = &arena->spare;
+    while (*slot && (*slot)->capacity < needed) {
+        slot = &(*slot)->spare_next;
+    }
+    if (*slot) {
+        tf_scratch_block *block = *slot;
+        *slot = block->spare_next;
+        arena->spare_bytes -= block->capacity;
+        block->prev = NULL;
+        block->spare_next = NULL;
+        block->used = 0;
+        return block;
+    }
+
+    size_t capacity = needed > TF_SCRATCH_BLOCK_CAPACITY
+                          ? needed
+                          : TF_SCRATCH_BLOCK_CAPACITY;
+    tf_scratch_block *block = tf_xmalloc(sizeof(*block) + capacity);
+    block->prev = NULL;
+    block->spare_next = NULL;
+    block->capacity = capacity;
+    block->used = 0;
+    return block;
+}
+
+static void scratch_block_release(tf_scratch_arena *arena,
+                                  tf_scratch_block *block) {
+    block->prev = NULL;
+    if (block->capacity > TF_SCRATCH_SPARE_BYTE_LIMIT ||
+        arena->spare_bytes >
+            TF_SCRATCH_SPARE_BYTE_LIMIT - block->capacity) {
+        free(block);
+        return;
+    }
+    block->spare_next = arena->spare;
+    arena->spare = block;
+    arena->spare_bytes += block->capacity;
+}
+
+void *tf_scratch_alloc(tf_ctx *ctx, size_t size) {
+    tf_scratch_arena *arena = &ctx->scratch;
+    size_t alignment = _Alignof(max_align_t);
+    size_t aligned_size = (size + alignment - 1) & ~(alignment - 1);
+    size_t needed = sizeof(tf_scratch_allocation) + aligned_size;
+    if (!arena->current) {
+        arena->current = scratch_block_acquire(arena, 0);
+    }
+
+    tf_scratch_block *mark_block = arena->current;
+    size_t mark_used = mark_block->used;
+
+    if (arena->current->capacity - arena->current->used < needed) {
+        tf_scratch_block *block = scratch_block_acquire(arena, needed);
+        block->prev = arena->current;
+        arena->current = block;
+    }
+
+    unsigned char *storage =
+        scratch_block_data(arena->current) + arena->current->used;
+    tf_scratch_allocation *allocation = (tf_scratch_allocation *)storage;
+    allocation->mark.block = mark_block;
+    allocation->mark.used = mark_used;
+    allocation->mark.depth = arena->depth;
+    arena->current->used += needed;
+    arena->depth++;
+    return allocation + 1;
+}
+
+void tf_scratch_release(tf_ctx *ctx, void *ptr) {
+    if (!ptr) return;
+    tf_scratch_arena *arena = &ctx->scratch;
+    tf_scratch_allocation *allocation =
+        (tf_scratch_allocation *)ptr - 1;
+    tf_scratch_block *mark_block = allocation->mark.block;
+    size_t mark_used = allocation->mark.used;
+    size_t mark_depth = allocation->mark.depth;
+
+    assert(arena->depth == mark_depth + 1);
+    while (arena->current != mark_block) {
+        assert(arena->current);
+        tf_scratch_block *block = arena->current;
+        arena->current = block->prev;
+        scratch_block_release(arena, block);
+    }
+    assert(arena->current && mark_used <= arena->current->used);
+    arena->current->used = mark_used;
+    arena->depth = mark_depth;
+}
+
+void tf_scratch_clear(tf_ctx *ctx) {
+    tf_scratch_arena *arena = &ctx->scratch;
+    assert(arena->depth == 0);
+    while (arena->current) {
+        tf_scratch_block *prev = arena->current->prev;
+        free(arena->current);
+        arena->current = prev;
+    }
+    while (arena->spare) {
+        tf_scratch_block *next = arena->spare->spare_next;
+        free(arena->spare);
+        arena->spare = next;
+    }
+    arena->spare_bytes = 0;
+    arena->depth = 0;
+}
 
 /* === Data Stack === */
 

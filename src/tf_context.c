@@ -57,6 +57,7 @@ tf_ctx *tf_ctx_new(int argc, char **argv) {
     ctx->call_stack = NULL;
     ctx->call_stack_len = 0;
     ctx->call_stack_cap = 0;
+    ctx->scratch = (tf_scratch_arena){0};
     ctx->packages.cap = 4;
     ctx->packages.len = 1;
     ctx->packages.entries = tf_xcalloc(ctx->packages.cap, sizeof(tf_package));
@@ -100,6 +101,7 @@ void tf_ctx_free(tf_ctx *ctx) {
     tf_obj_release(ctx->data_stack);
     while (ctx->call_stack_len > 0) tf_frame_pop(ctx, TF_OK);
     free(ctx->call_stack);
+    tf_scratch_clear(ctx);
     tf_dict_lookup_cache_clear(ctx);
     for (size_t i = 0; i < ctx->words.count; i++) {
         tf_word *word = &ctx->words.entries[i];
