@@ -15,7 +15,8 @@
 'cache-target [ 2 ] def
 10 [ cache-run 2 == check ] times
 
-\ Dynamically created call objects resolve by their current name.
+\ More than one cache's worth of dynamic call objects exercise eviction while
+\ each retained cache key continues to resolve by its own name.
 'cache-one [ 1 ] def
 'cache-two [ 2 ] def
 100 [

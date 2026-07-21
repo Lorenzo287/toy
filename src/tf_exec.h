@@ -43,6 +43,7 @@ typedef struct {
 } tf_builtin_group;
 
 typedef enum { TF_WORD_NATIVE, TF_WORD_USER } tf_word_kind;
+#define TF_WORD_LOOKUP_CACHE_CAP 64
 #define TF_ROOT_PACKAGE 0
 
 typedef enum {
@@ -107,10 +108,21 @@ typedef void (*tf_visible_word_fn)(const char *display_name,
                                    size_t display_name_len, tf_word *word,
                                    void *userdata);
 
+typedef struct {
+    tf_obj *key;
+    size_t package_index;
+    size_t generation;
+    size_t entry_index;
+} tf_word_lookup_cache_entry;
+
 /*
  * Open-addressed global word dictionary.
  *
  * Definitions live in a dense array; buckets store one-based entry indexes.
+ * Lookup-cache keys retain call/symbol objects, so object-cache address reuse
+ * cannot turn an entry into a false hit. Cached dense indexes survive entry
+ * array reallocations and are guarded by lexical package and resolution
+ * generation.
  * A tf_word* returned by lookup is transient and must not be retained across
  * dictionary mutation.
  */
@@ -120,6 +132,8 @@ typedef struct {
     size_t *buckets;
     size_t capacity;
     size_t count;
+    size_t resolution_generation;
+    tf_word_lookup_cache_entry lookup_cache[TF_WORD_LOOKUP_CACHE_CAP];
 } tf_word_table;
 
 typedef struct {
@@ -292,6 +306,8 @@ bool tf_dict_make_private_in_package(tf_ctx *ctx, size_t package_index,
 tf_word *tf_dict_lookup(tf_ctx *ctx, tf_obj *name);
 tf_word *tf_dict_lookup_scoped(tf_ctx *ctx, size_t package_index,
                                const char *name, size_t len);
+void tf_dict_resolution_changed(tf_ctx *ctx);
+void tf_dict_lookup_cache_clear(tf_ctx *ctx);
 void tf_dict_each_visible(tf_ctx *ctx, tf_visible_word_fn visit,
                           void *userdata);
 

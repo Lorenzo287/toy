@@ -20,9 +20,12 @@ the C call stack. The main loop keeps processing frames until no work remains.
   callers and otherwise resolve user bodies through the dictionary.
 - Program traversal dispatches call instructions. Symbols are pushed as name
   values; a word such as `exec` may later use a symbol to choose code to run.
-- Dictionary lookup hashes the lexical package index together with the local
-  word name. Keeping lookup stateless ensures dynamically created calls and
-  later root redefinitions always observe the current dictionary.
+- Dictionary misses hash the lexical package index together with the local word
+  name. A bounded per-context cache retains resolved call/symbol objects and
+  stores stable dense dictionary indexes. Hits are guarded by lexical package
+  and a resolution generation changed by definitions, visibility, package
+  state, and imports, so dynamic calls and later definitions observe current
+  resolution without repeating hashing or string comparison.
 - Native continuation frames resume C native words after a callable has run.
 - New native words that execute user code should schedule frames or
   continuations, not call `tf_vm_exec()` recursively.
@@ -246,14 +249,16 @@ from drifting apart.
 
 ## Bounded Reuse
 
-The runtime keeps two bounded freelists:
+The runtime keeps two bounded freelists and one bounded resolution cache:
 
 - up to 256 released `tf_obj` records;
-- up to 128 continuation-state blocks of 512 bytes.
+- up to 128 continuation-state blocks of 512 bytes;
+- up to 64 retained call/symbol keys in the word-resolution cache.
 
-Both caches are drained before allocation/leak reports. The bounds prevent a
-short-lived high-water workload from retaining unbounded process memory while
-removing allocator traffic from normal scalar execution and combinator loops.
+All three caches are drained before allocation/leak reports. The bounds
+prevent a short-lived high-water workload from retaining unbounded process
+memory while removing allocator traffic from normal scalar execution and
+combinator loops.
 
 Predicate continuations keep up to 16 surrounding stack references inline and
 fall back to an exact heap snapshot for deeper stacks. Collection predicates

@@ -3,7 +3,22 @@
 "../math" import
 "../math" 'numbers import-as
 
+'cache-target [ "app" ] def
+
 'main [
+	\ Adding a local word invalidates a cached root-native fallback.
+	'succ | shadowed |
+	1 $shadowed exec 2 != [ "root cache resolution failed" error ] if
+	'succ [ 100 + ] def
+	1 $shadowed exec 101 != [ "local cache invalidation failed" error ] if
+
+	\ The same symbol object must resolve in the active lexical package.
+	'cache-target | target |
+	10 [
+		$target exec "app" != [ "app cache resolution failed" error ] if
+		$target math.run-callable "math" != [ "math cache resolution failed" error ] if
+	] times
+
 	words 'math.double contains? not [ "public package word is not visible" error ] if
 	words 'math.twice-factor contains? [ "private package word is visible" error ] if
 	20 math.double print

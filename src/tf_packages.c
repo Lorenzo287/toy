@@ -65,6 +65,7 @@ static size_t package_add(tf_ctx *ctx, const char *name, size_t name_len,
     package->name_len = name_len;
     package->path = path ? tf_xstrdup(path) : NULL;
     package->state = state;
+    tf_dict_resolution_changed(ctx);
     return index;
 }
 
@@ -83,8 +84,12 @@ void tf_package_finish(tf_ctx *ctx, size_t package_index, tf_ret status) {
         package_index >= ctx->packages.len) {
         return;
     }
-    ctx->packages.entries[package_index].state =
+    tf_package_state state =
         status == TF_OK ? TF_PACKAGE_LOADED : TF_PACKAGE_FAILED;
+    if (ctx->packages.entries[package_index].state != state) {
+        ctx->packages.entries[package_index].state = state;
+        tf_dict_resolution_changed(ctx);
+    }
 }
 
 const tf_package *tf_package_get(tf_ctx *ctx, size_t package_index) {
@@ -128,6 +133,7 @@ bool tf_package_import_add(tf_ctx *ctx, size_t owner_package_index,
     imported->name_len = name_len;
     imported->owner_package_index = owner_package_index;
     imported->target_package_index = target_package_index;
+    tf_dict_resolution_changed(ctx);
     return true;
 }
 
@@ -149,6 +155,7 @@ void tf_package_import_remove(tf_ctx *ctx, size_t owner_package_index,
             ctx->package_imports.entries[i] =
                 ctx->package_imports.entries[ctx->package_imports.len];
         }
+        tf_dict_resolution_changed(ctx);
         return;
     }
 }

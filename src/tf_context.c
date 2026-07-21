@@ -52,6 +52,8 @@ tf_ctx *tf_ctx_new(int argc, char **argv) {
     ctx->words.capacity = word_table_capacity_for(builtin_count);
     ctx->words.count = 0;
     ctx->words.buckets = tf_xcalloc(ctx->words.capacity, sizeof(size_t));
+    ctx->words.resolution_generation = 1;
+    memset(ctx->words.lookup_cache, 0, sizeof(ctx->words.lookup_cache));
     ctx->call_stack = NULL;
     ctx->call_stack_len = 0;
     ctx->call_stack_cap = 0;
@@ -98,6 +100,7 @@ void tf_ctx_free(tf_ctx *ctx) {
     tf_obj_release(ctx->data_stack);
     while (ctx->call_stack_len > 0) tf_frame_pop(ctx, TF_OK);
     free(ctx->call_stack);
+    tf_dict_lookup_cache_clear(ctx);
     for (size_t i = 0; i < ctx->words.count; i++) {
         tf_word *word = &ctx->words.entries[i];
         if (word->owns_name) free((char *)word->name);

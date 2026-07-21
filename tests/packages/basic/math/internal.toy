@@ -2,3 +2,6 @@
 
 'twice-factor [ 2 ] def
 'twice-factor private
+
+'cache-target [ "math" ] def
+'run-callable [ exec ] def

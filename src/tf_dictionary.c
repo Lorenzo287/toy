@@ -1,10 +1,15 @@
 #include "tf_exec.h"
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "tf_alloc.h"
+
+_Static_assert((TF_WORD_LOOKUP_CACHE_CAP &
+                (TF_WORD_LOOKUP_CACHE_CAP - 1)) == 0,
+               "word lookup cache capacity must be a power of two");
 
 static unsigned long dict_hash(size_t package_index, const char *name,
                                size_t len) {
@@ -17,6 +22,25 @@ static unsigned long dict_hash(size_t package_index, const char *name,
         hash = ((hash << 5) + hash) + (unsigned char)name[i];
     }
     return hash;
+}
+
+void tf_dict_lookup_cache_clear(tf_ctx *ctx) {
+    if (!ctx) return;
+    for (size_t i = 0; i < TF_WORD_LOOKUP_CACHE_CAP; i++) {
+        if (ctx->words.lookup_cache[i].key) {
+            tf_obj_release(ctx->words.lookup_cache[i].key);
+        }
+    }
+    memset(ctx->words.lookup_cache, 0, sizeof(ctx->words.lookup_cache));
+}
+
+void tf_dict_resolution_changed(tf_ctx *ctx) {
+    if (!ctx) return;
+    ctx->words.resolution_generation++;
+    if (ctx->words.resolution_generation == 0) {
+        tf_dict_lookup_cache_clear(ctx);
+        ctx->words.resolution_generation = 1;
+    }
 }
 
 static void dict_resize(tf_ctx *ctx) {
@@ -88,6 +112,7 @@ static tf_word *dict_insert_word(tf_ctx *ctx, size_t package_index,
     word->type = TF_WORD_NATIVE;
     word->native_impl = NULL;
     ctx->words.buckets[slot] = entry_index + 1;
+    tf_dict_resolution_changed(ctx);
     return word;
 }
 
@@ -175,7 +200,10 @@ bool tf_dict_make_private_in_package(tf_ctx *ctx, size_t package_index,
                               name->str.ptr);
         return false;
     }
-    word->is_public = false;
+    if (word->is_public) {
+        word->is_public = false;
+        tf_dict_resolution_changed(ctx);
+    }
     return true;
 }
 
@@ -234,8 +262,32 @@ tf_word *tf_dict_lookup(tf_ctx *ctx, tf_obj *name) {
         return NULL;
     }
 
-    return dict_lookup_uncached(ctx, tf_current_package_index(ctx),
-                                name->str.ptr, name->str.len);
+    size_t current_package = tf_current_package_index(ctx);
+    uintptr_t mixed_key = (uintptr_t)name >> 4;
+    mixed_key ^= (uintptr_t)current_package;
+    mixed_key ^= mixed_key >> 7;
+    mixed_key ^= mixed_key >> 13;
+    size_t slot = mixed_key & (TF_WORD_LOOKUP_CACHE_CAP - 1);
+    tf_word_lookup_cache_entry *cached = &ctx->words.lookup_cache[slot];
+    if (cached->key == name && cached->package_index == current_package &&
+        cached->generation == ctx->words.resolution_generation &&
+        cached->entry_index < ctx->words.count) {
+        return &ctx->words.entries[cached->entry_index];
+    }
+
+    tf_word *word = dict_lookup_uncached(ctx, current_package, name->str.ptr,
+                                         name->str.len);
+    if (!word) return NULL;
+
+    if (cached->key != name) {
+        tf_obj_retain(name);
+        if (cached->key) tf_obj_release(cached->key);
+        cached->key = name;
+    }
+    cached->package_index = current_package;
+    cached->generation = ctx->words.resolution_generation;
+    cached->entry_index = (size_t)(word - ctx->words.entries);
+    return word;
 }
 
 void tf_dict_each_visible(tf_ctx *ctx, tf_visible_word_fn visit,
