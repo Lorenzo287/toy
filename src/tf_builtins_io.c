@@ -1,6 +1,6 @@
 #include "tf_builtins.h"
-#include <ctype.h>
-#include <errno.h>
+#include <ctype.h>  // IWYU pragma: keep
+#include <errno.h>  // IWYU pragma: keep
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -13,7 +13,7 @@
 #include "tf_alloc.h"
 #include "tf_terminal.h"
 #include "tf_parser.h"
-#include "tf_native_loader.h"
+#include "tf_native_loader.h"  // IWYU pragma: keep
 
 static void ctx_output_obj_write(void *userdata, const char *data,
                                  size_t length) {

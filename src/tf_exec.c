@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include "tf_alloc.h"
 #include "tf_terminal.h"
-#include <signal.h>
+#include <signal.h>  // IWYU pragma: keep
 
 #define TF_CALL_STACK_INITIAL_CAP 8
 #define TF_CAPTURE_INITIAL_CAP 4

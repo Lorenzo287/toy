@@ -5,7 +5,7 @@
 #include "tf_exec.h"
 
 #include <ctype.h>
-#include <errno.h>
+#include <errno.h>  // IWYU pragma: keep
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
