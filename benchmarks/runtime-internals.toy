@@ -23,3 +23,11 @@
 
 [ ] [ 10 [ 0 == ] [ drop 1 ] [ dup pred ] [ * ] genrec drop ] 20000
 "genrec factorial(10)" bench-clean
+
+[ ] [ 20 [ 2 < ] [ ] [ pred dup pred ] [ + ] binrec drop ] 100
+"binrec fibonacci(20)" bench-clean
+
+[ 0 1 2 3 4 5 6 7 ] [
+    [ 1 2 [ 3 4 ] [ 5 [ 6 7 ] ] ] [ ] [ ] treerec drop
+] 5000
+"treerec with ambient stack" bench-clean

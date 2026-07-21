@@ -108,5 +108,29 @@
 [ 3 1 4 1 5 2 ] qsort
 [ 1 1 2 3 4 5 ] == check
 
+\ Exercise binrec's heap fallback with more ambient stack values than its
+\ inline rollback snapshot can hold.
+0 33 range 10 push-back
+[ [ 2 < ] [ ] [ pred dup pred ] [ + ] binrec ] infra
+0 33 range 55 push-back == check
+
+\ An error during the first recursive branch releases a heap fallback snapshot
+\ and restores the stack seen by try.
+0 33 range 4 push-back [
+    [
+        [ dup 2 == [ "binrec rollback" error ] if 2 < ]
+        [ ]
+        [ pred dup pred ]
+        [ + ]
+        binrec
+    ] [ drop ] try
+] infra
+0 33 range == check
+
 [ 1 [ 2 3 ] 4 ] [ ] [ 0 swap [ + ] fold ] treerec
 10 == check
+
+\ Exercise treerec's heap fallback with a deep ambient stack.
+0 33 range [ 1 [ 2 3 ] 4 ] push-back
+[ [ ] [ ] treerec ] infra
+0 33 range [ 1 [ 2 3 ] 4 ] push-back == check

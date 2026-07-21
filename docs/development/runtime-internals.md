@@ -259,6 +259,11 @@ Predicate continuations keep up to 16 surrounding stack references inline and
 fall back to an exact heap snapshot for deeper stacks. Collection predicates
 reuse an invariant surrounding-stack snapshot across iterations.
 
+Control combinators that preserve a surrounding stack for rollback keep up to
+32 references in their cached continuation state and use an exact heap fallback
+for deeper stacks. Compile-time size checks keep those enlarged states within
+the 512-byte control-state cache block.
+
 ## Measuring Changes
 
 Use the benchmark suite rather than isolated impressions:
