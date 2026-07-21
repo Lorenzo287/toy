@@ -600,9 +600,20 @@ int main(void) {
                             &shutdown_destroy_count) == TOY_OK,
           "push state-owned shutdown resource");
 
+    CHECK(toy_eval(first, "<live-list-slab>", "0 1000 range >list") == TOY_OK,
+          "create list spanning several slabs");
+
     toy_state_free(second);
     CHECK(shutdown_destroy_count == 1,
           "state shutdown destroys its remaining resources");
+    CHECK(toy_eval(first, "<list-after-cache-clear>",
+                   "dup 999 contains?") == TOY_OK,
+          "list remains valid after another state clears empty caches");
+    bool list_survived_cache_clear = false;
+    CHECK(toy_get_bool(first, 0, &list_survived_cache_clear) &&
+              list_survived_cache_clear,
+          "live list contents survive cache cleanup");
+    CHECK(toy_pop(first, 2), "release live list and cache-cleanup result");
     toy_state_free(first);
 #ifdef STB_LEAKCHECK
     stb_leakcheck_dumpmem();

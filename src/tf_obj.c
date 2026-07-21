@@ -16,6 +16,8 @@
 #define TF_DEQUE_INITIAL_CAP 4
 #define TF_PQUEUE_INITIAL_CAP 4
 #define TF_OBJ_CACHE_LIMIT 256
+#define TF_LIST_NODE_SLAB_CAPACITY 128
+#define TF_LIST_NODE_SPARE_BYTE_LIMIT (64 * 1024)
 
 struct tf_source_file {
     int refcount;
@@ -29,6 +31,145 @@ typedef struct tf_obj_cache_node {
 
 static tf_obj_cache_node *obj_cache = NULL;
 static size_t obj_cache_len = 0;
+
+typedef struct tf_list_node_slab tf_list_node_slab;
+
+/* Per-slot ownership lets an independently released node update its slab
+ * without changing the persistent-list node representation. */
+typedef struct {
+    tf_list_node node;
+    tf_list_node_slab *slab;
+} tf_list_node_slot;
+
+struct tf_list_node_slab {
+    tf_list_node_slab *prev;
+    tf_list_node_slab *next;
+    tf_list_node_slab *available_prev;
+    tf_list_node_slab *available_next;
+    tf_list_node *free_nodes;
+    size_t live_count;
+    tf_list_node_slot slots[TF_LIST_NODE_SLAB_CAPACITY];
+};
+
+_Static_assert(offsetof(tf_list_node_slot, node) == 0,
+               "list node must begin its slab slot");
+
+static tf_list_node_slab *list_node_slabs = NULL;
+static tf_list_node_slab *list_node_available_slabs = NULL;
+/* Counts only completely empty slabs retained for reuse. */
+static size_t list_node_spare_bytes = 0;
+
+static void list_node_slab_link_available(tf_list_node_slab *slab) {
+    slab->available_prev = NULL;
+    slab->available_next = list_node_available_slabs;
+    if (list_node_available_slabs) {
+        list_node_available_slabs->available_prev = slab;
+    }
+    list_node_available_slabs = slab;
+}
+
+static void list_node_slab_unlink_available(tf_list_node_slab *slab) {
+    if (slab->available_prev) {
+        slab->available_prev->available_next = slab->available_next;
+    } else {
+        list_node_available_slabs = slab->available_next;
+    }
+    if (slab->available_next) {
+        slab->available_next->available_prev = slab->available_prev;
+    }
+    slab->available_prev = NULL;
+    slab->available_next = NULL;
+}
+
+static void list_node_slab_unlink(tf_list_node_slab *slab) {
+    if (slab->prev) {
+        slab->prev->next = slab->next;
+    } else {
+        list_node_slabs = slab->next;
+    }
+    if (slab->next) slab->next->prev = slab->prev;
+    slab->prev = NULL;
+    slab->next = NULL;
+}
+
+static tf_list_node_slab *list_node_slab_new(void) {
+    tf_list_node_slab *slab = tf_xmalloc(sizeof(*slab));
+    slab->prev = NULL;
+    slab->next = list_node_slabs;
+    if (list_node_slabs) list_node_slabs->prev = slab;
+    list_node_slabs = slab;
+    slab->available_prev = NULL;
+    slab->available_next = NULL;
+    slab->free_nodes = NULL;
+    slab->live_count = 0;
+    for (size_t i = 0; i < TF_LIST_NODE_SLAB_CAPACITY; i++) {
+        tf_list_node_slot *slot = &slab->slots[i];
+        slot->slab = slab;
+        slot->node.refcount = 0;
+        slot->node.value = NULL;
+        slot->node.next = slab->free_nodes;
+        slab->free_nodes = &slot->node;
+    }
+    list_node_slab_link_available(slab);
+    list_node_spare_bytes += sizeof(*slab);
+    return slab;
+}
+
+static tf_list_node *list_node_storage_acquire(void) {
+    if (!list_node_available_slabs) list_node_slab_new();
+    tf_list_node_slab *slab = list_node_available_slabs;
+    if (slab->live_count == 0) {
+        assert(list_node_spare_bytes >= sizeof(*slab));
+        list_node_spare_bytes -= sizeof(*slab);
+    }
+    tf_list_node *node = slab->free_nodes;
+    assert(node);
+    slab->free_nodes = node->next;
+    slab->live_count++;
+    if (!slab->free_nodes) list_node_slab_unlink_available(slab);
+    return node;
+}
+
+static void list_node_storage_release(tf_list_node *node) {
+    tf_list_node_slot *slot = (tf_list_node_slot *)node;
+    tf_list_node_slab *slab = slot->slab;
+    assert(slab && slab->live_count > 0);
+    bool was_full = !slab->free_nodes;
+    node->refcount = 0;
+    node->value = NULL;
+    node->next = slab->free_nodes;
+    slab->free_nodes = node;
+    slab->live_count--;
+    if (was_full) list_node_slab_link_available(slab);
+
+    if (slab->live_count != 0) return;
+    if (sizeof(*slab) <= TF_LIST_NODE_SPARE_BYTE_LIMIT &&
+        list_node_spare_bytes <=
+            TF_LIST_NODE_SPARE_BYTE_LIMIT - sizeof(*slab)) {
+        list_node_spare_bytes += sizeof(*slab);
+        return;
+    }
+
+    list_node_slab_unlink_available(slab);
+    list_node_slab_unlink(slab);
+    free(slab);
+}
+
+static void list_node_storage_clear(void) {
+    tf_list_node_slab *slab = list_node_slabs;
+    while (slab) {
+        tf_list_node_slab *next = slab->next;
+        if (slab->live_count == 0) {
+            list_node_slab_unlink_available(slab);
+            list_node_slab_unlink(slab);
+            assert(list_node_spare_bytes >= sizeof(*slab));
+            list_node_spare_bytes -= sizeof(*slab);
+            free(slab);
+        }
+        slab = next;
+    }
+    assert(list_node_spare_bytes == 0);
+}
 
 static tf_obj *obj_storage_acquire(void) {
     if (!obj_cache) return tf_xmalloc(sizeof(tf_obj));
@@ -413,13 +554,13 @@ static void list_node_release(tf_list_node *node) {
 
         tf_list_node *next = node->next;
         tf_obj_release(node->value);
-        free(node);
+        list_node_storage_release(node);
         node = next;
     }
 }
 
 static tf_list_node *list_node_new(tf_obj *value, tf_list_node *next) {
-    tf_list_node *node = tf_xmalloc(sizeof(tf_list_node));
+    tf_list_node *node = list_node_storage_acquire();
     node->refcount = 1;
     node->value = value;
     node->next = next;
@@ -435,7 +576,7 @@ void tf_list_builder_init(tf_list_builder *builder) {
 }
 
 void tf_list_builder_push_owned(tf_list_builder *builder, tf_obj *item) {
-    tf_list_node *node = tf_xmalloc(sizeof(tf_list_node));
+    tf_list_node *node = list_node_storage_acquire();
     node->refcount = 1;
     node->value = item;
     node->next = NULL;
@@ -1318,6 +1459,7 @@ void tf_obj_free(tf_obj *o) {
 }
 
 void tf_obj_cache_clear(void) {
+    list_node_storage_clear();
     while (obj_cache) {
         tf_obj_cache_node *next = obj_cache->next;
         free(obj_cache);

@@ -256,6 +256,7 @@ from drifting apart.
 The runtime keeps bounded reusable storage for common transient work:
 
 - up to 256 released `tf_obj` records;
+- up to 64 KiB of completely empty 128-node list slabs;
 - up to 128 continuation-state blocks of 512 bytes;
 - up to 64 retained call/symbol keys in the word-resolution cache;
 - one 4 KiB scratch block per active context and up to 64 KiB of spare scratch
@@ -265,6 +266,13 @@ All reusable storage is drained before allocation/leak reports. The bounds
 prevent a short-lived high-water workload from retaining unbounded process
 memory while removing allocator traffic from normal scalar execution and
 combinator loops.
+
+Persistent-list nodes are allocated from 128-node slabs. Each slab tracks its
+own free nodes and live-node count, so independently refcounted shared tails can
+outlive other nodes from the same slab. Completely empty slabs are retained up
+to the spare-byte limit; excess empty slabs are returned immediately. Cache
+cleanup frees only empty slabs, which keeps nodes owned by another live context
+valid.
 
 Predicate continuations keep up to 16 surrounding stack references inline and
 fall back to exact per-context scratch storage for deeper stacks. Collection

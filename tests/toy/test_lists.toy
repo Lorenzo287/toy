@@ -66,3 +66,14 @@
 dup 1999 contains? true == check
 dup 1999 index-of 1999 == check
 0 swap [ + ] fold 1999000 == check
+
+\ Shared tails remain valid while enough independent nodes are released to
+\ cross several list slabs.
+0 4096 range >list
+dup 2048 skip
+swap drop
+dup len 2048 == check
+dup first 2048 == check
+2047 swap cons
+dup first 2047 == check
+rest first 2048 == check
