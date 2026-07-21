@@ -27,6 +27,10 @@ the C call stack. The main loop keeps processing frames until no work remains.
   state, and imports, so dynamic calls and later definitions observe current
   resolution without repeating hashing or string comparison.
 - Native continuation frames resume C native words after a callable has run.
+- `linrec` and `genrec` keep one continuation plus a pending-unwind count
+  instead of pushing one native frame per logical recursion level. `binrec`
+  similarly keeps compact logical levels in one controller, retaining its four
+  callables and predicate evaluator only once.
 - New native words that execute user code should schedule frames or
   continuations, not call `tf_vm_exec()` recursively.
 - Program and native payloads share a union because a frame is one or the other.
@@ -268,6 +272,11 @@ Control combinators that preserve a surrounding stack for rollback keep up to
 32 references in their cached continuation state and use an exact heap fallback
 for deeper stacks. Compile-time size checks keep those enlarged states within
 the 512-byte control-state cache block.
+
+The `binrec` controller keeps its common one-value rollback directly in each
+compact logical level. Larger active rollback snapshots share a controller-
+owned LIFO buffer, which grows geometrically and is released with the
+controller.
 
 ## Measuring Changes
 

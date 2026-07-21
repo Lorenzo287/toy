@@ -1519,78 +1519,85 @@ static void merge_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
 }
 
 typedef enum {
-    TF_LINREC_PRED,
-    TF_LINREC_THEN,
-    TF_LINREC_REC1,
-    TF_LINREC_AFTER_RECURSE,
-    TF_LINREC_REC2
-} linrec_stage;
+    TF_LINEAR_REC_PRED,
+    TF_LINEAR_REC_THEN,
+    TF_LINEAR_REC_BEFORE,
+    TF_LINEAR_REC_AFTER
+} linear_rec_stage;
 
+/* Linrec and genrec need only the number of deferred after-callables while
+ * descending. One continuation therefore replaces a native frame per level. */
 typedef struct {
     tf_obj *pred;
     tf_obj *then_b;
-    tf_obj *rec1;
-    tf_obj *rec2;
-    linrec_stage stage;
+    tf_obj *before;
+    tf_obj *after;
+    size_t pending_after;
+    linear_rec_stage stage;
     predicate_eval pred_eval;
-} linrec_state;
+} linear_rec_state;
 
-static void linrec_cleanup(tf_ctx *ctx, void *state, tf_ret status);
+TF_ASSERT_CACHED_CONTROL_STATE(linear_rec_state);
 
-static tf_ret linrec_step(tf_ctx *ctx, void *state, bool *done) {
-    linrec_state *s = state;
-    if (s->stage == TF_LINREC_PRED) {
-        bool ready = false;
-        bool is_done = false;
-        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->pred, false, NULL, 0,
-                                         &ready, &is_done);
-        if (res != TF_OK || !ready) {
-            *done = false;
-            return res;
+static tf_ret linear_rec_step(tf_ctx *ctx, void *state, bool *done) {
+    linear_rec_state *s = state;
+    *done = false;
+
+    while (true) {
+        if (s->stage == TF_LINEAR_REC_PRED) {
+            bool ready = false;
+            bool is_done = false;
+            tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->pred,
+                                             false, NULL, 0, &ready,
+                                             &is_done);
+            if (res != TF_OK || !ready) return res;
+
+            s->stage = is_done ? TF_LINEAR_REC_THEN
+                               : TF_LINEAR_REC_BEFORE;
+            return tf_vm_call_callable(ctx,
+                                       is_done ? s->then_b : s->before);
         }
 
-        s->stage = is_done ? TF_LINREC_THEN : TF_LINREC_REC1;
-        *done = false;
-        return tf_vm_call_callable(ctx, is_done ? s->then_b : s->rec1);
-    }
+        if (s->stage == TF_LINEAR_REC_BEFORE) {
+            s->pending_after++;
+            s->stage = TF_LINEAR_REC_PRED;
+            continue;
+        }
 
-    if (s->stage == TF_LINREC_THEN || s->stage == TF_LINREC_REC2) {
-        *done = true;
-        return TF_OK;
-    }
+        if (s->pending_after == 0) {
+            *done = true;
+            return TF_OK;
+        }
 
-    if (s->stage == TF_LINREC_REC1) {
-        linrec_state *child = control_state_acquire(sizeof(*child));
-        child->pred = s->pred;
-        child->then_b = s->then_b;
-        child->rec1 = s->rec1;
-        child->rec2 = s->rec2;
-        tf_obj_retain(child->pred);
-        tf_obj_retain(child->then_b);
-        tf_obj_retain(child->rec1);
-        tf_obj_retain(child->rec2);
-        child->stage = TF_LINREC_PRED;
-        predicate_eval_init(&child->pred_eval);
-        s->stage = TF_LINREC_AFTER_RECURSE;
-        tf_frame_push_native(ctx, linrec_step, linrec_cleanup, child);
-        *done = false;
-        return TF_OK;
+        s->pending_after--;
+        s->stage = TF_LINEAR_REC_AFTER;
+        return tf_vm_call_callable(ctx, s->after);
     }
-
-    s->stage = TF_LINREC_REC2;
-    *done = false;
-    return tf_vm_call_callable(ctx, s->rec2);
 }
 
-static void linrec_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
+static void linear_rec_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     (void)status;
-    linrec_state *s = state;
+    linear_rec_state *s = state;
     predicate_eval_cleanup(ctx, &s->pred_eval);
     tf_obj_release(s->pred);
     tf_obj_release(s->then_b);
-    tf_obj_release(s->rec1);
-    tf_obj_release(s->rec2);
+    tf_obj_release(s->before);
+    tf_obj_release(s->after);
     control_state_release(s, sizeof(*s));
+}
+
+static tf_ret linear_rec_start(tf_ctx *ctx, tf_obj *pred, tf_obj *then_b,
+                               tf_obj *before, tf_obj *after) {
+    linear_rec_state *state = control_state_acquire(sizeof(*state));
+    state->pred = pred;
+    state->then_b = then_b;
+    state->before = before;
+    state->after = after;
+    state->pending_after = 0;
+    state->stage = TF_LINEAR_REC_PRED;
+    predicate_eval_init(&state->pred_eval);
+    tf_frame_push_native(ctx, linear_rec_step, linear_rec_cleanup, state);
+    return TF_OK;
 }
 
 typedef enum {
@@ -1602,213 +1609,194 @@ typedef enum {
     TF_BINREC_COMBINE
 } binrec_stage;
 
+#define TF_BINREC_INLINE_LEVELS 6
+
+/* A binary recursion controller keeps the shared callables and predicate
+ * snapshot once. Each logical level owns only branch-local unwind data. */
+typedef struct {
+    tf_obj *hidden;
+    tf_obj *single_saved;
+    size_t saved_offset;
+    size_t saved_len;
+    binrec_stage stage;
+} binrec_level;
+
 typedef struct {
     tf_obj *pred;
     tf_obj *then_b;
     tf_obj *rec1;
     tf_obj *rec2;
-    tf_obj *hidden;
-    tf_obj **saved_stack;
-    size_t saved_len;
-    bool first_sandbox_active;
-    binrec_stage stage;
     predicate_eval pred_eval;
-    tf_obj *inline_saved_stack[TF_STACK_SNAPSHOT_INLINE];
+    binrec_level *levels;
+    size_t levels_len;
+    size_t levels_cap;
+    tf_obj **rollback_items;
+    size_t rollback_len;
+    size_t rollback_cap;
+    binrec_level inline_levels[TF_BINREC_INLINE_LEVELS];
 } binrec_state;
 
 TF_ASSERT_CACHED_CONTROL_STATE(binrec_state);
 
-static void binrec_save_stack(tf_ctx *ctx, binrec_state *state) {
-    state->saved_len = tf_stack_len(ctx);
-    if (state->saved_len == 0) {
-        state->saved_stack = NULL;
-    } else if (state->saved_len <= TF_STACK_SNAPSHOT_INLINE) {
-        state->saved_stack = state->inline_saved_stack;
-    } else {
-        state->saved_stack = tf_xmalloc(sizeof(tf_obj *) * state->saved_len);
+static void binrec_push_level(binrec_state *state) {
+    if (state->levels_len == state->levels_cap) {
+        size_t new_cap = state->levels_cap * 2;
+        if (state->levels == state->inline_levels) {
+            binrec_level *levels =
+                tf_xmalloc(sizeof(binrec_level) * new_cap);
+            memcpy(levels, state->inline_levels,
+                   sizeof(binrec_level) * state->levels_len);
+            state->levels = levels;
+        } else {
+            state->levels =
+                tf_xrealloc(state->levels, sizeof(binrec_level) * new_cap);
+        }
+        state->levels_cap = new_cap;
     }
 
-    for (size_t i = 0; i < state->saved_len; i++) {
-        state->saved_stack[i] = tf_stack_peek(ctx, state->saved_len - 1 - i);
-        tf_obj_retain(state->saved_stack[i]);
+    binrec_level *level = &state->levels[state->levels_len++];
+    level->hidden = NULL;
+    level->single_saved = NULL;
+    level->saved_offset = 0;
+    level->saved_len = 0;
+    level->stage = TF_BINREC_PRED;
+}
+
+static void binrec_rollback_reserve(binrec_state *state, size_t needed) {
+    if (needed <= state->rollback_cap) return;
+    size_t new_cap = state->rollback_cap == 0 ? TF_STACK_SNAPSHOT_INLINE
+                                              : state->rollback_cap;
+    while (new_cap < needed) new_cap *= 2;
+    state->rollback_items = tf_xrealloc(
+        state->rollback_items, sizeof(tf_obj *) * new_cap);
+    state->rollback_cap = new_cap;
+}
+
+static void binrec_save_stack(tf_ctx *ctx, binrec_state *state,
+                              binrec_level *level) {
+    level->saved_len = tf_stack_len(ctx);
+    if (level->saved_len == 0) return;
+
+    if (level->saved_len == 1) {
+        level->single_saved = tf_stack_peek(ctx, 0);
+        tf_obj_retain(level->single_saved);
+        return;
+    }
+
+    level->saved_offset = state->rollback_len;
+    binrec_rollback_reserve(state,
+                            state->rollback_len + level->saved_len);
+    for (size_t i = 0; i < level->saved_len; i++) {
+        tf_obj *item = tf_stack_peek(ctx, level->saved_len - 1 - i);
+        state->rollback_items[state->rollback_len++] = item;
+        tf_obj_retain(item);
     }
 }
 
-static void binrec_release_stack(binrec_state *state) {
-    for (size_t i = 0; i < state->saved_len; i++) {
-        tf_obj_release(state->saved_stack[i]);
-    }
-    if (state->saved_stack != state->inline_saved_stack) {
-        free(state->saved_stack);
-    }
-    state->saved_stack = NULL;
-    state->saved_len = 0;
+static tf_obj **binrec_saved_stack(binrec_state *state,
+                                   binrec_level *level) {
+    if (level->saved_len == 0) return NULL;
+    if (level->saved_len == 1) return &level->single_saved;
+    return &state->rollback_items[level->saved_offset];
 }
 
-static tf_ret binrec_step(tf_ctx *ctx, void *state, bool *done);
-static void binrec_cleanup(tf_ctx *ctx, void *state, tf_ret status);
-
-static void binrec_push_child(tf_ctx *ctx, binrec_state *parent) {
-    binrec_state *child = control_state_acquire(sizeof(*child));
-    child->pred = parent->pred;
-    child->then_b = parent->then_b;
-    child->rec1 = parent->rec1;
-    child->rec2 = parent->rec2;
-    tf_obj_retain(child->pred);
-    tf_obj_retain(child->then_b);
-    tf_obj_retain(child->rec1);
-    tf_obj_retain(child->rec2);
-    child->hidden = NULL;
-    child->saved_stack = NULL;
-    child->saved_len = 0;
-    child->first_sandbox_active = false;
-    child->stage = TF_BINREC_PRED;
-    predicate_eval_init(&child->pred_eval);
-    tf_frame_push_native(ctx, binrec_step, binrec_cleanup, child);
+static void binrec_release_stack(binrec_state *state,
+                                 binrec_level *level) {
+    if (level->saved_len == 1) {
+        tf_obj_release(level->single_saved);
+        level->single_saved = NULL;
+    } else if (level->saved_len > 1) {
+        for (size_t i = 0; i < level->saved_len; i++) {
+            tf_obj_release(state->rollback_items[level->saved_offset + i]);
+        }
+        state->rollback_len = level->saved_offset;
+    }
+    level->saved_offset = 0;
+    level->saved_len = 0;
 }
 
 static tf_ret binrec_step(tf_ctx *ctx, void *state, bool *done) {
     binrec_state *s = state;
-    if (s->stage == TF_BINREC_PRED) {
-        bool ready = false;
-        bool is_done = false;
-        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->pred, false, NULL, 0,
-                                         &ready, &is_done);
-        if (res != TF_OK || !ready) {
-            *done = false;
-            return res;
+    *done = false;
+
+    while (s->levels_len > 0) {
+        binrec_level *level = &s->levels[s->levels_len - 1];
+        if (level->stage == TF_BINREC_PRED) {
+            bool ready = false;
+            bool is_done = false;
+            tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->pred,
+                                             false, NULL, 0, &ready,
+                                             &is_done);
+            if (res != TF_OK || !ready) return res;
+
+            level->stage = is_done ? TF_BINREC_THEN : TF_BINREC_REC1;
+            return tf_vm_call_callable(ctx,
+                                       is_done ? s->then_b : s->rec1);
         }
 
-        s->stage = is_done ? TF_BINREC_THEN : TF_BINREC_REC1;
-        *done = false;
-        return tf_vm_call_callable(ctx, is_done ? s->then_b : s->rec1);
+        if (level->stage == TF_BINREC_THEN ||
+            level->stage == TF_BINREC_COMBINE) {
+            s->levels_len--;
+            if (s->levels_len == 0) {
+                *done = true;
+                return TF_OK;
+            }
+            continue;
+        }
+
+        if (level->stage == TF_BINREC_REC1) {
+            if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
+            level->hidden = tf_stack_pop(ctx);
+            binrec_save_stack(ctx, s, level);
+            level->stage = TF_BINREC_AFTER_FIRST;
+            binrec_push_level(s);
+            continue;
+        }
+
+        if (level->stage == TF_BINREC_AFTER_FIRST) {
+            binrec_release_stack(s, level);
+            tf_stack_push(ctx, level->hidden);
+            level->hidden = NULL;
+            level->stage = TF_BINREC_AFTER_SECOND;
+            binrec_push_level(s);
+            continue;
+        }
+
+        level->stage = TF_BINREC_COMBINE;
+        return tf_vm_call_callable(ctx, s->rec2);
     }
 
-    if (s->stage == TF_BINREC_THEN || s->stage == TF_BINREC_COMBINE) {
-        *done = true;
-        return TF_OK;
-    }
-
-    if (s->stage == TF_BINREC_REC1) {
-        if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
-        s->hidden = tf_stack_pop(ctx);
-        binrec_save_stack(ctx, s);
-        s->first_sandbox_active = true;
-        s->stage = TF_BINREC_AFTER_FIRST;
-        binrec_push_child(ctx, s);
-        *done = false;
-        return TF_OK;
-    }
-
-    if (s->stage == TF_BINREC_AFTER_FIRST) {
-        binrec_release_stack(s);
-        s->first_sandbox_active = false;
-        tf_stack_push(ctx, s->hidden);
-        s->hidden = NULL;
-        s->stage = TF_BINREC_AFTER_SECOND;
-        binrec_push_child(ctx, s);
-        *done = false;
-        return TF_OK;
-    }
-
-    s->stage = TF_BINREC_COMBINE;
-    *done = false;
-    return tf_vm_call_callable(ctx, s->rec2);
+    *done = true;
+    return TF_OK;
 }
 
 static void binrec_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
     binrec_state *s = state;
     predicate_eval_cleanup(ctx, &s->pred_eval);
-    if (s->first_sandbox_active) {
-        if (status != TF_OK) {
-            restore_stack_copy(ctx, s->saved_stack, s->saved_len);
-            if (s->hidden) {
-                tf_stack_push(ctx, s->hidden);
-                s->hidden = NULL;
+
+    while (s->levels_len > 0) {
+        binrec_level *level = &s->levels[s->levels_len - 1];
+        if (level->stage == TF_BINREC_AFTER_FIRST) {
+            if (status != TF_OK) {
+                restore_stack_copy(ctx, binrec_saved_stack(s, level),
+                                   level->saved_len);
+                if (level->hidden) {
+                    tf_stack_push(ctx, level->hidden);
+                    level->hidden = NULL;
+                }
             }
+            binrec_release_stack(s, level);
         }
-        binrec_release_stack(s);
+        if (level->hidden) tf_obj_release(level->hidden);
+        s->levels_len--;
     }
-    if (s->hidden) tf_obj_release(s->hidden);
+
+    if (s->levels != s->inline_levels) free(s->levels);
+    free(s->rollback_items);
     tf_obj_release(s->pred);
     tf_obj_release(s->then_b);
     tf_obj_release(s->rec1);
     tf_obj_release(s->rec2);
-    control_state_release(s, sizeof(*s));
-}
-
-typedef enum {
-    TF_GENREC_PRED,
-    TF_GENREC_THEN,
-    TF_GENREC_BEFORE,
-    TF_GENREC_AFTER_RECURSE,
-    TF_GENREC_AFTER
-} genrec_stage;
-
-typedef struct {
-    tf_obj *pred;
-    tf_obj *then_b;
-    tf_obj *before;
-    tf_obj *after;
-    genrec_stage stage;
-    predicate_eval pred_eval;
-} genrec_state;
-
-static void genrec_cleanup(tf_ctx *ctx, void *state, tf_ret status);
-
-static tf_ret genrec_step(tf_ctx *ctx, void *state, bool *done) {
-    genrec_state *s = state;
-    if (s->stage == TF_GENREC_PRED) {
-        bool ready = false;
-        bool is_done = false;
-        tf_ret res = predicate_eval_step(ctx, &s->pred_eval, s->pred, false, NULL, 0,
-                                         &ready, &is_done);
-        if (res != TF_OK || !ready) {
-            *done = false;
-            return res;
-        }
-
-        s->stage = is_done ? TF_GENREC_THEN : TF_GENREC_BEFORE;
-        *done = false;
-        return tf_vm_call_callable(ctx, is_done ? s->then_b : s->before);
-    }
-
-    if (s->stage == TF_GENREC_THEN || s->stage == TF_GENREC_AFTER) {
-        *done = true;
-        return TF_OK;
-    }
-
-    if (s->stage == TF_GENREC_BEFORE) {
-        genrec_state *child = control_state_acquire(sizeof(*child));
-        child->pred = s->pred;
-        child->then_b = s->then_b;
-        child->before = s->before;
-        child->after = s->after;
-        tf_obj_retain(child->pred);
-        tf_obj_retain(child->then_b);
-        tf_obj_retain(child->before);
-        tf_obj_retain(child->after);
-        child->stage = TF_GENREC_PRED;
-        predicate_eval_init(&child->pred_eval);
-        s->stage = TF_GENREC_AFTER_RECURSE;
-        tf_frame_push_native(ctx, genrec_step, genrec_cleanup, child);
-        *done = false;
-        return TF_OK;
-    }
-
-    s->stage = TF_GENREC_AFTER;
-    *done = false;
-    return tf_vm_call_callable(ctx, s->after);
-}
-
-static void genrec_cleanup(tf_ctx *ctx, void *state, tf_ret status) {
-    (void)status;
-    genrec_state *s = state;
-    predicate_eval_cleanup(ctx, &s->pred_eval);
-    tf_obj_release(s->pred);
-    tf_obj_release(s->then_b);
-    tf_obj_release(s->before);
-    tf_obj_release(s->after);
     control_state_release(s, sizeof(*s));
 }
 
@@ -2179,16 +2167,7 @@ tf_ret tf_linrec(tf_ctx *ctx) {
     then_b = tf_stack_pop(ctx);
     pred = tf_stack_pop(ctx);
 
-    linrec_state *state = control_state_acquire(sizeof(*state));
-    state->pred = pred;
-    state->then_b = then_b;
-    state->rec1 = rec1;
-    state->rec2 = rec2;
-    state->stage = TF_LINREC_PRED;
-    predicate_eval_init(&state->pred_eval);
-
-    tf_frame_push_native(ctx, linrec_step, linrec_cleanup, state);
-    return TF_OK;
+    return linear_rec_start(ctx, pred, then_b, rec1, rec2);
 }
 
 tf_ret tf_binrec(tf_ctx *ctx) {
@@ -2211,12 +2190,14 @@ tf_ret tf_binrec(tf_ctx *ctx) {
     state->then_b = then_b;
     state->rec1 = rec1;
     state->rec2 = rec2;
-    state->hidden = NULL;
-    state->saved_stack = NULL;
-    state->saved_len = 0;
-    state->first_sandbox_active = false;
-    state->stage = TF_BINREC_PRED;
     predicate_eval_init(&state->pred_eval);
+    state->levels = state->inline_levels;
+    state->levels_len = 0;
+    state->levels_cap = TF_BINREC_INLINE_LEVELS;
+    state->rollback_items = NULL;
+    state->rollback_len = 0;
+    state->rollback_cap = 0;
+    binrec_push_level(state);
 
     tf_frame_push_native(ctx, binrec_step, binrec_cleanup, state);
     return TF_OK;
@@ -2234,16 +2215,7 @@ tf_ret tf_genrec(tf_ctx *ctx) {
     tf_obj *then_b = tf_stack_pop(ctx);
     tf_obj *pred = tf_stack_pop(ctx);
 
-    genrec_state *state = control_state_acquire(sizeof(*state));
-    state->pred = pred;
-    state->then_b = then_b;
-    state->before = before;
-    state->after = after;
-    state->stage = TF_GENREC_PRED;
-    predicate_eval_init(&state->pred_eval);
-
-    tf_frame_push_native(ctx, genrec_step, genrec_cleanup, state);
-    return TF_OK;
+    return linear_rec_start(ctx, pred, then_b, before, after);
 }
 
 tf_ret tf_treerec(tf_ctx *ctx) {
