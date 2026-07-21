@@ -184,12 +184,13 @@ tf_ret tf_rand(tf_ctx *ctx) {
 tf_ret tf_sleep(tf_ctx *ctx) {
     if (!tf_ctx_require_type(ctx, 0, TF_OBJ_TYPE_INT)) return TF_ERR;
     tf_obj *ms_obj = tf_stack_peek(ctx, 0);
-    if (ms_obj->i < 0) {
+    int64_t milliseconds = tf_obj_int_value(ms_obj);
+    if (milliseconds < 0) {
         tf_ctx_runtime_errorf(ctx, "'sleep' duration must be non-negative\n");
         return TF_ERR;
     }
     ms_obj = tf_stack_pop(ctx);
-    int64_t remaining = ms_obj->i;
+    int64_t remaining = milliseconds;
 #ifdef _WIN32
     while (remaining > 0) {
         DWORD chunk = remaining > 86400000 ? 86400000 : (DWORD)remaining;

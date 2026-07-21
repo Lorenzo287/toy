@@ -412,7 +412,7 @@ static tf_obj *parser_tokenize_number(tf_parser *parser) {
             parser_errorf(parser, "integer literal is out of range\n");
             return NULL;
         }
-        o = tf_obj_new_int(value);
+        o = tf_obj_new_int_boxed(value);
     }
     parser_finish_span(parser, &span);
     tf_obj_set_span(o, span);

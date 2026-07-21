@@ -189,14 +189,17 @@ static void push_retained(tf_obj *vector, tf_obj *elem) {
 // one-byte string so the same callable protocol works for vectors, lists, and
 // strings.
 static bool is_sequence(tf_obj *o) {
-    return o->type == TF_OBJ_TYPE_VECTOR || o->type == TF_OBJ_TYPE_LIST ||
-           o->type == TF_OBJ_TYPE_STR;
+    tf_type type = tf_obj_typeof(o);
+    return type == TF_OBJ_TYPE_VECTOR || type == TF_OBJ_TYPE_LIST ||
+           type == TF_OBJ_TYPE_STR;
 }
 
 static bool require_condition(tf_ctx *ctx, size_t depth) {
     if (!tf_ctx_require_stack(ctx, depth + 1)) return false;
     tf_obj *o = tf_stack_peek(ctx, depth);
-    if (o->type == TF_OBJ_TYPE_BOOL || tf_obj_is_callable(o)) return true;
+    if (tf_obj_typeof(o) == TF_OBJ_TYPE_BOOL || tf_obj_is_callable(o)) {
+        return true;
+    }
 
     tf_ctx_runtime_errorf(
         ctx, "'%s' expected bool or callable at stack depth %zu, found %s\n",
@@ -205,7 +208,7 @@ static bool require_condition(tf_ctx *ctx, size_t depth) {
 }
 
 static bool require_callable_vector(tf_ctx *ctx, tf_obj *vector, const char *word) {
-    if (vector->type != TF_OBJ_TYPE_VECTOR) {
+    if (tf_obj_typeof(vector) != TF_OBJ_TYPE_VECTOR) {
         tf_ctx_runtime_errorf(ctx, "'%s' expected vector, found %s\n", word,
                               tf_obj_type_name(vector));
         return false;
@@ -228,7 +231,7 @@ static size_t sequence_len(tf_obj *seq) {
 }
 
 static bool is_char_string(tf_obj *o) {
-    return o->type == TF_OBJ_TYPE_STR && o->str.len == 1;
+    return tf_obj_typeof(o) == TF_OBJ_TYPE_STR && o->str.len == 1;
 }
 
 typedef struct {
@@ -965,7 +968,7 @@ static tf_ret predicate_eval_step(tf_ctx *ctx, predicate_eval *eval, tf_obj *pre
     *ready = false;
 
     if (eval->phase == TF_PRED_IDLE) {
-        if (pred->type == TF_OBJ_TYPE_BOOL) {
+        if (tf_obj_typeof(pred) == TF_OBJ_TYPE_BOOL) {
             if (!allow_bool || input_len != 0) return TF_ERR;
             *pred_val = pred->b;
             *ready = true;
@@ -1136,7 +1139,8 @@ static tf_ret cond_step(tf_ctx *ctx, void *state, bool *done) {
 
     while (s->index < s->clauses->vector.len) {
         tf_obj *clause = s->clauses->vector.elem[s->index];
-        if (clause->type != TF_OBJ_TYPE_VECTOR || clause->vector.len != 2) {
+        if (tf_obj_typeof(clause) != TF_OBJ_TYPE_VECTOR ||
+            clause->vector.len != 2) {
             return TF_ERR;
         }
 
@@ -1842,7 +1846,7 @@ static tf_ret treerec_step(tf_ctx *ctx, void *state, bool *done) {
     treerec_state *s = state;
 
     if (s->stage == TF_TREEREC_START) {
-        if (s->tree->type != TF_OBJ_TYPE_VECTOR) {
+        if (tf_obj_typeof(s->tree) != TF_OBJ_TYPE_VECTOR) {
             tf_stack_push(ctx, s->tree);
             tf_obj_retain(s->tree);
             s->stage = TF_TREEREC_LEAF_BODY;
@@ -2249,7 +2253,7 @@ tf_ret tf_replicate(tf_ctx *ctx) {
     body = tf_stack_pop(ctx);
     n_obj = tf_stack_pop(ctx);
 
-    int64_t n = n_obj->i;
+    int64_t n = tf_obj_int_value(n_obj);
     tf_obj_release(n_obj);
 
     if (n < 0) {
@@ -2287,7 +2291,7 @@ tf_ret tf_times(tf_ctx *ctx) {
     body = tf_stack_pop(ctx);
     n_obj = tf_stack_pop(ctx);
 
-    int64_t n = n_obj->i;
+    int64_t n = tf_obj_int_value(n_obj);
     if (n < 0) {
         tf_obj_release(body);
         tf_obj_release(n_obj);
@@ -2388,7 +2392,8 @@ tf_ret tf_split(tf_ctx *ctx) {
     tf_obj *pred = tf_stack_peek(ctx, 0);
     tf_obj *seq = tf_stack_peek(ctx, 1);
 
-    if (pred->type == TF_OBJ_TYPE_STR && seq->type == TF_OBJ_TYPE_STR) {
+    if (tf_obj_typeof(pred) == TF_OBJ_TYPE_STR &&
+        tf_obj_typeof(seq) == TF_OBJ_TYPE_STR) {
         return tf_split_string(ctx);
     }
 

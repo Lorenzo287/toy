@@ -27,8 +27,8 @@ typedef struct {
 static bool capture_is(tf_debug_capture_info *capture, const char *name,
                        int64_t value) {
     return strcmp(capture->name, name) == 0 &&
-           capture->value->type == TF_OBJ_TYPE_INT &&
-           capture->value->i == value;
+           tf_obj_typeof(capture->value) == TF_OBJ_TYPE_INT &&
+           tf_obj_int_value(capture->value) == value;
 }
 
 static tf_debug_action inspect_hook(tf_ctx *ctx,
@@ -94,8 +94,8 @@ int main(void) {
     CHECK(state.inspected && state.failure == NULL,
           state.failure ? state.failure : "hook inspection");
     CHECK(tf_stack_len(ctx) == 1 &&
-              tf_stack_peek(ctx, 0)->type == TF_OBJ_TYPE_INT &&
-              tf_stack_peek(ctx, 0)->i == 30,
+              tf_obj_typeof(tf_stack_peek(ctx, 0)) == TF_OBJ_TYPE_INT &&
+              tf_obj_int_value(tf_stack_peek(ctx, 0)) == 30,
           "program result");
 
     tf_debug_set_hook(ctx, NULL, NULL);

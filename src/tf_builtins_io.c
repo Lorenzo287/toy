@@ -50,7 +50,7 @@ tf_ret tf_printf(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_peek(ctx, 0);
 
-    if (o->type != TF_OBJ_TYPE_STR) {
+    if (tf_obj_typeof(o) != TF_OBJ_TYPE_STR) {
         o = tf_stack_pop(ctx);
         ctx_write_value(ctx, o, false);
         tf_obj_release(o);

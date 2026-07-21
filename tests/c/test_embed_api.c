@@ -177,6 +177,24 @@ int main(void) {
           "arithmetic result value");
     CHECK(toy_pop(first, 1), "pop arithmetic result");
 
+    CHECK(toy_push_int(first, INT64_MAX) == TOY_OK,
+          "push boxed-fallback integer");
+    toy_value *wide_integer = toy_value_retain(first, 0);
+    CHECK(wide_integer && toy_value_type(wide_integer) == TOY_TYPE_INT &&
+              toy_value_get_int(wide_integer, &integer) &&
+              integer == INT64_MAX,
+          "retain boxed-fallback integer");
+    CHECK(toy_pop(first, 1), "pop boxed-fallback integer");
+    toy_value_release(wide_integer);
+
+    CHECK(toy_push_int(first, 42) == TOY_OK, "push immediate integer");
+    toy_value *immediate_integer = toy_value_retain(first, 0);
+    CHECK(immediate_integer && toy_value_type(immediate_integer) == TOY_TYPE_INT &&
+              toy_value_get_int(immediate_integer, &integer) && integer == 42,
+          "retain immediate integer");
+    CHECK(toy_pop(first, 1), "pop immediate integer");
+    toy_value_release(immediate_integer);
+
     CHECK(toy_register_package(first, &host_package) == TOY_OK,
           "register package");
     CHECK(toy_eval(first, "<native>", "21 host.double") == TOY_OK,

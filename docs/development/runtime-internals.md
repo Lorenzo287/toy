@@ -146,9 +146,22 @@ implementation detail in these user-facing reports. Error suppression used by
 
 ## Object Layout
 
-Runtime values are boxed `tf_obj` records with reference counts. Collections
-store retained `tf_obj *` references, so most collection transformations move
-or share object references rather than deep-copying values.
+Most runtime values are boxed `tf_obj` records with reference counts.
+Collections store retained `tf_obj *` values, so most collection
+transformations move or share references rather than deep-copying values.
+
+On 64-bit targets, integers from -2^62 through 2^62-1 are encoded directly in
+the `tf_obj *` value using its otherwise-zero low alignment bit. Retaining or
+releasing one of these immediate integers is a no-op. Integers outside that
+range remain boxed, so Toy still exposes the complete signed 64-bit range and
+boxed and immediate integers have identical equality, hashing, display, and C
+API behavior. On 32-bit targets all integers remain boxed.
+
+Parsed integer literals are also kept boxed even when they fit the immediate
+range. Instructions own debugger source spans, while dynamically produced
+integers do not need that metadata. Arithmetic, ranges, indexed lengths, and
+the embedding API can therefore avoid transient integer allocations without
+weakening source-level diagnostics.
 
 Important object-level optimizations:
 
@@ -156,7 +169,8 @@ Important object-level optimizations:
   external element array;
 - short strings, symbols, and call nodes store bytes inline inside the object;
 - heap strings reuse otherwise idle inline bytes to remember capacity;
-- released `tf_obj` records can be reused through a bounded object cache;
+- released boxed `tf_obj` records can be reused through a bounded object
+  cache;
 - resource objects run their external destructor before their released object
   storage enters that cache;
 - many update-style words mutate only when `refcount == 1`, otherwise they

@@ -144,9 +144,10 @@ static void write_source_escaped_string(FILE *output, const char *text,
 
 static void write_source_value(FILE *output, tf_obj *value) {
     char number[64];
-    switch (value->type) {
+    switch (tf_obj_typeof(value)) {
     case TF_OBJ_TYPE_INT:
-        snprintf(number, sizeof number, "%" PRId64, value->i);
+        snprintf(number, sizeof number, "%" PRId64,
+                 tf_obj_int_value(value));
         write_source_cstr(output, number);
         break;
     case TF_OBJ_TYPE_FLOAT:

@@ -22,7 +22,7 @@ static const char *debug_user_word_name(tf_ctx *ctx, size_t frame_index,
         if (frame_is_program(caller->kind) && caller->as.program.pc > 0) {
             tf_obj *instruction = caller->as.program.program->vector.elem[
                 caller->as.program.pc - 1];
-            if (instruction->type == TF_OBJ_TYPE_CALL) {
+            if (tf_obj_typeof(instruction) == TF_OBJ_TYPE_CALL) {
                 return instruction->str.ptr;
             }
         }
@@ -60,11 +60,11 @@ bool tf_debug_get_frame(tf_ctx *ctx, size_t depth,
         info->pc = frame->as.program.pc;
         info->program_len = frame->as.program.program->vector.len;
         if (depth == 0 && info->pc < info->program_len) {
-            info->location =
-                frame->as.program.program->vector.elem[info->pc]->span;
+            info->location = tf_obj_span(
+                frame->as.program.program->vector.elem[info->pc]);
         } else if (info->pc > 0) {
-            info->location =
-                frame->as.program.program->vector.elem[info->pc - 1]->span;
+            info->location = tf_obj_span(
+                frame->as.program.program->vector.elem[info->pc - 1]);
         }
     }
     return true;

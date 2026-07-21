@@ -33,3 +33,19 @@ tau pi 2 * - abs 0.000000000001 < check
 0 6.9 - -6.9 == check
 'subtract [ | a | | b | $b $a neg + ] def
 10 5 subtract 5 == check
+
+\ Parsed literals keep source spans in boxed objects, while arithmetic results
+\ use immediate integers when they fit. Both representations remain equal,
+\ hash-identical, and preserve the full signed 64-bit range.
+4611686018427387902 succ 4611686018427387903 == check
+-4611686018427387903 pred -4611686018427387904 == check
+4611686018427387903 1 + 4611686018427387904 == check
+-4611686018427387904 pred -4611686018427387905 == check
+9223372036854775807 pred 9223372036854775806 == check
+-9223372036854775808 succ -9223372036854775807 == check
+
+{ 3 "boxed key" } 1 2 + get "boxed key" == check
+#{ 3 } 1 2 + has? true == check
+[ 3 ] 1 2 + contains? true == check
+[ ] 1 2 + push-back exec 3 == check
+1 2 + repr "3" == check

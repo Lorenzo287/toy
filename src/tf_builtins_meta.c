@@ -13,8 +13,9 @@
 tf_ret tf_number_q(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
-    tf_stack_push(ctx, tf_obj_new_bool(o->type == TF_OBJ_TYPE_INT ||
-                                    o->type == TF_OBJ_TYPE_FLOAT));
+    tf_type type = tf_obj_typeof(o);
+    tf_stack_push(ctx, tf_obj_new_bool(type == TF_OBJ_TYPE_INT ||
+                                      type == TF_OBJ_TYPE_FLOAT));
     tf_obj_release(o);
     return TF_OK;
 }
@@ -22,9 +23,10 @@ tf_ret tf_number_q(tf_ctx *ctx) {
 tf_ret tf_sequence_q(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
-    tf_stack_push(ctx, tf_obj_new_bool(o->type == TF_OBJ_TYPE_VECTOR ||
-                                       o->type == TF_OBJ_TYPE_LIST ||
-                                       o->type == TF_OBJ_TYPE_STR));
+    tf_type type = tf_obj_typeof(o);
+    tf_stack_push(ctx, tf_obj_new_bool(type == TF_OBJ_TYPE_VECTOR ||
+                                      type == TF_OBJ_TYPE_LIST ||
+                                      type == TF_OBJ_TYPE_STR));
     tf_obj_release(o);
     return TF_OK;
 }
@@ -32,9 +34,10 @@ tf_ret tf_sequence_q(tf_ctx *ctx) {
 tf_ret tf_callable_q(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
+    tf_type type = tf_obj_typeof(o);
     bool result =
-        o->type == TF_OBJ_TYPE_VECTOR ||
-        ((o->type == TF_OBJ_TYPE_SYMBOL || o->type == TF_OBJ_TYPE_CALL) &&
+        type == TF_OBJ_TYPE_VECTOR ||
+        ((type == TF_OBJ_TYPE_SYMBOL || type == TF_OBJ_TYPE_CALL) &&
          tf_dict_lookup(ctx, o) != NULL);
     tf_stack_push(ctx, tf_obj_new_bool(result));
     tf_obj_release(o);
@@ -95,7 +98,7 @@ tf_ret tf_import_as_declaration(tf_ctx *ctx) {
 tf_ret tf_nan_q(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
-    bool result = o->type == TF_OBJ_TYPE_FLOAT && isnan(o->f);
+    bool result = tf_obj_typeof(o) == TF_OBJ_TYPE_FLOAT && isnan(o->f);
     tf_stack_push(ctx, tf_obj_new_bool(result));
     tf_obj_release(o);
     return TF_OK;
@@ -104,7 +107,7 @@ tf_ret tf_nan_q(tf_ctx *ctx) {
 tf_ret tf_inf_q(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
-    bool result = o->type == TF_OBJ_TYPE_FLOAT && isinf(o->f);
+    bool result = tf_obj_typeof(o) == TF_OBJ_TYPE_FLOAT && isinf(o->f);
     tf_stack_push(ctx, tf_obj_new_bool(result));
     tf_obj_release(o);
     return TF_OK;
@@ -113,7 +116,8 @@ tf_ret tf_inf_q(tf_ctx *ctx) {
 tf_ret tf_word_q(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
-    bool result = o->type == TF_OBJ_TYPE_SYMBOL && tf_dict_lookup(ctx, o) != NULL;
+    bool result = tf_obj_typeof(o) == TF_OBJ_TYPE_SYMBOL &&
+                  tf_dict_lookup(ctx, o) != NULL;
     tf_stack_push(ctx, tf_obj_new_bool(result));
     tf_obj_release(o);
     return TF_OK;
@@ -123,7 +127,8 @@ tf_ret tf_var_q(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
     bool result =
-        o->type == TF_OBJ_TYPE_SYMBOL && tf_scope_lookup_var(ctx, o) != NULL;
+        tf_obj_typeof(o) == TF_OBJ_TYPE_SYMBOL &&
+        tf_scope_lookup_var(ctx, o) != NULL;
     tf_stack_push(ctx, tf_obj_new_bool(result));
     tf_obj_release(o);
     return TF_OK;
@@ -160,7 +165,8 @@ tf_ret tf_body(tf_ctx *ctx) {
 tf_ret tf_to_symbol(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *value = tf_stack_peek(ctx, 0);
-    if (value->type != TF_OBJ_TYPE_STR && value->type != TF_OBJ_TYPE_CALL) {
+    tf_type type = tf_obj_typeof(value);
+    if (type != TF_OBJ_TYPE_STR && type != TF_OBJ_TYPE_CALL) {
         tf_ctx_runtime_errorf(ctx,
                               "'%s' expected string or call at stack depth 0, "
                               "found %s\n",
@@ -199,7 +205,7 @@ tf_ret tf_name(tf_ctx *ctx) {
 static tf_ret type_check(tf_ctx *ctx, tf_type type) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
-    tf_stack_push(ctx, tf_obj_new_bool(o->type == type));
+    tf_stack_push(ctx, tf_obj_new_bool(tf_obj_typeof(o) == type));
     tf_obj_release(o);
     return TF_OK;
 }
@@ -248,7 +254,7 @@ tf_ret tf_typeof(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *o = tf_stack_pop(ctx);
     const char *type_str = "unknown";
-    switch (o->type) {
+    switch (tf_obj_typeof(o)) {
     case TF_OBJ_TYPE_BOOL:
         type_str = "bool";
         break;
@@ -416,9 +422,10 @@ static void strbuf_append_escaped(strbuf *buf, const char *s, size_t len) {
 static void strbuf_append_source_obj(strbuf *buf, tf_obj *o) {
     char num_buf[64];
 
-    switch (o->type) {
+    switch (tf_obj_typeof(o)) {
     case TF_OBJ_TYPE_INT:
-        snprintf(num_buf, sizeof num_buf, "%" PRId64, o->i);
+        snprintf(num_buf, sizeof num_buf, "%" PRId64,
+                 tf_obj_int_value(o));
         strbuf_append_cstr(buf, num_buf);
         break;
     case TF_OBJ_TYPE_FLOAT:
@@ -673,7 +680,8 @@ tf_ret tf_doc(tf_ctx *ctx) {
 tf_ret tf_apropos(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 1)) return TF_ERR;
     tf_obj *query = tf_stack_peek(ctx, 0);
-    if (query->type != TF_OBJ_TYPE_STR && query->type != TF_OBJ_TYPE_SYMBOL) {
+    tf_type query_type = tf_obj_typeof(query);
+    if (query_type != TF_OBJ_TYPE_STR && query_type != TF_OBJ_TYPE_SYMBOL) {
         tf_ctx_runtime_errorf(
             ctx, "'%s' expected string or symbol at stack depth 0, found %s\n",
             ctx->current_word, tf_obj_type_name(query));
@@ -713,12 +721,12 @@ tf_ret tf_def(tf_ctx *ctx) {
     if (!tf_ctx_require_stack(ctx, 2)) return TF_ERR;
     tf_obj *body = tf_stack_peek(ctx, 0);
     tf_obj *word_name = tf_stack_peek(ctx, 1);
-    if (word_name->type != TF_OBJ_TYPE_SYMBOL) {
+    if (tf_obj_typeof(word_name) != TF_OBJ_TYPE_SYMBOL) {
         tf_ctx_runtime_errorf(ctx, "'def' expected symbol at stack depth 1, found %s\n",
                               tf_obj_type_name(word_name));
         return TF_ERR;
     }
-    if (body->type != TF_OBJ_TYPE_VECTOR) {
+    if (tf_obj_typeof(body) != TF_OBJ_TYPE_VECTOR) {
         tf_ctx_runtime_errorf(ctx, "'def' expected vector at stack depth 0, found %s\n",
                               tf_obj_type_name(body));
         return TF_ERR;

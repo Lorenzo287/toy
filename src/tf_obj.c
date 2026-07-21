@@ -172,10 +172,15 @@ static void list_node_storage_clear(void) {
 }
 
 static tf_obj *obj_storage_acquire(void) {
-    if (!obj_cache) return tf_xmalloc(sizeof(tf_obj));
+    if (!obj_cache) {
+        tf_obj *o = tf_xmalloc(sizeof(tf_obj));
+        assert(!tf_obj_is_immediate_int(o));
+        return o;
+    }
     tf_obj_cache_node *node = obj_cache;
     obj_cache = node->next;
     obj_cache_len--;
+    assert(!tf_obj_is_immediate_int((tf_obj *)node));
     return (tf_obj *)node;
 }
 
@@ -270,10 +275,22 @@ tf_obj *tf_obj_new_pqueue(void) {
     return o;
 }
 
-tf_obj *tf_obj_new_int(int64_t i) {
+tf_obj *tf_obj_new_int_boxed(int64_t i) {
     tf_obj *o = tf_obj_new(TF_OBJ_TYPE_INT);
     o->i = i;
     return o;
+}
+
+tf_obj *tf_obj_new_int(int64_t i) {
+#if UINTPTR_MAX == UINT64_MAX
+    const int64_t immediate_min = -(INT64_C(4611686018427387903)) - 1;
+    const int64_t immediate_max = INT64_C(4611686018427387903);
+    if (i >= immediate_min && i <= immediate_max) {
+        uintptr_t encoded = ((uintptr_t)(uint64_t)i << 1) | (uintptr_t)1;
+        return (tf_obj *)encoded;
+    }
+#endif
+    return tf_obj_new_int_boxed(i);
 }
 
 tf_obj *tf_obj_new_bool(bool b) {
@@ -368,6 +385,8 @@ size_t tf_source_file_package(tf_source_file *source) {
 
 void tf_obj_set_span(tf_obj *o, tf_source_span span) {
     if (!o) return;
+    assert(!tf_obj_is_immediate_int(o));
+    if (tf_obj_is_immediate_int(o)) return;
     tf_source_file_retain(span.source);
     tf_source_file_release(o->span.source);
     o->span = span;
@@ -406,15 +425,20 @@ tf_obj *tf_obj_new_resource(const char *type_name, size_t type_len,
 }
 
 int tf_obj_compare_number(tf_obj *a, tf_obj *b) {
-    if (a->type == TF_OBJ_TYPE_INT && b->type == TF_OBJ_TYPE_INT) {
-        return (a->i > b->i) - (a->i < b->i);
+    tf_type a_type = tf_obj_typeof(a);
+    tf_type b_type = tf_obj_typeof(b);
+    if (a_type == TF_OBJ_TYPE_INT && b_type == TF_OBJ_TYPE_INT) {
+        int64_t a_value = tf_obj_int_value(a);
+        int64_t b_value = tf_obj_int_value(b);
+        return (a_value > b_value) - (a_value < b_value);
     }
-    if (a->type == TF_OBJ_TYPE_FLOAT && b->type == TF_OBJ_TYPE_FLOAT) {
+    if (a_type == TF_OBJ_TYPE_FLOAT && b_type == TF_OBJ_TYPE_FLOAT) {
         return (a->f > b->f) - (a->f < b->f);
     }
 
-    tf_obj *int_obj = a->type == TF_OBJ_TYPE_INT ? a : b;
-    tf_obj *float_obj = a->type == TF_OBJ_TYPE_FLOAT ? a : b;
+    tf_obj *int_obj = a_type == TF_OBJ_TYPE_INT ? a : b;
+    tf_obj *float_obj = a_type == TF_OBJ_TYPE_FLOAT ? a : b;
+    int64_t int_value = tf_obj_int_value(int_obj);
     double value = float_obj->f;
     if (isnan(value)) return 0;
     int order = 0;
@@ -425,9 +449,9 @@ int tf_obj_compare_number(tf_obj *a, tf_obj *b) {
     } else {
         double truncated = trunc(value);
         int64_t converted = (int64_t)truncated;
-        if (int_obj->i < converted)
+        if (int_value < converted)
             order = -1;
-        else if (int_obj->i > converted)
+        else if (int_value > converted)
             order = 1;
         else if (value > truncated)
             order = -1;
@@ -520,7 +544,7 @@ void tf_vector_push(tf_obj *v, tf_obj *elem) {
 tf_obj *tf_vector_pop_type(tf_obj *v, tf_type type) {
     if (v->vector.len == 0) return NULL;
     tf_obj *o = v->vector.elem[v->vector.len - 1];
-    if (o->type != type) return NULL;
+    if (tf_obj_typeof(o) != type) return NULL;
     return tf_vector_pop(v);
 }
 
@@ -748,18 +772,20 @@ static uint64_t hash_mix_u64(uint64_t h, uint64_t value) {
 
 bool tf_obj_hashable(tf_obj *o) {
     if (!o) return false;
-    return o->type == TF_OBJ_TYPE_BOOL || o->type == TF_OBJ_TYPE_INT ||
-           o->type == TF_OBJ_TYPE_STR || o->type == TF_OBJ_TYPE_SYMBOL;
+    tf_type type = tf_obj_typeof(o);
+    return type == TF_OBJ_TYPE_BOOL || type == TF_OBJ_TYPE_INT ||
+           type == TF_OBJ_TYPE_STR || type == TF_OBJ_TYPE_SYMBOL;
 }
 
 uint64_t tf_obj_hash(tf_obj *o) {
     uint64_t h = 1469598103934665603ULL;
-    h = hash_mix_u64(h, (uint64_t)o->type);
-    switch (o->type) {
+    tf_type type = tf_obj_typeof(o);
+    h = hash_mix_u64(h, (uint64_t)type);
+    switch (type) {
     case TF_OBJ_TYPE_BOOL:
         return hash_mix_u64(h, o->b ? 1 : 0);
     case TF_OBJ_TYPE_INT:
-        return hash_mix_u64(h, (uint64_t)o->i);
+        return hash_mix_u64(h, (uint64_t)tf_obj_int_value(o));
     case TF_OBJ_TYPE_STR:
     case TF_OBJ_TYPE_SYMBOL:
         return fnv1a_bytes(o->str.ptr, o->str.len, h);
@@ -1288,13 +1314,14 @@ bool tf_pqueue_pop(tf_obj *pqueue, tf_obj **priority, tf_obj **value) {
 static bool obj_equal_inner(tf_obj *a, tf_obj *b, size_t depth) {
     if (a == b) return true;
     if (!a || !b || depth > TF_EQUAL_MAX_DEPTH) return false;
-    if (a->type != b->type) return false;
+    tf_type type = tf_obj_typeof(a);
+    if (type != tf_obj_typeof(b)) return false;
 
-    switch (a->type) {
+    switch (type) {
     case TF_OBJ_TYPE_BOOL:
         return a->b == b->b;
     case TF_OBJ_TYPE_INT:
-        return a->i == b->i;
+        return tf_obj_int_value(a) == tf_obj_int_value(b);
     case TF_OBJ_TYPE_FLOAT:
         return a->f == b->f;
     case TF_OBJ_TYPE_STR:
@@ -1387,17 +1414,8 @@ bool tf_obj_equal(tf_obj *a, tf_obj *b) {
     return obj_equal_inner(a, b, 0);
 }
 
-void tf_obj_retain(tf_obj *o) {
-    o->refcount++;
-}
-
-void tf_obj_release(tf_obj *o) {
-    assert(o->refcount > 0);
-    o->refcount--;
-    if (o->refcount == 0) tf_obj_free(o);
-}
-
 void tf_obj_free(tf_obj *o) {
+    assert(!tf_obj_is_immediate_int(o));
     tf_source_file_release(o->span.source);
     switch (o->type) {
     case TF_OBJ_TYPE_VARLIST:
@@ -1501,9 +1519,9 @@ static void fprint_escaped_string(FILE *output, const char *s, size_t len) {
 // Debug printer: includes type tags and is intended for developer inspection
 void tf_obj_print(tf_obj *o, size_t *count) {
     (*count)++;
-    switch (o->type) {
+    switch (tf_obj_typeof(o)) {
     case TF_OBJ_TYPE_INT:
-        printf("(int:%" PRId64 ")", o->i);
+        printf("(int:%" PRId64 ")", tf_obj_int_value(o));
         break;
     case TF_OBJ_TYPE_FLOAT: {
         char buf[64];
@@ -1669,9 +1687,10 @@ static void writer_printf(obj_writer *writer, const char *fmt, ...) {
 
 // Runtime printer: prints values the way user-facing words like `print` expect
 static void write_value_like(obj_writer *writer, tf_obj *o, bool color) {
+    tf_type type = tf_obj_typeof(o);
     const char *escape = NULL;
     if (color) {
-        switch (o->type) {
+        switch (type) {
         case TF_OBJ_TYPE_INT:
         case TF_OBJ_TYPE_FLOAT:
             escape = "\x1b[37;1m"; // Light Gray / White
@@ -1705,9 +1724,9 @@ static void write_value_like(obj_writer *writer, tf_obj *o, bool color) {
         if (escape) writer_cstr(writer, escape);
     }
 
-    switch (o->type) {
+    switch (type) {
     case TF_OBJ_TYPE_INT:
-        writer_printf(writer, "%" PRId64, o->i);
+        writer_printf(writer, "%" PRId64, tf_obj_int_value(o));
         break;
     case TF_OBJ_TYPE_FLOAT: {
         char buf[64];
@@ -1877,9 +1896,10 @@ static void writer_escaped_string(obj_writer *writer, const char *s,
 
 static void write_source_like(obj_writer *writer, tf_obj *o, bool display,
                               bool color) {
+    tf_type type = tf_obj_typeof(o);
     const char *escape = NULL;
     if (color) {
-        switch (o->type) {
+        switch (type) {
         case TF_OBJ_TYPE_INT:
         case TF_OBJ_TYPE_FLOAT:
             escape = "\x1b[37;1m"; // Light Gray / White
@@ -1913,9 +1933,9 @@ static void write_source_like(obj_writer *writer, tf_obj *o, bool display,
         if (escape) writer_cstr(writer, escape);
     }
 
-    switch (o->type) {
+    switch (type) {
     case TF_OBJ_TYPE_INT:
-        writer_printf(writer, "%" PRId64, o->i);
+        writer_printf(writer, "%" PRId64, tf_obj_int_value(o));
         break;
     case TF_OBJ_TYPE_FLOAT: {
         char buf[64];

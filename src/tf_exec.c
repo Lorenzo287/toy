@@ -201,8 +201,9 @@ size_t tf_current_package_index(tf_ctx *ctx) {
 }
 
 static size_t program_package_index(tf_ctx *ctx, tf_obj *program) {
-    if (program && program->span.source) {
-        return tf_source_file_package(program->span.source);
+    tf_source_span span = program ? tf_obj_span(program) : (tf_source_span){0};
+    if (span.source) {
+        return tf_source_file_package(span.source);
     }
     return tf_current_package_index(ctx);
 }
@@ -595,7 +596,7 @@ const char *tf_type_name(tf_type type) {
 }
 
 const char *tf_obj_type_name(tf_obj *o) {
-    return o ? tf_type_name(o->type) : "missing";
+    return o ? tf_type_name(tf_obj_typeof(o)) : "missing";
 }
 
 bool tf_ctx_require_stack(tf_ctx *ctx, size_t needed) {
@@ -612,7 +613,7 @@ bool tf_ctx_require_type(tf_ctx *ctx, size_t depth, tf_type type) {
     if (!tf_ctx_require_stack(ctx, depth + 1)) return false;
 
     tf_obj *o = tf_stack_peek(ctx, depth);
-    if (o->type == type) return true;
+    if (tf_obj_typeof(o) == type) return true;
 
     tf_ctx_runtime_errorf(ctx, "'%s' expected %s at stack depth %zu, found %s\n",
                           current_word_name(ctx), tf_type_name(type), depth,
@@ -624,7 +625,8 @@ bool tf_ctx_require_number(tf_ctx *ctx, size_t depth) {
     if (!tf_ctx_require_stack(ctx, depth + 1)) return false;
 
     tf_obj *o = tf_stack_peek(ctx, depth);
-    if (o->type == TF_OBJ_TYPE_INT || o->type == TF_OBJ_TYPE_FLOAT) return true;
+    tf_type type = tf_obj_typeof(o);
+    if (type == TF_OBJ_TYPE_INT || type == TF_OBJ_TYPE_FLOAT) return true;
 
     tf_ctx_runtime_errorf(ctx, "'%s' expected number at stack depth %zu, found %s\n",
                           current_word_name(ctx), depth, tf_obj_type_name(o));
@@ -635,8 +637,9 @@ bool tf_ctx_require_sequence(tf_ctx *ctx, size_t depth) {
     if (!tf_ctx_require_stack(ctx, depth + 1)) return false;
 
     tf_obj *o = tf_stack_peek(ctx, depth);
-    if (o->type == TF_OBJ_TYPE_VECTOR || o->type == TF_OBJ_TYPE_LIST ||
-        o->type == TF_OBJ_TYPE_STR) return true;
+    tf_type type = tf_obj_typeof(o);
+    if (type == TF_OBJ_TYPE_VECTOR || type == TF_OBJ_TYPE_LIST ||
+        type == TF_OBJ_TYPE_STR) return true;
 
     tf_ctx_runtime_errorf(ctx, "'%s' expected sequence at stack depth %zu, found %s\n",
                           current_word_name(ctx), depth, tf_obj_type_name(o));
@@ -758,8 +761,8 @@ static tf_ret dict_call_resolved(tf_ctx *ctx, tf_word *word) {
 tf_ret tf_vm_exec_package(tf_ctx *ctx, tf_obj *program,
                           size_t package_index) {
     tf_ctx_clear_error(ctx);
-    ctx->current_span = program ? program->span : (tf_source_span){0};
-    if (program->type != TF_OBJ_TYPE_VECTOR) {
+    ctx->current_span = program ? tf_obj_span(program) : (tf_source_span){0};
+    if (tf_obj_typeof(program) != TF_OBJ_TYPE_VECTOR) {
         if (ctx->error_suppression_depth == 0) {
             tf_ctx_runtime_errorf(ctx, "attempted to execute non-vector object\n");
         }
@@ -810,9 +813,10 @@ tf_ret tf_vm_exec_package(tf_ctx *ctx, tf_obj *program,
 
         size_t pc = f->as.program.pc;
         tf_obj *o = f->as.program.program->vector.elem[pc];
-        ctx->current_span = o->span;
+        tf_source_span span = tf_obj_span(o);
+        ctx->current_span = span;
         if (!debug_continuing && ctx->debug_hook) {
-            tf_debug_event event = {o, o->span, pc, ctx->call_stack_len};
+            tf_debug_event event = {o, span, pc, ctx->call_stack_len};
             tf_debug_action action =
                 ctx->debug_hook(ctx, &event, ctx->debug_userdata);
             if (action == TF_DEBUG_ABORT) {
@@ -823,7 +827,7 @@ tf_ret tf_vm_exec_package(tf_ctx *ctx, tf_obj *program,
             if (action == TF_DEBUG_CONTINUE) debug_continuing = true;
         }
         f->as.program.pc++;
-        switch (o->type) {
+        switch (tf_obj_typeof(o)) {
         case TF_OBJ_TYPE_CALL: {
             ctx->current_word = o->str.ptr;
             tf_word *word = tf_dict_lookup(ctx, o);
@@ -907,18 +911,19 @@ tf_ret tf_vm_exec(tf_ctx *ctx, tf_obj *program) {
 }
 
 bool tf_obj_is_callable(tf_obj *o) {
-    return o && (o->type == TF_OBJ_TYPE_VECTOR ||
-                 o->type == TF_OBJ_TYPE_SYMBOL ||
-                 o->type == TF_OBJ_TYPE_CALL);
+    if (!o) return false;
+    tf_type type = tf_obj_typeof(o);
+    return type == TF_OBJ_TYPE_VECTOR || type == TF_OBJ_TYPE_SYMBOL ||
+           type == TF_OBJ_TYPE_CALL;
 }
 
 tf_ret tf_vm_call_callable(tf_ctx *ctx, tf_obj *callable) {
-    if (callable->type == TF_OBJ_TYPE_VECTOR) {
+    tf_type type = tf_obj_typeof(callable);
+    if (type == TF_OBJ_TYPE_VECTOR) {
         tf_frame_push_program(ctx, callable);
         return TF_OK;
     }
-    if (callable->type == TF_OBJ_TYPE_SYMBOL ||
-        callable->type == TF_OBJ_TYPE_CALL) {
+    if (type == TF_OBJ_TYPE_SYMBOL || type == TF_OBJ_TYPE_CALL) {
         tf_word *word = tf_dict_lookup(ctx, callable);
         if (!word) {
             tf_ctx_runtime_errorf(ctx, "undefined word '%s'\n",

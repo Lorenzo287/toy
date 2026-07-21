@@ -1,6 +1,7 @@
 #ifndef TF_OBJ_H
 #define TF_OBJ_H
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -35,7 +36,8 @@ typedef struct {
 } tf_source_span;
 
 /*
- * Refcounted runtime value.
+ * Boxed, refcounted runtime value. Small integers may instead use the tagged
+ * `tf_obj *` representation described below.
  *
  * Vectors back indexed data and executable quotations. Lists are persistent
  * cons-style sequences. Symbols are inert names; calls use the same string
@@ -146,6 +148,42 @@ _Static_assert(sizeof(((tf_obj *)0)->str) <= sizeof(((tf_obj *)0)->map),
                "inline string storage must not increase tf_obj size");
 _Static_assert(sizeof(((tf_obj *)0)->resource) <= sizeof(((tf_obj *)0)->map),
                "resource storage must not increase tf_obj size");
+_Static_assert(_Alignof(tf_obj) >= 2,
+               "boxed object pointers must leave the low tag bit clear");
+
+/* On 64-bit targets, values in the signed 63-bit range use the low pointer bit
+ * as an immediate-integer tag. Full-width outliers remain boxed. */
+static inline bool tf_obj_is_immediate_int(const tf_obj *o) {
+#if UINTPTR_MAX == UINT64_MAX
+    return o && (((uintptr_t)o & (uintptr_t)1) != 0);
+#else
+    (void)o;
+    return false;
+#endif
+}
+
+static inline tf_type tf_obj_typeof(const tf_obj *o) {
+    return tf_obj_is_immediate_int(o) ? TF_OBJ_TYPE_INT : o->type;
+}
+
+static inline int64_t tf_obj_int_value(const tf_obj *o) {
+    if (!tf_obj_is_immediate_int(o)) return o->i;
+#if UINTPTR_MAX == UINT64_MAX
+    uint64_t payload = (uint64_t)(uintptr_t)o >> 1;
+    if ((payload & (UINT64_C(1) << 62)) == 0) return (int64_t)payload;
+    uint64_t magnitude = (~payload + 1) & ((UINT64_C(1) << 63) - 1);
+    if (magnitude == (UINT64_C(1) << 62)) {
+        return -(INT64_C(4611686018427387903)) - 1;
+    }
+    return -(int64_t)magnitude;
+#else
+    return o->i;
+#endif
+}
+
+static inline tf_source_span tf_obj_span(const tf_obj *o) {
+    return tf_obj_is_immediate_int(o) ? (tf_source_span){0} : o->span;
+}
 
 /* Non-owning cursor over a sequence owned by the caller. */
 typedef struct {
@@ -154,7 +192,8 @@ typedef struct {
     tf_list_node *node;
 } tf_sequence_iter;
 
-/* Object constructors. Returned objects start with refcount 1. */
+/* Object constructors. Boxed results start with refcount 1; ownership helpers
+ * apply uniformly to immediate integers. */
 tf_obj *tf_obj_new(int type);
 tf_obj *tf_obj_new_vector(void);
 tf_obj *tf_obj_new_vector_with_capacity(size_t capacity);
@@ -164,6 +203,8 @@ tf_obj *tf_obj_new_set(void);
 tf_obj *tf_obj_new_deque(void);
 tf_obj *tf_obj_new_pqueue(void);
 tf_obj *tf_obj_new_int(int64_t i);
+/* Parser-only form for source literals whose debugger span must be retained. */
+tf_obj *tf_obj_new_int_boxed(int64_t i);
 tf_obj *tf_obj_new_bool(bool b);
 tf_obj *tf_obj_new_float(double f);
 tf_obj *tf_obj_new_symbol(const char *s, size_t len);
@@ -239,10 +280,22 @@ void tf_pqueue_push(tf_obj *pqueue, tf_obj *priority, tf_obj *value);
 bool tf_pqueue_peek(tf_obj *pqueue, tf_obj **priority, tf_obj **value);
 bool tf_pqueue_pop(tf_obj *pqueue, tf_obj **priority, tf_obj **value);
 
-/* Reference-count ownership. */
-void tf_obj_retain(tf_obj *o);
-void tf_obj_release(tf_obj *o);
+/* Reference-count ownership. Immediate integers make both operations no-ops;
+ * keep that path inline because stack and frame movement call it frequently. */
 void tf_obj_free(tf_obj *o);
+
+static inline void tf_obj_retain(tf_obj *o) {
+    if (tf_obj_is_immediate_int(o)) return;
+    o->refcount++;
+}
+
+static inline void tf_obj_release(tf_obj *o) {
+    if (tf_obj_is_immediate_int(o)) return;
+    assert(o->refcount > 0);
+    o->refcount--;
+    if (o->refcount == 0) tf_obj_free(o);
+}
+
 void tf_obj_cache_clear(void);
 
 /* Debug, runtime-value, and source-form printers. */

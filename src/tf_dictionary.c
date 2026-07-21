@@ -257,8 +257,8 @@ static tf_word *dict_lookup_uncached(tf_ctx *ctx, size_t current_package,
 }
 
 tf_word *tf_dict_lookup(tf_ctx *ctx, tf_obj *name) {
-    if (!name || (name->type != TF_OBJ_TYPE_SYMBOL &&
-                  name->type != TF_OBJ_TYPE_CALL)) {
+    if (!name || (tf_obj_typeof(name) != TF_OBJ_TYPE_SYMBOL &&
+                  tf_obj_typeof(name) != TF_OBJ_TYPE_CALL)) {
         return NULL;
     }
 
