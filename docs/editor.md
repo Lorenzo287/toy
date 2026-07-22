@@ -22,6 +22,11 @@ delimiter_spacing = "spaced"
 (`[1 2]`). Set `disable = true` for formatting-sensitive source such as a
 quine. Command-line flags override project configuration.
 
+Vectors use a small layout hint: a newline immediately after `[` makes the
+matching `]` multiline and aligned with the opener. Inline vectors keep their
+existing line layout, including comments and nested statements. Other
+delimiters do not use this hint.
+
 The language server uses the same formatter for
 `textDocument/formatting`. With an LSP client attached, Neovim can format a
 buffer with:
@@ -36,7 +41,9 @@ vim.lsp.buf.format({ async = false })
 references, rename, document symbols, builtin and source documentation on
 hover, and formatting. It understands top-level definitions, captures,
 privacy, qualified package words, and literal `import` and `import-as` paths.
-Open buffers override files on disk during analysis.
+Rename and references cover every direct source file in a package directory and
+the workspace files that import that package. Open buffers override files on
+disk during analysis.
 
 The server is installed with Toy. A minimal Neovim setup is:
 

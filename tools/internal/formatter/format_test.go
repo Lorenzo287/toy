@@ -80,6 +80,48 @@ func TestFormatTabsAndFinalNewline(t *testing.T) {
 	}
 }
 
+func TestFormatKeepsInlineAndMultilineVectorLayouts(t *testing.T) {
+	source := []byte("[ 1\n2\n]\n[\n1\n]")
+	want := "[ 1\n    2\n]\n[\n    1\n]\n"
+
+	got, err := Format(source, DefaultOptions())
+	if err != nil {
+		t.Fatalf("Format() error = %v", err)
+	}
+	if string(got) != want {
+		t.Fatalf("Format() = %q, want %q", got, want)
+	}
+
+	again, err := Format(got, DefaultOptions())
+	if err != nil {
+		t.Fatalf("Format(formatted) error = %v", err)
+	}
+	if string(again) != want {
+		t.Fatalf("formatter is not idempotent: first %q, second %q", got, again)
+	}
+}
+
+func TestFormatMovesOnlyMultilineVectorClosers(t *testing.T) {
+	source := []byte("[\n1 2]\n[ 1\n2]")
+	want := "[\n    1 2\n]\n[ 1\n    2 ]\n"
+
+	got, err := Format(source, DefaultOptions())
+	if err != nil {
+		t.Fatalf("Format() error = %v", err)
+	}
+	if string(got) != want {
+		t.Fatalf("Format() = %q, want %q", got, want)
+	}
+
+	again, err := Format(got, DefaultOptions())
+	if err != nil {
+		t.Fatalf("Format(formatted) error = %v", err)
+	}
+	if string(again) != want {
+		t.Fatalf("formatter is not idempotent: first %q, second %q", got, again)
+	}
+}
+
 func TestFormatRejectsMalformedInput(t *testing.T) {
 	_, err := Format([]byte("[ 1 2"), DefaultOptions())
 	if err == nil {

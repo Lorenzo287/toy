@@ -249,6 +249,51 @@ m.double`)
 	}
 }
 
+func TestRenameCoversEveryFileInDirectoryPackagesAndImporters(t *testing.T) {
+	root := t.TempDir()
+	mathDefinition := writeToyFile(t, root, filepath.Join("math", "arithmetic.toy"), "'math package\n'double [ 2 * ] def\n")
+	mathUse := writeToyFile(t, root, filepath.Join("math", "derived.toy"), "'math package\n'quad [ double 2 * ] def\n")
+	appMain := writeToyFile(t, root, filepath.Join("app", "main.toy"), "'main package\n\"../math\" import\n'helper [ math.double ] def\n")
+	appUse := writeToyFile(t, root, filepath.Join("app", "other.toy"), "'main package\nmath.double\n")
+
+	server := NewServer(log.New(io.Discard, "", 0))
+	server.docs.configureWorkspace(initializeParams{RootURI: testFileURI(root)})
+
+	target, ok := server.resolveDefinition(testFileURI(appUse), analysis.Position{Line: 1, Character: 6})
+	if !ok || target.URI != testFileURI(mathDefinition) {
+		t.Fatalf("package target = %+v, %v", target, ok)
+	}
+
+	occurrences := server.wordOccurrences(target, true)
+	byURI := make(map[string]int)
+	for _, occurrence := range occurrences {
+		byURI[occurrence.URI]++
+	}
+	want := map[string]int{
+		testFileURI(mathDefinition): 1,
+		testFileURI(mathUse):        1,
+		testFileURI(appMain):        1,
+		testFileURI(appUse):         1,
+	}
+	if len(occurrences) != len(want) {
+		t.Fatalf("occurrences = %+v, want one edit in each package file and importer", occurrences)
+	}
+	for uri, count := range want {
+		if byURI[uri] != count {
+			t.Fatalf("occurrences by URI = %+v, want %q count %d", byURI, uri, count)
+		}
+	}
+
+	// A newly-created, unsaved package file still belongs to the directory
+	// package and must participate in a rename.
+	unsavedPath := filepath.Join(root, "math", "new.toy")
+	server.docs.open(testFileURI(unsavedPath), "'math package\n'double-again [ double ] def\n", 1)
+	occurrences = server.wordOccurrences(target, true)
+	if len(occurrences) != len(want)+1 {
+		t.Fatalf("occurrences with unsaved package file = %+v", occurrences)
+	}
+}
+
 func TestSafeCorePackagePath(t *testing.T) {
 	tests := map[string]bool{
 		"ffi":           true,

@@ -343,22 +343,57 @@ func safeCorePackagePath(path string) bool {
 }
 
 func (s *documentStore) packageDocuments(directory string) []*document {
-	entries, err := os.ReadDir(directory)
+	if directory == "" {
+		return nil
+	}
+	absolute, err := filepath.Abs(directory)
 	if err != nil {
 		return nil
 	}
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Name() < entries[j].Name()
-	})
+	absolute = filepath.Clean(absolute)
+	packageKey := packageDirectoryKey(absolute)
+	if packageKey == "" {
+		return nil
+	}
+
+	entries, err := os.ReadDir(absolute)
+	seen := make(map[string]bool)
 	documents := make([]*document, 0)
-	for _, entry := range entries {
-		if entry.IsDir() || strings.ToLower(filepath.Ext(entry.Name())) != ".toy" {
+	if err == nil {
+		sort.Slice(entries, func(i, j int) bool {
+			return entries[i].Name() < entries[j].Name()
+		})
+		for _, entry := range entries {
+			if entry.IsDir() || strings.ToLower(filepath.Ext(entry.Name())) != ".toy" {
+				continue
+			}
+			if doc, ok := s.getPath(filepath.Join(absolute, entry.Name())); ok {
+				seen[doc.URI] = true
+				documents = append(documents, doc)
+			}
+		}
+	}
+
+	// An open buffer may represent a newly-created file that is not on disk
+	// yet.  Keep it in the directory package view so rename and references see
+	// the same package the editor is currently showing.
+	for _, doc := range s.docs {
+		if !doc.Open || doc.Path == "" || strings.ToLower(filepath.Ext(doc.Path)) != ".toy" ||
+			packageDirectoryKey(filepath.Dir(doc.Path)) != packageKey {
 			continue
 		}
-		if doc, ok := s.getPath(filepath.Join(directory, entry.Name())); ok {
+		if current, ok := s.docs[doc.URI]; !ok || current != doc {
+			continue
+		}
+		if !seen[doc.URI] {
+			seen[doc.URI] = true
 			documents = append(documents, doc)
 		}
 	}
+
+	sort.Slice(documents, func(i, j int) bool {
+		return documents[i].URI < documents[j].URI
+	})
 	return documents
 }
 

@@ -69,6 +69,9 @@ type sourceToken struct {
 	role        tokenRole
 	containerID int
 	nonEmpty    bool
+	// forceLineBreak is set for a multiline vector whose opener is followed
+	// by a newline. Inline vectors retain their original line layout.
+	forceLineBreak bool
 }
 
 // Format formats Toy source without changing its line layout. It preserves
@@ -107,6 +110,7 @@ func Format(source []byte, options Options) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	markMultilineVectorClosers(source, tokens)
 	formatted := render(source, tokens, options)
 	if err := verifyTokenSequence(source, tokens, formatted); err != nil {
 		return nil, err
@@ -163,6 +167,10 @@ func render(source []byte, tokens []sourceToken, options Options) []byte {
 		token := &tokens[i]
 		gap := source[previousEnd:token.start]
 		lineBreaks := appendLineBreaks(&output, gap)
+		if token.forceLineBreak && lineBreaks == 0 {
+			output.Write(preferredLineBreak(source))
+			lineBreaks = 1
+		}
 
 		if token.role == roleClose && depth > 0 {
 			depth--

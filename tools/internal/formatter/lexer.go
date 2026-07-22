@@ -27,6 +27,40 @@ func lexSourceTokens(source []byte) ([]sourceToken, error) {
 	return lexer.tokens, nil
 }
 
+// markMultilineVectorClosers records the one layout hint supported by the
+// formatter: a newline immediately after a vector opener makes its matching
+// closer multiline. Inline vectors, including their comments and nested
+// statements, keep the existing line layout.
+func markMultilineVectorClosers(source []byte, tokens []sourceToken) {
+	openIndexes := make(map[int]int)
+	for index, token := range tokens {
+		if token.role == roleOpen {
+			openIndexes[token.containerID] = index
+			continue
+		}
+		if token.role != roleClose {
+			continue
+		}
+
+		openIndex, ok := openIndexes[token.containerID]
+		if !ok || openIndex >= len(tokens) || tokens[openIndex].start >= len(source) ||
+			source[tokens[openIndex].start] != '[' {
+			continue
+		}
+
+		first := openIndex + 1
+		if first < index {
+			tokens[index].forceLineBreak = containsLineBreak(source[tokens[openIndex].end:tokens[first].start])
+			continue
+		}
+		tokens[index].forceLineBreak = containsLineBreak(source[tokens[openIndex].end:token.start])
+	}
+}
+
+func containsLineBreak(source []byte) bool {
+	return bytes.ContainsAny(source, "\r\n")
+}
+
 func verifyTokenSequence(source []byte, tokens []sourceToken, formatted []byte) error {
 	formattedTokens, err := lexSourceTokens(formatted)
 	if err != nil {

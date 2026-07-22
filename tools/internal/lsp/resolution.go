@@ -34,6 +34,10 @@ func (s *Server) resolveSourceReference(uri string, position analysis.Position) 
 }
 
 func (s *Server) resolveDefinition(uri string, position analysis.Position) (definitionTarget, bool) {
+	return s.resolveDefinitionWithResolver(uri, position, nil)
+}
+
+func (s *Server) resolveDefinitionWithResolver(uri string, position analysis.Position, resolver *resolutionCache) (definitionTarget, bool) {
 	doc, ok := s.docs.get(uri)
 	if !ok {
 		return definitionTarget{}, false
@@ -46,6 +50,9 @@ func (s *Server) resolveDefinition(uri string, position analysis.Position) (defi
 	token, ok := analysis.LookupTokenAt(doc.Index, position)
 	if !ok {
 		return definitionTarget{}, false
+	}
+	if resolver != nil {
+		return resolver.resolveWord(doc, token.Text)
 	}
 	return s.resolveWord(doc, token.Text)
 }

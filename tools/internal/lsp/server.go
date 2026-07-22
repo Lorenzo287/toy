@@ -372,14 +372,15 @@ func (s *Server) handleReferences(w io.Writer, req request) error {
 		Line:      params.Position.Line,
 		Character: params.Position.Character,
 	}
-	target, resolved := s.resolveDefinition(params.TextDocument.URI, position)
+	resolver := newResolutionCache(s.docs)
+	target, resolved := s.resolveDefinitionWithResolver(params.TextDocument.URI, position, resolver)
 	locations := make([]location, 0)
 	if resolved && target.Symbol.Detail == "local binding" {
 		for _, rng := range analysis.LookupReferences(doc.Index, position, params.Context.IncludeDeclaration) {
 			locations = append(locations, location{URI: doc.URI, Range: toLSPRange(rng)})
 		}
 	} else if resolved {
-		for _, occurrence := range s.wordOccurrences(target, params.Context.IncludeDeclaration) {
+		for _, occurrence := range s.wordOccurrencesWithResolver(target, params.Context.IncludeDeclaration, resolver) {
 			locations = append(locations, location{URI: occurrence.URI, Range: toLSPRange(occurrence.Range)})
 		}
 	}
@@ -410,7 +411,8 @@ func (s *Server) handleRename(w io.Writer, req request) error {
 		Line:      params.Position.Line,
 		Character: params.Position.Character,
 	}
-	target, resolved := s.resolveDefinition(params.TextDocument.URI, position)
+	resolver := newResolutionCache(s.docs)
+	target, resolved := s.resolveDefinitionWithResolver(params.TextDocument.URI, position, resolver)
 	if !resolved {
 		return writeResponse(w, response{
 			JSONRPC: "2.0",
@@ -428,7 +430,7 @@ func (s *Server) handleRename(w io.Writer, req request) error {
 			})
 		}
 	} else {
-		for _, occurrence := range s.wordOccurrences(target, true) {
+		for _, occurrence := range s.wordOccurrencesWithResolver(target, true, resolver) {
 			changes[occurrence.URI] = append(changes[occurrence.URI], textEdit{
 				Range:   toLSPRange(occurrence.RenameRange),
 				NewText: params.NewName,
