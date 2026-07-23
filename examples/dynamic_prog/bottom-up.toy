@@ -31,7 +31,22 @@
 	$n at
 ] def
 
+\ times is not an improvement since we still need a counter
+\ for indexed access
+'fib-bottom-table-times [ | n |
+	[ 0 1 ]
+	[ 2
+		$n pred [ | j |
+			dup
+			[ $j pred at ] [ $j 2 - at ] bi +
+			push-back
+			$j succ
+		] times drop
+	] [] try
+	$n at
+] def
+
 35 fib-bottom print
 35 fib-bottom-table-while print
 35 fib-bottom-table-fold print
-
+35 fib-bottom-table-times print
