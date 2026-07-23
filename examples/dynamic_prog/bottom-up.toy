@@ -1,0 +1,37 @@
+\ The iterative approach can exploit Toy's stack for memoization,
+\ without the need for any data structure.
+'fib-bottom [ | n |
+	0 1
+	$n [ tuck + ] times
+	drop
+] def
+
+\ Tabulation can also be done with a vector but requires more code.
+'fib-bottom-table-while [ | n |
+	[ 0 1 ]
+	2 [ $n <= ] [ | j |
+		dup
+		[ $j pred at ] [ $j 2 - at ] bi +
+		push-back
+		$j succ
+	] while drop
+	$n at
+] def
+
+\ Again with a vector, using fold instead of while.
+'fib-bottom-table-fold [ | n |
+	[ 0 1 ]
+	[
+		2 $n succ range [ | j |
+			dup
+			[ $j pred at ] [ $j 2 - at ] bi +
+			push-back
+		] fold
+	] [] try \ Avoid range error for n = 1
+	$n at
+] def
+
+35 fib-bottom print
+35 fib-bottom-table-while print
+35 fib-bottom-table-fold print
+

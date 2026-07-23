@@ -1,0 +1,27 @@
+'cache-get [ /* map key -- map value */
+	[ dup ] dip get
+] def
+
+'cache-put [ /* map key value -- map value */
+	dup [ assoc ] dip
+] def
+
+'fib-top-r [ /* map n -- map value */
+	[ has? ]
+	[ cache-get ]
+	[
+		| n |
+		$n pred fib-top-r | a |
+		$n 2 - fib-top-r | b |
+		$n $a $b + cache-put
+	] ifelse
+] def
+
+\ NOTE: The recursive function accesses a map
+\       on top on the stack so that the state
+\       is preserved between calls.
+'fib-top [ | n |
+	{ 0 0 1 1 } $n fib-top-r nip
+] def
+
+35 fib-top print

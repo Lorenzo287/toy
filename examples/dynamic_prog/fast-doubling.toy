@@ -1,0 +1,19 @@
+'fib-pair [ /* n -- F(n) F(n+1) */
+	| n |
+	[ $n 0 == ]
+	[ 0 1 ]
+	[
+		$n 2 / fib-pair | a b |
+
+		$a 2 $b * $a - * | c |
+		$a square $b square + | d |
+
+		[ $n 2 % 0 == ]
+		[ $c $d ]
+		[ $d $c $d + ] ifelse
+	] ifelse
+] def
+
+'fib-fast [ fib-pair drop ] def
+
+35 fib-fast print
